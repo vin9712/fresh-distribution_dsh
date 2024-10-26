@@ -16,7 +16,7 @@ public class FreshDistributionApplication
     {
         // System.setProperty("spring.devtools.restart.enabled", "false");
         SpringApplication.run(FreshDistributionApplication.class, args);
-        System.out.println("(♥◠‿◠)ﾉﾞ  若依 Demo 启动成功   ლ(´ڡ`ლ)ﾞ  \n" +
+        System.out.println("(♥◠‿◠)ﾉﾞ  生鲜配送系统启动成功   ლ(´ڡ`ლ)ﾞ  \n" +
                 " .-------.       ____     __        \n" +
                 " |  _ _   \\      \\   \\   /  /    \n" +
                 " | ( ' )  |       \\  _. /  '       \n" +

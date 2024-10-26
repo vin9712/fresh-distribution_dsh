@@ -163,17 +163,10 @@
                 <version>${project.version}</version>
             </dependency>
 
-            <!-- 核心模块-->
+            <!-- 系统入口 -->
             <dependency>
                 <groupId>com.lin</groupId>
-                <artifactId>lin-framework</artifactId>
-                <version>${project.version}</version>
-            </dependency>
-
-            <!-- 系统模块-->
-            <dependency>
-                <groupId>com.lin</groupId>
-                <artifactId>lin-system</artifactId>
+                <artifactId>lin-entry</artifactId>
                 <version>${project.version}</version>
             </dependency>
 
@@ -189,11 +182,10 @@
 
     <modules>
         <module>lin-admin</module>
-        <module>lin-framework</module>
-        <module>lin-system</module>
         <module>lin-quartz</module>
         <module>lin-generator</module>
         <module>lin-common</module>
+        <module>lin-entry</module>
     </modules>
     <packaging>pom</packaging>
 
