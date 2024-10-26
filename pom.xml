@@ -163,10 +163,10 @@
                 <version>${project.version}</version>
             </dependency>
 
-            <!-- 系统入口 -->
+            <!-- 后台管理 -->
             <dependency>
                 <groupId>com.lin</groupId>
-                <artifactId>lin-entry</artifactId>
+                <artifactId>lin-admin</artifactId>
                 <version>${project.version}</version>
             </dependency>
 

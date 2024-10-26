@@ -12,10 +12,16 @@
     <artifactId>lin-admin</artifactId>
 
     <description>
-        若依核心系统模块
+        若依系统模块
     </description>
 
     <dependencies>
+
+        <!-- 通用工具-->
+        <dependency>
+            <groupId>com.lin</groupId>
+            <artifactId>lin-common</artifactId>
+        </dependency>
 
         <!-- SpringBoot Web容器 -->
         <dependency>
@@ -72,48 +78,6 @@
             <artifactId>mysql-connector-j</artifactId>
         </dependency>
 
-        <!-- 定时任务-->
-        <dependency>
-            <groupId>com.lin</groupId>
-            <artifactId>lin-quartz</artifactId>
-        </dependency>
-
-        <!-- 代码生成-->
-        <dependency>
-            <groupId>com.lin</groupId>
-            <artifactId>lin-generator</artifactId>
-        </dependency>
-
     </dependencies>
-
-    <build>
-        <plugins>
-            <plugin>
-                <groupId>org.springframework.boot</groupId>
-                <artifactId>spring-boot-maven-plugin</artifactId>
-                <version>2.5.15</version>
-                <configuration>
-                    <fork>true</fork> <!-- 如果没有该配置，devtools不会生效 -->
-                </configuration>
-                <executions>
-                    <execution>
-                        <goals>
-                            <goal>repackage</goal>
-                        </goals>
-                    </execution>
-                </executions>
-            </plugin>
-            <plugin>   
-                <groupId>org.apache.maven.plugins</groupId>   
-                <artifactId>maven-war-plugin</artifactId>   
-                <version>3.1.0</version>   
-                <configuration>
-                    <failOnMissingWebXml>false</failOnMissingWebXml>
-                    <warName>${project.artifactId}</warName>
-                </configuration>   
-           </plugin>   
-        </plugins>
-        <finalName>${project.artifactId}</finalName>
-    </build>
 
 </project>
