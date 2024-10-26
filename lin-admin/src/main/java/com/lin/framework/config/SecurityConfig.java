@@ -4,7 +4,9 @@ import com.lin.framework.config.properties.PermitAllUrlProperties;
 import com.lin.framework.security.filter.JwtAuthenticationTokenFilter;
 import com.lin.framework.security.handle.AuthenticationEntryPointImpl;
 import com.lin.framework.security.handle.LogoutSuccessHandlerImpl;
+import org.apache.commons.collections4.CollectionUtils;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -21,6 +23,8 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 import org.springframework.security.web.authentication.logout.LogoutFilter;
 import org.springframework.web.filter.CorsFilter;
 
+import java.util.List;
+
 /**
  * spring security配置
  * 
@@ -28,14 +32,17 @@ import org.springframework.web.filter.CorsFilter;
  */
 @EnableMethodSecurity(prePostEnabled = true, securedEnabled = true)
 @Configuration
-public class SecurityConfig
-{
+@ConfigurationProperties(prefix = "security")
+public class SecurityConfig {
+
+    private List<String> whitelist;
+
     /**
      * 自定义用户认证逻辑
      */
     @Autowired
     private UserDetailsService userDetailsService;
-    
+
     /**
      * 认证失败处理类
      */
@@ -114,9 +121,15 @@ public class SecurityConfig
                 requests.requestMatchers("/login", "/register", "/captchaImage").permitAll()
                     // 静态资源，可匿名访问
                     .requestMatchers(HttpMethod.GET, "/", "/*.html", "/**.html", "/**.css", "/**.js", "/profile/**").permitAll()
-                    .requestMatchers("/swagger-ui.html", "/v3/api-docs/**", "/swagger-ui/**", "/druid/**").permitAll()
-                    // 除上面外的所有请求全部需要鉴权认证
-                    .anyRequest().authenticated();
+                    .requestMatchers("/swagger-ui.html", "/v3/api-docs/**", "/swagger-ui/**", "/druid/**").permitAll();
+
+                // 自定义白名单
+                if (CollectionUtils.isNotEmpty(whitelist)) {
+                    requests.requestMatchers(whitelist.toArray(new String[0])).permitAll();
+                }
+
+                // 除上面外的所有请求全部需要鉴权认证
+                requests.anyRequest().authenticated();
             })
             // 添加Logout filter
             .logout(logout -> logout.logoutUrl("/logout").logoutSuccessHandler(logoutSuccessHandler))
@@ -135,5 +148,13 @@ public class SecurityConfig
     public BCryptPasswordEncoder bCryptPasswordEncoder()
     {
         return new BCryptPasswordEncoder();
+    }
+
+    public List<String> getWhitelist() {
+        return whitelist;
+    }
+
+    public void setWhitelist(List<String> whitelist) {
+        this.whitelist = whitelist;
     }
 }
