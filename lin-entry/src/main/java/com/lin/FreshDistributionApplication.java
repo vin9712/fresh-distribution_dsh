@@ -16,15 +16,6 @@ public class FreshDistributionApplication
     {
         // System.setProperty("spring.devtools.restart.enabled", "false");
         SpringApplication.run(FreshDistributionApplication.class, args);
-        System.out.println("(♥◠‿◠)ﾉﾞ  生鲜配送系统启动成功   ლ(´ڡ`ლ)ﾞ  \n" +
-                " .-------.       ____     __        \n" +
-                " |  _ _   \\      \\   \\   /  /    \n" +
-                " | ( ' )  |       \\  _. /  '       \n" +
-                " |(_ o _) /        _( )_ .'         \n" +
-                " | (_,_).' __  ___(_ o _)'          \n" +
-                " |  |\\ \\  |  ||   |(_,_)'         \n" +
-                " |  | \\ `'   /|   `-'  /           \n" +
-                " |  |  \\    /  \\      /           \n" +
-                " ''-'   `'-'    `-..-'              ");
+        System.out.println("(♥◠‿◠)ﾉﾞ  fresh distribution service started.   ლ(´ڡ`ლ)ﾞ");
     }
 }
