@@ -17,6 +17,12 @@
 
     <dependencies>
 
+        <!-- 配送系统 -->
+        <dependency>
+            <groupId>com.lin</groupId>
+            <artifactId>lin-distribution</artifactId>
+        </dependency>
+
         <!-- 后台管理功能 -->
         <dependency>
             <groupId>com.lin</groupId>

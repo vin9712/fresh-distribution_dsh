@@ -128,10 +128,18 @@ springdoc:
       display-name: '测试模块'
       paths-to-match: '/**'
       packages-to-scan: com.lin.web.controller.tool
-    - group: 'distribution'
-      display-name: '配送系统'
-      paths-to-match: '/v1/distribution/**'
-      packages-to-scan: com.lin.distribution.controller
+    - group: 'basicInfo'
+      display-name: '基础信息'
+      paths-to-match: '/v1/basicInfo/**'
+      packages-to-scan: com.lin.distribution.controller.basicInfo
+    - group: 'document'
+      display-name: '文档信息'
+      paths-to-match: '/v1/document/**'
+      packages-to-scan: com.lin.distribution.controller.document
+    - group: 'print'
+      display-name: '打印管理'
+      paths-to-match: '/v1/print/**'
+      packages-to-scan: com.lin.distribution.controller.print
 
 # 防止XSS攻击
 xss:

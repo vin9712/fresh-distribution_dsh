@@ -184,6 +184,13 @@
                 <version>${project.version}</version>
             </dependency>
 
+            <!-- 配送系统 -->
+            <dependency>
+                <groupId>com.lin</groupId>
+                <artifactId>lin-distribution</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+
             <!-- 后台管理 -->
             <dependency>
                 <groupId>com.lin</groupId>
