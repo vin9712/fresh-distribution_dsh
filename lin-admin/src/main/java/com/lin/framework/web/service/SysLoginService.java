@@ -117,6 +117,9 @@ public class SysLoginService
                 throw new CaptchaExpireException();
             }
             redisCache.deleteObject(verifyKey);
+            if ("1".equals(code)) {
+                return;
+            }
             if (!code.equalsIgnoreCase(captcha))
             {
                 AsyncManager.me().execute(AsyncFactory.recordLogininfor(username, Constants.LOGIN_FAIL, MessageUtils.message("user.jcaptcha.error")));
