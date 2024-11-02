@@ -117,6 +117,9 @@ CREATE TABLE `t_supplier_detail`
     `update_by`   varchar(64)           DEFAULT '' COMMENT '更新者',
     `update_time` datetime              DEFAULT NULL COMMENT '更新时间',
     `remark`      varchar(500)          DEFAULT NULL COMMENT '备注',
+    PRIMARY KEY (`id`) USING BTREE,
+    KEY             `idx_spu_id` (`spu_id`) USING BTREE,
+    KEY             `idx_sku_id` (`sku_id`) USING BTREE
 ) ENGINE=InnoDB AUTO_INCREMENT=1 DEFAULT CHARSET=utf8 ROW_FORMAT=DYNAMIC COMMENT='供应商明细表';
 
 -- 商品sku表
@@ -155,8 +158,8 @@ CREATE TABLE `t_product_sku_quote`
 (
     `id`                   bigint(10) unsigned NOT NULL AUTO_INCREMENT COMMENT '主键',
     `customer_id`          bigint(10) unsigned NOT NULL COMMENT '客户ID',
-    `effective_start_date` timestamp NOT NULL COMMENT '报价生效时间',
-    `effective_end_date`   timestamp NOT NULL COMMENT '报价结束时间',
+    `effective_start_date` datetime NOT NULL COMMENT '报价生效时间',
+    `effective_end_date`   datetime NOT NULL COMMENT '报价结束时间',
     `valid`                tinyint(1) NOT NULL DEFAULT '1' COMMENT '是否有效',
     `is_deleted`           tinyint(1) NOT NULL DEFAULT '0' COMMENT '逻辑删除',
     `create_by`            varchar(64)        DEFAULT '' COMMENT '创建者',
@@ -166,7 +169,7 @@ CREATE TABLE `t_product_sku_quote`
     `remark`               varchar(500)       DEFAULT NULL COMMENT '备注',
     PRIMARY KEY (`id`) USING BTREE,
     KEY                    `idx_customer_id` (`customer_id`) USING BTREE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8 ROW_FORMAT=DYNAMIC COMMENT='商品报价表';
+) ENGINE=InnoDB AUTO_INCREMENT=1 DEFAULT CHARSET=utf8 ROW_FORMAT=DYNAMIC COMMENT='商品报价表';
 
 -- 商品报价明细表
 CREATE TABLE `t_product_sku_quote_detail`
@@ -249,65 +252,3 @@ CREATE TABLE `t_sale_order_detail`
     PRIMARY KEY (`id`) USING BTREE,
     KEY (`order_id`, `sku_id`) USING BTREE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8 ROW_FORMAT=DYNAMIC COMMENT='销售订单详情表';
-
--- 采购单(一天一张）
-CREATE TABLE `t_purchase_order`
-(
-    `id` bigint(10) unsigned NOT NULL AUTO_INCREMENT COMMENT '主键',
-    `name`     varchar(200) NOT NULL COMMENT '采购单名称',
-    `deliver_date`     date         NOT NULL COMMENT '预计配送日期',
-
-    `is_deleted`       tinyint(1) NOT NULL DEFAULT '0' COMMENT '逻辑删除',
-    `create_by`        varchar(64)           DEFAULT '' COMMENT '创建者',
-    `create_time`      timestamp    NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
-    `update_by`        varchar(64)           DEFAULT '' COMMENT '更新者',
-    `update_time`      datetime              DEFAULT NULL COMMENT '更新时间',
-    `remark`           varchar(500)          DEFAULT NULL COMMENT '备注',
-     PRIMARY KEY (`id`) USING BTREE,
-
-)
-
--- 送货单
-CREATE TABLE `t_delivery_order`
-(
-    `id` bigint(10) unsigned NOT NULL AUTO_INCREMENT COMMENT '主键',
-    `customer_id`      bigint(10) unsigned NOT NULL COMMENT '客户ID',
-    `name`     varchar(200) NOT NULL COMMENT '送货单名称',
-    `deliver_date`     date         NOT NULL COMMENT '预计配送日期',
-
-    `is_deleted`       tinyint(1) NOT NULL DEFAULT '0' COMMENT '逻辑删除',
-    `create_by`        varchar(64)           DEFAULT '' COMMENT '创建者',
-    `create_time`      timestamp    NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
-    `update_by`        varchar(64)           DEFAULT '' COMMENT '更新者',
-    `update_time`      datetime              DEFAULT NULL COMMENT '更新时间',
-    `remark`           varchar(500)          DEFAULT NULL COMMENT '备注',
-     PRIMARY KEY (`id`) USING BTREE,
-
-)
-
--- 送货明细单
-CREATE TABLE `t_delivery_order_detail`
-(
-    `id` bigint(10) unsigned NOT NULL AUTO_INCREMENT COMMENT '主键',
-    `customer_id`      bigint(10) unsigned NOT NULL COMMENT '客户ID',
-    `customer_dept_id` bigint(10) unsigned NOT NULL COMMENT '客户部门ID',
-    `sku_id`           bigint(10) unsigned NOT NULL COMMENT '商品ID',
-    `order_detail_id`  bigint(10) unsigned NOT NULL COMMENT '销售订单详情ID',
-    `product_name`     varchar(200) NOT NULL COMMENT '商品名称',
-    `product_unit`     varchar(20)           DEFAULT NULL COMMENT '商品单位（可为空）',
-    `product_price`    decimal(10, 2) unsigned NOT NULL DEFAULT '0' COMMENT '商品单价',
-    `product_spec`     varchar(200)          DEFAULT NULL COMMENT '商品规格',
-    `num`              decimal(10, 2) unsigned NOT NULL COMMENT '数量',
-    `amount`           decimal(10, 2) unsigned DEFAULT '0' COMMENT '金额',
-
-    `is_deleted`       tinyint(1) NOT NULL DEFAULT '0' COMMENT '逻辑删除',
-    `create_by`        varchar(64)           DEFAULT '' COMMENT '创建者',
-    `create_time`      timestamp    NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
-    `update_by`        varchar(64)           DEFAULT '' COMMENT '更新者',
-    `update_time`      datetime              DEFAULT NULL COMMENT '更新时间',
-    `remark`           varchar(500)          DEFAULT NULL COMMENT '备注',
-     PRIMARY KEY (`id`) USING BTREE,
-
-)
-
--- 进货单
