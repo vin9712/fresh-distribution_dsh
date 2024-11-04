@@ -5,6 +5,10 @@ import Cookies from 'js-cookie'
 import Element from 'element-ui'
 import './assets/styles/element-variables.scss'
 
+// vue-easytable
+import VueEasytable from "vue-easytable";
+import "vue-easytable/libs/theme-default/index.css";
+
 import '@/assets/styles/index.scss' // global css
 import '@/assets/styles/ruoyi.scss' // ruoyi css
 import App from './App'
@@ -75,6 +79,8 @@ DictData.install()
 Vue.use(Element, {
   size: Cookies.get('size') || 'medium' // set element-ui default size
 })
+
+Vue.use(VueEasytable);
 
 Vue.config.productionTip = false
 
