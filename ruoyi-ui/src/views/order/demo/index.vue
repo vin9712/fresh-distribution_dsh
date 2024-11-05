@@ -1,5 +1,29 @@
 <template>
   <div class="spreadsheet">
+    <el-button size="small" type="primary" @click="testFloatyDialog"
+      >测试浮窗</el-button
+    >
+
+    <floaty-dialog
+      show-content-mask
+      :icon-visible="panelFloaty.iconVisible"
+      :visible.sync="panelFloaty.visible"
+      :title="panelFloaty.title"
+      :z-index="100"
+      :min-width="550"
+      :min-height="200"
+      :initial-x="panelFloaty.initialX"
+      :initial-y="panelFloaty.initialY"
+      :initial-height="panelFloaty.initialHeight"
+      :initial-width="panelFloaty.initialWidth"
+      :initial-dock-status="panelFloaty.initialDockStatus"
+      :initial-content-opacity="panelFloaty.initialContentOpacity"
+    >
+      <div class="panel-container">
+        <span> adsfafadfasdf </span>
+      </div>
+    </floaty-dialog>
+
     <ve-table
       style="word-break: break-word"
       fixed-header
@@ -16,14 +40,28 @@
       :contextmenu-header-option="contextmenuHeaderOption"
       :row-style-option="rowStyleOption"
       :column-width-resize-option="columnWidthResizeOption"
+      :event-custom-option="eventCustomOption"
     />
   </div>
 </template>
 <script>
+import FloatyDialog from "./FloatyDialog.vue";
 const COLUMN_KEYS = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K"];
 export default {
   data() {
     return {
+      panelFloaty: {
+        visible: false,
+        iconVisible: true,
+        title: "",
+        type: 0,
+        initialX: 500,
+        initialY: 200,
+        initialHeight: 500,
+        initialWidth: 640,
+        initialDockStatus: 0,
+        initialContentOpacity: 100,
+      },
       startRowIndex: 0,
       // 是否开启列宽可变
       columnWidthResizeOption: {
@@ -97,9 +135,23 @@ export default {
         clickHighlight: false,
         hoverHighlight: false,
       },
+      // 自定义事件
+      eventCustomOption: {
+        bodyCellEvents: ({ row, column, rowIndex }) => {
+          return {
+            dblclick: (event) => {
+              console.log("dblclick::", row, column, rowIndex, event);
+              this.panelFloaty.initialX = event.clientX + event.offsetX;
+              this.panelFloaty.initialY = event.clientY + event.offsetY;
+              this.panelFloaty.visible = true;
+            },
+          };
+        },
+      },
       tableData: [],
     };
   },
+  components: { FloatyDialog },
   computed: {
     columns() {
       let columns = [
@@ -128,6 +180,10 @@ export default {
     },
   },
   methods: {
+    testFloatyDialog() {
+      console.log("----测试浮动窗口");
+      this.panelFloaty.visible = true;
+    },
     renderRowIndex({ row, column, rowIndex }) {
       return <span>{rowIndex + this.startRowIndex + 1}</span>;
     },
@@ -173,5 +229,10 @@ export default {
 .spreadsheet {
   padding: 0 10px;
   margin: 20px 0;
+}
+
+.panel-container {
+  background-color: white;
+  width: 100%;
 }
 </style>
