@@ -25,7 +25,7 @@ CREATE TABLE `t_product_spu`
     `id`            bigint(10) unsigned NOT NULL AUTO_INCREMENT COMMENT '主键',
     `category_id`   bigint(10) unsigned NOT NULL COMMENT '分类ID',
     `name`          varchar(200) NOT NULL COMMENT '商品名称',
-    `description`   varchar(200) NOT NULL COMMENT '商品描述',
+    `description`   varchar(200) DEFAULT NULL COMMENT '商品描述',
     `mnemonic_code` varchar(128) NOT NULL COMMENT '助记码',
     `images`        json                  DEFAULT NULL COMMENT '商品图片',
     `saleable`      tinyint(1) NOT NULL COMMENT '是否上架',

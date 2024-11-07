@@ -1,0 +1,116 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.lin.distribution.mapper.ProductSpuMapper">
+
+    <resultMap type="com.lin.distribution.domain.ProductSpu" id="ProductSpuResult">
+        <result property="id"    column="id"    />
+        <result property="categoryId"    column="category_id"    />
+        <result property="name"    column="name"    />
+        <result property="description"    column="description"    />
+        <result property="mnemonicCode"    column="mnemonic_code"    />
+        <result property="images"    column="images"    />
+        <result property="saleable"    column="saleable"    />
+        <result property="sort"    column="sort"    />
+        <result property="valid"    column="valid"    />
+        <result property="isDeleted"    column="is_deleted"    />
+        <result property="createBy"    column="create_by"    />
+        <result property="createTime"    column="create_time"    />
+        <result property="updateBy"    column="update_by"    />
+        <result property="updateTime"    column="update_time"    />
+        <result property="remark"    column="remark"    />
+    </resultMap>
+
+    <sql id="selectProductSpuVo">
+        select id, category_id, name, description, mnemonic_code, images, saleable, sort, valid, is_deleted, create_by, create_time, update_by, update_time, remark from t_product_spu
+    </sql>
+
+    <select id="selectProductSpuList" parameterType="com.lin.distribution.domain.ProductSpu" resultMap="ProductSpuResult">
+        <include refid="selectProductSpuVo"/>
+        <where>
+            <if test="categoryId != null  and categoryId != ''"> and category_id = #{categoryId}</if>
+            <if test="name != null  and name != ''"> and name like concat('%', #{name}, '%') or mnemonic_code like concat('%', #{name}, '%') </if>
+            <if test="description != null  and description != ''"> and description = #{description}</if>
+            <if test="mnemonicCode != null  and mnemonicCode != ''"> and mnemonic_code like concat('%', #{mnemonicCode}, '%')</if>
+            <if test="images != null  and images != ''"> and images = #{images}</if>
+            <if test="saleable != null "> and saleable = #{saleable}</if>
+            <if test="sort != null "> and sort = #{sort}</if>
+            <if test="valid != null "> and valid = #{valid}</if>
+            <if test="isDeleted != null "> and is_deleted = #{isDeleted}</if>
+        </where>
+    </select>
+
+    <select id="selectProductSpuById" parameterType="Long" resultMap="ProductSpuResult">
+        <include refid="selectProductSpuVo"/>
+        where id = #{id}
+    </select>
+
+    <insert id="insertProductSpu" parameterType="com.lin.distribution.domain.ProductSpu" useGeneratedKeys="true" keyProperty="id">
+        insert into t_product_spu
+        <trim prefix="(" suffix=")" suffixOverrides=",">
+            <if test="categoryId != null and categoryId != ''">category_id,</if>
+            <if test="name != null and name != ''">name,</if>
+            <if test="description != null and description != ''">description,</if>
+            <if test="mnemonicCode != null and mnemonicCode != ''">mnemonic_code,</if>
+            <if test="images != null">images,</if>
+            <if test="saleable != null">saleable,</if>
+            <if test="sort != null">sort,</if>
+            <if test="valid != null">valid,</if>
+            <if test="isDeleted != null">is_deleted,</if>
+            <if test="createBy != null">create_by,</if>
+            <if test="createTime != null">create_time,</if>
+            <if test="updateBy != null">update_by,</if>
+            <if test="updateTime != null">update_time,</if>
+            <if test="remark != null">remark,</if>
+        </trim>
+        <trim prefix="values (" suffix=")" suffixOverrides=",">
+            <if test="categoryId != null and categoryId != ''">#{categoryId},</if>
+            <if test="name != null and name != ''">#{name},</if>
+            <if test="description != null and description != ''">#{description},</if>
+            <if test="mnemonicCode != null and mnemonicCode != ''">#{mnemonicCode},</if>
+            <if test="images != null">#{images},</if>
+            <if test="saleable != null">#{saleable},</if>
+            <if test="sort != null">#{sort},</if>
+            <if test="valid != null">#{valid},</if>
+            <if test="isDeleted != null">#{isDeleted},</if>
+            <if test="createBy != null">#{createBy},</if>
+            <if test="createTime != null">#{createTime},</if>
+            <if test="updateBy != null">#{updateBy},</if>
+            <if test="updateTime != null">#{updateTime},</if>
+            <if test="remark != null">#{remark},</if>
+        </trim>
+    </insert>
+
+    <update id="updateProductSpu" parameterType="com.lin.distribution.domain.ProductSpu">
+        update t_product_spu
+        <trim prefix="SET" suffixOverrides=",">
+            <if test="categoryId != null and categoryId != ''">category_id = #{categoryId},</if>
+            <if test="name != null and name != ''">name = #{name},</if>
+            <if test="description != null and description != ''">description = #{description},</if>
+            <if test="mnemonicCode != null and mnemonicCode != ''">mnemonic_code = #{mnemonicCode},</if>
+            <if test="images != null">images = #{images},</if>
+            <if test="saleable != null">saleable = #{saleable},</if>
+            <if test="sort != null">sort = #{sort},</if>
+            <if test="valid != null">valid = #{valid},</if>
+            <if test="isDeleted != null">is_deleted = #{isDeleted},</if>
+            <if test="createBy != null">create_by = #{createBy},</if>
+            <if test="createTime != null">create_time = #{createTime},</if>
+            <if test="updateBy != null">update_by = #{updateBy},</if>
+            <if test="updateTime != null">update_time = #{updateTime},</if>
+            <if test="remark != null">remark = #{remark},</if>
+        </trim>
+        where id = #{id}
+    </update>
+
+    <delete id="deleteProductSpuById" parameterType="Long">
+        delete from t_product_spu where id = #{id}
+    </delete>
+
+    <delete id="deleteProductSpuByIds" parameterType="String">
+        delete from t_product_spu where id in
+        <foreach item="id" collection="array" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+    </delete>
+</mapper>
