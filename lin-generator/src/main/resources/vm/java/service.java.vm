@@ -9,7 +9,7 @@ import ${packageName}.domain.${ClassName};
  * @author ${author}
  * @date ${datetime}
  */
-public interface I${ClassName}Service 
+public interface ${ClassName}Service
 {
     /**
      * 查询${functionName}
@@ -17,7 +17,7 @@ public interface I${ClassName}Service
      * @param ${pkColumn.javaField} ${functionName}主键
      * @return ${functionName}
      */
-        ${ClassName} select${ClassName}By${pkColumn.capJavaField}(${pkColumn.javaType} ${pkColumn.javaField});
+     ${ClassName} select${ClassName}By${pkColumn.capJavaField}(${pkColumn.javaType} ${pkColumn.javaField});
 
     /**
      * 查询${functionName}列表
