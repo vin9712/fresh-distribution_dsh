@@ -1,10 +1,10 @@
-package com.lin.distribution.service.service.impl;
+package com.lin.distribution.service.impl;
 
 import com.lin.common.exception.ServiceException;
 import com.lin.common.utils.DateUtils;
 import com.lin.distribution.domain.ProductCategory;
-import com.lin.distribution.mapper.mapper.ProductCategoryMapper;
-import com.lin.distribution.service.service.IProductCategoryService;
+import com.lin.distribution.mapper.ProductCategoryMapper;
+import com.lin.distribution.service.ProductCategoryService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -18,7 +18,7 @@ import java.util.List;
  * @date 2024-11-02
  */
 @Service
-public class ProductCategoryServiceImpl implements IProductCategoryService 
+public class ProductCategoryServiceImpl implements ProductCategoryService
 {
     @Autowired
     private ProductCategoryMapper productCategoryMapper;

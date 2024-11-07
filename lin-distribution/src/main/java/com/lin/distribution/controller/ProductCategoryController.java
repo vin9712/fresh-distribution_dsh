@@ -6,7 +6,7 @@ import com.lin.common.core.domain.AjaxResult;
 import com.lin.common.enums.BusinessType;
 import com.lin.common.utils.poi.ExcelUtil;
 import com.lin.distribution.domain.ProductCategory;
-import com.lin.distribution.service.service.IProductCategoryService;
+import com.lin.distribution.service.ProductCategoryService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletResponse;
@@ -27,7 +27,7 @@ import java.util.List;
 @RequestMapping("/product/category")
 public class ProductCategoryController extends BaseController {
     @Autowired
-    private IProductCategoryService productCategoryService;
+    private ProductCategoryService productCategoryService;
 
     /**
      * 查询商品分类列表

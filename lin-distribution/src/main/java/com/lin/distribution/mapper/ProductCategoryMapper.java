@@ -1,4 +1,4 @@
-package com.lin.distribution.mapper.mapper;
+package com.lin.distribution.mapper;
 
 import com.lin.distribution.domain.ProductCategory;
 

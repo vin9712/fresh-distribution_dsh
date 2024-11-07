@@ -1,4 +1,4 @@
-package com.lin.distribution.service.service;
+package com.lin.distribution.service;
 
 import com.lin.distribution.domain.ProductCategory;
 
@@ -10,7 +10,7 @@ import java.util.List;
  * @author lin
  * @date 2024-11-02
  */
-public interface IProductCategoryService {
+public interface ProductCategoryService {
     /**
      * 查询商品分类
      *
