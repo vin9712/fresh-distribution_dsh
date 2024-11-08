@@ -2,6 +2,7 @@ package com.lin.distribution.service.impl;
 
 import java.util.List;
 
+import com.lin.common.exception.ServiceException;
 import com.lin.common.utils.DateUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -50,10 +51,12 @@ public class ProductSpuServiceImpl implements ProductSpuService {
      */
     @Override
     public int insertProductSpu(ProductSpu productSpu) {
+        // check unique spu
+        checkUniqueSpu(productSpu);
+
         productSpu.setCreateTime(DateUtils.getNowDate());
         return productSpuMapper.insertProductSpu(productSpu);
     }
-
     /**
      * 修改商品spu
      *
@@ -62,6 +65,9 @@ public class ProductSpuServiceImpl implements ProductSpuService {
      */
     @Override
     public int updateProductSpu(ProductSpu productSpu) {
+        // check unique spu
+        checkUniqueSpu(productSpu);
+
         productSpu.setUpdateTime(DateUtils.getNowDate());
         return productSpuMapper.updateProductSpu(productSpu);
     }
@@ -74,6 +80,7 @@ public class ProductSpuServiceImpl implements ProductSpuService {
      */
     @Override
     public int deleteProductSpuByIds(Long[] ids) {
+        // todo check sku list, if contains customerId != 0, throw error
         return productSpuMapper.deleteProductSpuByIds(ids);
     }
 
@@ -87,4 +94,26 @@ public class ProductSpuServiceImpl implements ProductSpuService {
     public int deleteProductSpuById(Long id) {
         return productSpuMapper.deleteProductSpuById(id);
     }
+
+    private void checkUniqueSpu(ProductSpu productSpu) {
+        if (productSpu == null) {
+            throw new ServiceException("product spu is null");
+        }
+
+        List<ProductSpu> spuList = productSpuMapper.selectProductSpuByCategoryIdAndName(productSpu.getCategoryId(), productSpu.getName());
+
+        long count = 0;
+        if (productSpu.getId() != null) {
+            count = spuList.stream()
+                    .filter(item -> !item.getId().equals(productSpu.getId()))
+                    .count();
+        } else {
+            count = spuList.size();
+        }
+
+        if (count > 0) {
+            throw new ServiceException("spu name is exist");
+        }
+    }
+
 }

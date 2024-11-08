@@ -55,7 +55,7 @@ public class ProductSpu extends BaseEntity {
      * 是否上架
      */
     @Excel(name = "是否上架")
-    private Boolean saleable;
+    private Integer saleable;
 
     /**
      * 商品排序
@@ -67,7 +67,7 @@ public class ProductSpu extends BaseEntity {
      * 是否有效
      */
     @Excel(name = "是否有效")
-    private Boolean valid;
+    private Integer valid;
 
     /**
      * 逻辑删除

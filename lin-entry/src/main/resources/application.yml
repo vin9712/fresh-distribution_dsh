@@ -98,7 +98,7 @@ token:
   # 令牌密钥
   secret: 76bbb3410f24a9bd1843654f20654052
   # 令牌有效期（默认30分钟）
-  expireTime: 30
+  expireTime: 300
 
 # MyBatis配置
 mybatis:

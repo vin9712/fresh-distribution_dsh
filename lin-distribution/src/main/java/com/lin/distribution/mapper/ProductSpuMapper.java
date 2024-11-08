@@ -2,6 +2,7 @@ package com.lin.distribution.mapper;
 
 import java.util.List;
 import com.lin.distribution.domain.ProductSpu;
+import org.apache.ibatis.annotations.Param;
 
 /**
  * 商品spuMapper接口
@@ -58,4 +59,12 @@ public interface ProductSpuMapper
      * @return 结果
      */
     int deleteProductSpuByIds(Long[] ids);
+
+    /**
+     * 根据分类id和商品名称查询商品
+     * @param categoryId
+     * @param name
+     * @return
+     */
+    List<ProductSpu> selectProductSpuByCategoryIdAndName(@Param("categoryId") String categoryId, @Param("name") String name);
 }
