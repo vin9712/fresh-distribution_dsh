@@ -131,7 +131,12 @@
     >
       <el-table-column type="selection" width="55" align="center" />
       <el-table-column label="主键" align="center" prop="id" />
-      <el-table-column label="分类ID" align="center" prop="categoryId" />
+      <el-table-column
+        label="商品分类"
+        align="center"
+        prop="categoryId"
+        :formatter="categoryFormatter"
+      />
       <el-table-column label="商品名称" align="center" prop="name" />
       <el-table-column label="商品描述" align="center" prop="description" />
       <el-table-column label="助记码" align="center" prop="mnemonicCode" />
@@ -198,13 +203,31 @@
           />
         </el-form-item>
         <el-form-item label="商品名称" prop="name">
-          <el-input v-model="form.name" placeholder="请输入商品名称" />
+          <el-input
+            v-model="form.name"
+            @input="handleInputSpuName"
+            placeholder="请输入商品名称"
+            maxlength="50"
+            show-word-limit
+          />
         </el-form-item>
         <el-form-item label="商品描述" prop="description">
-          <el-input v-model="form.description" placeholder="请输入商品描述" />
+          <el-input
+            v-model="form.description"
+            type="textarea"
+            placeholder="请输入商品描述"
+            maxlength="200"
+            show-word-limit
+          />
         </el-form-item>
         <el-form-item label="助记码" prop="mnemonicCode">
-          <el-input v-model="form.mnemonicCode" placeholder="请输入助记码" />
+          <el-input
+            v-model="form.mnemonicCode"
+            placeholder="请输入助记码"
+            maxlength="50"
+            show-word-limit
+            :disabled="form.id == null"
+          />
         </el-form-item>
         <el-form-item label="是否上架" prop="saleable">
           <el-radio-group v-model="form.saleable">
@@ -231,6 +254,8 @@
             v-model="form.remark"
             type="textarea"
             placeholder="请输入内容"
+            maxlength="500"
+            show-word-limit
           />
         </el-form-item>
       </el-form>
@@ -245,6 +270,7 @@
 <script>
 import { listSpu, getSpu, delSpu, addSpu, updateSpu } from "@/api/product/spu";
 import { listCategory } from "@/api/product/category";
+import { pinyin } from "pinyin-pro";
 import Treeselect from "@riophae/vue-treeselect";
 import "@riophae/vue-treeselect/dist/vue-treeselect.css";
 
@@ -276,6 +302,8 @@ export default {
       total: 0,
       // 商品spu表格数据
       spuList: [],
+      // 商品分类map
+      categoryMap: [],
       // 商品分类树选项
       categoryOptions: [],
       // 弹出层标题
@@ -455,12 +483,41 @@ export default {
     /** 查询商品分类下拉树结构 */
     getTreeselect() {
       listCategory().then((response) => {
+        // init categoryMap
+        this.categoryMap = response.data.reduce((map, item) => {
+          map[item.id] = item.name;
+          return map;
+        });
+
+        // init categoryOptions
         this.categoryOptions = [];
         const category = { id: 0, name: "商品分类", children: [] };
         category.children = this.handleTree(response.data);
         this.categoryOptions.push(category);
       });
     },
+    /** 更新助记码，提取拼音首字母并转换为大写 */
+    handleInputSpuName() {
+      const value = this.form.name;
+      if (!value) {
+        this.form.mnemonicCode = "";
+        return;
+      }
+      this.form.mnemonicCode = pinyin(value, {
+        pattern: "first",
+        toneType: "none",
+        type: "array",
+      })
+        .join("")
+        .toUpperCase();
+    },
+    /** 格式化商品分类 */
+    categoryFormatter(row) {
+      return this.categoryMap
+        ? this.categoryMap[row.categoryId] || ""
+        : row.categoryId;
+    },
   },
+  watch: {},
 };
 </script>
