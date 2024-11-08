@@ -253,6 +253,14 @@ export default {
   dicts: ["biz_yes_no"],
   components: { Treeselect },
   data() {
+    // 商品分类ID校验
+    const validateCategoryId = (rule, value, callback) => {
+      if (value === 0) {
+        callback(new Error("请重新选择商品分类"));
+      } else {
+        callback();
+      }
+    };
     return {
       // 遮罩层
       loading: true,
@@ -293,6 +301,7 @@ export default {
       rules: {
         categoryId: [
           { required: true, message: "商品分类不能为空", trigger: "blur" },
+          { required: true, validator: validateCategoryId },
         ],
         name: [
           { required: true, message: "商品名称不能为空", trigger: "blur" },
