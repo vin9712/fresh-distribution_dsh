@@ -161,7 +161,21 @@ export const dynamicRoutes = [
         meta: { title: '修改生成配置', activeMenu: '/tool/gen' }
       }
     ]
-  }
+  },
+  {
+    path: '/basicInfo/customer-dept',
+    component: Layout,
+    hidden: true,
+    permissions: ['partner:customer:list'],
+    children: [
+      {
+        path: 'index/:customerId(\\d+)',
+        component: () => import('@/views/partner/customer/dept'),
+        name: 'CustomerDept',
+        meta: { title: '客户部门', activeMenu: '/basicInfo/customer' }
+      }
+    ]
+  },
 ]
 
 // 防止连续点击多次路由报错

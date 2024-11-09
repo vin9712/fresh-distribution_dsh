@@ -139,8 +139,6 @@
       />
       <el-table-column label="商品名称" align="center" prop="name" />
       <el-table-column label="商品描述" align="center" prop="description" />
-      <el-table-column label="助记码" align="center" prop="mnemonicCode" />
-      <el-table-column label="商品图片" align="center" prop="images" />
       <el-table-column label="是否上架" align="center" prop="saleable">
         <template slot-scope="scope">
           <dict-tag
@@ -149,7 +147,6 @@
           />
         </template>
       </el-table-column>
-      <el-table-column label="商品排序" align="center" prop="sort" />
       <el-table-column label="是否有效" align="center" prop="valid">
         <template slot-scope="scope">
           <dict-tag :options="dict.type.biz_yes_no" :value="scope.row.valid" />
@@ -191,7 +188,7 @@
     />
 
     <!-- 添加或修改商品spu对话框 -->
-    <el-dialog :title="title" :visible.sync="open" width="500px" append-to-body>
+    <el-dialog :title="title" :visible.sync="open" width="700px" append-to-body>
       <el-form ref="form" :model="form" :rules="rules" label-width="80px">
         <el-form-item label="商品分类" prop="categoryId">
           <treeselect

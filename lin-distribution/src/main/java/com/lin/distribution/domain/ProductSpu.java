@@ -13,7 +13,7 @@ import org.apache.commons.lang3.builder.ToStringStyle;
  * @date 2024-11-07
  */
 @Data
-public class ProductSpu extends BaseEntity {
+public class    ProductSpu extends BaseEntity {
     private static final long serialVersionUID = 1L;
 
     /**
