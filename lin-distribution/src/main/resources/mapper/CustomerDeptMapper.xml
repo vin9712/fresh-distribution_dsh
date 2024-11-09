@@ -1,0 +1,208 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.lin.distribution.mapper.CustomerDeptMapper">
+    <resultMap type="com.lin.distribution.domain.CustomerDept" id="CustomerDeptResult">
+        <result property="id" column="id"/>
+        <result property="customerId" column="customer_id"/>
+        <result property="parentId" column="parent_id"/>
+        <result property="name" column="name"/>
+        <result property="mnemonicCode" column="mnemonic_code"/>
+        <result property="address" column="address"/>
+        <result property="location" column="location"/>
+        <result property="valid" column="valid"/>
+        <result property="isDeleted" column="is_deleted"/>
+        <result property="createBy" column="create_by"/>
+        <result property="createTime" column="create_time"/>
+        <result property="updateBy" column="update_by"/>
+        <result property="updateTime" column="update_time"/>
+        <result property="remark" column="remark"/>
+    </resultMap>
+
+    <sql id="selectCustomerDeptVo">
+        select id,
+               customer_id,
+               parent_id,
+               name,
+               mnemonic_code,
+               address,
+               location,
+               valid,
+               is_deleted,
+               create_by,
+               create_time,
+               update_by,
+               update_time,
+               remark
+        from t_customer_dept
+    </sql>
+
+    <select id="selectCustomerDeptList" parameterType="com.lin.distribution.domain.CustomerDept"
+            resultMap="CustomerDeptResult">
+        <include refid="selectCustomerDeptVo"/>
+        <where>
+            <if test="customerId != null">
+                and customer_id = #{customerId}
+            </if>
+            <if test="name != null  and name != ''">
+                and name like concat('%', #{name}, '%')
+            </if>
+            <if test="valid != null">
+                and valid = #{valid}
+            </if>
+        </where>
+    </select>
+
+    <select id="selectCustomerDeptById" parameterType="Long" resultMap="CustomerDeptResult">
+        <include refid="selectCustomerDeptVo"/>
+        where id = #{id}
+    </select>
+
+    <insert id="insertCustomerDept" parameterType="com.lin.distribution.domain.CustomerDept" useGeneratedKeys="true"
+            keyProperty="id">
+        insert into t_customer_dept
+        <trim prefix="(" suffix=")" suffixOverrides=",">
+            <if test="customerId != null">
+                customer_id,
+            </if>
+            <if test="parentId != null">
+                parent_id,
+            </if>
+            <if test="name != null and name != ''">
+                name,
+            </if>
+            <if test="mnemonicCode != null and mnemonicCode != ''">
+                mnemonic_code,
+            </if>
+            <if test="address != null">
+                address,
+            </if>
+            <if test="location != null">
+                location,
+            </if>
+            <if test="valid != null">
+                valid,
+            </if>
+            <if test="isDeleted != null">
+                is_deleted,
+            </if>
+            <if test="createBy != null">
+                create_by,
+            </if>
+            <if test="createTime != null">
+                create_time,
+            </if>
+            <if test="updateBy != null">
+                update_by,
+            </if>
+            <if test="updateTime != null">
+                update_time,
+            </if>
+            <if test="remark != null">
+                remark,
+            </if>
+        </trim>
+        <trim prefix="values (" suffix=")" suffixOverrides=",">
+            <if test="customerId != null">
+                #{customerId},
+            </if>
+            <if test="parentId != null">
+                #{parentId},
+            </if>
+            <if test="name != null and name != ''">
+                #{name},
+            </if>
+            <if test="mnemonicCode != null and mnemonicCode != ''">
+                #{mnemonicCode},
+            </if>
+            <if test="address != null">
+                #{address},
+            </if>
+            <if test="location != null">
+                #{location},
+            </if>
+            <if test="valid != null">
+                #{valid},
+            </if>
+            <if test="isDeleted != null">
+                #{isDeleted},
+            </if>
+            <if test="createBy != null">
+                #{createBy},
+            </if>
+            <if test="createTime != null">
+                #{createTime},
+            </if>
+            <if test="updateBy != null">
+                #{updateBy},
+            </if>
+            <if test="updateTime != null">
+                #{updateTime},
+            </if>
+            <if test="remark != null">
+                #{remark},
+            </if>
+        </trim>
+    </insert>
+
+    <update id="updateCustomerDept" parameterType="com.lin.distribution.domain.CustomerDept">
+        update t_customer_dept
+        <trim prefix="SET" suffixOverrides=",">
+            <if test="customerId != null">
+                customer_id = #{customerId},
+            </if>
+            <if test="parentId != null">
+                parent_id = #{parentId},
+            </if>
+            <if test="name != null and name != ''">
+                name = #{name},
+            </if>
+            <if test="mnemonicCode != null and mnemonicCode != ''">
+                mnemonic_code = #{mnemonicCode},
+            </if>
+            <if test="address != null">
+                address = #{address},
+            </if>
+            <if test="location != null">
+                location = #{location},
+            </if>
+            <if test="valid != null">
+                valid = #{valid},
+            </if>
+            <if test="isDeleted != null">
+                is_deleted = #{isDeleted},
+            </if>
+            <if test="createBy != null">
+                create_by = #{createBy},
+            </if>
+            <if test="createTime != null">
+                create_time = #{createTime},
+            </if>
+            <if test="updateBy != null">
+                update_by = #{updateBy},
+            </if>
+            <if test="updateTime != null">
+                update_time = #{updateTime},
+            </if>
+            <if test="remark != null">
+                remark = #{remark},
+            </if>
+        </trim>
+        where id = #{id}
+    </update>
+
+    <delete id="deleteCustomerDeptById" parameterType="Long">
+        delete
+        from t_customer_dept
+        where id = #{id}
+    </delete>
+
+    <delete id="deleteCustomerDeptByIds" parameterType="String">
+        delete
+        from t_customer_dept where id in
+        <foreach item="id" collection="array" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+    </delete>
+</mapper>
