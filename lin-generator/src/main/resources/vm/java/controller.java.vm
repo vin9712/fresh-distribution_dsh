@@ -38,24 +38,36 @@ public class ${ClassName}Controller extends BaseController
     private ${ClassName}Service ${className}Service;
 
     /**
-     * 查询${functionName}列表
+     * 分页查询${functionName}列表
      */
     @PreAuthorize("@ss.hasPermi('${permissionPrefix}:list')")
-    @GetMapping("/list")
 #if($table.crud || $table.sub)
-    public TableDataInfo list(${ClassName} ${className})
+    @GetMapping("/page")
+    public TableDataInfo page(${ClassName} ${className})
     {
         startPage();
         List<${ClassName}> list = ${className}Service.select${ClassName}List(${className});
         return getDataTable(list);
     }
 #elseif($table.tree)
+    @GetMapping("/list")
     public AjaxResult list(${ClassName} ${className})
     {
         List<${ClassName}> list = ${className}Service.select${ClassName}List(${className});
         return success(list);
     }
 #end
+
+    /**
+     * 查询${functionName}列表
+     */
+    @PreAuthorize("@ss.hasPermi('${permissionPrefix}:list')")
+    @GetMapping("/list")
+    public AjaxResult list(${ClassName} ${className})
+    {
+        List<${ClassName}> list = ${className}Service.select${ClassName}List(${className});
+        return success(list);
+    }
 
     /**
      * 导出${functionName}列表

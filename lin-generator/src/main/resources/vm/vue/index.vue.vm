@@ -110,7 +110,7 @@
           v-hasPermi="['${moduleName}:${businessName}:export']"
         >导出</el-button>
       </el-col>
-      <right-toolbar :showSearch.sync="showSearch" @queryTable="getList"></right-toolbar>
+      <right-toolbar :showSearch.sync="showSearch" @queryTable="getPageList"></right-toolbar>
     </el-row>
 
     <el-table v-loading="loading" :data="${businessName}List" @selection-change="handleSelectionChange">
@@ -176,7 +176,7 @@
       :total="total"
       :page.sync="queryParams.pageNum"
       :limit.sync="queryParams.pageSize"
-      @pagination="getList"
+      @pagination="getPageList"
     />
 
     <!-- 添加或修改${functionName}对话框 -->
@@ -353,7 +353,7 @@
 </template>
 
 <script>
-import { list${BusinessName}, get${BusinessName}, del${BusinessName}, add${BusinessName}, update${BusinessName} } from "@/api/${moduleName}/${businessName}";
+import { page${BusinessName}, list${BusinessName}, get${BusinessName}, del${BusinessName}, add${BusinessName}, update${BusinessName} } from "@/api/${moduleName}/${businessName}";
 
 export default {
   name: "${BusinessName}",
@@ -426,7 +426,7 @@ export default {
     };
   },
   created() {
-    this.getList();
+    this.getPageList();
   },
   methods: {
     /** 查询${functionName}列表 */
@@ -448,6 +448,29 @@ export default {
 #end
 #end
       list${BusinessName}(this.queryParams).then(response => {
+        this.${businessName}List = response.data;
+        this.loading = false;
+      });
+    },
+    /** 分页查询${functionName}列表 */
+    getPageList() {
+      this.loading = true;
+#foreach ($column in $columns)
+#if($column.htmlType == "datetime" && $column.queryType == "BETWEEN")
+      this.queryParams.params = {};
+#break
+#end
+#end
+#foreach ($column in $columns)
+#if($column.htmlType == "datetime" && $column.queryType == "BETWEEN")
+#set($AttrName=$column.javaField.substring(0,1).toUpperCase() + ${column.javaField.substring(1)})
+      if (null != this.daterange${AttrName} && '' != this.daterange${AttrName}) {
+        this.queryParams.params["begin${AttrName}"] = this.daterange${AttrName}[0];
+        this.queryParams.params["end${AttrName}"] = this.daterange${AttrName}[1];
+      }
+#end
+#end
+      page${BusinessName}(this.queryParams).then(response => {
         this.${businessName}List = response.rows;
         this.total = response.total;
         this.loading = false;
@@ -477,7 +500,7 @@ export default {
     /** 搜索按钮操作 */
     handleQuery() {
       this.queryParams.pageNum = 1;
-      this.getList();
+      this.getPageList();
     },
     /** 重置按钮操作 */
     resetQuery() {
@@ -536,13 +559,13 @@ export default {
             update${BusinessName}(this.form).then(response => {
               this.#[[$modal]]#.msgSuccess("修改成功");
               this.open = false;
-              this.getList();
+              this.getPageList();
             });
           } else {
             add${BusinessName}(this.form).then(response => {
               this.#[[$modal]]#.msgSuccess("新增成功");
               this.open = false;
-              this.getList();
+              this.getPageList();
             });
           }
         }
@@ -554,7 +577,7 @@ export default {
       this.#[[$modal]]#.confirm('是否确认删除${functionName}编号为"' + ${pkColumn.javaField}s + '"的数据项？').then(function() {
         return del${BusinessName}(${pkColumn.javaField}s);
       }).then(() => {
-        this.getList();
+        this.getPageList();
         this.#[[$modal]]#.msgSuccess("删除成功");
       }).catch(() => {});
     },

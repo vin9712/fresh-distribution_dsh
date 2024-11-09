@@ -1,6 +1,15 @@
 import request from '@/utils/request'
 
-// 查询客户列表
+// 分页查询客户管理列表
+export function pageCustomer(query) {
+	return request({
+		url: '/partner/customer/page',
+		method: 'get',
+		params: query
+	})
+}
+
+// 查询客户管理列表
 export function listCustomer(query) {
 	return request({
 		url: '/partner/customer/list',

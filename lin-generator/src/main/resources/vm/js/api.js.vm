@@ -1,5 +1,14 @@
 import request from '@/utils/request'
 
+// 分页查询${functionName}列表
+export function page${BusinessName}(query) {
+  return request({
+    url: '/${moduleName}/${businessName}/page',
+    method: 'get',
+    params: query
+  })
+}
+
 // 查询${functionName}列表
 export function list${BusinessName}(query) {
   return request({

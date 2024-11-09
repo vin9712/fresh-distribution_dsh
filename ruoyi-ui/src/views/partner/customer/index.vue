@@ -32,7 +32,7 @@
         <el-button type="warning" plain icon="el-icon-download" size="mini" @click="handleExport"
           v-hasPermi="['partner:customer:export']">导出</el-button>
       </el-col>
-      <right-toolbar :showSearch.sync="showSearch" @queryTable="getList"></right-toolbar>
+      <right-toolbar :showSearch.sync="showSearch" @queryTable="getPageList"></right-toolbar>
     </el-row>
 
     <el-table v-loading="loading" :data="customerList" @selection-change="handleSelectionChange">
@@ -68,7 +68,7 @@
     </el-table>
 
     <pagination v-show="total > 0" :total="total" :page.sync="queryParams.pageNum" :limit.sync="queryParams.pageSize"
-      @pagination="getList" />
+      @pagination="getPageList" />
 
     <!-- 添加或修改客户对话框 -->
     <el-dialog :title="title" :visible.sync="open" width="500px" append-to-body>
@@ -111,6 +111,7 @@
 
 <script>
 import {
+  pageCustomer,
   listCustomer,
   getCustomer,
   delCustomer,
@@ -172,13 +173,21 @@ export default {
     };
   },
   created() {
-    this.getList();
+    this.getPageList();
   },
   methods: {
-    /** 查询客户列表 */
+    /** 查询客户管理列表 */
     getList() {
       this.loading = true;
-      listCustomer(this.queryParams).then((response) => {
+      listCustomer(this.queryParams).then(response => {
+        this.customerList = response.data;
+        this.loading = false;
+      });
+    },
+    /** 分页查询客户管理列表 */
+    getPageList() {
+      this.loading = true;
+      pageCustomer(this.queryParams).then(response => {
         this.customerList = response.rows;
         this.total = response.total;
         this.loading = false;
@@ -211,7 +220,7 @@ export default {
     /** 搜索按钮操作 */
     handleQuery() {
       this.queryParams.pageNum = 1;
-      this.getList();
+      this.getPageList();
     },
     /** 重置按钮操作 */
     resetQuery() {
@@ -248,13 +257,13 @@ export default {
             updateCustomer(this.form).then((response) => {
               this.$modal.msgSuccess("修改成功");
               this.open = false;
-              this.getList();
+              this.getPageList();
             });
           } else {
             addCustomer(this.form).then((response) => {
               this.$modal.msgSuccess("新增成功");
               this.open = false;
-              this.getList();
+              this.getPageList();
             });
           }
         }
@@ -269,7 +278,7 @@ export default {
           return delCustomer(ids);
         })
         .then(() => {
-          this.getList();
+          this.getPageList();
           this.$modal.msgSuccess("删除成功");
         })
         .catch(() => { });
