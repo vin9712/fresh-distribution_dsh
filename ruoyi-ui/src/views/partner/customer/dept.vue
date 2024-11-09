@@ -1,26 +1,13 @@
 <template>
   <div class="app-container">
-    <div class="table-head">
-      <div class="table-head-back">
-        <el-button type="text" icon="el-icon-back" size="medium" @click="goBack">返回</el-button>
-      </div>
-      <div class="table-head-content">
-        <span class="table-head-title">当前客户</span>
-        <el-dropdown>
-          <span class="table-head-dropdown">
-            下拉菜单<i class="el-icon-arrow-down el-icon--right"></i>
-          </span>
-          <el-dropdown-menu slot="dropdown">
-            <el-dropdown-item>黄金糕</el-dropdown-item>
-            <el-dropdown-item>狮子头</el-dropdown-item>
-            <el-dropdown-item>螺蛳粉</el-dropdown-item>
-            <el-dropdown-item disabled>双皮奶</el-dropdown-item>
-            <el-dropdown-item divided>蚵仔煎</el-dropdown-item>
-          </el-dropdown-menu>
-        </el-dropdown>
-      </div>
-    </div>
-    <el-form :model="queryParams" ref="queryForm" size="small" :inline="true" v-show="showSearch" label-width="68px">
+    <el-form :model="queryParams" :rules="queryFormRules" ref="queryForm" size="small" :inline="true" v-show="showSearch"
+      label-width="80px">
+      <el-form-item label="当前客户" prop="customerId">
+        <el-select v-model="queryParams.customerId" filterable @change="handleQuery">
+          <el-option v-for="item in customerOptions" :key="item.id" :label="item.alias ? item.alias : item.name"
+            :value="item.id" />
+        </el-select>
+      </el-form-item>
       <el-form-item label="部门名称" prop="name">
         <el-input v-model="queryParams.name" placeholder="请输入部门名称" clearable @keyup.enter.native="handleQuery" />
       </el-form-item>
@@ -38,27 +25,26 @@
     <el-row :gutter="10" class="mb8">
       <el-col :span="1.5">
         <el-button type="primary" plain icon="el-icon-plus" size="mini" @click="handleAdd"
-          v-hasPermi="['partner:customer/dept:add']">新增</el-button>
+          v-hasPermi="['partner:customerDept:add']">新增</el-button>
       </el-col>
       <el-col :span="1.5">
         <el-button type="success" plain icon="el-icon-edit" size="mini" :disabled="single" @click="handleUpdate"
-          v-hasPermi="['partner:customer/dept:edit']">修改</el-button>
+          v-hasPermi="['partner:customerDept:edit']">修改</el-button>
       </el-col>
       <el-col :span="1.5">
         <el-button type="danger" plain icon="el-icon-delete" size="mini" :disabled="multiple" @click="handleDelete"
-          v-hasPermi="['partner:customer/dept:remove']">删除</el-button>
+          v-hasPermi="['partner:customerDept:remove']">删除</el-button>
       </el-col>
       <el-col :span="1.5">
         <el-button type="warning" plain icon="el-icon-download" size="mini" @click="handleExport"
-          v-hasPermi="['partner:customer/dept:export']">导出</el-button>
+          v-hasPermi="['partner:customerDept:export']">导出</el-button>
       </el-col>
-      <right-toolbar :showSearch.sync="showSearch" @queryTable="getList"></right-toolbar>
+      <right-toolbar :showSearch.sync="showSearch" @queryTable="getPageList"></right-toolbar>
     </el-row>
 
-    <el-table v-loading="loading" :data="customer / deptList" @selection-change="handleSelectionChange">
+    <el-table v-loading="loading" :data="customerDeptList" @selection-change="handleSelectionChange">
       <el-table-column type="selection" width="55" align="center" />
       <el-table-column label="主键" align="center" prop="id" />
-      <el-table-column label="客户ID" align="center" prop="customerId" />
       <el-table-column label="部门名称" align="center" prop="name" />
       <el-table-column label="是否有效" align="center" prop="valid">
         <template slot-scope="scope">
@@ -69,32 +55,35 @@
       <el-table-column label="操作" align="center" class-name="small-padding fixed-width">
         <template slot-scope="scope">
           <el-button size="mini" type="text" icon="el-icon-edit" @click="handleUpdate(scope.row)"
-            v-hasPermi="['partner:customer/dept:edit']">修改</el-button>
+            v-hasPermi="['partner:customerDept:edit']">修改</el-button>
           <el-button size="mini" type="text" icon="el-icon-delete" @click="handleDelete(scope.row)"
-            v-hasPermi="['partner:customer/dept:remove']">删除</el-button>
+            v-hasPermi="['partner:customerDept:remove']">删除</el-button>
         </template>
       </el-table-column>
     </el-table>
 
     <pagination v-show="total > 0" :total="total" :page.sync="queryParams.pageNum" :limit.sync="queryParams.pageSize"
-      @pagination="getList" />
+      @pagination="getPageList" />
 
     <!-- 添加或修改客户部门对话框 -->
     <el-dialog :title="title" :visible.sync="open" width="500px" append-to-body>
       <el-form ref="form" :model="form" :rules="rules" label-width="80px">
+        <el-form-item label="当前客户" prop="customerId">
+          <el-select v-model="form.customerId" disabled>
+            <el-option v-for="item in customerOptions" :key="item.id" :label="item.alias ? item.alias : item.name"
+              :value="item.id" />
+          </el-select>
+        </el-form-item>
         <el-form-item label="部门名称" prop="name">
           <el-input v-model="form.name" placeholder="请输入部门名称" />
         </el-form-item>
         <el-form-item label="助记码" prop="mnemonicCode">
           <el-input v-model="form.mnemonicCode" placeholder="请输入助记码" />
         </el-form-item>
-        <el-form-item label="客户配送地址" prop="address">
-          <el-input v-model="form.address" placeholder="请输入客户配送地址" />
-        </el-form-item>
         <el-form-item label="是否有效" prop="valid">
           <el-radio-group v-model="form.valid">
             <el-radio v-for="dict in dict.type.biz_yes_no" :key="dict.value" :label="parseInt(dict.value)">{{ dict.label
-              }}</el-radio>
+            }}</el-radio>
           </el-radio-group>
         </el-form-item>
         <el-form-item label="逻辑删除" prop="isDeleted">
@@ -113,11 +102,12 @@
 </template>
 
 <script>
-import { listCustomerDept, getCustomerDept, delCustomerDept, addCustomerDept, updateCustomerDept } from "@/api/partner/customerDept";
+import { pageCustomerDept, listCustomerDept, getCustomerDept, delCustomerDept, addCustomerDept, updateCustomerDept } from "@/api/partner/customerDept";
+import { listCustomer } from "@/api/partner/customer";
 
 export default {
-  name: "Customer/dept",
-  dicts: ['biz_yes_no'],
+  name: "CustomerDept",
+  dicts: ['t_customer_type', 'biz_yes_no'],
   data() {
     return {
       // 遮罩层
@@ -132,6 +122,10 @@ export default {
       showSearch: true,
       // 总条数
       total: 0,
+      // 默认客户ID
+      defaultCustomerId: null,
+      // 客户列表数据
+      customerOptions: [],
       // 客户部门表格数据
       customerDeptList: [],
       // 弹出层标题
@@ -144,14 +138,21 @@ export default {
         pageSize: 10,
         customerId: null,
         name: null,
+        mnemonicCode: null,
         valid: null,
+      },
+      // 查询校验
+      queryFormRules: {
+        customerId: [
+          { required: true, message: "当前客户不能为空", trigger: "change" }
+        ],
       },
       // 表单参数
       form: {},
       // 表单校验
       rules: {
         customerId: [
-          { required: true, message: "客户ID不能为空", trigger: "blur" }
+          { required: true, message: "客户ID不能为空", trigger: "change" }
         ],
         parentId: [
           { required: true, message: "上级部门ID不能为空", trigger: "blur" }
@@ -175,16 +176,35 @@ export default {
     };
   },
   created() {
-    this.getList();
+    // 从路由获取参数
+    this.defaultCustomerId = this.$route.params && parseInt(this.$route.params.customerId);
+    // 设置查询参数
+    this.queryParams.customerId = this.defaultCustomerId;
+    this.getCustomerList();
+    this.getPageList();
   },
   methods: {
     /** 查询客户部门列表 */
     getList() {
       this.loading = true;
       listCustomerDept(this.queryParams).then(response => {
+        this.customerDeptList = response.data;
+        this.loading = false;
+      });
+    },
+    /** 分页查询客户部门列表 */
+    getPageList() {
+      this.loading = true;
+      pageCustomerDept(this.queryParams).then(response => {
         this.customerDeptList = response.rows;
         this.total = response.total;
         this.loading = false;
+      });
+    },
+    /** 查询客户列表 */
+    getCustomerList() {
+      listCustomer().then(response => {
+        this.customerOptions = response.data;
       });
     },
     // 取消按钮
@@ -196,13 +216,13 @@ export default {
     reset() {
       this.form = {
         id: null,
-        customerId: null,
+        customerId: this.defaultCustomerId,
         parentId: null,
         name: null,
         mnemonicCode: null,
         address: null,
         location: null,
-        valid: null,
+        valid: 1,
         isDeleted: null,
         createBy: null,
         createTime: null,
@@ -215,7 +235,7 @@ export default {
     /** 搜索按钮操作 */
     handleQuery() {
       this.queryParams.pageNum = 1;
-      this.getList();
+      this.getPageList();
     },
     /** 重置按钮操作 */
     resetQuery() {
@@ -238,7 +258,7 @@ export default {
     handleUpdate(row) {
       this.reset();
       const id = row.id || this.ids
-      getCustomer / dept(id).then(response => {
+      getCustomerDept(id).then(response => {
         this.form = response.data;
         this.open = true;
         this.title = "修改客户部门";
@@ -252,13 +272,13 @@ export default {
             updateCustomerDept(this.form).then(response => {
               this.$modal.msgSuccess("修改成功");
               this.open = false;
-              this.getList();
+              this.getPageList();
             });
           } else {
             addCustomerDept(this.form).then(response => {
               this.$modal.msgSuccess("新增成功");
               this.open = false;
-              this.getList();
+              this.getPageList();
             });
           }
         }
@@ -270,53 +290,16 @@ export default {
       this.$modal.confirm('是否确认删除客户部门编号为"' + ids + '"的数据项？').then(function () {
         return delCustomerDept(ids);
       }).then(() => {
-        this.getList();
+        this.getPageList();
         this.$modal.msgSuccess("删除成功");
       }).catch(() => { });
     },
     /** 导出按钮操作 */
     handleExport() {
-      this.download('partner/customer/dept/export', {
+      this.download('partner/customerDept/export', {
         ...this.queryParams
-      }, `customer/dept_${new Date().getTime()}.xlsx`)
-    },
-    /** 返回上一级页面 */
-    goBack() {
-      this.$router.go(-1);
-    },
+      }, `customerDept_${new Date().getTime()}.xlsx`)
+    }
   }
 }
 </script>
-
-<style lang="scss" scoped>
-::v-deep .table-head {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 10px 20px;
-  border-bottom: 1px solid #e1e1e1;
-  margin-bottom: 20px;
-}
-
-::v-deep .table-head-title {
-  font-size: 16px;
-  font-weight: bold;
-  color: #333;
-  margin-right: 10px;
-}
-
-::v-deep .table-head-back {
-  font-size: 14px;
-  color: #409eff;
-  cursor: pointer;
-}
-
-::v-deep .table-head-back:hover {
-  color: #66b1ff;
-}
-
-::v-deep .table-head-dropdown {
-  margin-left: 5px;
-  color: #409eff;
-}
-</style>

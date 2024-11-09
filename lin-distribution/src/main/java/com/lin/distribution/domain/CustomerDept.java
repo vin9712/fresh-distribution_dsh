@@ -2,10 +2,7 @@ package com.lin.distribution.domain;
 
 import com.lin.common.annotation.Excel;
 import com.lin.common.core.domain.BaseEntity;
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Data;
-import lombok.NoArgsConstructor;
+import lombok.*;
 import org.apache.commons.lang3.builder.ToStringBuilder;
 import org.apache.commons.lang3.builder.ToStringStyle;
 
@@ -15,6 +12,7 @@ import org.apache.commons.lang3.builder.ToStringStyle;
  * @author lin
  * @date 2024-11-09
  */
+@EqualsAndHashCode(callSuper = true)
 @Data
 @Builder
 @AllArgsConstructor

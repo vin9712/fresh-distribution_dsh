@@ -1,9 +1,18 @@
 import request from '@/utils/request'
 
+// 分页查询客户部门列表
+export function pageCustomerDept(query) {
+  return request({
+    url: '/partner/customerDept/page',
+    method: 'get',
+    params: query
+  })
+}
+
 // 查询客户部门列表
 export function listCustomerDept(query) {
   return request({
-    url: '/partner/customer/dept/list',
+    url: '/partner/customerDept/list',
     method: 'get',
     params: query
   })
@@ -12,7 +21,7 @@ export function listCustomerDept(query) {
 // 查询客户部门详细
 export function getCustomerDept(id) {
   return request({
-    url: '/partner/customer/dept/' + id,
+    url: '/partner/customerDept/' + id,
     method: 'get'
   })
 }
@@ -20,7 +29,7 @@ export function getCustomerDept(id) {
 // 新增客户部门
 export function addCustomerDept(data) {
   return request({
-    url: '/partner/customer/dept',
+    url: '/partner/customerDept',
     method: 'post',
     data: data
   })
@@ -29,7 +38,7 @@ export function addCustomerDept(data) {
 // 修改客户部门
 export function updateCustomerDept(data) {
   return request({
-    url: '/partner/customer/dept',
+    url: '/partner/customerDept',
     method: 'put',
     data: data
   })
@@ -38,7 +47,7 @@ export function updateCustomerDept(data) {
 // 删除客户部门
 export function delCustomerDept(id) {
   return request({
-    url: '/partner/customer/dept/' + id,
+    url: '/partner/customerDept/' + id,
     method: 'delete'
   })
 }

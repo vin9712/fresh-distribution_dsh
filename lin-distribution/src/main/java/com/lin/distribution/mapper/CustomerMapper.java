@@ -1,8 +1,8 @@
 package com.lin.distribution.mapper;
 
-import java.util.List;
-
 import com.lin.distribution.domain.Customer;
+
+import java.util.List;
 
 /**
  * 客户Mapper接口

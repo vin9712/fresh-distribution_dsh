@@ -1,16 +1,18 @@
 package com.lin.distribution.service.impl;
 
-import java.util.List;
-
 import com.lin.common.exception.ServiceException;
 import com.lin.common.utils.DateUtils;
+import com.lin.common.utils.PinYinConvertUtils;
+import com.lin.distribution.domain.Customer;
 import com.lin.distribution.domain.CustomerDept;
+import com.lin.distribution.mapper.CustomerMapper;
 import com.lin.distribution.service.CustomerDeptService;
+import com.lin.distribution.service.CustomerService;
+import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
-import com.lin.distribution.mapper.CustomerMapper;
-import com.lin.distribution.domain.Customer;
-import com.lin.distribution.service.CustomerService;
+
+import java.util.List;
 
 /**
  * 客户Service业务层处理
@@ -20,6 +22,7 @@ import com.lin.distribution.service.CustomerService;
  */
 @Service
 public class CustomerServiceImpl implements CustomerService {
+
     @Autowired
     private CustomerMapper customerMapper;
 
@@ -64,10 +67,13 @@ public class CustomerServiceImpl implements CustomerService {
         Long customerId = customer.getId();
 
         // add a default customer dept
+        String customerDeptName =  StringUtils.isNotEmpty(customer.getAlias()) ? customer.getAlias() : customer.getName();
         CustomerDept customerDept = CustomerDept.builder()
                 .customerId(customerId)
                 .parentId(0L)
-                .name(customer.getName())
+                .name(customerDeptName)
+                .mnemonicCode(PinYinConvertUtils.toFirstChar(customerDeptName))
+                .isDeleted(Boolean.FALSE)
                 .build();
         customerDeptService.insertCustomerDept(customerDept);
         return insert;
