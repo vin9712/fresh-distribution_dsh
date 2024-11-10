@@ -1,8 +1,8 @@
 package com.lin.distribution.service;
 
-import java.util.List;
-
 import com.lin.distribution.domain.Customer;
+
+import java.util.List;
 
 /**
  * 客户Service接口
@@ -58,4 +58,11 @@ public interface CustomerService {
      * @return 结果
      */
     int deleteCustomerById(Long id);
+
+    /**
+     * 导入客户数据
+     * @param customerList
+     * @return
+     */
+    String importCustomer(List<Customer> customerList);
 }

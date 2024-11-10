@@ -9,6 +9,7 @@ import com.lin.common.utils.ServletUtils;
 import com.lin.common.utils.poi.ExcelUtil;
 import com.lin.distribution.domain.CustomerDept;
 import com.lin.distribution.service.CustomerDeptService;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -23,6 +24,7 @@ import java.util.Map;
  * @author lin
  * @date 2024-11-09
  */
+@Tag(name = "客户部门管理")
 @RestController
 @RequestMapping("/partner/customerDept")
 public class CustomerDeptController extends BaseController {

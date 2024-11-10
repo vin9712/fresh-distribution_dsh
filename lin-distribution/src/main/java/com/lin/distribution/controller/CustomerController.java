@@ -13,6 +13,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 
@@ -22,7 +23,7 @@ import java.util.List;
  * @author lin
  * @date 2024-11-09
  */
-@Tag(name = "客户信息管理" )
+@Tag(name = "客户信息管理")
 @RestController
 @RequestMapping("/partner/customer" )
 public class CustomerController extends BaseController {
@@ -99,5 +100,14 @@ public class CustomerController extends BaseController {
     @DeleteMapping("/{ids}" )
     public AjaxResult remove(@PathVariable Long[] ids) {
         return toAjax(customerService.deleteCustomerByIds(ids));
+    }
+
+    @Log(title = "客户管理", businessType = BusinessType.IMPORT)
+    @PostMapping("/importData")
+    public AjaxResult importData(MultipartFile file) throws Exception {
+        ExcelUtil<Customer> util = new ExcelUtil<>(Customer.class);
+        List<Customer> customerList = util.importExcel(file.getInputStream());
+        String message = customerService.importCustomer(customerList);
+        return AjaxResult.success(message);
     }
 }

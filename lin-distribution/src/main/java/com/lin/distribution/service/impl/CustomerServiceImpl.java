@@ -2,13 +2,18 @@ package com.lin.distribution.service.impl;
 
 import com.lin.common.exception.ServiceException;
 import com.lin.common.utils.DateUtils;
+import com.lin.common.utils.StringUtils;
+import com.lin.common.utils.bean.BeanValidators;
 import com.lin.distribution.domain.Customer;
 import com.lin.distribution.domain.CustomerDept;
 import com.lin.distribution.mapper.CustomerDeptMapper;
 import com.lin.distribution.mapper.CustomerMapper;
 import com.lin.distribution.service.CustomerDeptService;
 import com.lin.distribution.service.CustomerService;
+import jakarta.validation.Validator;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.collections4.CollectionUtils;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -20,6 +25,7 @@ import java.util.List;
  * @author lin
  * @date 2024-11-08
  */
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class CustomerServiceImpl implements CustomerService {
@@ -27,6 +33,7 @@ public class CustomerServiceImpl implements CustomerService {
     private final CustomerMapper customerMapper;
     private final CustomerDeptMapper customerDeptMapper;
     private final CustomerDeptService customerDeptService;
+    protected final Validator validator;
 
     /**
      * 查询客户
@@ -129,6 +136,46 @@ public class CustomerServiceImpl implements CustomerService {
     @Override
     public int deleteCustomerById(Long id) {
         return customerMapper.deleteCustomerById(id);
+    }
+
+    @Override
+    public String importCustomer(List<Customer> customerList) {
+        if (CollectionUtils.isEmpty(customerList)) {
+            throw new ServiceException("导入客户数据不能为空！");
+        }
+
+        int successNum = 0;
+        int failureNum = 0;
+        StringBuilder successMsg = new StringBuilder();
+        StringBuilder failureMsg = new StringBuilder();
+
+        for (Customer customer : customerList) {
+            try {
+                // 验证是否存在这个客户
+                Customer c = customerMapper.selectCustomerByName(customer.getName()).stream().findFirst().orElse(null);
+                if (StringUtils.isNull(c)) {
+                    BeanValidators.validateWithException(validator, customer);
+                    this.insertCustomer(customer);
+                    successNum++;
+                    successMsg.append("<br/>" + successNum + "、客户 " + customer.getName() + " 导入成功");
+                } else {
+                    failureNum++;
+                    failureMsg.append("<br/>" + failureNum + "、客户 " + customer.getName() + " 已存在");
+                }
+            } catch (Exception e) {
+                failureNum++;
+                String msg = "<br/>" + failureNum + "、客户 " + customer.getName() + " 导入失败：";
+                failureMsg.append(msg).append(e.getMessage());
+                log.error(msg, e);
+            }
+        }
+        if (failureNum > 0) {
+            failureMsg.insert(0, "很抱歉，导入失败！共 " + failureNum + " 条数据格式不正确，错误如下：");
+            throw new ServiceException(failureMsg.toString());
+        } else {
+            successMsg.insert(0, "恭喜您，数据已全部导入成功！共 " + successNum + " 条，数据如下：");
+        }
+        return successMsg.toString();
     }
 
     private void checkUniqueCustomer(Customer customer) {
