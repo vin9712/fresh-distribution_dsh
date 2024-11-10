@@ -72,6 +72,7 @@ CREATE TABLE `t_customer_dept`
     `id`            bigint(10) unsigned NOT NULL AUTO_INCREMENT COMMENT '主键',
     `customer_id`   bigint(10) unsigned NOT NULL COMMENT '客户ID',
     `parent_id`     bigint(10) unsigned NOT NULL COMMENT '上级部门ID',
+    `code`          varchar(200) NOT NULL COMMENT '部门编号',
     `name`          varchar(200) NOT NULL COMMENT '部门名称',
     `mnemonic_code` varchar(128) NOT NULL COMMENT '助记码',
     `address`       varchar(200)          DEFAULT NULL COMMENT '客户配送地址',
@@ -84,7 +85,8 @@ CREATE TABLE `t_customer_dept`
     `update_time`   datetime              DEFAULT NULL COMMENT '更新时间',
     `remark`        varchar(500)          DEFAULT NULL COMMENT '备注',
     PRIMARY KEY (`id`) USING BTREE,
-    UNIQUE INDEX `unq_name` (`name`) USING BTREE
+    UNIQUE INDEX `unq_code` (`code`) USING BTREE,
+    KEY           `idx_name` (`name`) USING BTREE
 ) ENGINE=InnoDB AUTO_INCREMENT=1 DEFAULT CHARSET=utf8 ROW_FORMAT=DYNAMIC COMMENT='客户部门表';
 
 -- 供应商表

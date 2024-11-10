@@ -120,6 +120,6 @@
 
     <select id="selectProductSpuByCategoryIdAndName" resultMap="ProductSpuResult">
         <include refid="selectProductSpuVo"/>
-        where category_id = #{categoryId} and name = #{name}
+        where category_id = #{categoryId} and name = #{name} and is_deleted = 0
     </select>
 </mapper>

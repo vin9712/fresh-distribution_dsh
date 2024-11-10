@@ -2,15 +2,15 @@ package com.lin.distribution.service.impl;
 
 import com.lin.common.exception.ServiceException;
 import com.lin.common.utils.DateUtils;
-import com.lin.common.utils.PinYinConvertUtils;
 import com.lin.distribution.domain.Customer;
 import com.lin.distribution.domain.CustomerDept;
+import com.lin.distribution.mapper.CustomerDeptMapper;
 import com.lin.distribution.mapper.CustomerMapper;
 import com.lin.distribution.service.CustomerDeptService;
 import com.lin.distribution.service.CustomerService;
-import org.apache.commons.lang3.StringUtils;
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
@@ -21,13 +21,12 @@ import java.util.List;
  * @date 2024-11-08
  */
 @Service
+@RequiredArgsConstructor
 public class CustomerServiceImpl implements CustomerService {
 
-    @Autowired
-    private CustomerMapper customerMapper;
-
-    @Autowired
-    private CustomerDeptService customerDeptService;
+    private final CustomerMapper customerMapper;
+    private final CustomerDeptMapper customerDeptMapper;
+    private final CustomerDeptService customerDeptService;
 
     /**
      * 查询客户
@@ -58,6 +57,7 @@ public class CustomerServiceImpl implements CustomerService {
      * @return 结果
      */
     @Override
+    @Transactional
     public int insertCustomer(Customer customer) {
         // check unique customer name
         checkUniqueCustomer(customer);
@@ -67,12 +67,13 @@ public class CustomerServiceImpl implements CustomerService {
         Long customerId = customer.getId();
 
         // add a default customer dept
-        String customerDeptName =  StringUtils.isNotEmpty(customer.getAlias()) ? customer.getAlias() : customer.getName();
+        String customerDeptNo = customerDeptService.generateCustomerDeptNo(customerId, customer.getShowMnemonicCode());
         CustomerDept customerDept = CustomerDept.builder()
                 .customerId(customerId)
                 .parentId(0L)
-                .name(customerDeptName)
-                .mnemonicCode(PinYinConvertUtils.toFirstChar(customerDeptName))
+                .code(customerDeptNo)
+                .name(customer.getShowName())
+                .mnemonicCode(customer.getShowMnemonicCode())
                 .isDeleted(Boolean.FALSE)
                 .build();
         customerDeptService.insertCustomerDept(customerDept);
@@ -86,12 +87,26 @@ public class CustomerServiceImpl implements CustomerService {
      * @return 结果
      */
     @Override
+    @Transactional
     public int updateCustomer(Customer customer) {
         // check unique customer name
         checkUniqueCustomer(customer);
 
         customer.setUpdateTime(DateUtils.getNowDate());
-        return customerMapper.updateCustomer(customer);
+        int updated = customerMapper.updateCustomer(customer);
+
+        // update customer dept
+        CustomerDept cd = new CustomerDept();
+        cd.setCustomerId(customer.getId());
+        cd.setParentId(0L);
+        CustomerDept customerDept = customerDeptMapper.selectCustomerDeptList(cd).stream()
+                .findFirst()
+                .orElseThrow(() -> new ServiceException("customer dept not found"));
+        customerDept.setName(customer.getShowName());
+        customerDept.setMnemonicCode(customer.getShowMnemonicCode());
+        customerDeptService.updateCustomerDept(customerDept);
+
+        return updated;
     }
 
     /**

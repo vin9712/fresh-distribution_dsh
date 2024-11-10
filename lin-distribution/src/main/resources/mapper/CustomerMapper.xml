@@ -102,6 +102,6 @@
 
     <select id="selectCustomerByName" resultMap="CustomerResult">
         <include refid="selectCustomerVo"/>
-        where name = #{name}
+        where name = #{name} and is_deleted = 0
     </select>
 </mapper>

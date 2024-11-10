@@ -34,6 +34,8 @@
         <jaxb-api.version>2.3.1</jaxb-api.version>
         <jakarta.version>6.0.0</jakarta.version>
         <springdoc.version>2.5.0</springdoc.version>
+        <redisson.version>3.16.1</redisson.version>
+        <pinyin4j.version>2.5.1</pinyin4j.version>
     </properties>
 
     <!-- 依赖声明 -->
@@ -168,6 +170,20 @@
                 <groupId>pro.fessional</groupId>
                 <artifactId>kaptcha</artifactId>
                 <version>${kaptcha.version}</version>
+            </dependency>
+
+            <!-- Redisson -->
+            <dependency>
+                <groupId>org.redisson</groupId>
+                <artifactId>redisson-spring-boot-starter</artifactId>
+                <version>${redisson.version}</version>
+            </dependency>
+
+            <!-- 中文拼音 -->
+            <dependency>
+                <groupId>com.belerweb</groupId>
+                <artifactId>pinyin4j</artifactId>
+                <version>${pinyin4j.version}</version>
             </dependency>
 
             <!-- 定时任务-->

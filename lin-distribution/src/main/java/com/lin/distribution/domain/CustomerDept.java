@@ -37,6 +37,11 @@ public class CustomerDept extends BaseEntity {
     private Long parentId;
 
     /**
+     * 客户部门编号
+     */
+    private String code;
+
+    /**
      * 部门名称
      */
     @Excel(name = "部门名称")

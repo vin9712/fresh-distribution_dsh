@@ -1,13 +1,16 @@
 package com.lin.distribution.service.impl;
 
-import java.util.List;
-
+import com.lin.common.exception.ServiceException;
 import com.lin.common.utils.DateUtils;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Service;
-import com.lin.distribution.mapper.CustomerDeptMapper;
 import com.lin.distribution.domain.CustomerDept;
+import com.lin.distribution.mapper.CustomerDeptMapper;
 import com.lin.distribution.service.CustomerDeptService;
+import lombok.RequiredArgsConstructor;
+import org.redisson.api.RMap;
+import org.redisson.api.RedissonClient;
+import org.springframework.stereotype.Service;
+
+import java.util.List;
 
 /**
  * 客户部门Service业务层处理
@@ -16,9 +19,11 @@ import com.lin.distribution.service.CustomerDeptService;
  * @date 2024-11-09
  */
 @Service
+@RequiredArgsConstructor
 public class CustomerDeptServiceImpl implements CustomerDeptService {
-    @Autowired
-    private CustomerDeptMapper customerDeptMapper;
+
+    private final CustomerDeptMapper customerDeptMapper;
+    private final RedissonClient redissonClient;
 
     /**
      * 查询客户部门
@@ -29,6 +34,15 @@ public class CustomerDeptServiceImpl implements CustomerDeptService {
     @Override
     public CustomerDept selectCustomerDeptById(Long id) {
         return customerDeptMapper.selectCustomerDeptById(id);
+    }
+
+    @Override
+    public CustomerDept selectOneParentCustomerDept(Long customerId) {
+        CustomerDept cp = new CustomerDept();
+        cp.setCustomerId(customerId);
+        cp.setParentId(0L);
+        return customerDeptMapper.selectCustomerDeptList(cp).stream().findFirst()
+                .orElseThrow(() -> new ServiceException("customer dept not found"));
     }
 
     /**
@@ -50,6 +64,9 @@ public class CustomerDeptServiceImpl implements CustomerDeptService {
      */
     @Override
     public int insertCustomerDept(CustomerDept customerDept) {
+        // check unique customer dept
+        checkUniqueCustomerDept(customerDept);
+
         customerDept.setCreateTime(DateUtils.getNowDate());
         return customerDeptMapper.insertCustomerDept(customerDept);
     }
@@ -62,6 +79,9 @@ public class CustomerDeptServiceImpl implements CustomerDeptService {
      */
     @Override
     public int updateCustomerDept(CustomerDept customerDept) {
+        // check unique customer dept
+        checkUniqueCustomerDept(customerDept);
+
         customerDept.setUpdateTime(DateUtils.getNowDate());
         return customerDeptMapper.updateCustomerDept(customerDept);
     }
@@ -86,5 +106,39 @@ public class CustomerDeptServiceImpl implements CustomerDeptService {
     @Override
     public int deleteCustomerDeptById(Long id) {
         return customerDeptMapper.deleteCustomerDeptById(id);
+    }
+
+    /**
+     * 生成客户部门编号
+     * rule: 助记码 + 5位数自增序号
+     * @param mnemonicCode 客户助记码
+     * @return
+     */
+    public String generateCustomerDeptNo(Long customerId, String mnemonicCode) {
+        RMap<Long, Integer> rMap = redissonClient.getMap("customerDeptNo");
+        int seqNbr = rMap.addAndGet(customerId, 1);
+        String seqNbrStr = String.format("%05d", seqNbr);
+        return mnemonicCode + seqNbrStr;
+    }
+
+    private void checkUniqueCustomerDept(CustomerDept customerDept) {
+        if (customerDept == null) {
+            throw new ServiceException("customerDept is null");
+        }
+
+        // check dept unique
+        List<CustomerDept> customerDeptList = customerDeptMapper.checkUniqueCustomerDept(customerDept);
+        long count = 0;
+        if (customerDept.getId() != null) {
+            count = customerDeptList.stream()
+                    .filter(item -> !item.getId().equals(customerDept.getId()))
+                    .count();
+        } else {
+            count = customerDeptList.size();
+        }
+
+        if (count > 0) {
+            throw new ServiceException("customerDept name is exist");
+        }
     }
 }

@@ -1,8 +1,8 @@
 package com.lin.distribution.mapper;
 
-import java.util.List;
-
 import com.lin.distribution.domain.CustomerDept;
+
+import java.util.List;
 
 /**
  * 客户部门Mapper接口
@@ -58,4 +58,12 @@ public interface CustomerDeptMapper {
      * @return 结果
      */
     int deleteCustomerDeptByIds(Long[] ids);
+
+    /**
+     * 校验客户部门是否重复
+     *
+     * @param customerDept 客户部门
+     * @return 结果
+     */
+    List<CustomerDept> checkUniqueCustomerDept(CustomerDept customerDept);
 }

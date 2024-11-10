@@ -113,6 +113,6 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
 
     <select id="selectProductCategoryByName" parameterType="String" resultMap="ProductCategoryResult">
         <include refid="selectProductCategoryVo"/>
-        where name = #{name}
+        where name = #{name} and is_deleted = 0
     </select>
 </mapper>

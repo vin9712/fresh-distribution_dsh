@@ -2,7 +2,9 @@ package com.lin.distribution.domain;
 
 import com.lin.common.annotation.Excel;
 import com.lin.common.core.domain.BaseEntity;
+import com.lin.common.utils.PinYinConvertUtils;
 import lombok.Data;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.builder.ToStringBuilder;
 import org.apache.commons.lang3.builder.ToStringStyle;
 
@@ -78,5 +80,13 @@ public class Customer extends BaseEntity {
                 .append("updateTime" , getUpdateTime())
                 .append("remark" , getRemark())
                 .toString();
+    }
+
+    public String getShowName(){
+        return StringUtils.isNotEmpty(alias) ? alias : name;
+    }
+
+    public String getShowMnemonicCode(){
+        return PinYinConvertUtils.toFirstChar(getShowName());
     }
 }

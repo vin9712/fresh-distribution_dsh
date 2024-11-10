@@ -1,7 +1,8 @@
 package com.lin.distribution.service;
 
-import java.util.List;
 import com.lin.distribution.domain.CustomerDept;
+
+import java.util.List;
 
 /**
  * 客户部门Service接口
@@ -18,6 +19,13 @@ public interface CustomerDeptService
      * @return 客户部门
      */
     CustomerDept selectCustomerDeptById(Long id);
+
+    /**
+     * 查询父级部门(parentId=0)
+     * @param customerId
+     * @return
+     */
+    CustomerDept selectOneParentCustomerDept(Long customerId);
 
     /**
      * 查询客户部门列表
@@ -58,4 +66,13 @@ public interface CustomerDeptService
      * @return 结果
      */
     int deleteCustomerDeptById(Long id);
+
+    /**
+     * 生成客户部门编号
+     *
+     * @param customerId
+     * @param mnemonicCode
+     * @return
+     */
+    String generateCustomerDeptNo(Long customerId, String mnemonicCode);
 }

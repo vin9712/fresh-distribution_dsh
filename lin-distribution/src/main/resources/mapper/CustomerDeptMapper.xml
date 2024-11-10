@@ -7,6 +7,7 @@
         <result property="id" column="id"/>
         <result property="customerId" column="customer_id"/>
         <result property="parentId" column="parent_id"/>
+        <result property="code" column="code"/>
         <result property="name" column="name"/>
         <result property="mnemonicCode" column="mnemonic_code"/>
         <result property="address" column="address"/>
@@ -24,6 +25,7 @@
         select id,
                customer_id,
                parent_id,
+               code,
                name,
                mnemonic_code,
                address,
@@ -44,6 +46,9 @@
         <where>
             <if test="customerId != null">
                 and customer_id = #{customerId}
+            </if>
+            <if test="parentId != null">
+                and parent_id = #{parentId}
             </if>
             <if test="name != null  and name != ''">
                 and name like concat('%', #{name}, '%')
@@ -68,6 +73,9 @@
             </if>
             <if test="parentId != null">
                 parent_id,
+            </if>
+            <if test="code != null and code != ''">
+                code,
             </if>
             <if test="name != null and name != ''">
                 name,
@@ -109,6 +117,9 @@
             </if>
             <if test="parentId != null">
                 #{parentId},
+            </if>
+            <if test="code != null and code != ''">
+                #{code},
             </if>
             <if test="name != null and name != ''">
                 #{name},
@@ -154,6 +165,9 @@
             </if>
             <if test="parentId != null">
                 parent_id = #{parentId},
+            </if>
+            <if test="code != null and code != ''">
+                code = #{code},
             </if>
             <if test="name != null and name != ''">
                 name = #{name},
@@ -204,5 +218,10 @@
         <foreach item="id" collection="array" open="(" separator="," close=")">
             #{id}
         </foreach>
+    </delete>
+
+    <delete id="checkUniqueCustomerDept">
+        <include refid="selectCustomerDeptVo"/>
+        where customer_id = #{customerId} and name = #{name} and is_deleted = 0
     </delete>
 </mapper>
