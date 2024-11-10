@@ -40,27 +40,52 @@
         from t_customer_dept
     </sql>
 
+    <sql id="selectCustomerDeptFullVo">
+        select tcd.id,
+               tcd.customer_id,
+               tcd.parent_id,
+               tcd.code,
+               tcd.name,
+               tcd.mnemonic_code,
+               tcd.address,
+               tcd.location,
+               tcd.valid,
+               tcd.is_deleted,
+               tcd.create_by,
+               tcd.create_time,
+               tcd.update_by,
+               tcd.update_time,
+               tcd.remark,
+               tc.name as customerName,
+               tc.alias as customerAlias
+        from t_customer_dept tcd
+        left join t_customer tc on tc.id = tcd.customer_id
+    </sql>
+
     <select id="selectCustomerDeptList" parameterType="com.lin.distribution.domain.CustomerDept"
             resultMap="CustomerDeptResult">
-        <include refid="selectCustomerDeptVo"/>
+        <include refid="selectCustomerDeptFullVo"/>
         <where>
             <if test="customerId != null">
-                and customer_id = #{customerId}
+                and tcd.customer_id = #{customerId}
             </if>
             <if test="parentId != null">
-                and parent_id = #{parentId}
+                and tcd.parent_id = #{parentId}
             </if>
             <if test="parentId == null and params != null and params.get('hideParent') == 'true'">
-                and parent_id != 0
+                and tcd.parent_id != 0
             </if>
             <if test="code != null and code != ''">
-                and code = #{code}
+                and tcd.code = #{code}
             </if>
             <if test="name != null  and name != ''">
-                and name like concat('%', #{name}, '%')
+                and tcd.name like concat('%', #{name}, '%')
+                or tcd.mnemonic_code like concat('%', #{name}, '%')
+                or tc.name like concat('%', #{name}, '%')
+                or tc.alias like concat('%', #{name}, '%')
             </if>
             <if test="valid != null">
-                and valid = #{valid}
+                and tcd.valid = #{valid}
             </if>
         </where>
     </select>
