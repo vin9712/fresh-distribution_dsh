@@ -50,6 +50,9 @@
             <if test="parentId != null">
                 and parent_id = #{parentId}
             </if>
+            <if test="code != null and code != ''">
+                and code = #{code}
+            </if>
             <if test="name != null  and name != ''">
                 and name like concat('%', #{name}, '%')
             </if>
@@ -220,8 +223,8 @@
         </foreach>
     </delete>
 
-    <delete id="checkUniqueCustomerDept">
+    <select id="checkUniqueCustomerDept" resultMap="CustomerDeptResult">
         <include refid="selectCustomerDeptVo"/>
         where customer_id = #{customerId} and name = #{name} and is_deleted = 0
-    </delete>
+    </select>
 </mapper>

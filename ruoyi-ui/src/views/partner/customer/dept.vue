@@ -45,7 +45,8 @@
     <el-table v-loading="loading" :data="customerDeptList" @selection-change="handleSelectionChange">
       <el-table-column type="selection" width="55" align="center" />
       <el-table-column label="主键" align="center" prop="id" />
-      <el-table-column label="部门名称" align="center" prop="name" />
+      <el-table-column label="编号" align="center" prop="code" />
+      <el-table-column label="客户部门" align="center" prop="name" />
       <el-table-column label="是否有效" align="center" prop="valid">
         <template slot-scope="scope">
           <dict-tag :options="dict.type.biz_yes_no" :value="scope.row.valid" />
@@ -75,19 +76,16 @@
           </el-select>
         </el-form-item>
         <el-form-item label="部门名称" prop="name">
-          <el-input v-model="form.name" placeholder="请输入部门名称" />
+          <el-input v-model="form.name" @input="handleUpdateMnemonicCode" placeholder="请输入部门名称" />
         </el-form-item>
         <el-form-item label="助记码" prop="mnemonicCode">
-          <el-input v-model="form.mnemonicCode" placeholder="请输入助记码" />
+          <el-input v-model="form.mnemonicCode" placeholder="请输入助记码" :disabled="form.id == null" />
         </el-form-item>
         <el-form-item label="是否有效" prop="valid">
           <el-radio-group v-model="form.valid">
             <el-radio v-for="dict in dict.type.biz_yes_no" :key="dict.value" :label="parseInt(dict.value)">{{ dict.label
             }}</el-radio>
           </el-radio-group>
-        </el-form-item>
-        <el-form-item label="逻辑删除" prop="isDeleted">
-          <el-input v-model="form.isDeleted" placeholder="请输入逻辑删除" />
         </el-form-item>
         <el-form-item label="备注" prop="remark">
           <el-input v-model="form.remark" type="textarea" placeholder="请输入内容" />
@@ -104,6 +102,7 @@
 <script>
 import { pageCustomerDept, listCustomerDept, getCustomerDept, delCustomerDept, addCustomerDept, updateCustomerDept } from "@/api/partner/customerDept";
 import { listCustomer } from "@/api/partner/customer";
+import { pinyin } from "pinyin-pro";
 
 export default {
   name: "CustomerDept",
@@ -299,7 +298,22 @@ export default {
       this.download('partner/customerDept/export', {
         ...this.queryParams
       }, `customerDept_${new Date().getTime()}.xlsx`)
-    }
+    },
+    /** 更新助记码，提取拼音首字母并转换为大写 */
+    handleUpdateMnemonicCode() {
+      const value = this.form.name;
+      if (!value) {
+        this.form.mnemonicCode = "";
+        return;
+      }
+      this.form.mnemonicCode = pinyin(value, {
+        pattern: "first",
+        toneType: "none",
+        type: "array",
+      })
+        .join("")
+        .toUpperCase();
+    },
   }
 }
 </script>

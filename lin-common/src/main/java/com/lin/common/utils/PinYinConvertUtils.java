@@ -5,6 +5,7 @@ import net.sourceforge.pinyin4j.format.HanyuPinyinCaseType;
 import net.sourceforge.pinyin4j.format.HanyuPinyinOutputFormat;
 import net.sourceforge.pinyin4j.format.HanyuPinyinToneType;
 import net.sourceforge.pinyin4j.format.exception.BadHanyuPinyinOutputFormatCombination;
+import org.apache.commons.lang3.StringUtils;
 
 public class PinYinConvertUtils {
 
@@ -26,6 +27,9 @@ public class PinYinConvertUtils {
      */
     public static String toFirstChar(String chinese) {
         String pinyinStr = "";
+        if (StringUtils.isEmpty(chinese)) {
+            return pinyinStr;
+        }
         char[] newChar = chinese.toCharArray();  //转为单个字符
         HanyuPinyinOutputFormat defaultFormat = new HanyuPinyinOutputFormat();
         defaultFormat.setCaseType(HanyuPinyinCaseType.LOWERCASE);
@@ -52,6 +56,9 @@ public class PinYinConvertUtils {
      */
     public static String toPinyin(String chinese) {
         String pinyinStr = "";
+        if (StringUtils.isEmpty(chinese)) {
+            return pinyinStr;
+        }
         char[] newChar = chinese.toCharArray();
         HanyuPinyinOutputFormat defaultFormat = new HanyuPinyinOutputFormat();
         defaultFormat.setCaseType(HanyuPinyinCaseType.LOWERCASE);

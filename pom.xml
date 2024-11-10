@@ -34,7 +34,7 @@
         <jaxb-api.version>2.3.1</jaxb-api.version>
         <jakarta.version>6.0.0</jakarta.version>
         <springdoc.version>2.5.0</springdoc.version>
-        <redisson.version>3.16.1</redisson.version>
+        <redisson.version>3.38.1</redisson.version>
         <pinyin4j.version>2.5.1</pinyin4j.version>
     </properties>
 

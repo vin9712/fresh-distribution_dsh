@@ -67,6 +67,14 @@ public class CustomerDeptServiceImpl implements CustomerDeptService {
         // check unique customer dept
         checkUniqueCustomerDept(customerDept);
 
+        // get parent customer dept to set parentId & code
+        if (customerDept.getParentId() == null) {
+            CustomerDept parent = this.selectOneParentCustomerDept(customerDept.getCustomerId());
+            customerDept.setParentId(parent.getId());
+            String customerDeptCode = generateCustomerDeptNo(customerDept.getCustomerId(), parent.getMnemonicCode());
+            customerDept.setCode(customerDeptCode);
+        }
+
         customerDept.setCreateTime(DateUtils.getNowDate());
         return customerDeptMapper.insertCustomerDept(customerDept);
     }
@@ -115,10 +123,11 @@ public class CustomerDeptServiceImpl implements CustomerDeptService {
      * @return
      */
     public String generateCustomerDeptNo(Long customerId, String mnemonicCode) {
+        String date = DateUtils.dateTimeNow("yyyyMMdd");
         RMap<Long, Integer> rMap = redissonClient.getMap("customerDeptNo");
         int seqNbr = rMap.addAndGet(customerId, 1);
         String seqNbrStr = String.format("%05d", seqNbr);
-        return mnemonicCode + seqNbrStr;
+        return mnemonicCode + date + seqNbrStr;
     }
 
     private void checkUniqueCustomerDept(CustomerDept customerDept) {

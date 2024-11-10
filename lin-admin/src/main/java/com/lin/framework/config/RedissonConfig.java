@@ -1,48 +1,64 @@
 package com.lin.framework.config;
 
-import org.springframework.cache.annotation.CachingConfigurerSupport;
-import org.springframework.cache.annotation.EnableCaching;
+import org.redisson.Redisson;
+import org.redisson.api.RedissonClient;
+import org.redisson.codec.JsonJacksonCodec;
+import org.redisson.config.Config;
+import org.redisson.spring.data.connection.RedissonConnectionFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.data.redis.connection.RedisConnectionFactory;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.data.redis.serializer.StringRedisSerializer;
 
 /**
- * redis配置
- * 
- * @author lin
+ * @author Lin
+ * @date 2024/11/10
  */
-@SuppressWarnings("deprecation")
 @Configuration
-@EnableCaching
-public class RedisConfig extends CachingConfigurerSupport
-{
+public class RedissonConfig {
+    @Value("${spring.data.redis.host:localhost}")
+    private String host;
+
+    @Value("${spring.data.redis.port:6379}")
+    private String port;
+
+    @Value("${spring.data.redis.password:}")
+    private String password;
+
+    @Bean(destroyMethod = "shutdown")
+//    @ConditionalOnMissingBean(RedissonClient.class)
+    public RedissonClient redissonClient() {
+        Config config = new Config();
+        config.setCodec(new JsonJacksonCodec());
+        config.useSingleServer().setAddress("redis://" + host + ":" + port);
+        return Redisson.create(config);
+    }
+
+    /**
+     * redisTemplate config
+     **/
     @Bean
-    @SuppressWarnings(value = { "unchecked", "rawtypes" })
-    public RedisTemplate<Object, Object> redisTemplate(RedisConnectionFactory connectionFactory)
-    {
-        RedisTemplate<Object, Object> template = new RedisTemplate<>();
-        template.setConnectionFactory(connectionFactory);
+    public RedissonConnectionFactory redissonConnectionFactory(RedissonClient redissonClient) {
+        return new RedissonConnectionFactory(redissonClient);
+    }
 
+    // redis template
+    @Bean
+    public RedisTemplate<Object, Object> redisTemplate(RedissonConnectionFactory redissonConnectionFactory) {
         FastJson2JsonRedisSerializer serializer = new FastJson2JsonRedisSerializer(Object.class);
-
-        // 使用StringRedisSerializer来序列化和反序列化redis的key值
+        RedisTemplate<Object, Object> template = new RedisTemplate<>();
         template.setKeySerializer(new StringRedisSerializer());
         template.setValueSerializer(serializer);
-
-        // Hash的key也采用StringRedisSerializer的序列化方式
         template.setHashKeySerializer(new StringRedisSerializer());
         template.setHashValueSerializer(serializer);
-
-        template.afterPropertiesSet();
+        template.setConnectionFactory(redissonConnectionFactory);
         return template;
     }
 
     @Bean
-    public DefaultRedisScript<Long> limitScript()
-    {
+    public DefaultRedisScript<Long> limitScript() {
         DefaultRedisScript<Long> redisScript = new DefaultRedisScript<>();
         redisScript.setScriptText(limitScriptText());
         redisScript.setResultType(Long.class);
@@ -52,8 +68,7 @@ public class RedisConfig extends CachingConfigurerSupport
     /**
      * 限流脚本
      */
-    private String limitScriptText()
-    {
+    private String limitScriptText() {
         return "local key = KEYS[1]\n" +
                 "local count = tonumber(ARGV[1])\n" +
                 "local time = tonumber(ARGV[2])\n" +
@@ -67,4 +82,5 @@ public class RedisConfig extends CachingConfigurerSupport
                 "end\n" +
                 "return tonumber(current);";
     }
+
 }

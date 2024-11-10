@@ -8,6 +8,8 @@ import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.builder.ToStringBuilder;
 import org.apache.commons.lang3.builder.ToStringStyle;
 
+import java.util.Locale;
+
 /**
  * 客户对象 t_customer
  *
@@ -87,6 +89,6 @@ public class Customer extends BaseEntity {
     }
 
     public String getShowMnemonicCode(){
-        return PinYinConvertUtils.toFirstChar(getShowName());
+        return PinYinConvertUtils.toFirstChar(getShowName()).toUpperCase(Locale.ROOT);
     }
 }
