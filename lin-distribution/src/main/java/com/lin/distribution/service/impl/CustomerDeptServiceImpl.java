@@ -119,21 +119,20 @@ public class CustomerDeptServiceImpl implements CustomerDeptService {
 
     /**
      * 生成客户部门编号
-     * rule: 助记码 + 5位数自增序号
+     * rule: 助记码 + customerId + 5位数自增序号
      *
      * @param mnemonicCode 客户助记码
      * @return
      */
     @Override
     public String generateCustomerDeptNo(Long customerId, String mnemonicCode, Boolean isParent) {
-        String date = DateUtils.dateTimeNow("yyyyMMdd");
         if (BooleanUtils.isTrue(isParent)) {
-            return mnemonicCode + date + "00000";
+            return mnemonicCode + customerId + "00000";
         }
         RMap<Long, Integer> rMap = redissonClient.getMap("customerDeptNo");
         int seqNbr = rMap.addAndGet(customerId, 1);
         String seqNbrStr = String.format("%05d", seqNbr);
-        return mnemonicCode + date + seqNbrStr;
+        return mnemonicCode + customerId + seqNbrStr;
     }
 
     private void checkUniqueCustomerDept(CustomerDept customerDept) {
