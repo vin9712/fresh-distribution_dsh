@@ -50,6 +50,9 @@
             <if test="parentId != null">
                 and parent_id = #{parentId}
             </if>
+            <if test="parentId == null and params != null and params.get('hideParent') == 'true'">
+                and parent_id != 0
+            </if>
             <if test="code != null and code != ''">
                 and code = #{code}
             </if>

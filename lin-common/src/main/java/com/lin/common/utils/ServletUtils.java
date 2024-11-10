@@ -1,13 +1,6 @@
 package com.lin.common.utils;
 
-import java.io.IOException;
-import java.io.UnsupportedEncodingException;
-import java.net.URLDecoder;
-import java.net.URLEncoder;
-import java.nio.charset.StandardCharsets;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
+import com.lin.common.core.text.Convert;
 import jakarta.servlet.ServletRequest;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -15,8 +8,14 @@ import jakarta.servlet.http.HttpSession;
 import org.springframework.web.context.request.RequestAttributes;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
-import com.lin.common.constant.Constants;
-import com.lin.common.core.text.Convert;
+
+import java.io.IOException;
+import java.net.URLDecoder;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * 客户端工具类
@@ -94,6 +93,22 @@ public class ServletUtils
     public static Map<String, String> getParamMap(ServletRequest request)
     {
         Map<String, String> params = new HashMap<>();
+        for (Map.Entry<String, String[]> entry : getParams(request).entrySet())
+        {
+            params.put(entry.getKey(), StringUtils.join(entry.getValue(), ","));
+        }
+        return params;
+    }
+
+    /**
+     * 获得所有请求参数
+     *
+     * @param request 请求对象{@link ServletRequest}
+     * @return Map
+     */
+    public static Map<String, Object> getReqParamMap(ServletRequest request)
+    {
+        Map<String, Object> params = new HashMap<>();
         for (Map.Entry<String, String[]> entry : getParams(request).entrySet())
         {
             params.put(entry.getKey(), StringUtils.join(entry.getValue(), ","));

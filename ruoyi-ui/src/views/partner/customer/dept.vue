@@ -139,6 +139,8 @@ export default {
         name: null,
         mnemonicCode: null,
         valid: null,
+        // 默认隐藏父级部门
+        hideParent: true,
       },
       // 查询校验
       queryFormRules: {
