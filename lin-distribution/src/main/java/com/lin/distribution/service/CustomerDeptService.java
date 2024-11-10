@@ -72,7 +72,8 @@ public interface CustomerDeptService
      *
      * @param customerId
      * @param mnemonicCode
+     * @param isParent
      * @return
      */
-    String generateCustomerDeptNo(Long customerId, String mnemonicCode);
+    String generateCustomerDeptNo(Long customerId, String mnemonicCode, Boolean isParent);
 }

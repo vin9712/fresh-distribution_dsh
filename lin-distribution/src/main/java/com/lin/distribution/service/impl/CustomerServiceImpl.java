@@ -67,7 +67,7 @@ public class CustomerServiceImpl implements CustomerService {
         Long customerId = customer.getId();
 
         // add a default customer dept
-        String customerDeptNo = customerDeptService.generateCustomerDeptNo(customerId, customer.getShowMnemonicCode());
+        String customerDeptNo = customerDeptService.generateCustomerDeptNo(customerId, customer.getShowMnemonicCode(), true);
         CustomerDept customerDept = CustomerDept.builder()
                 .customerId(customerId)
                 .parentId(0L)

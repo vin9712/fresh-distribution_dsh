@@ -6,6 +6,7 @@ import com.lin.distribution.domain.CustomerDept;
 import com.lin.distribution.mapper.CustomerDeptMapper;
 import com.lin.distribution.service.CustomerDeptService;
 import lombok.RequiredArgsConstructor;
+import org.apache.commons.lang3.BooleanUtils;
 import org.redisson.api.RMap;
 import org.redisson.api.RedissonClient;
 import org.springframework.stereotype.Service;
@@ -71,7 +72,7 @@ public class CustomerDeptServiceImpl implements CustomerDeptService {
         if (customerDept.getParentId() == null) {
             CustomerDept parent = this.selectOneParentCustomerDept(customerDept.getCustomerId());
             customerDept.setParentId(parent.getId());
-            String customerDeptCode = generateCustomerDeptNo(customerDept.getCustomerId(), parent.getMnemonicCode());
+            String customerDeptCode = generateCustomerDeptNo(customerDept.getCustomerId(), parent.getMnemonicCode(), false);
             customerDept.setCode(customerDeptCode);
         }
 
@@ -119,11 +120,16 @@ public class CustomerDeptServiceImpl implements CustomerDeptService {
     /**
      * 生成客户部门编号
      * rule: 助记码 + 5位数自增序号
+     *
      * @param mnemonicCode 客户助记码
      * @return
      */
-    public String generateCustomerDeptNo(Long customerId, String mnemonicCode) {
+    @Override
+    public String generateCustomerDeptNo(Long customerId, String mnemonicCode, Boolean isParent) {
         String date = DateUtils.dateTimeNow("yyyyMMdd");
+        if (BooleanUtils.isTrue(isParent)) {
+            return mnemonicCode + date + "00000";
+        }
         RMap<Long, Integer> rMap = redissonClient.getMap("customerDeptNo");
         int seqNbr = rMap.addAndGet(customerId, 1);
         String seqNbrStr = String.format("%05d", seqNbr);
