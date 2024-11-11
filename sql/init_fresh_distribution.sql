@@ -158,7 +158,7 @@ CREATE TABLE `t_product_sku`
     KEY             `idx_code` (`code`) USING BTREE,
     KEY             `idx_remark` (`remark`) USING BTREE,
     FULLTEXT KEY `name` (`name`)
-) ENGINE=InnoDB AUTO_INCREMENT=1 DEFAULT CHARSET=utf8 ROW_FORMAT=DYNAMIC COMMENT='商品sku表';
+) ENGINE=InnoDB AUTO_INCREMENT=10 DEFAULT CHARSET=utf8 ROW_FORMAT=DYNAMIC COMMENT='商品sku表';
 
 -- 商品报价表
 CREATE TABLE `t_product_sku_quote`

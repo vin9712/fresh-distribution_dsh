@@ -1,0 +1,132 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.lin.distribution.mapper.ProductSkuMapper">
+
+    <resultMap type="com.lin.distribution.domain.ProductSku" id="ProductSkuResult">
+        <result property="id" column="id"/>
+        <result property="customerId" column="customer_id"/>
+        <result property="spuId" column="spu_id"/>
+        <result property="name" column="name"/>
+        <result property="mnemonicCode" column="mnemonic_code"/>
+        <result property="unit" column="unit"/>
+        <result property="spec" column="spec"/>
+        <result property="images" column="images"/>
+        <result property="properties" column="properties"/>
+        <result property="salePrice" column="sale_price"/>
+        <result property="visitCount" column="visit_count"/>
+        <result property="saleable" column="saleable"/>
+        <result property="valid" column="valid"/>
+        <result property="isDeleted" column="is_deleted"/>
+        <result property="createBy" column="create_by"/>
+        <result property="createTime" column="create_time"/>
+        <result property="updateBy" column="update_by"/>
+        <result property="updateTime" column="update_time"/>
+        <result property="remark" column="remark"/>
+    </resultMap>
+
+    <sql id="selectProductSkuVo">
+        select id, customer_id, spu_id, name, mnemonic_code, unit, spec, images, properties, sale_price, visit_count,
+        saleable, valid, is_deleted, create_by, create_time, update_by, update_time, remark from t_product_sku
+    </sql>
+
+    <select id="selectProductSkuList" parameterType="com.lin.distribution.domain.ProductSku"
+            resultMap="ProductSkuResult">
+        <include refid="selectProductSkuVo"/>
+        <where>
+            <if test="customerId != null  and customerId != ''">and customer_id = #{customerId}</if>
+            <if test="spuId != null  and spuId != ''">and spu_id = #{spuId}</if>
+            <if test="name != null  and name != ''">and name like concat('%', #{name}, '%')</if>
+            <if test="salePrice != null ">and sale_price = #{salePrice}</if>
+            <if test="saleable != null ">and saleable = #{saleable}</if>
+            <if test="valid != null ">and valid = #{valid}</if>
+        </where>
+    </select>
+
+    <select id="selectProductSkuById" parameterType="String" resultMap="ProductSkuResult">
+        <include refid="selectProductSkuVo"/>
+        where id = #{id}
+    </select>
+
+    <insert id="insertProductSku" parameterType="com.lin.distribution.domain.ProductSku" useGeneratedKeys="true"
+            keyProperty="id">
+        insert into t_product_sku
+        <trim prefix="(" suffix=")" suffixOverrides=",">
+            <if test="customerId != null and customerId != ''">customer_id,</if>
+            <if test="spuId != null and spuId != ''">spu_id,</if>
+            <if test="name != null and name != ''">name,</if>
+            <if test="mnemonicCode != null and mnemonicCode != ''">mnemonic_code,</if>
+            <if test="unit != null and unit != ''">unit,</if>
+            <if test="spec != null">spec,</if>
+            <if test="images != null">images,</if>
+            <if test="properties != null">properties,</if>
+            <if test="salePrice != null">sale_price,</if>
+            <if test="visitCount != null">visit_count,</if>
+            <if test="saleable != null">saleable,</if>
+            <if test="valid != null">valid,</if>
+            <if test="isDeleted != null">is_deleted,</if>
+            <if test="createBy != null">create_by,</if>
+            <if test="createTime != null">create_time,</if>
+            <if test="updateBy != null">update_by,</if>
+            <if test="updateTime != null">update_time,</if>
+            <if test="remark != null">remark,</if>
+        </trim>
+        <trim prefix="values (" suffix=")" suffixOverrides=",">
+            <if test="customerId != null and customerId != ''">#{customerId},</if>
+            <if test="spuId != null and spuId != ''">#{spuId},</if>
+            <if test="name != null and name != ''">#{name},</if>
+            <if test="mnemonicCode != null and mnemonicCode != ''">#{mnemonicCode},</if>
+            <if test="unit != null and unit != ''">#{unit},</if>
+            <if test="spec != null">#{spec},</if>
+            <if test="images != null">#{images},</if>
+            <if test="properties != null">#{properties},</if>
+            <if test="salePrice != null">#{salePrice},</if>
+            <if test="visitCount != null">#{visitCount},</if>
+            <if test="saleable != null">#{saleable},</if>
+            <if test="valid != null">#{valid},</if>
+            <if test="isDeleted != null">#{isDeleted},</if>
+            <if test="createBy != null">#{createBy},</if>
+            <if test="createTime != null">#{createTime},</if>
+            <if test="updateBy != null">#{updateBy},</if>
+            <if test="updateTime != null">#{updateTime},</if>
+            <if test="remark != null">#{remark},</if>
+        </trim>
+    </insert>
+
+    <update id="updateProductSku" parameterType="com.lin.distribution.domain.ProductSku">
+        update t_product_sku
+        <trim prefix="SET" suffixOverrides=",">
+            <if test="customerId != null and customerId != ''">customer_id = #{customerId},</if>
+            <if test="spuId != null and spuId != ''">spu_id = #{spuId},</if>
+            <if test="name != null and name != ''">name = #{name},</if>
+            <if test="mnemonicCode != null and mnemonicCode != ''">mnemonic_code = #{mnemonicCode},</if>
+            <if test="unit != null and unit != ''">unit = #{unit},</if>
+            <if test="spec != null">spec = #{spec},</if>
+            <if test="images != null">images = #{images},</if>
+            <if test="properties != null">properties = #{properties},</if>
+            <if test="salePrice != null">sale_price = #{salePrice},</if>
+            <if test="visitCount != null">visit_count = #{visitCount},</if>
+            <if test="saleable != null">saleable = #{saleable},</if>
+            <if test="valid != null">valid = #{valid},</if>
+            <if test="isDeleted != null">is_deleted = #{isDeleted},</if>
+            <if test="createBy != null">create_by = #{createBy},</if>
+            <if test="createTime != null">create_time = #{createTime},</if>
+            <if test="updateBy != null">update_by = #{updateBy},</if>
+            <if test="updateTime != null">update_time = #{updateTime},</if>
+            <if test="remark != null">remark = #{remark},</if>
+        </trim>
+        where id = #{id}
+    </update>
+
+    <delete id="deleteProductSkuById" parameterType="String">
+        delete from t_product_sku where id = #{id}
+    </delete>
+
+    <delete id="deleteProductSkuByIds" parameterType="String">
+        delete from t_product_sku where id in
+        <foreach item="id" collection="array" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+    </delete>
+</mapper>
