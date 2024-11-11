@@ -40,7 +40,7 @@ public class Customer extends BaseEntity {
     /**
      * 客户类型
      */
-    @Excel(name = "客户类型")
+    @Excel(name = "客户类型", dictType = "t_customer_type")
     private String type;
 
     /**
@@ -56,7 +56,6 @@ public class Customer extends BaseEntity {
     /**
      * 是否有效
      */
-    @Excel(name = "是否有效")
     private Integer valid;
 
     /**

@@ -155,6 +155,7 @@ public class CustomerServiceImpl implements CustomerService {
                 Customer c = customerMapper.selectCustomerByName(customer.getName()).stream().findFirst().orElse(null);
                 if (StringUtils.isNull(c)) {
                     BeanValidators.validateWithException(validator, customer);
+                    customer.setValid(1);
                     this.insertCustomer(customer);
                     successNum++;
                     successMsg.append("<br/>" + successNum + "、客户 " + customer.getName() + " 导入成功");

@@ -102,12 +102,17 @@ public class CustomerController extends BaseController {
         return toAjax(customerService.deleteCustomerByIds(ids));
     }
 
-    @Log(title = "客户管理", businessType = BusinessType.IMPORT)
     @PostMapping("/importData")
     public AjaxResult importData(MultipartFile file) throws Exception {
         ExcelUtil<Customer> util = new ExcelUtil<>(Customer.class);
         List<Customer> customerList = util.importExcel(file.getInputStream());
         String message = customerService.importCustomer(customerList);
         return AjaxResult.success(message);
+    }
+
+    @PostMapping("/importTemplate")
+    public void importTemplate(HttpServletResponse response) {
+        ExcelUtil<Customer> util = new ExcelUtil<>(Customer.class);
+        util.importTemplateExcel(response, "客户数据");
     }
 }
