@@ -1,57 +1,147 @@
 <template>
   <div class="app-container">
-    <el-form :model="queryParams" :rules="queryFormRules" ref="queryForm" size="small" :inline="true"
-      v-show="showSearch" label-width="68px">
+    <el-form
+      :model="queryParams"
+      :rules="queryFormRules"
+      ref="queryForm"
+      size="small"
+      :inline="true"
+      v-show="showSearch"
+      label-width="80px"
+    >
       <el-form-item label="当前客户" prop="customerId">
-        <el-select v-model="queryParams.customerId" filterable @change="handleQuery">
-          <el-option v-for="item in customerOptions" :key="item.id" :label="item.alias ? item.alias : item.name"
-            :value="item.id" />
+        <el-select
+          v-model="queryParams.customerId"
+          filterable
+          @change="handleQuery"
+        >
+          <el-option
+            v-for="item in customerOptions"
+            :key="item.id"
+            :label="item.alias ? item.alias : item.name"
+            :value="item.id"
+          />
         </el-select>
       </el-form-item>
       <el-form-item label="商品分类" prop="categoryId">
-        <el-cascader v-model="queryParams.categoryId" placeholder="请选择商品分类" :options="categoryOptions"
-          :props="{ expandTrigger: 'hover' }" :show-all-levels="false" filterable clearable />
+        <el-cascader
+          v-model="queryParams.categoryId"
+          placeholder="请选择商品分类"
+          :options="categoryOptions"
+          :props="{ expandTrigger: 'hover' }"
+          :show-all-levels="false"
+          filterable
+          clearable
+        />
       </el-form-item>
       <el-form-item label="商品名称" prop="name">
-        <el-input v-model="queryParams.name" placeholder="请输入商品名称" clearable @keyup.enter.native="handleQuery" />
+        <el-input
+          v-model="queryParams.name"
+          placeholder="请输入商品名称"
+          clearable
+          @keyup.enter.native="handleQuery"
+        />
       </el-form-item>
       <el-form-item label="是否上架" prop="saleable">
-        <el-select v-model="queryParams.saleable" placeholder="请选择是否有效" clearable>
-          <el-option v-for="dict in dict.type.biz_yes_no" :key="dict.value" :label="dict.label" :value="dict.value" />
+        <el-select
+          v-model="queryParams.saleable"
+          placeholder="请选择是否上架"
+          clearable
+        >
+          <el-option
+            v-for="dict in dict.type.biz_yes_no"
+            :key="dict.value"
+            :label="dict.label"
+            :value="dict.value"
+          />
         </el-select>
       </el-form-item>
       <el-form-item label="是否有效" prop="valid">
-        <el-select v-model="queryParams.valid" placeholder="请选择是否有效" clearable>
-          <el-option v-for="dict in dict.type.biz_yes_no" :key="dict.value" :label="dict.label" :value="dict.value" />
+        <el-select
+          v-model="queryParams.valid"
+          placeholder="请选择是否有效"
+          clearable
+        >
+          <el-option
+            v-for="dict in dict.type.biz_yes_no"
+            :key="dict.value"
+            :label="dict.label"
+            :value="dict.value"
+          />
         </el-select>
       </el-form-item>
       <el-form-item>
-        <el-button type="primary" icon="el-icon-search" size="mini" @click="handleQuery">搜索</el-button>
-        <el-button icon="el-icon-refresh" size="mini" @click="resetQuery">重置</el-button>
+        <el-button
+          type="primary"
+          icon="el-icon-search"
+          size="mini"
+          @click="handleQuery"
+          >搜索</el-button
+        >
+        <el-button icon="el-icon-refresh" size="mini" @click="resetQuery"
+          >重置</el-button
+        >
       </el-form-item>
     </el-form>
 
     <el-row :gutter="10" class="mb8">
       <el-col :span="1.5">
-        <el-button type="primary" plain icon="el-icon-plus" size="mini" @click="handleAdd"
-          v-hasPermi="['product:sku:add']">新增</el-button>
+        <el-button
+          type="primary"
+          plain
+          icon="el-icon-plus"
+          size="mini"
+          @click="handleAdd"
+          v-hasPermi="['product:sku:add']"
+          >新增</el-button
+        >
       </el-col>
       <el-col :span="1.5">
-        <el-button type="success" plain icon="el-icon-edit" size="mini" :disabled="single" @click="handleUpdate"
-          v-hasPermi="['product:sku:edit']">修改</el-button>
+        <el-button
+          type="success"
+          plain
+          icon="el-icon-edit"
+          size="mini"
+          :disabled="single"
+          @click="handleUpdate"
+          v-hasPermi="['product:sku:edit']"
+          >修改</el-button
+        >
       </el-col>
       <el-col :span="1.5">
-        <el-button type="danger" plain icon="el-icon-delete" size="mini" :disabled="multiple" @click="handleDelete"
-          v-hasPermi="['product:sku:remove']">删除</el-button>
+        <el-button
+          type="danger"
+          plain
+          icon="el-icon-delete"
+          size="mini"
+          :disabled="multiple"
+          @click="handleDelete"
+          v-hasPermi="['product:sku:remove']"
+          >删除</el-button
+        >
       </el-col>
       <el-col :span="1.5">
-        <el-button type="warning" plain icon="el-icon-download" size="mini" @click="handleExport"
-          v-hasPermi="['product:sku:export']">导出</el-button>
+        <el-button
+          type="warning"
+          plain
+          icon="el-icon-download"
+          size="mini"
+          @click="handleExport"
+          v-hasPermi="['product:sku:export']"
+          >导出</el-button
+        >
       </el-col>
-      <right-toolbar :showSearch.sync="showSearch" @queryTable="getPageList"></right-toolbar>
+      <right-toolbar
+        :showSearch.sync="showSearch"
+        @queryTable="getPageList"
+      ></right-toolbar>
     </el-row>
 
-    <el-table v-loading="loading" :data="skuList" @selection-change="handleSelectionChange">
+    <el-table
+      v-loading="loading"
+      :data="skuList"
+      @selection-change="handleSelectionChange"
+    >
       <el-table-column type="selection" width="55" align="center" />
       <el-table-column label="商品名称" align="center" prop="name" />
       <el-table-column label="商品单位" align="center" prop="unit" />
@@ -59,7 +149,10 @@
       <el-table-column label="当期售价" align="center" prop="salePrice" />
       <el-table-column label="是否上架" align="center" prop="saleable">
         <template slot-scope="scope">
-          <dict-tag :options="dict.type.biz_yes_no" :value="scope.row.saleable" />
+          <dict-tag
+            :options="dict.type.biz_yes_no"
+            :value="scope.row.saleable"
+          />
         </template>
       </el-table-column>
       <el-table-column label="是否有效" align="center" prop="valid">
@@ -68,59 +161,123 @@
         </template>
       </el-table-column>
       <el-table-column label="备注" align="center" prop="remark" />
-      <el-table-column label="操作" align="center" class-name="small-padding fixed-width">
+      <el-table-column
+        label="操作"
+        align="center"
+        class-name="small-padding fixed-width"
+      >
         <template slot-scope="scope">
-          <el-button size="mini" type="text" icon="el-icon-edit" @click="handleUpdate(scope.row)"
-            v-hasPermi="['product:sku:edit']">修改</el-button>
-          <el-button size="mini" type="text" icon="el-icon-delete" @click="handleDelete(scope.row)"
-            v-hasPermi="['product:sku:remove']">删除</el-button>
+          <el-button
+            size="mini"
+            type="text"
+            icon="el-icon-edit"
+            @click="handleUpdate(scope.row)"
+            v-hasPermi="['product:sku:edit']"
+            >修改</el-button
+          >
+          <el-button
+            size="mini"
+            type="text"
+            icon="el-icon-delete"
+            @click="handleDelete(scope.row)"
+            v-hasPermi="['product:sku:remove']"
+            >删除</el-button
+          >
         </template>
       </el-table-column>
     </el-table>
 
-    <pagination v-show="total > 0" :total="total" :page.sync="queryParams.pageNum" :limit.sync="queryParams.pageSize"
-      @pagination="getPageList" />
+    <pagination
+      v-show="total > 0"
+      :total="total"
+      :page.sync="queryParams.pageNum"
+      :limit.sync="queryParams.pageSize"
+      @pagination="getPageList"
+    />
 
     <!-- 添加或修改商品信息对话框 -->
     <el-dialog :title="title" :visible.sync="open" width="500px" append-to-body>
       <el-form ref="form" :model="form" :rules="rules" label-width="80px">
         <el-form-item label="当前客户" prop="customerId">
           <el-select v-model="form.customerId" disabled>
-            <el-option v-for="item in customerOptions" :key="item.id" :label="item.alias ? item.alias : item.name"
-              :value="item.id" />
+            <el-option
+              v-for="item in customerOptions"
+              :key="item.id"
+              :label="item.alias ? item.alias : item.name"
+              :value="item.id"
+            />
           </el-select>
         </el-form-item>
         <el-form-item label="商品名称" prop="name">
-          <el-input v-model="form.name" @input="handleUpdateMnemonicCode" placeholder="请输入商品名称" />
+          <!-- <el-input
+            v-model="form.name"
+            @input="handleUpdateMnemonicCode"
+            placeholder="请输入商品名称"
+          /> -->
+          <el-autocomplete
+            v-model="form.name"
+            :fetch-suggestions="querySpuList"
+            placeholder="请输入商品名称"
+          ></el-autocomplete>
         </el-form-item>
         <el-form-item label="助记码" prop="mnemonicCode">
-          <el-input v-model="form.mnemonicCode" placeholder="请输入助记码" :disabled="form.id == null" />
+          <el-input
+            v-model="form.mnemonicCode"
+            placeholder="请输入助记码"
+            :disabled="form.id == null"
+          />
         </el-form-item>
         <el-form-item label="商品单位" prop="unit">
-          <el-select v-model="form.unit" placeholder="请选择商品单位" clearable filterable>
-            <el-option v-for="dict in dict.type.t_sku_unit" :key="dict.value" :label="dict.label" :value="dict.label" />
+          <el-select
+            v-model="form.unit"
+            placeholder="请选择商品单位"
+            clearable
+            filterable
+          >
+            <el-option
+              v-for="dict in dict.type.t_sku_unit"
+              :key="dict.value"
+              :label="dict.label"
+              :value="dict.label"
+            />
           </el-select>
         </el-form-item>
         <el-form-item label="商品规格" prop="spec">
           <el-input v-model="form.spec" placeholder="请输入商品规格" />
         </el-form-item>
         <el-form-item label="商品售价" prop="salePrice">
-          <el-input-number v-model="form.salePrice" :precision="2" placeholder="请输入商品售价" />
+          <el-input-number
+            v-model="form.salePrice"
+            :precision="2"
+            placeholder="请输入商品售价"
+          />
         </el-form-item>
         <el-form-item label="是否上架" prop="saleable">
           <el-radio-group v-model="form.saleable">
-            <el-radio v-for="dict in dict.type.biz_yes_no" :key="dict.value" :label="parseInt(dict.value)">{{ dict.label
-              }}</el-radio>
+            <el-radio
+              v-for="dict in dict.type.biz_yes_no"
+              :key="dict.value"
+              :label="parseInt(dict.value)"
+              >{{ dict.label }}</el-radio
+            >
           </el-radio-group>
         </el-form-item>
         <el-form-item label="是否有效" prop="valid">
           <el-radio-group v-model="form.valid">
-            <el-radio v-for="dict in dict.type.biz_yes_no" :key="dict.value" :label="parseInt(dict.value)">{{ dict.label
-              }}</el-radio>
+            <el-radio
+              v-for="dict in dict.type.biz_yes_no"
+              :key="dict.value"
+              :label="parseInt(dict.value)"
+              >{{ dict.label }}</el-radio
+            >
           </el-radio-group>
         </el-form-item>
         <el-form-item label="商品备注" prop="remark">
-          <el-input v-model="form.remark" type="textarea" placeholder="请输入内容" />
+          <el-input
+            v-model="form.remark"
+            type="textarea"
+            placeholder="请输入内容"
+          />
         </el-form-item>
       </el-form>
       <div slot="footer" class="dialog-footer">
@@ -141,6 +298,7 @@ import {
   updateSku,
 } from "@/api/product/sku";
 import { listCategory } from "@/api/product/category";
+import { listSpu } from "@/api/product/spu";
 import { listCustomer } from "@/api/partner/customer";
 import { pinyin } from "pinyin-pro";
 import Treeselect from "@riophae/vue-treeselect";
@@ -261,6 +419,14 @@ export default {
         this.customerOptions.unshift({ id: 0, name: "默认客户" });
       });
     },
+    /** 查询商品库列表 */
+    querySpuList(queryString, cb) {
+      var results = [];
+      listSpu({ name: queryString }).then((response) => {
+        results = response.data;
+      });
+      cb(results);
+    },
     // 取消按钮
     cancel() {
       this.open = false;
@@ -288,6 +454,8 @@ export default {
         updateBy: null,
         updateTime: null,
         remark: null,
+        // 辅助查询商品库
+        categoryId: null,
       };
       this.resetForm("form");
     },
@@ -355,7 +523,7 @@ export default {
           this.getPageList();
           this.$modal.msgSuccess("删除成功");
         })
-        .catch(() => { });
+        .catch(() => {});
     },
     /** 导出按钮操作 */
     handleExport() {
@@ -408,10 +576,10 @@ export default {
     },
     /** 树形列表转换为级联列表 */
     transformData(data) {
-      return data.map(item => {
+      return data.map((item) => {
         const newItem = {
           value: item.id.toString(),
-          label: item.name
+          label: item.name,
         };
         if (Array.isArray(item.children) && item.children.length > 0) {
           newItem.children = this.transformData(item.children);
