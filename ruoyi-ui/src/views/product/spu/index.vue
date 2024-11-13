@@ -5,8 +5,9 @@
         <el-input v-model="queryParams.name" placeholder="请输入商品名称/助记码" clearable @keyup.enter.native="handleQuery" />
       </el-form-item>
       <el-form-item label="商品分类" prop="categoryId">
-        <el-cascader v-model="queryParams.categoryId" placeholder="请选择商品分类" :options="categoryOptions"
-          :props="{ expandTrigger: 'hover' }" :show-all-levels="false" filterable clearable />
+        <el-cascader v-model="querySelectedOptions" placeholder="请选择商品分类" @change="handleQueryCascaderChange"
+          :options="categoryOptions" :props="{ expandTrigger: 'hover' }" :show-all-levels="false" filterable
+          clearable />
       </el-form-item>
       <el-form-item label="是否上架" prop="saleable">
         <el-select v-model="queryParams.saleable" placeholder="请选择是否上架" clearable>
@@ -41,7 +42,7 @@
         <el-button type="warning" plain icon="el-icon-download" size="mini" @click="handleExport"
           v-hasPermi="['product:spu:export']">导出</el-button>
       </el-col>
-      <right-toolbar :showSearch.sync="showSearch" @queryTable="getList"></right-toolbar>
+      <right-toolbar :showSearch.sync="showSearch" @queryTable="getPageList"></right-toolbar>
     </el-row>
 
     <el-table v-loading="loading" :data="spuList" @selection-change="handleSelectionChange">
@@ -72,14 +73,15 @@
     </el-table>
 
     <pagination v-show="total > 0" :total="total" :page.sync="queryParams.pageNum" :limit.sync="queryParams.pageSize"
-      @pagination="getList" />
+      @pagination="getPageList" />
 
     <!-- 添加或修改商品spu对话框 -->
     <el-dialog :title="title" :visible.sync="open" width="700px" append-to-body>
       <el-form ref="form" :model="form" :rules="rules" label-width="80px">
         <el-form-item label="商品分类" prop="categoryId">
-          <el-cascader v-model="queryParams.categoryId" placeholder="请选择商品分类" :options="categoryOptions"
-            :props="{ expandTrigger: 'hover' }" :show-all-levels="false" filterable clearable />
+          <el-cascader v-model="formSelectdOptions" placeholder="请选择商品分类" :options="categoryOptions"
+            @change="handleFormOptionsChanged" :props="{ expandTrigger: 'hover' }" :show-all-levels="false" filterable
+            clearable />
         </el-form-item>
         <el-form-item label="商品名称" prop="name">
           <el-input v-model="form.name" @input="handleInputSpuName" placeholder="请输入商品名称" maxlength="50"
@@ -117,7 +119,7 @@
 </template>
 
 <script>
-import { listSpu, getSpu, delSpu, addSpu, updateSpu } from "@/api/product/spu";
+import { listSpu, pageSpu, getSpu, delSpu, addSpu, updateSpu } from "@/api/product/spu";
 import { listCategory } from "@/api/product/category";
 import { pinyin } from "pinyin-pro";
 import Treeselect from "@riophae/vue-treeselect";
@@ -128,14 +130,6 @@ export default {
   dicts: ["biz_yes_no"],
   components: { Treeselect },
   data() {
-    // 商品分类ID校验
-    const validateCategoryId = (rule, value, callback) => {
-      if (value === 0) {
-        callback(new Error("请重新选择商品分类"));
-      } else {
-        callback();
-      }
-    };
     return {
       // 遮罩层
       loading: true,
@@ -155,6 +149,9 @@ export default {
       categoryMap: [],
       // 商品分类树选项
       categoryOptions: [],
+      // 选中的商品分类
+      querySelectedOptions: [],
+      formSelectdOptions: [],
       // 弹出层标题
       title: "",
       // 是否显示弹出层
@@ -178,7 +175,6 @@ export default {
       rules: {
         categoryId: [
           { required: true, message: "商品分类不能为空", trigger: "blur" },
-          { required: true, validator: validateCategoryId },
         ],
         name: [
           { required: true, message: "商品名称不能为空", trigger: "blur" },
@@ -202,14 +198,14 @@ export default {
     };
   },
   created() {
-    this.getList();
+    this.getPageList();
     this.getTreeselect();
   },
   methods: {
     /** 查询商品spu列表 */
-    getList() {
+    getPageList() {
       this.loading = true;
-      listSpu(this.queryParams).then((response) => {
+      pageSpu(this.queryParams).then((response) => {
         this.spuList = response.rows;
         this.total = response.total;
         this.loading = false;
@@ -240,15 +236,18 @@ export default {
         remark: null,
       };
       this.resetForm("form");
+      // 清空级联选择器
+      this.formSelectdOptions = [];
     },
     /** 搜索按钮操作 */
     handleQuery() {
       this.queryParams.pageNum = 1;
-      this.getList();
+      this.getPageList();
     },
     /** 重置按钮操作 */
     resetQuery() {
       this.resetForm("queryForm");
+      this.querySelectedOptions = [];
       this.handleQuery();
     },
     // 多选框选中数据
@@ -282,13 +281,13 @@ export default {
             updateSpu(this.form).then((response) => {
               this.$modal.msgSuccess("修改成功");
               this.open = false;
-              this.getList();
+              this.getPageList();
             });
           } else {
             addSpu(this.form).then((response) => {
               this.$modal.msgSuccess("新增成功");
               this.open = false;
-              this.getList();
+              this.getPageList();
             });
           }
         }
@@ -303,7 +302,7 @@ export default {
           return delSpu(ids);
         })
         .then(() => {
-          this.getList();
+          this.getPageList();
           this.$modal.msgSuccess("删除成功");
         })
         .catch(() => { });
@@ -365,6 +364,14 @@ export default {
       return this.categoryMap
         ? this.categoryMap[row.categoryId] || ""
         : row.categoryId;
+    },
+    /** 处理级联选择器，取最后一个选项 */
+    handleQueryCascaderChange(value) {
+      this.queryParams.categoryId = value[value.length - 1];
+      this.handleQuery();
+    },
+    handleFormOptionsChanged(value) {
+      this.form.categoryId = value[value.length - 1];
     },
   },
   watch: {},

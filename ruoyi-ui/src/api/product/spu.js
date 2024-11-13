@@ -1,5 +1,14 @@
 import request from '@/utils/request'
 
+// 分页查询商品spu列表
+export function pageSpu(query) {
+  return request({
+    url: '/product/spu/page',
+    method: 'get',
+    params: query
+  })
+}
+
 // 查询商品spu列表
 export function listSpu(query) {
   return request({

@@ -216,6 +216,8 @@
           /> -->
           <el-autocomplete
             v-model="form.name"
+            @select="handleSelectSpu"
+            @input="handleUpdateMnemonicCode"
             :fetch-suggestions="querySpuList"
             placeholder="请输入商品名称"
           ></el-autocomplete>
@@ -233,6 +235,8 @@
             placeholder="请选择商品单位"
             clearable
             filterable
+            allow-create
+            default-first-option
           >
             <el-option
               v-for="dict in dict.type.t_sku_unit"
@@ -330,6 +334,8 @@ export default {
       customerOptions: [],
       // 商品信息表格数据
       skuList: [],
+      // 商品库列表数据
+      formSpuList: [],
       // 弹出层标题
       title: "",
       // 是否显示弹出层
@@ -422,10 +428,26 @@ export default {
     /** 查询商品库列表 */
     querySpuList(queryString, cb) {
       var results = [];
-      listSpu({ name: queryString }).then((response) => {
-        results = response.data;
-      });
-      cb(results);
+      // 如果输入框为空，直接返回空数组
+      if (!queryString || queryString.trim() === "") {
+        cb(results);
+        return;
+      }
+
+      listSpu({ name: queryString })
+        .then((response) => {
+          results = response.data.map((spu) => ({
+            value: spu.name,
+            spuId: spu.id,
+          }));
+          // 调用 callback 返回建议列表
+          cb(results);
+        })
+        .catch((error) => {
+          console.error("Error fetching SPUs:", error);
+          // 如果请求失败，返回空数组 cb([]);
+          cb([]);
+        });
     },
     // 取消按钮
     cancel() {
@@ -535,12 +557,6 @@ export default {
         `sku_${new Date().getTime()}.xlsx`
       );
     },
-    handleSpuNameInput() {
-      // 查询spu信息， 如果没有查到返回
-
-      // 更新助记码，提取拼音首字母并转换为大写
-      this.handleUpdateMnemonicCode();
-    },
     /** 更新助记码，提取拼音首字母并转换为大写 */
     handleUpdateMnemonicCode() {
       const value = this.form.name;
@@ -555,17 +571,6 @@ export default {
       })
         .join("")
         .toUpperCase();
-    },
-    /** 转换菜单数据结构 */
-    normalizer(node) {
-      if (node.children && !node.children.length) {
-        delete node.children;
-      }
-      return {
-        id: node.id,
-        label: node.name,
-        children: node.children,
-      };
     },
     /** 查询商品分类下拉树结构 */
     getTreeselect() {
@@ -586,6 +591,13 @@ export default {
         }
         return newItem;
       });
+    },
+    /** 处理选择的spu选项 */
+    handleSelectSpu(item) {
+      if (!item) {
+        this.form.spuId = null;
+      }
+      this.form.spuId = item.id;
     },
   },
 };

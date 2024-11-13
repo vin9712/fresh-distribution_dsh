@@ -2,6 +2,7 @@ package com.lin.distribution.controller;
 
 import java.util.List;
 
+import com.lin.distribution.service.ProductService;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -19,7 +20,6 @@ import com.lin.common.core.controller.BaseController;
 import com.lin.common.core.domain.AjaxResult;
 import com.lin.common.enums.BusinessType;
 import com.lin.distribution.domain.ProductSpu;
-import com.lin.distribution.service.ProductSpuService;
 import com.lin.common.utils.poi.ExcelUtil;
 import com.lin.common.core.page.TableDataInfo;
 
@@ -34,17 +34,27 @@ import com.lin.common.core.page.TableDataInfo;
 @RequestMapping("/product/spu")
 public class ProductSpuController extends BaseController {
     @Autowired
-    private ProductSpuService productSpuService;
+    private ProductService productSpuService;
+
+    /**
+     * 分页查询商品spu列表
+     */
+    @PreAuthorize("@ss.hasPermi('product:spu:list')")
+    @GetMapping("/page")
+    public TableDataInfo page(ProductSpu productSpu) {
+        startPage();
+        List<ProductSpu> list = productSpuService.selectProductSpuList(productSpu);
+        return getDataTable(list);
+    }
 
     /**
      * 查询商品spu列表
      */
     @PreAuthorize("@ss.hasPermi('product:spu:list')")
     @GetMapping("/list")
-    public TableDataInfo list(ProductSpu productSpu) {
-        startPage();
+    public AjaxResult list(ProductSpu productSpu) {
         List<ProductSpu> list = productSpuService.selectProductSpuList(productSpu);
-        return getDataTable(list);
+        return success(list);
     }
 
     /**

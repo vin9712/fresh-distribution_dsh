@@ -2,6 +2,7 @@ package com.lin.distribution.controller;
 
 import java.util.List;
 
+import com.lin.distribution.service.ProductService;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -18,7 +19,6 @@ import com.lin.common.core.controller.BaseController;
 import com.lin.common.core.domain.AjaxResult;
 import com.lin.common.enums.BusinessType;
 import com.lin.distribution.domain.ProductSku;
-import com.lin.distribution.service.ProductSkuService;
 import com.lin.common.utils.poi.ExcelUtil;
 import com.lin.common.core.page.TableDataInfo;
 
@@ -32,7 +32,7 @@ import com.lin.common.core.page.TableDataInfo;
 @RequestMapping("/product/sku")
 public class ProductSkuController extends BaseController {
     @Autowired
-    private ProductSkuService productSkuService;
+    private ProductService productSkuService;
 
     /**
      * 分页查询商品信息列表

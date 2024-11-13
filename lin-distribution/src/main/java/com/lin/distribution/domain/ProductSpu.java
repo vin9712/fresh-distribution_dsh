@@ -2,7 +2,7 @@ package com.lin.distribution.domain;
 
 import com.lin.common.annotation.Excel;
 import com.lin.common.core.domain.BaseEntity;
-import lombok.Data;
+import lombok.*;
 import org.apache.commons.lang3.builder.ToStringBuilder;
 import org.apache.commons.lang3.builder.ToStringStyle;
 
@@ -12,8 +12,12 @@ import org.apache.commons.lang3.builder.ToStringStyle;
  * @author lin
  * @date 2024-11-07
  */
+@EqualsAndHashCode(callSuper = true)
 @Data
-public class    ProductSpu extends BaseEntity {
+@Builder
+@AllArgsConstructor
+@NoArgsConstructor
+public class ProductSpu extends BaseEntity {
     private static final long serialVersionUID = 1L;
 
     /**
