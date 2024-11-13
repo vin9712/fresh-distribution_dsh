@@ -12,7 +12,7 @@ import org.apache.ibatis.annotations.Param;
  * @author lin
  * @date 2024-11-11
  */
-public interface ProductSkuMapper {
+public interface ProductSkuMapper extends BaseMapper<ProductSku> {
     /**
      * 查询商品信息
      *

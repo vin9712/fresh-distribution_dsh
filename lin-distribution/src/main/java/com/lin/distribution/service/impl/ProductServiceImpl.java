@@ -96,7 +96,7 @@ public class ProductServiceImpl implements ProductService {
 
         // customerId = 0 & spuId = null, only insert spu method
         if (productSku.getCustomerId() == 0L) {
-            return 0;
+            return 1;
         }
 
         // insert sku one with customerId
@@ -119,22 +119,6 @@ public class ProductServiceImpl implements ProductService {
 
         if (productSku.getSpuId() != null && productSku.getCustomerId() == 0L) {
             throw new ServiceException("customerId is 0 but spuId is not null");
-        }
-
-        // check unique sku
-        List<ProductSku> skuList = productSkuMapper.selectProductSkuByCustomerIdAndCategoryIdAndName(productSku.getCustomerId(), productSku.getCategoryId(), productSku.getName());
-
-        long count = 0;
-        if (productSku.getId() != null) {
-            count = skuList.stream()
-                    .filter(item -> !item.getId().equals(productSku.getId()))
-                    .count();
-        } else {
-            count = skuList.size();
-        }
-
-        if (count > 0) {
-            throw new ServiceException("customer sku is exist");
         }
     }
 
