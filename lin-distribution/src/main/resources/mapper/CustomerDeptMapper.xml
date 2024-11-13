@@ -79,10 +79,10 @@
                 and tcd.code = #{code}
             </if>
             <if test="name != null  and name != ''">
-                and tcd.name like concat('%', #{name}, '%')
+                and (tcd.name like concat('%', #{name}, '%')
                 or tcd.mnemonic_code like concat('%', #{name}, '%')
                 or tc.name like concat('%', #{name}, '%')
-                or tc.alias like concat('%', #{name}, '%')
+                or tc.alias like concat('%', #{name}, '%'))
             </if>
             <if test="valid != null">
                 and tcd.valid = #{valid}

@@ -31,9 +31,9 @@
         <where>
             <if test="categoryId != null  and categoryId != ''"> and category_id = #{categoryId}</if>
             <if test="name != null  and name != ''">
-                and name like concat('%', #{name}, '%')
+                and (name like concat('%', #{name}, '%')
                 or mnemonic_code like concat('%', #{name}, '%')
-                or remark like concat('%', #{name}, '%')
+                or remark like concat('%', #{name}, '%'))
             </if>
             <if test="description != null  and description != ''"> and description = #{description}</if>
             <if test="mnemonicCode != null  and mnemonicCode != ''"> and mnemonic_code like concat('%', #{mnemonicCode}, '%')</if>
