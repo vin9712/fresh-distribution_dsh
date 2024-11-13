@@ -72,7 +72,7 @@ public class ProductSkuController extends BaseController {
      */
     @PreAuthorize("@ss.hasPermi('product:sku:query')")
     @GetMapping(value = "/{id}")
-    public AjaxResult getInfo(@PathVariable("id") String id) {
+    public AjaxResult getInfo(@PathVariable("id") Long id) {
         return success(productSkuService.selectProductSkuById(id));
     }
 

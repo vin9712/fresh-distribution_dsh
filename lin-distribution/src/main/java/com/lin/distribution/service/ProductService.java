@@ -19,7 +19,7 @@ public interface ProductService {
      * @param skuId 商品信息主键
      * @return 商品信息
      */
-    ProductSku selectProductSkuById(String skuId);
+    ProductSku selectProductSkuById(Long skuId);
 
     /**
      * 查询商品信息列表
@@ -97,7 +97,7 @@ public interface ProductService {
      * @param productSpu 商品spu
      * @return 结果
      */
-    int insertProductSpu(ProductSpu productSpu);
+    ProductSpu insertProductSpu(ProductSpu productSpu);
 
     /**
      * 修改商品spu

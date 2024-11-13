@@ -66,5 +66,5 @@ public interface ProductSpuMapper
      * @param name
      * @return
      */
-    List<ProductSpu> selectProductSpuByCategoryIdAndName(@Param("categoryId") String categoryId, @Param("name") String name);
+    List<ProductSpu> selectProductSpuByCategoryIdAndName(@Param("categoryId") Long categoryId, @Param("name") String name);
 }

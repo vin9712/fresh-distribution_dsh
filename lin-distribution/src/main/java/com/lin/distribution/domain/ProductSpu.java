@@ -29,7 +29,7 @@ public class ProductSpu extends BaseEntity {
      * 分类ID
      */
     @Excel(name = "分类ID")
-    private String categoryId;
+    private Long categoryId;
 
     /**
      * 商品名称

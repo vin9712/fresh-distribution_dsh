@@ -85,7 +85,7 @@ public class ProductSpuController extends BaseController {
     @Log(title = "商品spu", businessType = BusinessType.INSERT)
     @PostMapping
     public AjaxResult add(@RequestBody ProductSpu productSpu) {
-        return toAjax(productSpuService.insertProductSpu(productSpu));
+        return success(productSpuService.insertProductSpu(productSpu));
     }
 
     /**

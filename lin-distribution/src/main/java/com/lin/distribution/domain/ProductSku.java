@@ -2,6 +2,7 @@ package com.lin.distribution.domain;
 
 import java.math.BigDecimal;
 
+import com.baomidou.mybatisplus.annotation.TableField;
 import com.lin.common.annotation.Excel;
 import com.lin.common.core.domain.BaseEntity;
 import lombok.Data;
@@ -21,17 +22,17 @@ public class ProductSku extends BaseEntity {
     /**
      * 主键
      */
-    private String id;
+    private Long id;
 
     /**
      * 客户ID
      */
-    private String customerId;
+    private Long customerId;
 
     /**
      * 产品ID
      */
-    private String spuId;
+    private Long spuId;
 
 
     /**
@@ -100,6 +101,12 @@ public class ProductSku extends BaseEntity {
      * 逻辑删除
      */
     private Boolean isDeleted;
+
+    /**
+     * 商品分类ID(提交表单用)
+     */
+    @TableField(exist = false)
+    private Long categoryId;
 
 
     @Override

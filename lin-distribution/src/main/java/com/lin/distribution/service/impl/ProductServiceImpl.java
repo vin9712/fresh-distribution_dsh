@@ -15,12 +15,14 @@ import org.apache.commons.lang3.BooleanUtils;
 import org.redisson.api.RMap;
 import org.redisson.api.RedissonClient;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Map;
 
 /**
  * 商品服务业务层处理
+ *
  * @author vinga
  * @date 2024/11/13
  */
@@ -32,6 +34,7 @@ public class ProductServiceImpl implements ProductService {
     private final ProductSkuMapper productSkuMapper;
     private final ProductSpuMapper productSpuMapper;
     private final RedissonClient redissonClient;
+    private List<ProductSpu> spuList;
 
     /** *************************** sku *************************** **/
 
@@ -42,7 +45,7 @@ public class ProductServiceImpl implements ProductService {
      * @return 商品信息
      */
     @Override
-    public ProductSku selectProductSkuById(String id) {
+    public ProductSku selectProductSkuById(Long id) {
         return productSkuMapper.selectProductSkuById(id);
     }
 
@@ -60,18 +63,28 @@ public class ProductServiceImpl implements ProductService {
     /**
      * 新增商品信息
      *
+     * insert spu method = insert spu one + insert sku one(customerId=0)
+     * insert sku method = insert sku one with customerId
+     * if customerId = 0 & spuId = null, that means try insert spu method
+     * if customerId = 0 & spuId != null, that is invalid request
+     * if customerId != 0 & spuId = null, try insert spu method & insert sku method
+     * if customerId != 0 & spuId != null, that means try insert sku method
+     *
      * @param productSku 商品信息
      * @return 结果
      */
     @Override
+    @Transactional
     public int insertProductSku(ProductSku productSku) {
-        if (StringUtils.isEmpty(productSku.getSpuId())) {
-            Map<String, Object> paramMap = ServletUtils.getReqParamMap(ServletUtils.getRequest());
-            String categoryId = (String) paramMap.get("categoryId");
 
-            // add productSpu
+        // check request validation
+        checkSaveOrUpdateSkuRequest(productSku);
+
+        // insert spu method = insert spu one + insert sku one(customerId=0)
+        if (productSku.getSpuId() == null) {
+            // add default productSpu
             ProductSpu productSpu = ProductSpu.builder()
-                    .categoryId(categoryId)
+                    .categoryId(productSku.getCategoryId())
                     .name(productSku.getName())
                     .mnemonicCode(productSku.getMnemonicCode())
                     .valid(1)
@@ -81,9 +94,48 @@ public class ProductServiceImpl implements ProductService {
             insertProductSpu(productSpu);
         }
 
+        // customerId = 0 & spuId = null, only insert spu method
+        if (productSku.getCustomerId() == 0L) {
+            return 0;
+        }
 
+        // insert sku one with customerId
         productSku.setCreateTime(DateUtils.getNowDate());
         return productSkuMapper.insertProductSku(productSku);
+    }
+
+    private void checkSaveOrUpdateSkuRequest(ProductSku productSku) {
+        if (productSku == null) {
+            throw new ServiceException("product sku is null");
+        }
+
+        if (productSku.getCustomerId() == null) {
+            throw new ServiceException("customerId is null");
+        }
+
+        if (productSku.getSpuId() == null && productSku.getCategoryId() == null) {
+            throw new ServiceException("categoryId or spuId is null");
+        }
+
+        if (productSku.getSpuId() != null && productSku.getCustomerId() == 0L) {
+            throw new ServiceException("customerId is 0 but spuId is not null");
+        }
+
+        // check unique sku
+        List<ProductSku> skuList = productSkuMapper.selectProductSkuByCustomerIdAndCategoryIdAndName(productSku.getCustomerId(), productSku.getCategoryId(), productSku.getName());
+
+        long count = 0;
+        if (productSku.getId() != null) {
+            count = skuList.stream()
+                    .filter(item -> !item.getId().equals(productSku.getId()))
+                    .count();
+        } else {
+            count = skuList.size();
+        }
+
+        if (count > 0) {
+            throw new ServiceException("customer sku is exist");
+        }
     }
 
     /**
@@ -163,13 +215,15 @@ public class ProductServiceImpl implements ProductService {
      * @return 结果
      */
     @Override
-    public int insertProductSpu(ProductSpu productSpu) {
+    public ProductSpu insertProductSpu(ProductSpu productSpu) {
         // check unique spu
         checkUniqueSpu(productSpu);
 
         productSpu.setCreateTime(DateUtils.getNowDate());
-        return productSpuMapper.insertProductSpu(productSpu);
+        productSpuMapper.insertProductSpu(productSpu);
+        return productSpu;
     }
+
     /**
      * 修改商品spu
      *

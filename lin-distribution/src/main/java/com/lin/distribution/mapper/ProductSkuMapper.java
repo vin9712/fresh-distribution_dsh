@@ -2,7 +2,9 @@ package com.lin.distribution.mapper;
 
 import java.util.List;
 
+import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.lin.distribution.domain.ProductSku;
+import org.apache.ibatis.annotations.Param;
 
 /**
  * 商品信息Mapper接口
@@ -17,7 +19,7 @@ public interface ProductSkuMapper {
      * @param id 商品信息主键
      * @return 商品信息
      */
-    ProductSku selectProductSkuById(String id);
+    ProductSku selectProductSkuById(Long id);
 
     /**
      * 查询商品信息列表
@@ -58,4 +60,14 @@ public interface ProductSkuMapper {
      * @return 结果
      */
     int deleteProductSkuByIds(String[] ids);
+
+    /**
+     * 根据客户id、分类id、商品名称查询商品信息
+     *
+     * @param customerId 客户id
+     * @param categoryId 分类id
+     * @param name       商品名称
+     * @return 商品信息集合
+     */
+    List<ProductSku> selectProductSkuByCustomerIdAndCategoryIdAndName(@Param("customerId") Long customerId, @Param("categoryId") Long categoryId, @Param("name") String name);
 }

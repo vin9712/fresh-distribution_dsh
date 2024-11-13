@@ -25,8 +25,9 @@
       </el-form-item>
       <el-form-item label="商品分类" prop="categoryId">
         <el-cascader
-          v-model="queryParams.categoryId"
+          v-model="querySelectedOptions"
           placeholder="请选择商品分类"
+          @change="handleQueryCascaderChange"
           :options="categoryOptions"
           :props="{ expandTrigger: 'hover' }"
           :show-all-levels="false"
@@ -197,7 +198,7 @@
 
     <!-- 添加或修改商品信息对话框 -->
     <el-dialog :title="title" :visible.sync="open" width="500px" append-to-body>
-      <el-form ref="form" :model="form" :rules="rules" label-width="80px">
+      <el-form ref="form" :model="form" :rules="rules" label-width="100px">
         <el-form-item label="当前客户" prop="customerId">
           <el-select v-model="form.customerId" disabled>
             <el-option
@@ -208,18 +209,36 @@
             />
           </el-select>
         </el-form-item>
-        <el-form-item label="商品名称" prop="name">
-          <!-- <el-input
-            v-model="form.name"
-            @input="handleUpdateMnemonicCode"
-            placeholder="请输入商品名称"
-          /> -->
+        <el-form-item label="商品分类" prop="categoryId">
+          <el-cascader
+            v-model="formSelectOptions"
+            placeholder="请选择商品分类"
+            :options="categoryOptions"
+            @change="handleFormOptionsChanged"
+            :props="{ expandTrigger: 'hover' }"
+            :show-all-levels="false"
+            filterable
+            clearable
+          />
+        </el-form-item>
+        <el-form-item prop="name">
+          <span slot="label"
+            >商品名称
+            <el-tooltip
+              v-if="!form.categoryId"
+              content="请先选择商品分类"
+              placement="top"
+            >
+              <i class="el-icon-question"></i> </el-tooltip
+          ></span>
           <el-autocomplete
             v-model="form.name"
             @select="handleSelectSpu"
             @input="handleUpdateMnemonicCode"
             :fetch-suggestions="querySpuList"
             placeholder="请输入商品名称"
+            :disabled="!form.categoryId"
+            clearable
           ></el-autocomplete>
         </el-form-item>
         <el-form-item label="助记码" prop="mnemonicCode">
@@ -336,6 +355,9 @@ export default {
       skuList: [],
       // 商品库列表数据
       formSpuList: [],
+      // 选中的商品分类
+      querySelectedOptions: [],
+      formSelectOptions: [],
       // 弹出层标题
       title: "",
       // 是否显示弹出层
@@ -366,6 +388,9 @@ export default {
           { required: true, message: "客户ID不能为空", trigger: "blur" },
         ],
         spuId: [{ required: true, message: "产品ID不能为空", trigger: "blur" }],
+        categoryId: [
+          { required: true, message: "商品分类不能为空", trigger: "change" },
+        ],
         name: [
           { required: true, message: "商品名称不能为空", trigger: "blur" },
         ],
@@ -434,7 +459,11 @@ export default {
         return;
       }
 
-      listSpu({ name: queryString })
+      var param = {
+        name: queryString,
+        categoryId: this.form.categoryId,
+      };
+      listSpu(param)
         .then((response) => {
           results = response.data.map((spu) => ({
             value: spu.name,
@@ -480,6 +509,8 @@ export default {
         categoryId: null,
       };
       this.resetForm("form");
+      // 清空级联选择器
+      this.formSelectdOptions = [];
     },
     /** 搜索按钮操作 */
     handleQuery() {
@@ -489,6 +520,7 @@ export default {
     /** 重置按钮操作 */
     resetQuery() {
       this.resetForm("queryForm");
+      this.querySelectedOptions = [];
       this.handleQuery();
     },
     // 多选框选中数据
@@ -598,6 +630,14 @@ export default {
         this.form.spuId = null;
       }
       this.form.spuId = item.id;
+    },
+    /** 处理级联选择器，取最后一个选项 */
+    handleQueryCascaderChange(value) {
+      this.queryParams.categoryId = value[value.length - 1];
+      this.handleQuery();
+    },
+    handleFormOptionsChanged(value) {
+      this.form.categoryId = value[value.length - 1];
     },
   },
 };
