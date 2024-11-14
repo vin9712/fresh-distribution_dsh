@@ -531,8 +531,12 @@ export default {
     },
     /** 搜索按钮操作 */
     handleQuery() {
-      this.queryParams.pageNum = 1;
-      this.getPageList();
+      this.$refs["queryForm"].validate((valid) => {
+        if (valid) {
+          this.queryParams.pageNum = 1;
+          this.getPageList();
+        }
+      });
     },
     /** 重置按钮操作 */
     resetQuery() {
