@@ -58,4 +58,10 @@ public interface ProductSkuQuoteService {
      * @return 结果
      */
     int deleteProductSkuQuoteById(Long id);
+
+    /**
+     * 生成商品报价单号
+     * @return
+     */
+    String generateSkuQuoteNo();
 }

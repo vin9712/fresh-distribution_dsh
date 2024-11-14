@@ -19,7 +19,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.util.List;
-import java.util.Map;
 
 /**
  * 商品服务业务层处理
@@ -35,7 +34,6 @@ public class ProductServiceImpl implements ProductService {
     private final ProductSkuMapper productSkuMapper;
     private final ProductSpuMapper productSpuMapper;
     private final RedissonClient redissonClient;
-    private List<ProductSpu> spuList;
 
     /** *************************** sku *************************** **/
 

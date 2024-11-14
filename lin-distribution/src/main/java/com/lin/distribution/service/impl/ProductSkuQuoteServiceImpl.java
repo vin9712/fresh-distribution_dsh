@@ -2,13 +2,18 @@ package com.lin.distribution.service.impl;
 
 import java.util.List;
 
+import com.lin.common.exception.ServiceException;
 import com.lin.common.utils.DateUtils;
+import com.lin.distribution.domain.Customer;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.redisson.api.RMap;
+import org.redisson.api.RedissonClient;
 import org.springframework.stereotype.Service;
 import com.lin.distribution.mapper.ProductSkuQuoteMapper;
 import com.lin.distribution.domain.ProductSkuQuote;
 import com.lin.distribution.service.ProductSkuQuoteService;
+import org.springframework.transaction.annotation.Transactional;
 
 /**
  * 商品报价Service业务层处理
@@ -21,6 +26,7 @@ import com.lin.distribution.service.ProductSkuQuoteService;
 @RequiredArgsConstructor
 public class ProductSkuQuoteServiceImpl implements ProductSkuQuoteService {
     private final ProductSkuQuoteMapper productSkuQuoteMapper;
+    private final RedissonClient redissonClient;
 
     /**
      * 查询商品报价
@@ -51,7 +57,11 @@ public class ProductSkuQuoteServiceImpl implements ProductSkuQuoteService {
      * @return 结果
      */
     @Override
+    @Transactional
     public int insertProductSkuQuote(ProductSkuQuote productSkuQuote) {
+        // check unique quote
+        checkUniqueQuote(productSkuQuote);
+
         productSkuQuote.setCreateTime(DateUtils.getNowDate());
         return productSkuQuoteMapper.insertProductSkuQuote(productSkuQuote);
     }
@@ -88,5 +98,30 @@ public class ProductSkuQuoteServiceImpl implements ProductSkuQuoteService {
     @Override
     public int deleteProductSkuQuoteById(Long id) {
         return productSkuQuoteMapper.deleteProductSkuQuoteById(id);
+    }
+
+    /**
+     * 生成商品报价单号
+     * @return
+     */
+    @Override
+    public String generateSkuQuoteNo() {
+        String date = DateUtils.dateTime();
+        String prefix = "BJ" + date;
+        RMap<String, Integer> rMap = redissonClient.getMap("skuQuoteNo");
+        int seqNbr = rMap.addAndGet(date, 1);
+        String seqNbrStr = String.format("%05d", seqNbr);
+        return prefix + seqNbrStr;
+    }
+
+    private void checkUniqueQuote(ProductSkuQuote productSkuQuote) {
+        if (productSkuQuote == null) {
+            throw new ServiceException("productSkuQuote is null");
+        }
+
+        ProductSkuQuote skuQuote = productSkuQuoteMapper.selectProductSkuQuoteByCode(productSkuQuote.getCode());
+        if (skuQuote != null) {
+            throw new ServiceException("product sku no existed");
+        }
     }
 }

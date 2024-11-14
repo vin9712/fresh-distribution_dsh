@@ -25,7 +25,7 @@ CREATE TABLE `t_product_spu`
     `id`            bigint(10) unsigned NOT NULL AUTO_INCREMENT COMMENT '主键',
     `category_id`   bigint(10) unsigned NOT NULL COMMENT '分类ID',
     `name`          varchar(200) NOT NULL COMMENT '商品名称',
-    `description`   varchar(200) DEFAULT NULL COMMENT '商品描述',
+    `description`   varchar(200)          DEFAULT NULL COMMENT '商品描述',
     `mnemonic_code` varchar(128) NOT NULL COMMENT '助记码',
     `images`        json                  DEFAULT NULL COMMENT '商品图片',
     `saleable`      tinyint(1) NOT NULL COMMENT '是否上架',
@@ -50,7 +50,7 @@ CREATE TABLE `t_customer`
 (
     `id`          bigint(10) unsigned NOT NULL AUTO_INCREMENT COMMENT '主键',
     `name`        varchar(200) NOT NULL COMMENT '客户名称',
-    `alias`       varchar(200) DEFAULT NULL COMMENT '客户别名',
+    `alias`       varchar(200)          DEFAULT NULL COMMENT '客户别名',
     `type`        varchar(10)  NOT NULL COMMENT '客户类型',
     `tel`         char(11)              DEFAULT NULL COMMENT '手机号',
     `address`     varchar(200)          DEFAULT NULL COMMENT '客户地址',
@@ -86,7 +86,7 @@ CREATE TABLE `t_customer_dept`
     `remark`        varchar(500)          DEFAULT NULL COMMENT '备注',
     PRIMARY KEY (`id`) USING BTREE,
     UNIQUE INDEX `unq_code` (`code`) USING BTREE,
-    KEY           `idx_name` (`name`) USING BTREE
+    KEY             `idx_name` (`name`) USING BTREE
 ) ENGINE=InnoDB AUTO_INCREMENT=1 DEFAULT CHARSET=utf8 ROW_FORMAT=DYNAMIC COMMENT='客户部门表';
 
 -- 供应商表
@@ -111,19 +111,19 @@ CREATE TABLE `t_supplier`
 -- 供应商明细表
 CREATE TABLE `t_supplier_detail`
 (
-    `id`            bigint(10) unsigned NOT NULL AUTO_INCREMENT COMMENT '主键',
-    `supplier_id`  bigint(10) unsigned NOT NULL COMMENT '供应商ID',
-    `spu_id`        bigint(10) unsigned NOT NULL COMMENT '产品ID',
-    `sku_id`        bigint(10) unsigned NOT NULL COMMENT '商品ID',
+    `id`          bigint(10) unsigned NOT NULL AUTO_INCREMENT COMMENT '主键',
+    `supplier_id` bigint(10) unsigned NOT NULL COMMENT '供应商ID',
+    `spu_id`      bigint(10) unsigned NOT NULL COMMENT '产品ID',
+    `sku_id`      bigint(10) unsigned NOT NULL COMMENT '商品ID',
     `is_deleted`  tinyint(1) NOT NULL DEFAULT '0' COMMENT '逻辑删除',
-    `create_by`   varchar(64)           DEFAULT '' COMMENT '创建者',
-    `create_time` timestamp    NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
-    `update_by`   varchar(64)           DEFAULT '' COMMENT '更新者',
-    `update_time` datetime              DEFAULT NULL COMMENT '更新时间',
-    `remark`      varchar(500)          DEFAULT NULL COMMENT '备注',
+    `create_by`   varchar(64)        DEFAULT '' COMMENT '创建者',
+    `create_time` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    `update_by`   varchar(64)        DEFAULT '' COMMENT '更新者',
+    `update_time` datetime           DEFAULT NULL COMMENT '更新时间',
+    `remark`      varchar(500)       DEFAULT NULL COMMENT '备注',
     PRIMARY KEY (`id`) USING BTREE,
-    KEY             `idx_spu_id` (`spu_id`) USING BTREE,
-    KEY             `idx_sku_id` (`sku_id`) USING BTREE
+    KEY           `idx_spu_id` (`spu_id`) USING BTREE,
+    KEY           `idx_sku_id` (`sku_id`) USING BTREE
 ) ENGINE=InnoDB AUTO_INCREMENT=1 DEFAULT CHARSET=utf8 ROW_FORMAT=DYNAMIC COMMENT='供应商明细表';
 
 -- 商品sku表
@@ -165,16 +165,17 @@ CREATE TABLE `t_product_sku_quote`
 (
     `id`                   bigint(10) unsigned NOT NULL AUTO_INCREMENT COMMENT '主键',
     `customer_id`          bigint(10) unsigned NOT NULL COMMENT '客户ID',
-    `effective_start_date` datetime NOT NULL COMMENT '报价生效时间',
-    `effective_end_date`   datetime NOT NULL COMMENT '报价结束时间',
+    `code`                 varchar(200) NOT NULL COMMENT '商品报价编号',
+    `effective_start_date` datetime     NOT NULL COMMENT '报价生效时间',
+    `effective_end_date`   datetime     NOT NULL COMMENT '报价结束时间',
     `valid`                tinyint(1) NOT NULL DEFAULT '1' COMMENT '是否有效',
     `is_deleted`           tinyint(1) NOT NULL DEFAULT '0' COMMENT '逻辑删除',
-    `version`   int(10) unsigned NOT NULL DEFAULT '0' COMMENT '版本号',
-    `create_by`            varchar(64)        DEFAULT '' COMMENT '创建者',
-    `create_time`          timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
-    `update_by`            varchar(64)        DEFAULT '' COMMENT '更新者',
-    `update_time`          datetime           DEFAULT NULL COMMENT '更新时间',
-    `remark`               varchar(500)       DEFAULT NULL COMMENT '备注',
+    `version`              int(10) unsigned NOT NULL DEFAULT '0' COMMENT '版本号',
+    `create_by`            varchar(64)           DEFAULT '' COMMENT '创建者',
+    `create_time`          timestamp    NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    `update_by`            varchar(64)           DEFAULT '' COMMENT '更新者',
+    `update_time`          datetime              DEFAULT NULL COMMENT '更新时间',
+    `remark`               varchar(500)          DEFAULT NULL COMMENT '备注',
     PRIMARY KEY (`id`) USING BTREE,
     KEY                    `idx_customer_id` (`customer_id`) USING BTREE
 ) ENGINE=InnoDB AUTO_INCREMENT=1 DEFAULT CHARSET=utf8 ROW_FORMAT=DYNAMIC COMMENT='商品报价表';
@@ -192,7 +193,7 @@ CREATE TABLE `t_product_sku_quote_detail`
     `price`        decimal(10, 2) unsigned NOT NULL DEFAULT '0' COMMENT '商品报价',
     `valid`        tinyint(1) NOT NULL DEFAULT '1' COMMENT '是否有效',
     `is_deleted`   tinyint(1) NOT NULL DEFAULT '0' COMMENT '逻辑删除',
-    `version`   int(10) unsigned NOT NULL DEFAULT '0' COMMENT '版本号',
+    `version`      int(10) unsigned NOT NULL DEFAULT '0' COMMENT '版本号',
     `create_by`    varchar(64)           DEFAULT '' COMMENT '创建者',
     `create_time`  timestamp    NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     `update_by`    varchar(64)           DEFAULT '' COMMENT '更新者',
@@ -217,7 +218,7 @@ CREATE TABLE `t_sale_order`
     `status`           tinyint(3) unsigned NOT NULL COMMENT '状态：0制单,1审核,2送货,3验收,4完成',
     `deliver_date`     date         NOT NULL COMMENT '预计配送日期',
     `is_deleted`       tinyint(1) NOT NULL DEFAULT '0' COMMENT '逻辑删除',
-    `version`   int(10) unsigned NOT NULL DEFAULT '0' COMMENT '版本号',
+    `version`          int(10) unsigned NOT NULL DEFAULT '0' COMMENT '版本号',
     `create_by`        varchar(64)           DEFAULT '' COMMENT '创建者',
     `create_time`      timestamp    NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     `update_by`        varchar(64)           DEFAULT '' COMMENT '更新者',
@@ -249,12 +250,12 @@ CREATE TABLE `t_sale_order_detail`
     `product_spec`     varchar(200)          DEFAULT NULL COMMENT '商品规格',
     `num`              decimal(10, 2) unsigned NOT NULL COMMENT '计划数量',
     `expect_amount`    decimal(10, 2) unsigned DEFAULT '0' COMMENT '计划总金额',
-    `actual_price`    decimal(10, 2) unsigned NOT NULL DEFAULT '0' COMMENT '验收商品单价',
+    `actual_price`     decimal(10, 2) unsigned NOT NULL DEFAULT '0' COMMENT '验收商品单价',
     `actual_num`       decimal(10, 2) unsigned DEFAULT '0' COMMENT '验收数量',
     `actual_amount`    decimal(10, 2) unsigned DEFAULT '0' COMMENT '验收总金额',
-    `sort`        int(10) unsigned NOT NULL DEFAULT '0' COMMENT '订单详情排序',
+    `sort`             int(10) unsigned NOT NULL DEFAULT '0' COMMENT '订单详情排序',
     `is_deleted`       tinyint(1) NOT NULL DEFAULT '0' COMMENT '逻辑删除',
-    `version`   int(10) unsigned NOT NULL DEFAULT '0' COMMENT '版本号',
+    `version`          int(10) unsigned NOT NULL DEFAULT '0' COMMENT '版本号',
     `create_by`        varchar(64)           DEFAULT '' COMMENT '创建者',
     `create_time`      timestamp    NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     `update_by`        varchar(64)           DEFAULT '' COMMENT '更新者',

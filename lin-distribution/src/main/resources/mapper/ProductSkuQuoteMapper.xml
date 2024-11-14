@@ -7,6 +7,7 @@
     <resultMap type="com.lin.distribution.domain.ProductSkuQuote" id="ProductSkuQuoteResult">
         <result property="id"    column="id"    />
         <result property="customerId"    column="customer_id"    />
+        <result property="code"    column="code"    />
         <result property="effectiveStartDate"    column="effective_start_date"    />
         <result property="effectiveEndDate"    column="effective_end_date"    />
         <result property="valid"    column="valid"    />
@@ -20,15 +21,19 @@
     </resultMap>
 
     <sql id="selectProductSkuQuoteVo">
-        select id, customer_id, effective_start_date, effective_end_date, valid, is_deleted, version, create_by, create_time, update_by, update_time, remark from t_product_sku_quote
+        select id, customer_id, code, effective_start_date, effective_end_date, valid, is_deleted, version, create_by, create_time, update_by, update_time, remark from t_product_sku_quote
     </sql>
 
     <select id="selectProductSkuQuoteList" parameterType="com.lin.distribution.domain.ProductSkuQuote" resultMap="ProductSkuQuoteResult">
         <include refid="selectProductSkuQuoteVo"/>
         <where>
             <if test="customerId != null "> and customer_id = #{customerId}</if>
-            <if test="effectiveStartDate != null "> and effective_start_date = #{effectiveStartDate}</if>
-            <if test="effectiveEndDate != null "> and effective_end_date = #{effectiveEndDate}</if>
+            <if test="code != null "> and code = #{code}</if>
+            <if test="effectiveStartDate != null "> and effective_start_date &gt;= #{effectiveStartDate}</if>
+            <if test="effectiveEndDate != null "> and effective_end_date &lt;= #{effectiveEndDate}</if>
+            <if test="createTimeStart != null and createTimeEnd != null">
+                and create_time between #{createTimeStart} and #{createTimeEnd}
+            </if>
             <if test="valid != null "> and valid = #{valid}</if>
         </where>
     </select>
@@ -38,10 +43,16 @@
         where id = #{id}
     </select>
 
+    <select id="selectProductSkuQuoteByCode" resultMap="ProductSkuQuoteResult">
+        <include refid="selectProductSkuQuoteVo"/>
+        where code = #{code}
+    </select>
+
     <insert id="insertProductSkuQuote" parameterType="com.lin.distribution.domain.ProductSkuQuote" useGeneratedKeys="true" keyProperty="id">
         insert into t_product_sku_quote
         <trim prefix="(" suffix=")" suffixOverrides=",">
             <if test="customerId != null">customer_id,</if>
+            <if test="code != null and code != ''">code,</if>
             <if test="effectiveStartDate != null">effective_start_date,</if>
             <if test="effectiveEndDate != null">effective_end_date,</if>
             <if test="valid != null">valid,</if>
@@ -55,6 +66,7 @@
         </trim>
         <trim prefix="values (" suffix=")" suffixOverrides=",">
             <if test="customerId != null">#{customerId},</if>
+            <if test="code != null and code != ''">#{code},</if>
             <if test="effectiveStartDate != null">#{effectiveStartDate},</if>
             <if test="effectiveEndDate != null">#{effectiveEndDate},</if>
             <if test="valid != null">#{valid},</if>
@@ -72,6 +84,7 @@
         update t_product_sku_quote
         <trim prefix="SET" suffixOverrides=",">
             <if test="customerId != null">customer_id = #{customerId},</if>
+            <if test="code != null and code != ''">code = #{code},</if>
             <if test="effectiveStartDate != null">effective_start_date = #{effectiveStartDate},</if>
             <if test="effectiveEndDate != null">effective_end_date = #{effectiveEndDate},</if>
             <if test="valid != null">valid = #{valid},</if>

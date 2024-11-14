@@ -20,6 +20,13 @@ public interface ProductSkuQuoteMapper {
     ProductSkuQuote selectProductSkuQuoteById(Long id);
 
     /**
+     * 根据code查询商品报价
+     * @param code
+     * @return
+     */
+    ProductSkuQuote selectProductSkuQuoteByCode(String code);
+
+    /**
      * 查询商品报价列表
      *
      * @param productSkuQuote 商品报价
