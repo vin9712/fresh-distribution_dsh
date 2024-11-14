@@ -18,7 +18,7 @@
       </el-form-item>
       <el-form-item label="商品分类" prop="categoryId">
         <el-cascader
-          v-model="querySelectedhandleQueryCascaderChangeOptions"
+          v-model="querySelectedOptions"
           placeholder="请选择商品分类"
           @change="handleQueryCascaderChange"
           :options="categoryOptions"
@@ -423,6 +423,11 @@ export default {
       const id = row.id || this.ids;
       getSpu(id).then((response) => {
         this.form = response.data;
+        // 构造级联选择器选中的数据
+        this.formSelectedOptions = this.fillWithParentCategoryId(
+          this.categoryOptions,
+          this.form.categoryId.toString()
+        );
         this.open = true;
         this.title = "修改商品spu";
       });
@@ -527,6 +532,25 @@ export default {
     },
     handleFormOptionsChanged(value) {
       this.form.categoryId = value[value.length - 1];
+    },
+    /** 根据 id 构造父节点列表，并添加自身 */
+    fillWithParentCategoryId(list, id) {
+      if (!id) return [];
+      function getParents(nodes, targetId, path = []) {
+        for (const node of nodes) {
+          path.push(node.value);
+          if (
+            node.value === targetId ||
+            (node.children && getParents(node.children, targetId, path))
+          ) {
+            return path;
+          }
+          path.pop();
+        }
+        return null;
+      }
+
+      return getParents(list, id) || [];
     },
   },
   watch: {},
