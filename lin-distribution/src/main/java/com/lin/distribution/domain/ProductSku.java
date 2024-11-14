@@ -5,7 +5,10 @@ import java.math.BigDecimal;
 import com.baomidou.mybatisplus.annotation.TableField;
 import com.lin.common.annotation.Excel;
 import com.lin.common.core.domain.BaseEntity;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Data;
+import lombok.RequiredArgsConstructor;
 import org.apache.commons.lang3.builder.ToStringBuilder;
 import org.apache.commons.lang3.builder.ToStringStyle;
 
@@ -16,6 +19,9 @@ import org.apache.commons.lang3.builder.ToStringStyle;
  * @date 2024-11-11
  */
 @Data
+@Builder
+@AllArgsConstructor
+@RequiredArgsConstructor
 public class ProductSku extends BaseEntity {
     private static final long serialVersionUID = 1L;
 

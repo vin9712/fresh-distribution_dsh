@@ -17,6 +17,7 @@ import org.redisson.api.RedissonClient;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
 
@@ -199,12 +200,29 @@ public class ProductServiceImpl implements ProductService {
      * @return 结果
      */
     @Override
+    @Transactional
     public ProductSpu insertProductSpu(ProductSpu productSpu) {
         // check unique spu
         checkUniqueSpu(productSpu);
 
+        // add spu item
         productSpu.setCreateTime(DateUtils.getNowDate());
         productSpuMapper.insertProductSpu(productSpu);
+
+        // add default sku with customerId = 0
+        ProductSku productSku = ProductSku.builder()
+                .customerId(0L)
+                .spuId(productSpu.getId())
+                .code(generateSkuNo(0L, productSpu.getId(), productSpu.getMnemonicCode(), true))
+                .mnemonicCode(productSpu.getMnemonicCode())
+                .name(productSpu.getName())
+                .unit("斤")
+                .salePrice(BigDecimal.ZERO)
+                .valid(1)
+                .saleable(1)
+                .isDeleted(false)
+                .build();
+        productSkuMapper.insertProductSku(productSku);
         return productSpu;
     }
 

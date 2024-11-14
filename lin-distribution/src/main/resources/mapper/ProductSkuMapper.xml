@@ -53,9 +53,10 @@
             keyProperty="id">
         insert into t_product_sku
         <trim prefix="(" suffix=")" suffixOverrides=",">
-            <if test="customerId != null and customerId != ''">customer_id,</if>
-            <if test="spuId != null and spuId != ''">spu_id,</if>
+            <if test="customerId != null">customer_id,</if>
+            <if test="spuId != null">spu_id,</if>
             <if test="name != null and name != ''">name,</if>
+            <if test="code != null and code != ''">code,</if>
             <if test="mnemonicCode != null and mnemonicCode != ''">mnemonic_code,</if>
             <if test="unit != null and unit != ''">unit,</if>
             <if test="spec != null">spec,</if>
@@ -73,8 +74,9 @@
             <if test="remark != null">remark,</if>
         </trim>
         <trim prefix="values (" suffix=")" suffixOverrides=",">
-            <if test="customerId != null and customerId != ''">#{customerId},</if>
-            <if test="spuId != null and spuId != ''">#{spuId},</if>
+            <if test="customerId != null">#{customerId},</if>
+            <if test="spuId != null">#{spuId},</if>
+            <if test="code != null and code != ''">#{code},</if>
             <if test="name != null and name != ''">#{name},</if>
             <if test="mnemonicCode != null and mnemonicCode != ''">#{mnemonicCode},</if>
             <if test="unit != null and unit != ''">#{unit},</if>
@@ -97,8 +99,9 @@
     <update id="updateProductSku" parameterType="com.lin.distribution.domain.ProductSku">
         update t_product_sku
         <trim prefix="SET" suffixOverrides=",">
-            <if test="customerId != null and customerId != ''">customer_id = #{customerId},</if>
-            <if test="spuId != null and spuId != ''">spu_id = #{spuId},</if>
+            <if test="customerId != null">customer_id = #{customerId},</if>
+            <if test="spuId != null">spu_id = #{spuId},</if>
+            <if test="code != null and code != ''">code = #{code},</if>
             <if test="name != null and name != ''">name = #{name},</if>
             <if test="mnemonicCode != null and mnemonicCode != ''">mnemonic_code = #{mnemonicCode},</if>
             <if test="unit != null and unit != ''">unit = #{unit},</if>
@@ -133,8 +136,8 @@
     <select id="selectProductSkuByCustomerIdAndCategoryIdAndName" resultMap="ProductSkuResult">
         <include refid="selectProductSkuVo"/>
         <where>
-            <if test="customerId != null and customerId != ''">and customer_id = #{customerId}</if>
-            <if test="categoryId != null and categoryId != ''">and category_id = #{categoryId}</if>
+            <if test="customerId != null">and customer_id = #{customerId}</if>
+            <if test="categoryId != null">and category_id = #{categoryId}</if>
             <if test="name != null and name != ''">and name = #{name}</if>
             and is_deleted = 0
         </where>
