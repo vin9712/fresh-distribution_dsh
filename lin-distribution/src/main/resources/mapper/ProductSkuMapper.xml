@@ -76,8 +76,8 @@
         <trim prefix="values (" suffix=")" suffixOverrides=",">
             <if test="customerId != null">#{customerId},</if>
             <if test="spuId != null">#{spuId},</if>
-            <if test="code != null and code != ''">#{code},</if>
             <if test="name != null and name != ''">#{name},</if>
+            <if test="code != null and code != ''">#{code},</if>
             <if test="mnemonicCode != null and mnemonicCode != ''">#{mnemonicCode},</if>
             <if test="unit != null and unit != ''">#{unit},</if>
             <if test="spec != null">#{spec},</if>
