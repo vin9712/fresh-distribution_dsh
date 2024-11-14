@@ -4,7 +4,7 @@ package ${packageName}.domain;
 import ${import};
 #end
 import com.lin.common.annotation.Excel;
-import lombok.Data;
+import lombok.*;
 #if($table.crud || $table.sub)
 #elseif($table.tree)
 #end
@@ -20,7 +20,11 @@ import lombok.Data;
 #elseif($table.tree)
 #set($Entity="TreeEntity")
 #end
+@EqualsAndHashCode(callSuper = true)
 @Data
+@Builder
+@AllArgsConstructor
+@RequiredArgsConstructor
 public class ${ClassName} extends ${Entity}
 {
     private static final long serialVersionUID = 1L;
@@ -53,21 +57,4 @@ public class ${ClassName} extends ${Entity}
     private List<${subClassName}> ${subclassName}List;
 
 #end
-
-    @Override
-    public String toString() {
-        return new ToStringBuilder(this,ToStringStyle.MULTI_LINE_STYLE)
-#foreach ($column in $columns)
-#if($column.javaField.length() > 2 && $column.javaField.substring(1,2).matches("[A-Z]"))
-#set($AttrName=$column.javaField)
-#else
-#set($AttrName=$column.javaField.substring(0,1).toUpperCase() + ${column.javaField.substring(1)})
-#end
-            .append("${column.javaField}", get${AttrName}())
-#end
-#if($table.sub)
-            .append("${subclassName}List", get${subClassName}List())
-#end
-            .toString();
-    }
 }

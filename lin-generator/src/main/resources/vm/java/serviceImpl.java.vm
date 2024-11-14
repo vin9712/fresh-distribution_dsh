@@ -4,10 +4,11 @@ import java.util.List;
 #foreach ($column in $columns)
 #if($column.javaField == 'createTime' || $column.javaField == 'updateTime')
 import com.lin.common.utils.DateUtils;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 #break
 #end
 #end
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 #if($table.sub)
 import java.util.ArrayList;
@@ -25,11 +26,12 @@ import ${packageName}.service.${ClassName}Service;
  * @author ${author}
  * @date ${datetime}
  */
+@Slf4j
 @Service
+@RequiredArgsConstructor
 public class ${ClassName}ServiceImpl implements ${ClassName}Service
 {
-    @Autowired
-    private ${ClassName}Mapper ${className}Mapper;
+    private final ${ClassName}Mapper ${className}Mapper;
 
     /**
      * 查询${functionName}
