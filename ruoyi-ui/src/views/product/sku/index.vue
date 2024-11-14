@@ -145,6 +145,12 @@
     >
       <el-table-column type="selection" width="55" align="center" />
       <el-table-column label="商品编号" align="center" prop="code" />
+      <el-table-column
+        label="商品分类"
+        align="center"
+        prop="categoryId"
+        :formatter="categoryFormatter"
+      />
       <el-table-column label="商品名称" align="center" prop="name" />
       <el-table-column label="商品单位" align="center" prop="unit" />
       <el-table-column label="商品规格" align="center" prop="spec" />
@@ -210,7 +216,7 @@
             />
           </el-select>
         </el-form-item>
-        <el-form-item label="商品分类" prop="categoryId">
+        <el-form-item v-if="!form.id" label="商品分类" prop="categoryId">
           <el-cascader
             v-model="formSelectOptions"
             placeholder="请选择商品分类"
@@ -348,6 +354,8 @@ export default {
       total: 0,
       // 默认客户ID
       defaultCustomerId: null,
+      // 商品分类map
+      categoryMap: {},
       // 商品分类树选项
       categoryOptions: [],
       // 客户列表数据
@@ -418,6 +426,14 @@ export default {
         ],
       },
     };
+  },
+  watch: {
+    // 监听 open 变化，如果为 false 清空表单
+    open(val) {
+      if (!val) {
+        this.reset();
+      }
+    },
   },
   created() {
     this.defaultCustomerId =
@@ -511,7 +527,7 @@ export default {
       };
       this.resetForm("form");
       // 清空级联选择器
-      this.formSelectdOptions = [];
+      this.formSelectOptions = [];
     },
     /** 搜索按钮操作 */
     handleQuery() {
@@ -608,6 +624,13 @@ export default {
     /** 查询商品分类下拉树结构 */
     getTreeselect() {
       listCategory().then((response) => {
+        // init categoryMap
+        this.categoryMap = response.data.reduce((map, item) => {
+          map[item.id] = item.name;
+          return map;
+        });
+
+        // init categoryOptions
         const treeList = this.handleTree(response.data);
         this.categoryOptions = this.transformData(treeList);
       });
@@ -639,6 +662,12 @@ export default {
     },
     handleFormOptionsChanged(value) {
       this.form.categoryId = value[value.length - 1];
+    },
+    /** 格式化商品分类 */
+    categoryFormatter(row) {
+      return this.categoryMap
+        ? this.categoryMap[row.categoryId] || ""
+        : row.categoryId;
     },
   },
 };

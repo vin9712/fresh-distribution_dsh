@@ -109,7 +109,7 @@ public class ProductSku extends BaseEntity {
     private Boolean isDeleted;
 
     /**
-     * 商品分类ID(提交表单用)
+     * 商品分类ID(来自 spu 表)
      */
     @TableField(exist = false)
     private Long categoryId;
