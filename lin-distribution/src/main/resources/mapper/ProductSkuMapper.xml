@@ -27,8 +27,9 @@
     </resultMap>
 
     <sql id="selectProductSkuVo">
-        select id, customer_id, spu_id, name, mnemonic_code, unit, spec, images, properties, sale_price, visit_count,
-        saleable, valid, is_deleted, create_by, create_time, update_by, update_time, remark from t_product_sku
+        select id, customer_id, spu_id, code, name, mnemonic_code, unit, spec, images, properties, sale_price, visit_count,
+        saleable, valid, is_deleted, create_by, create_time, update_by, update_time, remark
+        from t_product_sku
     </sql>
 
     <select id="selectProductSkuList" parameterType="com.lin.distribution.domain.ProductSku"

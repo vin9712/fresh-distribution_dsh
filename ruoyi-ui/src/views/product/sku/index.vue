@@ -144,6 +144,7 @@
       @selection-change="handleSelectionChange"
     >
       <el-table-column type="selection" width="55" align="center" />
+      <el-table-column label="商品编号" align="center" prop="code" />
       <el-table-column label="商品名称" align="center" prop="name" />
       <el-table-column label="商品单位" align="center" prop="unit" />
       <el-table-column label="商品规格" align="center" prop="spec" />
