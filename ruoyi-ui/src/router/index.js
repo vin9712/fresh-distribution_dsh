@@ -176,6 +176,20 @@ export const dynamicRoutes = [
       }
     ]
   },
+  {
+    path: '/basicInfo/quote-detail',
+    component: Layout,
+    hidden: true,
+    permissions: ['partner:quote:add'],
+    children: [
+      {
+        path: 'index',
+        component: () => import('@/views/product/quote/detail'),
+        name: 'SkuQuoteDetail',
+        meta: { title: '报价详情', activeMenu: '/basicInfo/quote' }
+      }
+    ]
+  },
 ]
 
 // 防止连续点击多次路由报错

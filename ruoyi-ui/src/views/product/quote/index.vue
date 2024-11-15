@@ -187,7 +187,7 @@
       </el-table-column>
     </el-table>
 
-    <pagination
+      <pagination
       v-show="total > 0"
       :total="total"
       :page.sync="queryParams.pageNum"
@@ -196,7 +196,7 @@
     />
   </div>
 </template>
-  
+
   <script>
 import {
   pageQuote,
@@ -209,7 +209,7 @@ import {
 import { listCustomer } from "@/api/partner/customer";
 
 export default {
-  name: "Quote",
+  name: "SkuQuote",
   dicts: ["biz_yes_no"],
   data() {
     return {
@@ -404,6 +404,8 @@ export default {
       this.reset();
       this.open = true;
       this.title = "添加商品报价";
+      // 跳转
+      this.$router.push({ path: "/basicInfo/quote-detail/index" });
     },
     /** 修改按钮操作 */
     handleUpdate(row) {
@@ -468,4 +470,3 @@ export default {
   },
 };
 </script>
-  

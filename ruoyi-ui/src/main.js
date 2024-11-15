@@ -9,6 +9,10 @@ import './assets/styles/element-variables.scss'
 import VueEasytable from "vue-easytable";
 import "vue-easytable/libs/theme-default/index.css";
 
+// vxe-table
+import VxeUITable from 'vxe-table'
+import 'vxe-table/lib/style.css'
+
 import '@/assets/styles/index.scss' // global css
 import '@/assets/styles/ruoyi.scss' // ruoyi css
 import App from './App'
@@ -81,6 +85,7 @@ Vue.use(Element, {
 })
 
 Vue.use(VueEasytable);
+Vue.use(VxeUITable);
 
 Vue.config.productionTip = false
 
