@@ -7,6 +7,7 @@ import com.lin.common.utils.DateUtils;
 import com.lin.distribution.domain.Customer;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.BooleanUtils;
 import org.redisson.api.RMap;
 import org.redisson.api.RedissonClient;
 import org.springframework.stereotype.Service;
@@ -102,14 +103,16 @@ public class ProductSkuQuoteServiceImpl implements ProductSkuQuoteService {
 
     /**
      * 生成商品报价单号
+     *
+     * @param refresh 是否刷新下一个，默认不刷新，提交表单时才更新
      * @return
      */
     @Override
-    public String generateSkuQuoteNo() {
+    public String generateSkuQuoteNo(Boolean refresh) {
         String date = DateUtils.dateTime();
         String prefix = "BJ" + date;
         RMap<String, Integer> rMap = redissonClient.getMap("skuQuoteNo");
-        int seqNbr = rMap.addAndGet(date, 1);
+        int seqNbr = BooleanUtils.isTrue(refresh) ? rMap.addAndGet(date, 1) : rMap.get(date);
         String seqNbrStr = String.format("%05d", seqNbr);
         return prefix + seqNbrStr;
     }

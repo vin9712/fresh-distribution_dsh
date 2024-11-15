@@ -63,5 +63,5 @@ public interface ProductSkuQuoteService {
      * 生成商品报价单号
      * @return
      */
-    String generateSkuQuoteNo();
+    String generateSkuQuoteNo(Boolean refresh);
 }

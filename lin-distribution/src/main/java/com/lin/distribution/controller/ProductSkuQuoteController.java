@@ -6,14 +6,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.PutMapping;
-import org.springframework.web.bind.annotation.DeleteMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 import com.lin.common.annotation.Log;
 import com.lin.common.core.controller.BaseController;
 import com.lin.common.core.domain.AjaxResult;
@@ -106,5 +99,13 @@ public class ProductSkuQuoteController extends BaseController {
     @DeleteMapping("/{ids}")
     public AjaxResult remove(@PathVariable Long[] ids) {
         return toAjax(productSkuQuoteService.deleteProductSkuQuoteByIds(ids));
+    }
+
+    /**
+     * 获取或生成商品报价单号
+     */
+    @GetMapping("/code")
+    public AjaxResult generateSkuQuoteNo(@RequestParam(name = "refresh", required = false, defaultValue = "false") Boolean refresh) {
+        return success(productSkuQuoteService.generateSkuQuoteNo(refresh));
     }
 }
