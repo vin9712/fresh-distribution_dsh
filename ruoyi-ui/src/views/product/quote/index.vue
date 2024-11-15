@@ -33,21 +33,7 @@
           />
         </el-select>
       </el-form-item>
-
-      <el-form-item label="报价生效时间" prop="effectiveDateRange">
-        <el-date-picker
-          clearable
-          v-model="queryParams.effectiveDateRange"
-          type="daterange"
-          unlink-panels
-          range-separator="至"
-          start-placeholder="开始日期"
-          end-placeholder="结束日期"
-          :picker-options="datePickerOptions"
-        >
-        </el-date-picker>
-      </el-form-item>
-      <el-form-item label="创建时间" prop="createTimeRange">
+      <el-form-item label="报价时间" prop="createTimeRange">
         <el-date-picker
           v-model="queryParams.createTimeRange"
           type="daterange"
@@ -55,6 +41,18 @@
           end-placeholder="结束日期"
           :picker-options="datePickerOptions"
           :default-time="['00:00:00', '23:59:59']"
+        >
+        </el-date-picker>
+      </el-form-item>
+      <el-form-item label="生效时间" prop="effectiveDateRange">
+        <el-date-picker
+          clearable
+          v-model="queryParams.effectiveDateRange"
+          type="daterange"
+          unlink-panels
+          start-placeholder="开始日期"
+          end-placeholder="结束日期"
+          :picker-options="datePickerOptions"
         >
         </el-date-picker>
       </el-form-item>
