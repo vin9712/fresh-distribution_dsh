@@ -112,7 +112,7 @@ public class ProductSkuQuoteServiceImpl implements ProductSkuQuoteService {
         String date = DateUtils.dateTime();
         String prefix = "BJ" + date;
         RMap<String, Integer> rMap = redissonClient.getMap("skuQuoteNo");
-        int seqNbr = BooleanUtils.isTrue(refresh) ? rMap.addAndGet(date, 1) : rMap.get(date);
+        int seqNbr = BooleanUtils.isTrue(refresh) ? rMap.addAndGet(date, 1) : rMap.getOrDefault(date, 0);
         String seqNbrStr = String.format("%05d", seqNbr);
         return prefix + seqNbrStr;
     }

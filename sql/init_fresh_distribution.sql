@@ -168,6 +168,7 @@ CREATE TABLE `t_product_sku_quote`
     `code`                 varchar(200) NOT NULL COMMENT '商品报价编号',
     `effective_start_date` datetime     NOT NULL COMMENT '报价生效时间',
     `effective_end_date`   datetime     NOT NULL COMMENT '报价结束时间',
+    `status`               int(4) NOT NULL DEFAULT '0' COMMENT '报价状态: 0-新增, 1-发布, 2-撤销, 3-失效',
     `valid`                tinyint(1) NOT NULL DEFAULT '1' COMMENT '是否有效',
     `is_deleted`           tinyint(1) NOT NULL DEFAULT '0' COMMENT '逻辑删除',
     `version`              int(10) unsigned NOT NULL DEFAULT '0' COMMENT '版本号',

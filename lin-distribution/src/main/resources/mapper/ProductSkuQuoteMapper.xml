@@ -10,6 +10,7 @@
         <result property="code"    column="code"    />
         <result property="effectiveStartDate"    column="effective_start_date"    />
         <result property="effectiveEndDate"    column="effective_end_date"    />
+        <result property="status"    column="status"    />
         <result property="valid"    column="valid"    />
         <result property="isDeleted"    column="is_deleted"    />
         <result property="version"    column="version"    />
@@ -21,7 +22,7 @@
     </resultMap>
 
     <sql id="selectProductSkuQuoteVo">
-        select id, customer_id, code, effective_start_date, effective_end_date, valid, is_deleted, version, create_by, create_time, update_by, update_time, remark from t_product_sku_quote
+        select id, customer_id, code, effective_start_date, effective_end_date, status, valid, is_deleted, version, create_by, create_time, update_by, update_time, remark from t_product_sku_quote
     </sql>
 
     <select id="selectProductSkuQuoteList" parameterType="com.lin.distribution.domain.ProductSkuQuote" resultMap="ProductSkuQuoteResult">
@@ -34,6 +35,7 @@
             <if test="createTimeStart != null and createTimeEnd != null">
                 and create_time between #{createTimeStart} and #{createTimeEnd}
             </if>
+            <if test="status != null "> and status = #{status}</if>
             <if test="valid != null "> and valid = #{valid}</if>
         </where>
     </select>
@@ -55,6 +57,7 @@
             <if test="code != null and code != ''">code,</if>
             <if test="effectiveStartDate != null">effective_start_date,</if>
             <if test="effectiveEndDate != null">effective_end_date,</if>
+            <if test="status != null">status,</if>
             <if test="valid != null">valid,</if>
             <if test="isDeleted != null">is_deleted,</if>
             <if test="version != null">version,</if>
@@ -69,6 +72,7 @@
             <if test="code != null and code != ''">#{code},</if>
             <if test="effectiveStartDate != null">#{effectiveStartDate},</if>
             <if test="effectiveEndDate != null">#{effectiveEndDate},</if>
+            <if test="status != null">#{status},</if>
             <if test="valid != null">#{valid},</if>
             <if test="isDeleted != null">#{isDeleted},</if>
             <if test="version != null">#{version},</if>
@@ -87,6 +91,7 @@
             <if test="code != null and code != ''">code = #{code},</if>
             <if test="effectiveStartDate != null">effective_start_date = #{effectiveStartDate},</if>
             <if test="effectiveEndDate != null">effective_end_date = #{effectiveEndDate},</if>
+            <if test="status != null">status = #{status},</if>
             <if test="valid != null">valid = #{valid},</if>
             <if test="isDeleted != null">is_deleted = #{isDeleted},</if>
             <if test="version != null">version = #{version},</if>

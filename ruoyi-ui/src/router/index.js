@@ -183,7 +183,7 @@ export const dynamicRoutes = [
     permissions: ['partner:quote:add'],
     children: [
       {
-        path: 'index',
+        path: 'index/:customerId(\\d+)',
         component: () => import('@/views/product/quote/detail'),
         name: 'SkuQuoteDetail',
         meta: { title: '报价详情', activeMenu: '/basicInfo/quote' }

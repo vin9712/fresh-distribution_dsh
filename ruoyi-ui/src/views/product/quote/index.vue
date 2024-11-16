@@ -10,7 +10,7 @@
       label-width="80px"
     >
       <el-form-item label="报价客户" prop="customerId">
-        <el-select v-model="queryParams.customerId" filterable>
+        <el-select v-model="queryParams.customerId" filterable clearable>
           <el-option
             v-for="item in customerOptions"
             :key="item.id"
@@ -72,6 +72,7 @@
 
     <el-row :gutter="10" class="mb8">
       <el-col :span="1.5">
+        <el-popover placement="bottom" trigger="click"> </el-popover>
         <el-button
           type="primary"
           plain
@@ -79,7 +80,7 @@
           size="mini"
           @click="handleAdd"
           v-hasPermi="['product:quote:add']"
-          >新增</el-button
+          >新增报价</el-button
         >
       </el-col>
       <el-col :span="1.5">
@@ -187,7 +188,7 @@
       </el-table-column>
     </el-table>
 
-      <pagination
+    <pagination
       v-show="total > 0"
       :total="total"
       :page.sync="queryParams.pageNum"
@@ -253,9 +254,6 @@ export default {
       },
       // 查询校验
       queryFormRules: {
-        customerId: [
-          { required: true, message: "请先选择客户", trigger: "change" },
-        ],
         effectiveDateRange: [
           {
             required: true,
@@ -404,8 +402,14 @@ export default {
       this.reset();
       this.open = true;
       this.title = "添加商品报价";
+      if (!this.queryParams.customerId) {
+        this.$modal.msgError("请先选择报价客户");
+        return;
+      }
       // 跳转
-      this.$router.push({ path: "/basicInfo/quote-detail/index" });
+      this.$router.push({
+        path: "/basicInfo/quote-detail/index/" + this.queryParams.customerId,
+      });
     },
     /** 修改按钮操作 */
     handleUpdate(row) {

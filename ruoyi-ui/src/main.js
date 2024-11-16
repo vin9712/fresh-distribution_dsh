@@ -10,7 +10,7 @@ import VueEasytable from "vue-easytable";
 import "vue-easytable/libs/theme-default/index.css";
 
 // vxe-table
-import VxeUITable from 'vxe-table'
+import VXETable from 'vxe-table'
 import 'vxe-table/lib/style.css'
 
 import '@/assets/styles/index.scss' // global css
@@ -85,7 +85,7 @@ Vue.use(Element, {
 })
 
 Vue.use(VueEasytable);
-Vue.use(VxeUITable);
+Vue.use(VXETable)
 
 Vue.config.productionTip = false
 

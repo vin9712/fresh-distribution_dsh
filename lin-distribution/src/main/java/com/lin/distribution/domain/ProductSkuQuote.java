@@ -44,8 +44,10 @@ public class ProductSkuQuote extends BaseEntity {
     @Excel(name = "报价结束时间", width = 30, dateFormat = "yyyy-MM-dd")
     private LocalDate effectiveEndDate;
 
+    /** 报价状态: 0-新增, 1-发布, 2-撤销, 3-失效 */
+    private Integer status;
+
     /** 是否有效 */
-    @Excel(name = "是否有效")
     private Integer valid;
 
     /** 逻辑删除 */
