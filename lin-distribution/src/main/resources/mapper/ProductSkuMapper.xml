@@ -36,9 +36,9 @@
             resultMap="ProductSkuResult">
         <include refid="selectProductSkuVo"/>
         <where>
-            <if test="customerId != null  and customerId != ''">and sku.customer_id = #{customerId}</if>
-            <if test="categoryId != null  and categoryId != ''">and spu.category_id = #{categoryId}</if>
-            <if test="spuId != null  and spuId != ''">and sku.spu_id = #{spuId}</if>
+            <if test="customerId != null">and sku.customer_id = #{customerId}</if>
+            <if test="categoryId != null">and spu.category_id = #{categoryId}</if>
+            <if test="spuId != null">and sku.spu_id = #{spuId}</if>
             <if test="name != null  and name != ''">and sku.name like concat('%', #{name}, '%')</if>
             <if test="salePrice != null ">and sku.sale_price = #{salePrice}</if>
             <if test="saleable != null ">and sku.saleable = #{saleable}</if>

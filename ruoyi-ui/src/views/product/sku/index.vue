@@ -241,6 +241,7 @@
           <el-autocomplete
             v-model="form.name"
             @select="handleSelectSpu"
+            @change="handleUpdateSkuName"
             @input="handleUpdateMnemonicCode"
             :fetch-suggestions="querySpuList"
             placeholder="请输入商品名称"
@@ -364,6 +365,8 @@ export default {
       skuList: [],
       // 商品库列表数据
       formSpuList: [],
+      // 筛选后 spu 列表
+      filterSpuList: [],
       // 选中的商品分类
       querySelectedOptions: [],
       formSelectOptions: [],
@@ -469,6 +472,8 @@ export default {
     },
     /** 查询商品库列表 */
     querySpuList(queryString, cb) {
+      // 获取过滤后列表
+      this.filterSpuList = [];
       var results = [];
       // 如果输入框为空，直接返回空数组
       if (!queryString || queryString.trim() === "") {
@@ -486,6 +491,7 @@ export default {
             value: spu.name,
             spuId: spu.id,
           }));
+          this.filterSpuList = results;
           // 调用 callback 返回建议列表
           cb(results);
         })
@@ -501,10 +507,12 @@ export default {
       this.reset();
     },
     // 表单重置
-    reset() {
+    reset(row) {
       this.form = {
         id: null,
-        customerId: this.defaultCustomerId,
+        customerId: row
+          ? row.customerId
+          : this.queryParams.customerId || this.defaultCustomerId,
         spuId: null,
         name: null,
         mnemonicCode: null,
@@ -658,6 +666,22 @@ export default {
         this.form.spuId = null;
       }
       this.form.spuId = item.id;
+    },
+    /** 兜底方法，若未选中元素，再尝试填充 spu 信息 */
+    handleUpdateSkuName(name) {
+      if (this.form.spuId) {
+        return;
+      }
+      if (!name) {
+        return;
+      }
+      if (this.filterSpuList.length === 0) {
+        return;
+      }
+      const matchedSpu = this.filterSpuList.find((spu) => spu.value === name);
+      if (matchedSpu) {
+        this.form.spuId = matchedSpu.spuId;
+      }
     },
     /** 处理级联选择器，取最后一个选项 */
     handleQueryCascaderChange(value) {

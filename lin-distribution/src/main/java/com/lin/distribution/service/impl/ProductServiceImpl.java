@@ -2,8 +2,6 @@ package com.lin.distribution.service.impl;
 
 import com.lin.common.exception.ServiceException;
 import com.lin.common.utils.DateUtils;
-import com.lin.common.utils.ServletUtils;
-import com.lin.common.utils.StringUtils;
 import com.lin.distribution.domain.ProductSku;
 import com.lin.distribution.domain.ProductSpu;
 import com.lin.distribution.mapper.ProductSkuMapper;
@@ -61,7 +59,7 @@ public class ProductServiceImpl implements ProductService {
 
     /**
      * 新增商品信息
-     *
+     * <p>
      * insert spu method = insert spu one + insert sku one(customerId=0)
      * insert sku method = insert sku one with customerId
      * if customerId = 0 & spuId = null, that means try insert spu method
@@ -75,6 +73,7 @@ public class ProductServiceImpl implements ProductService {
     @Override
     @Transactional
     public int insertProductSku(ProductSku productSku) {
+        ProductSpu productSpu = null;
 
         // check request validation
         checkSaveOrUpdateSkuRequest(productSku);
@@ -82,7 +81,7 @@ public class ProductServiceImpl implements ProductService {
         // insert spu method = insert spu one + insert sku one(customerId=0)
         if (productSku.getSpuId() == null) {
             // add default productSpu
-            ProductSpu productSpu = ProductSpu.builder()
+            ProductSpu newSpu = ProductSpu.builder()
                     .categoryId(productSku.getCategoryId())
                     .name(productSku.getName())
                     .mnemonicCode(productSku.getMnemonicCode())
@@ -90,7 +89,9 @@ public class ProductServiceImpl implements ProductService {
                     .saleable(1)
                     .isDeleted(Boolean.FALSE)
                     .build();
-            insertProductSpu(productSpu);
+            productSpu = insertProductSpu(newSpu);
+        } else {
+            productSpu = productSpuMapper.selectProductSpuById(productSku.getSpuId());
         }
 
         // customerId = 0 & spuId = null, only insert spu method
@@ -99,6 +100,8 @@ public class ProductServiceImpl implements ProductService {
         }
 
         // insert sku one with customerId
+        productSku.setSpuId(productSpu.getId());
+        productSku.setCode(generateSkuNo(productSku.getCustomerId(), productSpu.getId(), productSpu.getMnemonicCode(), false));
         productSku.setCreateTime(DateUtils.getNowDate());
         return productSkuMapper.insertProductSku(productSku);
     }
