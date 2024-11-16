@@ -27,9 +27,10 @@
     </resultMap>
 
     <sql id="selectProductSkuVo">
-        select sku.id, sku.customer_id, sku.spu_id, spu.category_id, sku.code, sku.name, sku.mnemonic_code, sku.unit, sku.spec, sku.images, sku.properties, sku.sale_price, sku.visit_count, sku.saleable, sku.valid, sku.is_deleted, sku.create_by, sku.create_time, sku.update_by, sku.update_time, sku.remark
+        select sku.id, sku.customer_id, sku.spu_id, spu.category_id, category.name as categoryName, sku.code, sku.name, sku.mnemonic_code, sku.unit, sku.spec, sku.images, sku.properties, sku.sale_price, sku.visit_count, sku.saleable, sku.valid, sku.is_deleted, sku.create_by, sku.create_time, sku.update_by, sku.update_time, sku.remark
         from t_product_sku sku
         left join t_product_spu spu on sku.spu_id = spu.id
+        left join t_product_category category on spu.category_id = category.id
     </sql>
 
     <select id="selectProductSkuList" parameterType="com.lin.distribution.domain.ProductSku"

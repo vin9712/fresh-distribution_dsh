@@ -3,6 +3,7 @@ package com.lin.distribution.service;
 import java.util.List;
 
 import com.lin.distribution.domain.ProductSkuQuote;
+import com.lin.distribution.dto.ProductSkuQuoteCreateDTO;
 
 /**
  * 商品报价Service接口
@@ -64,4 +65,11 @@ public interface ProductSkuQuoteService {
      * @return
      */
     String generateSkuQuoteNo(Boolean refresh);
+
+    /**
+     * 创建商品报价单含详情
+     * @param request
+     * @return
+     */
+    ProductSkuQuote createSkuQuote(ProductSkuQuoteCreateDTO request);
 }

@@ -45,6 +45,10 @@
             >
             </el-input>
           </el-form-item>
+          <el-form-item label="报价备注" prop="remark">
+            <el-input v-model="quoteForm.remark" placeholder="请输入报价备注">
+            </el-input>
+          </el-form-item>
         </el-form>
       </div>
 
@@ -54,28 +58,39 @@
         <vxe-table
           border
           show-overflow
-          :edit-config="{
-            trigger: 'dblclick',
-            mode: 'row',
+          keep-source
+          :row-config="{ isHover: true }"
+          :mouse-config="{ selected: true }"
+          :keyboard-config="{
+            isArrow: true,
+            isDel: true,
+            isEnter: true,
+            isTab: true,
+            isEdit: true,
+            isChecked: true,
           }"
-          :data="tableData"
+          :edit-rules="validRules"
+          :edit-config="{
+            trigger: 'click',
+            mode: 'cell',
+            showStatus: true,
+          }"
+          :data="skuQuoteList"
         >
           <vxe-column type="seq" width="70"></vxe-column>
+          <vxe-column field="categoryName" title="商品分类"> </vxe-column>
+          <vxe-column field="productCode" title="商品编号"></vxe-column>
+          <vxe-column field="productName" title="商品名称"></vxe-column>
+          <vxe-column field="productUnit" title="商品单位"></vxe-column>
           <vxe-column
-            field="name"
-            title="Name"
-            :edit-render="{ name: 'input' }"
-          ></vxe-column>
-          <vxe-column
-            field="sex"
-            title="Sex"
-            :edit-render="{ name: 'input' }"
-          ></vxe-column>
-          <vxe-column
-            field="age"
-            title="Age"
-            :edit-render="{ name: 'input' }"
-          ></vxe-column>
+            field="price"
+            title="商品单价"
+            cell-type="number"
+            :formatter="priceFormatter"
+            :edit-render="{ name: 'input', autoselect: true }"
+          >
+          </vxe-column>
+          <vxe-column field="productSpec" title="商品规格"></vxe-column>
         </vxe-table>
       </div>
 
@@ -97,6 +112,7 @@ import { listSku } from "@/api/product/sku";
 import { genQuoteCode } from "@/api/product/quote";
 import { listCustomer } from "@/api/partner/customer";
 
+import XEUtils from "xe-utils";
 export default {
   name: "QuoteDetail",
   dicts: ["biz_yes_no"],
@@ -122,11 +138,12 @@ export default {
         customerId: null,
         effectiveDateRange: [],
         quoteCode: null,
+        remark: null,
       },
       // 客户列表数据
       customerOptions: [],
-      // 客户 sku 列表
-      skuList: [],
+      // 客户 sku 报价列表
+      skuQuoteList: [],
       // 报价明细列表
       tableData: [
         {
@@ -178,6 +195,10 @@ export default {
           { required: true, message: "报价编号不能为空", trigger: "blur" },
         ],
       },
+      // 报价明细列表校验
+      validRules: {
+        price: [{ type: "number", min: 0, message: "请输入正数" }],
+      },
     };
   },
   created() {
@@ -188,6 +209,8 @@ export default {
     this.quoteForm.customerId = this.defaultCustomerId;
     this.getCustomerList();
     this.getQuoteCode();
+    // 初始化表格
+    this.initSkuQuoteList();
   },
   methods: {
     /** 查询客户列表 */
@@ -197,22 +220,44 @@ export default {
         this.customerOptions.unshift({ id: 0, name: "默认客户" });
       });
     },
-    /** 查询客户 sku 列表 */
-    getSkuList() {
-      listSku().then((response) => {
-        this.skuList = response.data || [];
-      });
-    },
     /** 获取当前报价单号 */
     getQuoteCode() {
       genQuoteCode().then((response) => {
         this.quoteForm.quoteCode = response.msg;
       });
     },
+    /** 初始化报价明细列表 */
+    initSkuQuoteList() {
+      // todo 从后端获取数据
+      if (this.quoteForm.quoteId) {
+        this.skuQuoteList = [];
+        return;
+      }
+
+      // 从sku列表初始化报价明细列表
+      let param = { customerId: this.quoteForm.customerId };
+      listSku(param).then((response) => {
+        const skuList = response.data || [];
+        skuList.map((item) => {
+          this.skuQuoteList.push({
+            customerId: item.customerId,
+            categoryName: item.categoryName,
+            quoteId: null,
+            skuId: item.id,
+            productCode: item.code,
+            productName: item.name,
+            productUnit: item.unit,
+            productSpec: item.spec,
+            price: "0.00",
+          });
+        });
+      });
+    },
     /** 提交按钮 */
     submitForm() {
       this.$refs["quoteForm"].validate((valid) => {
         if (valid) {
+          console.log("this.skuQuoteList", this.skuQuoteList);
           if (this.quoteForm.quoteId != null) {
             // updateSku(this.form).then((response) => {
             //   this.$modal.msgSuccess("修改成功");
@@ -228,6 +273,18 @@ export default {
           }
         }
       });
+    },
+    /** 格式化商品单价 */
+    priceFormatter({ row }) {
+      let formatPrice = XEUtils.commafy(XEUtils.toNumber(row.price), {
+        digits: 2,
+      });
+      if (formatPrice < 0) {
+        formatPrice = "0.00";
+      }
+      // 将格式化后的值赋值回去
+      row.price = formatPrice;
+      return formatPrice;
     },
   },
 };

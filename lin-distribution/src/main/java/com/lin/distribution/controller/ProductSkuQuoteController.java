@@ -2,10 +2,12 @@ package com.lin.distribution.controller;
 
 import java.util.List;
 
+import com.lin.distribution.dto.ProductSkuQuoteCreateDTO;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 import com.lin.common.annotation.Log;
 import com.lin.common.core.controller.BaseController;
@@ -108,5 +110,10 @@ public class ProductSkuQuoteController extends BaseController {
     public AjaxResult generateSkuQuoteNo(@RequestParam(name = "refresh", required = false, defaultValue = "false") Boolean refresh,
                                          @RequestParam(name = "currentCode", required = false) String currentCode) {
         return success(productSkuQuoteService.generateSkuQuoteNo(refresh));
+    }
+
+    @PostMapping("/create")
+    public AjaxResult createSkuQuote(@RequestBody @Validated ProductSkuQuoteCreateDTO request) {
+        return success(productSkuQuoteService.createSkuQuote(request));
     }
 }

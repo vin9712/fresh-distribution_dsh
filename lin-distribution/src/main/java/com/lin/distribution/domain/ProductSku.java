@@ -113,6 +113,11 @@ public class ProductSku extends BaseEntity {
      */
     @TableField(exist = false)
     private Long categoryId;
+    /**
+     * 商品分类(来自 category 表)
+     */
+    @TableField(exist = false)
+    private String categoryName;
 
 
     @Override

@@ -5,6 +5,7 @@ import java.util.List;
 import com.lin.common.exception.ServiceException;
 import com.lin.common.utils.DateUtils;
 import com.lin.distribution.domain.Customer;
+import com.lin.distribution.dto.ProductSkuQuoteCreateDTO;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.BooleanUtils;
@@ -115,6 +116,12 @@ public class ProductSkuQuoteServiceImpl implements ProductSkuQuoteService {
         int seqNbr = BooleanUtils.isTrue(refresh) ? rMap.addAndGet(date, 1) : rMap.getOrDefault(date, 0);
         String seqNbrStr = String.format("%05d", seqNbr);
         return prefix + seqNbrStr;
+    }
+
+    @Override
+    public ProductSkuQuote createSkuQuote(ProductSkuQuoteCreateDTO request) {
+
+        return null;
     }
 
     private void checkUniqueQuote(ProductSkuQuote productSkuQuote) {

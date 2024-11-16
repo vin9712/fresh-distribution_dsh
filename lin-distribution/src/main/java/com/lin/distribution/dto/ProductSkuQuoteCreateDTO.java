@@ -1,6 +1,8 @@
 package com.lin.distribution.dto;
 
 import com.lin.distribution.domain.ProductSkuQuoteDetail;
+import jakarta.validation.constraints.NotEmpty;
+import jakarta.validation.constraints.NotNull;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -19,9 +21,13 @@ import java.util.List;
 @AllArgsConstructor
 @NoArgsConstructor
 public class ProductSkuQuoteCreateDTO implements Serializable {
+    @NotNull
     private Long customerId;
+    @NotEmpty
     private String quoteCode;
+    @NotNull
     private LocalDate effectiveStartDate;
+    @NotNull
     private LocalDate effectiveEndDate;
     private String remark;
     private List<ProductSkuQuoteDetail> quoteDetails;
