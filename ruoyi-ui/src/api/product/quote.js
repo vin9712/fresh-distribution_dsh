@@ -44,6 +44,15 @@ export function addQuote(data) {
   })
 }
 
+// 新增商品报价+明细
+export function createSkuQuote(data) {
+  return request({
+    url: '/product/quote/create',
+    method: 'post',
+    data: data
+  })
+}
+
 // 修改商品报价
 export function updateQuote(data) {
   return request({

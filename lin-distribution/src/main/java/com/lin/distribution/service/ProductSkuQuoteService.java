@@ -64,7 +64,7 @@ public interface ProductSkuQuoteService {
      * 生成商品报价单号
      * @return
      */
-    String generateSkuQuoteNo(Boolean refresh);
+    String generateSkuQuoteNo(Boolean refresh, String currentCode);
 
     /**
      * 创建商品报价单含详情

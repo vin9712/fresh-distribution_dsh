@@ -1,14 +1,19 @@
 package com.lin.distribution.service.impl;
 
+import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.List;
 
 import com.lin.common.exception.ServiceException;
 import com.lin.common.utils.DateUtils;
-import com.lin.distribution.domain.Customer;
+import com.lin.distribution.domain.ProductSkuQuoteDetail;
 import com.lin.distribution.dto.ProductSkuQuoteCreateDTO;
+import com.lin.distribution.mapper.ProductSkuQuoteDetailMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.BooleanUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.redisson.api.RMap;
 import org.redisson.api.RedissonClient;
 import org.springframework.stereotype.Service;
@@ -28,6 +33,7 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class ProductSkuQuoteServiceImpl implements ProductSkuQuoteService {
     private final ProductSkuQuoteMapper productSkuQuoteMapper;
+    private final ProductSkuQuoteDetailMapper productSkuQuoteDetailMapper;
     private final RedissonClient redissonClient;
 
     /**
@@ -105,23 +111,73 @@ public class ProductSkuQuoteServiceImpl implements ProductSkuQuoteService {
     /**
      * 生成商品报价单号
      *
-     * @param refresh 是否刷新下一个，默认不刷新，提交表单时才更新
+     * @param refresh     是否刷新下一个，默认不刷新，提交表单时才更新
+     * @param currentCode
      * @return
      */
     @Override
-    public String generateSkuQuoteNo(Boolean refresh) {
-        String date = DateUtils.dateTime();
-        String prefix = "BJ" + date;
-        RMap<String, Integer> rMap = redissonClient.getMap("skuQuoteNo");
-        int seqNbr = BooleanUtils.isTrue(refresh) ? rMap.addAndGet(date, 1) : rMap.getOrDefault(date, 0);
-        String seqNbrStr = String.format("%05d", seqNbr);
-        return prefix + seqNbrStr;
+    public String generateSkuQuoteNo(Boolean refresh, String currentCode) {
+        return genSkuQuoteNo(refresh, currentCode);
     }
 
     @Override
+    @Transactional
     public ProductSkuQuote createSkuQuote(ProductSkuQuoteCreateDTO request) {
+        checkCreateQuoteRequest(request);
 
-        return null;
+        // insert quote
+        ProductSkuQuote productSkuQuote = ProductSkuQuote.builder()
+                .customerId(request.getCustomerId())
+                .code(request.getQuoteCode())
+                .effectiveStartDate(request.getEffectiveStartDate())
+                .effectiveEndDate(request.getEffectiveEndDate())
+                .status(0)
+                .valid(1)
+                .version(0)
+                .isDeleted(false)
+                .build();
+        productSkuQuoteMapper.insertProductSkuQuote(productSkuQuote);
+
+        // get quoteId
+        Long quoteId = productSkuQuote.getId();
+
+        // batch insert quote details
+        List<ProductSkuQuoteDetail> quoteDetails = request.getQuoteDetails();
+        quoteDetails.forEach(detail -> {
+            detail.setQuoteId(quoteId);
+            detail.setValid(1);
+            detail.setIsDeleted(false);
+            detail.setVersion(0);
+            productSkuQuoteDetailMapper.insertProductSkuQuoteDetail(detail);
+        });
+        return productSkuQuote;
+    }
+
+    private void checkCreateQuoteRequest(ProductSkuQuoteCreateDTO request) {
+        // check quote code
+        String quoteCode = request.getQuoteCode();
+        ProductSkuQuote quote = productSkuQuoteMapper.selectProductSkuQuoteByCode(quoteCode);
+        if (quote != null) {
+            throw new ServiceException("product sku no existed");
+        }
+
+        LocalDate from = request.getEffectiveStartDate();
+        LocalDate to = request.getEffectiveEndDate();
+        if (from.isAfter(to)) {
+            throw new ServiceException("effective end date must after effective start date");
+        }
+
+        List<ProductSkuQuoteDetail> validQuoteDetailList = request.getQuoteDetails().stream().filter(detail -> BigDecimal.ZERO.compareTo(detail.getPrice()) < 0).toList();
+        if (CollectionUtils.isEmpty(validQuoteDetailList)) {
+            throw new ServiceException("product sku price is zero");
+        }
+
+        List<ProductSkuQuoteDetail> newSkuQuoteList = validQuoteDetailList.stream().filter(detail -> detail.getSkuId() == null).toList();
+        // todo handle new sku
+        if (CollectionUtils.isNotEmpty(newSkuQuoteList)) {
+            Long customerId = request.getCustomerId();
+        }
+
     }
 
     private void checkUniqueQuote(ProductSkuQuote productSkuQuote) {
@@ -133,5 +189,26 @@ public class ProductSkuQuoteServiceImpl implements ProductSkuQuoteService {
         if (skuQuote != null) {
             throw new ServiceException("product sku no existed");
         }
+    }
+
+    private String genSkuQuoteNo(Boolean refresh){
+        return genSkuQuoteNo(refresh, null);
+    }
+
+    private String genSkuQuoteNo(Boolean refresh, String currentCode) {
+        String date = DateUtils.dateTime();
+        String prefix = "BJ" + date;
+        RMap<String, Integer> rMap = redissonClient.getMap("skuQuoteNo");
+        // get current redis seq
+        int redisSeq = rMap.getOrDefault(date, 0);
+        String redisQuoteCode = prefix + String.format("%05d", redisSeq);
+        // if current code = redis code, return
+        if (StringUtils.equals(redisQuoteCode, currentCode)) {
+            return redisQuoteCode;
+        }
+
+        int seqNbr = BooleanUtils.isTrue(refresh) ? rMap.addAndGet(date, 1) : redisSeq;
+        String seqNbrStr = String.format("%05d", seqNbr);
+        return prefix + seqNbrStr;
     }
 }

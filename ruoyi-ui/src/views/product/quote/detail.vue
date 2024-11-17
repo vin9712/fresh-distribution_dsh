@@ -44,6 +44,11 @@
               disabled
             >
             </el-input>
+            <i
+              class="el-icon-refresh"
+              @click="refreshQuoteCode"
+              style="cursor: pointer"
+            ></i>
           </el-form-item>
           <el-form-item label="报价备注" prop="remark">
             <el-input v-model="quoteForm.remark" placeholder="请输入报价备注">
@@ -109,7 +114,7 @@
 
 <script>
 import { listSku } from "@/api/product/sku";
-import { genQuoteCode } from "@/api/product/quote";
+import { genQuoteCode, createSkuQuote } from "@/api/product/quote";
 import { listCustomer } from "@/api/partner/customer";
 
 import XEUtils from "xe-utils";
@@ -136,49 +141,17 @@ export default {
       quoteForm: {
         quoteId: null,
         customerId: null,
-        effectiveDateRange: [],
         quoteCode: null,
         remark: null,
+        effectiveStartDate: null,
+        effectiveEndDate: null,
+        quoteDetails: [],
+        effectiveDateRange: [],
       },
       // 客户列表数据
       customerOptions: [],
       // 客户 sku 报价列表
       skuQuoteList: [],
-      // 报价明细列表
-      tableData: [
-        {
-          id: 10001,
-          name: "Test1",
-          role: "Develop",
-          sex: "Man",
-          age: 28,
-          address: "test abc",
-        },
-        {
-          id: 10002,
-          name: "Test2",
-          role: "Test",
-          sex: "Women",
-          age: 22,
-          address: "Guangzhou",
-        },
-        {
-          id: 10003,
-          name: "Test3",
-          role: "PM",
-          sex: "Man",
-          age: 32,
-          address: "Shanghai",
-        },
-        {
-          id: 10004,
-          name: "Test4",
-          role: "Designer",
-          sex: "Women",
-          age: 24,
-          address: "Shanghai",
-        },
-      ],
       // 表单校验
       rules: {
         customerId: [
@@ -204,6 +177,21 @@ export default {
       },
     };
   },
+  watch: {
+    // 监听 effectiveDateRange
+    "quoteForm.effectiveDateRange": {
+      handler(val) {
+        if (val) {
+          this.quoteForm.effectiveStartDate = val[0];
+          this.quoteForm.effectiveEndDate = val[1];
+        } else {
+          this.quoteForm.effectiveStartDate = null;
+          this.quoteForm.effectiveEndDate = null;
+        }
+      },
+      deep: true,
+    },
+  },
   created() {
     // 从路由获取参数
     this.defaultCustomerId =
@@ -226,6 +214,13 @@ export default {
     /** 获取当前报价单号 */
     getQuoteCode() {
       genQuoteCode().then((response) => {
+        this.quoteForm.quoteCode = response.msg;
+      });
+    },
+    /** 刷新当前报价单号 */
+    refreshQuoteCode() {
+      let param = { currentCode: this.quoteForm.quoteCode };
+      genQuoteCode(param).then((response) => {
         this.quoteForm.quoteCode = response.msg;
       });
     },
@@ -260,7 +255,6 @@ export default {
     submitForm() {
       this.$refs["quoteForm"].validate((valid) => {
         if (valid) {
-          console.log("this.skuQuoteList", this.skuQuoteList);
           if (this.quoteForm.quoteId != null) {
             // updateSku(this.form).then((response) => {
             //   this.$modal.msgSuccess("修改成功");
@@ -268,11 +262,13 @@ export default {
             //   this.getPageList();
             // });
           } else {
-            // addSku(this.form).then((response) => {
-            //   this.$modal.msgSuccess("新增成功");
-            //   this.open = false;
-            //   this.getPageList();
-            // });
+            // todo 校验报价明细列表后再添加
+            this.quoteForm.quoteDetails = this.skuQuoteList;
+            createSkuQuote(this.quoteForm).then((response) => {
+              this.$modal.msgSuccess("新增成功");
+              // this.open = false;
+              // this.getPageList();
+            });
           }
         }
       });

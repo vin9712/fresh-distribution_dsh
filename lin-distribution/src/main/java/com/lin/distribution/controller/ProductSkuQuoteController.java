@@ -109,9 +109,14 @@ public class ProductSkuQuoteController extends BaseController {
     @GetMapping("/code")
     public AjaxResult generateSkuQuoteNo(@RequestParam(name = "refresh", required = false, defaultValue = "false") Boolean refresh,
                                          @RequestParam(name = "currentCode", required = false) String currentCode) {
-        return success(productSkuQuoteService.generateSkuQuoteNo(refresh));
+        return success(productSkuQuoteService.generateSkuQuoteNo(refresh, currentCode));
     }
 
+    /**
+     * 创建商品报价
+     * @param request
+     * @return
+     */
     @PostMapping("/create")
     public AjaxResult createSkuQuote(@RequestBody @Validated ProductSkuQuoteCreateDTO request) {
         return success(productSkuQuoteService.createSkuQuote(request));
