@@ -197,7 +197,10 @@ export default {
       },
       // 报价明细列表校验
       validRules: {
-        price: [{ type: "number", min: 0, message: "请输入正数" }],
+        price: [
+          { required: true, message: "商品单价必须填写" },
+          { type: "number", min: 0, message: "请输入正数" },
+        ],
       },
     };
   },
