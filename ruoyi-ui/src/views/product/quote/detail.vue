@@ -88,7 +88,22 @@
           <vxe-column type="seq" width="70"></vxe-column>
           <vxe-column field="categoryName" title="商品分类"> </vxe-column>
           <vxe-column field="productCode" title="商品编号"></vxe-column>
-          <vxe-column field="productName" title="商品名称"></vxe-column>
+          <vxe-column
+            field="productName"
+            title="商品名称"
+            :filters="[{ data: '' }]"
+            :filter-method="filterProductNameMethod"
+          >
+            <template #filter="{ $panel, column }">
+              <el-input
+                type="type"
+                v-for="(option, index) in column.filters"
+                :key="index"
+                v-model="option.data"
+                @input="$panel.changeOption($event, !!option.data, option)"
+              />
+            </template>
+          </vxe-column>
           <vxe-column field="productUnit" title="商品单位"></vxe-column>
           <vxe-column
             field="price"
@@ -287,6 +302,12 @@ export default {
       // 将格式化后的值赋值回去
       row.price = formatPrice;
       return formatPrice;
+    },
+    /** vxe表格-过滤商品名称方法 */
+    filterProductNameMethod({ option, row }) {
+      if (row.productName.indexOf(option.data) > -1) {
+        return row.productName;
+      }
     },
   },
 };
