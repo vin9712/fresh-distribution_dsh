@@ -37,18 +37,21 @@
               clearable
             ></el-date-picker>
           </el-form-item>
-          <el-form-item label="报价编号" prop="quoteCode">
+          <el-form-item prop="quoteCode">
+            <span slot="label">
+              报价编号
+              <i
+                class="el-icon-refresh"
+                @click="refreshQuoteCode"
+                style="cursor: pointer"
+              ></i>
+            </span>
             <el-input
               v-model="quoteForm.quoteCode"
               placeholder="请输入报价编号"
               disabled
             >
             </el-input>
-            <i
-              class="el-icon-refresh"
-              @click="refreshQuoteCode"
-              style="cursor: pointer"
-            ></i>
           </el-form-item>
           <el-form-item label="报价备注" prop="remark">
             <el-input v-model="quoteForm.remark" placeholder="请输入报价备注">
