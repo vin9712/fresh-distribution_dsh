@@ -2,6 +2,8 @@ package com.lin.distribution.service.impl;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 import com.lin.common.exception.ServiceException;
@@ -150,6 +152,10 @@ public class ProductSkuQuoteServiceImpl implements ProductSkuQuoteService {
             detail.setVersion(0);
             productSkuQuoteDetailMapper.insertProductSkuQuoteDetail(detail);
         });
+
+        // update quote code
+        genSkuQuoteNo(true);
+
         return productSkuQuote;
     }
 
@@ -167,15 +173,11 @@ public class ProductSkuQuoteServiceImpl implements ProductSkuQuoteService {
             throw new ServiceException("effective end date must after effective start date");
         }
 
-        List<ProductSkuQuoteDetail> validQuoteDetailList = request.getQuoteDetails().stream().filter(detail -> BigDecimal.ZERO.compareTo(detail.getPrice()) < 0).toList();
-        if (CollectionUtils.isEmpty(validQuoteDetailList)) {
-            throw new ServiceException("product sku price is zero");
-        }
-
-        List<ProductSkuQuoteDetail> newSkuQuoteList = validQuoteDetailList.stream().filter(detail -> detail.getSkuId() == null).toList();
-        // todo handle new sku
-        if (CollectionUtils.isNotEmpty(newSkuQuoteList)) {
-            Long customerId = request.getCustomerId();
+        List<ProductSkuQuoteDetail> quoteDetailList = request.getQuoteDetails();
+        boolean isValidQuoteDetailList = quoteDetailList.stream().anyMatch(it -> BigDecimal.ZERO.compareTo(it.getPrice()) < 0)
+                && quoteDetailList.stream().noneMatch(it -> BigDecimal.ZERO.compareTo(it.getPrice()) > 0);
+        if (!isValidQuoteDetailList) {
+            throw new ServiceException("quote detail list contains invalid item");
         }
 
     }
