@@ -130,12 +130,17 @@
       @selection-change="handleSelectionChange"
     >
       <el-table-column type="selection" width="55" align="center" />
-      <el-table-column label="报价编号" align="center" prop="id" />
+      <el-table-column
+        label="报价编号"
+        align="center"
+        prop="code"
+        width="140"
+      />
       <el-table-column
         label="报价生效时间"
         align="center"
         prop="effectiveStartDate"
-        width="180"
+        width="140"
       >
         <template slot-scope="scope">
           <span>{{
@@ -147,7 +152,7 @@
         label="报价结束时间"
         align="center"
         prop="effectiveEndDate"
-        width="180"
+        width="140"
       >
         <template slot-scope="scope">
           <span>{{
@@ -155,19 +160,33 @@
           }}</span>
         </template>
       </el-table-column>
+      <el-table-column label="状态" align="center" prop="status" />
       <el-table-column label="是否有效" align="center" prop="valid">
         <template slot-scope="scope">
           <dict-tag :options="dict.type.biz_yes_no" :value="scope.row.valid" />
         </template>
       </el-table-column>
-      <el-table-column label="创建时间" align="center" prop="createTime" />
+      <el-table-column
+        label="创建时间"
+        align="center"
+        width="100"
+        prop="createTime"
+      />
       <el-table-column label="备注" align="center" prop="remark" />
       <el-table-column
         label="操作"
         align="center"
+        width="180"
         class-name="small-padding fixed-width"
       >
         <template slot-scope="scope">
+          <el-button
+            size="mini"
+            type="text"
+            icon="el-icon-view"
+            @click="handleView(scope.row)"
+            >查看</el-button
+          >
           <el-button
             size="mini"
             type="text"
@@ -396,6 +415,12 @@ export default {
       this.ids = selection.map((item) => item.id);
       this.single = selection.length !== 1;
       this.multiple = !selection.length;
+    },
+    /** 查看详情 */
+    handleView(row) {
+      this.$router.push({
+        path: "/basicInfo/quote-detail/index/" + row.customerId,
+      });
     },
     /** 新增按钮操作 */
     handleAdd() {
