@@ -11,6 +11,7 @@
           size="medium"
           inline
           label-width="100px"
+          :disabled="isViewMode"
         >
           <el-form-item label="报价客户" prop="customerId">
             <el-select
@@ -41,7 +42,7 @@
             <span slot="label">
               报价编号
               <i
-                v-if="!isEdit"
+                v-if="isAddMode"
                 class="el-icon-refresh"
                 @click="refreshQuoteCode"
                 style="cursor: pointer"
@@ -84,6 +85,7 @@
             trigger: 'click',
             mode: 'cell',
             showStatus: true,
+            activeMethod: checkTableActive,
           }"
           :data="skuQuoteList"
         >
@@ -124,7 +126,9 @@
         <el-form-item
           style="text-align: center; margin-left: -100px; margin-top: 10px"
         >
-          <el-button type="primary" @click="submitForm()">提交</el-button>
+          <el-button type="primary" @click="submitForm()" :disabled="isViewMode"
+            >提交</el-button
+          >
           <el-button @click="close()">返回</el-button>
         </el-form-item>
       </el-form>
@@ -221,8 +225,11 @@ export default {
     },
   },
   computed: {
-    isEdit() {
-      return !!this.quoteForm.quoteId;
+    isAddMode() {
+      return this.$route.query.mode == "add";
+    },
+    isViewMode() {
+      return this.$route.query.mode == "view";
     },
   },
   created() {
@@ -271,7 +278,7 @@ export default {
       // 从后端获取数据
       const quoteId = this.quoteForm.quoteId;
       if (quoteId) {
-        let query = { id: quoteId };
+        let query = { quoteId: quoteId };
         getQuote(quoteId).then((response) => {
           const quote = response.data || {};
           this.quoteForm = {
@@ -380,6 +387,10 @@ export default {
       if (row.productName.indexOf(option.data) > -1) {
         return row.productName;
       }
+    },
+    /** vxe表格-全局禁用编辑 */
+    checkTableActive({ row, column }) {
+      return !this.isViewMode;
     },
   },
 };

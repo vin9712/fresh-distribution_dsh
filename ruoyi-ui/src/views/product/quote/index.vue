@@ -420,7 +420,7 @@ export default {
     handleView(row) {
       this.$router.push({
         path: "/basicInfo/quote-detail/index/" + row.customerId,
-        query: { quoteId: row.id },
+        query: { quoteId: row.id, mode: "view" },
       });
     },
     /** 新增按钮操作 */
@@ -435,16 +435,14 @@ export default {
       // 跳转
       this.$router.push({
         path: "/basicInfo/quote-detail/index/" + this.queryParams.customerId,
+        query: { quoteId: null, mode: "add" },
       });
     },
     /** 修改按钮操作 */
     handleUpdate(row) {
-      this.reset();
-      const id = row.id || this.ids;
-      getQuote(id).then((response) => {
-        this.form = response.data;
-        this.open = true;
-        this.title = "修改商品报价";
+      this.$router.push({
+        path: "/basicInfo/quote-detail/index/" + row.customerId,
+        query: { quoteId: row.id, mode: "edit" },
       });
     },
     /** 删除按钮操作 */
