@@ -138,6 +138,7 @@ public class ProductSkuQuoteServiceImpl implements ProductSkuQuoteService {
                 .version(0)
                 .isDeleted(false)
                 .build();
+        productSkuQuote.setRemark(request.getRemark());
         productSkuQuoteMapper.insertProductSkuQuote(productSkuQuote);
 
         // get quoteId
@@ -173,6 +174,7 @@ public class ProductSkuQuoteServiceImpl implements ProductSkuQuoteService {
         // update quote
         productSkuQuote.setEffectiveStartDate(request.getEffectiveStartDate());
         productSkuQuote.setEffectiveEndDate(request.getEffectiveEndDate());
+        productSkuQuote.setRemark(request.getRemark());
         productSkuQuoteMapper.updateProductSkuQuote(productSkuQuote);
 
         // delete quote details
