@@ -23,29 +23,38 @@
     </resultMap>
 
     <sql id="selectProductSkuQuoteDetailVo">
-        select id,
-               customer_id,
-               quote_id,
-               sku_id,
-               product_name,
-               product_unit,
-               product_spec,
-               price,
-               valid,
-               is_deleted,
-               version,
-               create_by,
-               create_time,
-               update_by,
-               update_time,
-               remark
-        from t_product_sku_quote_detail
+        select sqd.id,
+               sqd.customer_id,
+               sqd.quote_id,
+               sqd.sku_id,
+               sku.code as skuCode,
+               spu.category_id,
+               category.name as categoryName,
+               sqd.product_name,
+               sqd.product_unit,
+               sqd.product_spec,
+               sqd.price,
+               sqd.valid,
+               sqd.is_deleted,
+               sqd.version,
+               sqd.create_by,
+               sqd.create_time,
+               sqd.update_by,
+               sqd.update_time,
+               sqd.remark
+        from t_product_sku_quote_detail sqd
+        left join t_product_sku sku on sqd.sku_id = sku.id
+        left join t_product_spu spu on sku.spu_id = spu.id
+        left join t_product_category category on spu.category_id = category.id
     </sql>
 
     <select id="selectProductSkuQuoteDetailList" parameterType="com.lin.distribution.domain.ProductSkuQuoteDetail"
             resultMap="ProductSkuQuoteDetailResult">
         <include refid="selectProductSkuQuoteDetailVo"/>
         <where>
+            <if test="quoteId != null">
+                and quote_id like concat('%', #{quoteId}, '%')
+            </if>
             <if test="productName != null  and productName != ''">
                 and product_name like concat('%', #{productName}, '%')
             </if>
@@ -226,5 +235,16 @@
         <foreach item="id" collection="array" open="(" separator="," close=")">
             #{id}
         </foreach>
+    </delete>
+
+    <select id="selectProductSkuQuoteDetailListByQuoteId" resultMap="ProductSkuQuoteDetailResult">
+        <include refid="selectProductSkuQuoteDetailVo"/>
+        where quote_id = #{quoteId}
+    </select>
+
+    <delete id="deleteProductSkuQuoteDetailByQuoteId">
+        delete
+        from t_product_sku_quote_detail
+        where quote_id = #{quoteId}
     </delete>
 </mapper>

@@ -27,6 +27,9 @@ public interface ProductSkuQuoteDetailMapper {
      */
     List<ProductSkuQuoteDetail> selectProductSkuQuoteDetailList(ProductSkuQuoteDetail productSkuQuoteDetail);
 
+
+    List<ProductSkuQuoteDetail> selectProductSkuQuoteDetailListByQuoteId(Long quoteId);
+
     /**
      * 新增商品报价明细
      *
@@ -50,6 +53,13 @@ public interface ProductSkuQuoteDetailMapper {
      * @return 结果
      */
     int deleteProductSkuQuoteDetailById(Long id);
+
+    /**
+     * 根据 quoteId 删除商品报价明细
+     * @param quoteId
+     * @return
+     */
+    int deleteProductSkuQuoteDetailByQuoteId(Long quoteId);
 
     /**
      * 批量删除商品报价明细

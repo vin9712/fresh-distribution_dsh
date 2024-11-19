@@ -21,6 +21,7 @@ import java.util.List;
 @AllArgsConstructor
 @NoArgsConstructor
 public class ProductSkuQuoteCreateDTO implements Serializable {
+    private Long quoteId;
     @NotNull
     private Long customerId;
     @NotEmpty

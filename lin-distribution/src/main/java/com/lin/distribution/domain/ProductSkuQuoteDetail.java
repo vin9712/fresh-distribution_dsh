@@ -2,6 +2,7 @@ package com.lin.distribution.domain;
 
 import java.math.BigDecimal;
 
+import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.Version;
 import com.lin.common.annotation.Excel;
 import com.lin.common.core.domain.BaseEntity;
@@ -81,5 +82,21 @@ public class ProductSkuQuoteDetail extends BaseEntity {
      */
     @Version
     private Integer version;
+
+    /**
+     * 商品编号(来自 sku 表)
+     */
+    @TableField(exist = false)
+    private String skuCode;
+    /**
+     * 商品分类ID(来自 spu 表)
+     */
+    @TableField(exist = false)
+    private Long categoryId;
+    /**
+     * 商品分类(来自 category 表)
+     */
+    @TableField(exist = false)
+    private String categoryName;
 
 }

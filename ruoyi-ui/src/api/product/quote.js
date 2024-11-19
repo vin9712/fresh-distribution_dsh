@@ -53,6 +53,15 @@ export function createSkuQuote(data) {
   })
 }
 
+// 修改商品报价+明细
+export function updateSkuQuote(data) {
+  return request({
+    url: '/product/quote/update',
+    method: 'put',
+    data: data
+  })
+}
+
 // 修改商品报价
 export function updateQuote(data) {
   return request({

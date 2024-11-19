@@ -41,6 +41,7 @@
             <span slot="label">
               报价编号
               <i
+                v-if="!isEdit"
                 class="el-icon-refresh"
                 @click="refreshQuoteCode"
                 style="cursor: pointer"
@@ -67,6 +68,7 @@
           border
           show-overflow
           keep-source
+          ref="xTable"
           :row-config="{ isHover: true }"
           :mouse-config="{ selected: true }"
           :keyboard-config="{
@@ -132,7 +134,13 @@
 
 <script>
 import { listSku } from "@/api/product/sku";
-import { genQuoteCode, createSkuQuote } from "@/api/product/quote";
+import {
+  getQuote,
+  genQuoteCode,
+  createSkuQuote,
+  updateSkuQuote,
+} from "@/api/product/quote";
+import { listQuoteDetail } from "@/api/product/quoteDetail";
 import { listCustomer } from "@/api/partner/customer";
 
 import XEUtils from "xe-utils";
@@ -155,6 +163,8 @@ export default {
       total: 0,
       // 默认客户ID
       defaultCustomerId: null,
+      // 默认报价ID
+      defaultQuoteId: null,
       // 报价表单
       quoteForm: {
         quoteId: null,
@@ -210,16 +220,30 @@ export default {
       deep: true,
     },
   },
+  computed: {
+    isEdit() {
+      return !!this.quoteForm.quoteId;
+    },
+  },
   created() {
     // 从路由获取参数
-    this.defaultCustomerId =
-      this.$route.params && parseInt(this.$route.params.customerId);
+    const customerIdFromParams = this.$route.params.customerId;
+    const quoteIdFromQuery = this.$route.query.quoteId;
+    this.defaultCustomerId = customerIdFromParams
+      ? parseInt(customerIdFromParams, 10)
+      : null;
+    this.defaultQuoteId = quoteIdFromQuery
+      ? parseInt(quoteIdFromQuery, 10)
+      : null;
     // 设置查询参数
     this.quoteForm.customerId = this.defaultCustomerId;
+    this.quoteForm.quoteId = this.defaultQuoteId;
+
+    // 初始化数据
     this.getCustomerList();
     this.getQuoteCode();
-    // 初始化表格
-    this.initSkuQuoteList();
+    // 初始化表单+表格
+    this.initSkuQuoteData();
   },
   methods: {
     /** 查询客户列表 */
@@ -242,11 +266,46 @@ export default {
         this.quoteForm.quoteCode = response.msg;
       });
     },
-    /** 初始化报价明细列表 */
-    initSkuQuoteList() {
-      // todo 从后端获取数据
-      if (this.quoteForm.quoteId) {
-        this.skuQuoteList = [];
+    /** 初始化报价表单+明细列表 */
+    initSkuQuoteData() {
+      // 从后端获取数据
+      const quoteId = this.quoteForm.quoteId;
+      if (quoteId) {
+        let query = { id: quoteId };
+        getQuote(quoteId).then((response) => {
+          const quote = response.data || {};
+          this.quoteForm = {
+            quoteId: quote.id,
+            quoteCode: quote.code,
+            effectiveDateRange: [
+              quote.effectiveStartDate,
+              quote.effectiveEndDate,
+            ],
+            ...quote,
+          };
+        });
+
+        listQuoteDetail(query)
+          .then((response) => {
+            const quoteList = response.data || [];
+            this.skuQuoteList = quoteList.map((item) => {
+              return {
+                customerId: item.customerId,
+                categoryName: item.categoryName,
+                quoteId: item.quoteId,
+                skuId: item.skuId,
+                productCode: item.skuCode,
+                productName: item.productName,
+                productUnit: item.productUnit,
+                productSpec: item.productSpec,
+                price: item.price,
+              };
+            });
+          })
+          .then(() => {
+            // 刷新表格状态
+            this.$refs.xTable.reloadData(this.skuQuoteList);
+          });
         return;
       }
 
@@ -273,23 +332,36 @@ export default {
     submitForm() {
       this.$refs["quoteForm"].validate((valid) => {
         if (valid) {
+          // set quoteDetails
+          if (this.skuQuoteList.length == 0) {
+            this.$modal.msgError("报价明细列表不能为空！");
+            return;
+          }
+          this.quoteForm.quoteDetails = this.skuQuoteList;
+
+          // save or update
           if (this.quoteForm.quoteId != null) {
-            // updateSku(this.form).then((response) => {
-            //   this.$modal.msgSuccess("修改成功");
-            //   this.open = false;
-            //   this.getPageList();
-            // });
+            updateSkuQuote(this.quoteForm).then((response) => {
+              if (response.code === 200) {
+                this.$modal.msgSuccess("修改成功");
+                this.$tab.closePage();
+              }
+            });
           } else {
-            // todo 校验报价明细列表后再添加
-            this.quoteForm.quoteDetails = this.skuQuoteList;
             createSkuQuote(this.quoteForm).then((response) => {
-              this.$modal.msgSuccess("新增成功");
-              // this.open = false;
-              // this.getPageList();
+              if (response.code === 200) {
+                this.$modal.msgSuccess("新增成功");
+                this.$tab.closePage();
+              }
             });
           }
         }
       });
+    },
+    /** 返回按钮 */
+    close() {
+      // todo 校验是否有改动
+      this.$tab.closePage();
     },
     /** 格式化商品单价 */
     priceFormatter({ row }) {

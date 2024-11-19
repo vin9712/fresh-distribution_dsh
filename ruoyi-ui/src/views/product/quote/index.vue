@@ -217,7 +217,7 @@
   </div>
 </template>
 
-  <script>
+<script>
 import {
   pageQuote,
   listQuote,
@@ -420,6 +420,7 @@ export default {
     handleView(row) {
       this.$router.push({
         path: "/basicInfo/quote-detail/index/" + row.customerId,
+        query: { quoteId: row.id },
       });
     },
     /** 新增按钮操作 */

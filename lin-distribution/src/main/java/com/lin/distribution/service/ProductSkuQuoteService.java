@@ -72,4 +72,11 @@ public interface ProductSkuQuoteService {
      * @return
      */
     ProductSkuQuote createSkuQuote(ProductSkuQuoteCreateDTO request);
+
+    /**
+     * 更新商品报价单含详情
+     * @param request
+     * @return
+     */
+    ProductSkuQuote updateSkuQuote(ProductSkuQuoteCreateDTO request);
 }

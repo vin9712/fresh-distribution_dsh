@@ -27,6 +27,8 @@ public interface ProductSkuQuoteDetailService {
      */
     List<ProductSkuQuoteDetail> selectProductSkuQuoteDetailList(ProductSkuQuoteDetail productSkuQuoteDetail);
 
+    List<ProductSkuQuoteDetail> selectProductSkuQuoteDetailListByQuoteId(Long quoteId);
+
     /**
      * 新增商品报价明细
      *

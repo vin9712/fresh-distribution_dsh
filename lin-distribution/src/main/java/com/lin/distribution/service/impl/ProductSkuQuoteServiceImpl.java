@@ -125,7 +125,7 @@ public class ProductSkuQuoteServiceImpl implements ProductSkuQuoteService {
     @Override
     @Transactional
     public ProductSkuQuote createSkuQuote(ProductSkuQuoteCreateDTO request) {
-        checkCreateQuoteRequest(request);
+        checkCreateOrUpdateQuoteRequest(request);
 
         // insert quote
         ProductSkuQuote productSkuQuote = ProductSkuQuote.builder()
@@ -159,7 +159,39 @@ public class ProductSkuQuoteServiceImpl implements ProductSkuQuoteService {
         return productSkuQuote;
     }
 
-    private void checkCreateQuoteRequest(ProductSkuQuoteCreateDTO request) {
+    @Override
+    @Transactional
+    public ProductSkuQuote updateSkuQuote(ProductSkuQuoteCreateDTO request) {
+        checkCreateOrUpdateQuoteRequest(request);
+        Long quoteId = request.getQuoteId();
+        if (quoteId == null) {
+            throw new ServiceException("quote id is null");
+        }
+
+        ProductSkuQuote productSkuQuote = productSkuQuoteMapper.selectProductSkuQuoteById(quoteId);
+
+        // update quote
+        productSkuQuote.setEffectiveStartDate(request.getEffectiveStartDate());
+        productSkuQuote.setEffectiveEndDate(request.getEffectiveEndDate());
+        productSkuQuoteMapper.updateProductSkuQuote(productSkuQuote);
+
+        // delete quote details
+        productSkuQuoteDetailMapper.deleteProductSkuQuoteDetailByQuoteId(quoteId);
+
+        // batch insert quote details
+        List<ProductSkuQuoteDetail> quoteDetails = request.getQuoteDetails();
+        quoteDetails.forEach(detail -> {
+            detail.setQuoteId(quoteId);
+            detail.setValid(1);
+            detail.setIsDeleted(false);
+            detail.setVersion(0);
+            productSkuQuoteDetailMapper.insertProductSkuQuoteDetail(detail);
+        });
+
+        return productSkuQuote;
+    }
+
+    private void checkCreateOrUpdateQuoteRequest(ProductSkuQuoteCreateDTO request) {
         // check quote code
         String quoteCode = request.getQuoteCode();
         ProductSkuQuote quote = productSkuQuoteMapper.selectProductSkuQuoteByCode(quoteCode);

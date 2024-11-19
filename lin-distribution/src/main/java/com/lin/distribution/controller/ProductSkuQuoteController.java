@@ -113,12 +113,22 @@ public class ProductSkuQuoteController extends BaseController {
     }
 
     /**
-     * 创建商品报价
+     * 创建商品报价+详情
      * @param request
      * @return
      */
     @PostMapping("/create")
     public AjaxResult createSkuQuote(@RequestBody @Validated ProductSkuQuoteCreateDTO request) {
         return success(productSkuQuoteService.createSkuQuote(request));
+    }
+
+    /**
+     *
+     * @param request
+     * @return
+     */
+    @PutMapping("/update")
+    public AjaxResult updateSkuQuote(@RequestBody @Validated ProductSkuQuoteCreateDTO request) {
+        return success(productSkuQuoteService.updateSkuQuote(request));
     }
 }

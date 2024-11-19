@@ -44,6 +44,11 @@ public class ProductSkuQuoteDetailServiceImpl implements ProductSkuQuoteDetailSe
         return productSkuQuoteDetailMapper.selectProductSkuQuoteDetailList(productSkuQuoteDetail);
     }
 
+    @Override
+    public List<ProductSkuQuoteDetail> selectProductSkuQuoteDetailListByQuoteId(Long quoteId) {
+        return productSkuQuoteDetailMapper.selectProductSkuQuoteDetailListByQuoteId(quoteId);
+    }
+
     /**
      * 新增商品报价明细
      *
