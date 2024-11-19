@@ -192,11 +192,13 @@ public class ProductSkuQuoteServiceImpl implements ProductSkuQuoteService {
     }
 
     private void checkCreateOrUpdateQuoteRequest(ProductSkuQuoteCreateDTO request) {
-        // check quote code
-        String quoteCode = request.getQuoteCode();
-        ProductSkuQuote quote = productSkuQuoteMapper.selectProductSkuQuoteByCode(quoteCode);
-        if (quote != null) {
-            throw new ServiceException("product sku no existed");
+        if (request.getQuoteId() == null) {
+            // check quote code
+            String quoteCode = request.getQuoteCode();
+            ProductSkuQuote quote = productSkuQuoteMapper.selectProductSkuQuoteByCode(quoteCode);
+            if (quote != null) {
+                throw new ServiceException("product sku no existed");
+            }
         }
 
         LocalDate from = request.getEffectiveStartDate();
