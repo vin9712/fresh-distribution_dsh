@@ -117,10 +117,9 @@
           plain
           icon="el-icon-edit"
           size="mini"
-          :disabled="single"
-          @click="handleUpdate"
-          v-hasPermi="['product:sku:edit']"
-          >修改</el-button
+          :disabled="ids.length == 0"
+          @click="handleMatched"
+          >匹配商品库</el-button
         >
       </el-col>
       <el-col :span="1.5">
@@ -349,6 +348,54 @@
       </div>
     </el-dialog>
 
+    <!-- 批量匹配弹窗 -->
+    <el-dialog
+      :visible.sync="matchDialog.open"
+      title="批量匹配"
+      width="1000px"
+      append-to-body
+    >
+      <vxe-table
+        border
+        show-overflow
+        keep-source
+        ref="xTable"
+        :row-config="{ isHover: true }"
+        :mouse-config="{ selected: true }"
+        :keyboard-config="{
+          isArrow: true,
+          isDel: true,
+          isEnter: true,
+          isTab: true,
+          isEdit: true,
+          isChecked: true,
+        }"
+        :edit-config="{
+          trigger: 'click',
+          mode: 'cell',
+          showStatus: true,
+        }"
+        :data="selectedSkuList"
+      >
+        <vxe-column type="seq" title="序号" width="60"></vxe-column>
+        <vxe-column field="code" title="商品编号"></vxe-column>
+        <vxe-column field="categoryName" title="商品分类"></vxe-column>
+        <vxe-column field="name" title="商品名称"></vxe-column>
+        <vxe-column
+          field="spuId"
+          title="关联商品库"
+          :edit-render="{}"
+        ></vxe-column>
+        <vxe-column field="unit" title="商品单位"></vxe-column>
+        <vxe-column field="spec" title="商品规格"></vxe-column>
+      </vxe-table>
+
+      <div slot="footer" class="dialog-footer">
+        <el-button type="primary" @click="submitMatchForm">确 定</el-button>
+        <el-button @click="matchDialog.open = false">取 消</el-button>
+      </div>
+    </el-dialog>
+
     <!-- 商品导入对话框 -->
     <el-dialog
       :title="upload.title"
@@ -434,6 +481,8 @@ export default {
       customerOptions: [],
       // 商品信息表格数据
       skuList: [],
+      // 选择的商品列表
+      selectedSkuList: [],
       // 商品库列表数据
       formSpuList: [],
       // 筛选后 spu 列表
@@ -445,6 +494,11 @@ export default {
       title: "",
       // 是否显示弹出层
       open: false,
+      // 批量匹配弹出层
+      matchDialog: {
+        open: false,
+        title: "批量匹配",
+      },
       // 商品导入参数
       upload: {
         // 是否显示弹出层（商品导入）
@@ -639,6 +693,7 @@ export default {
     },
     // 多选框选中数据
     handleSelectionChange(selection) {
+      this.selectedSkuList = selection;
       this.ids = selection.map((item) => item.id);
       this.single = selection.length !== 1;
       this.multiple = !selection.length;
@@ -663,6 +718,19 @@ export default {
         this.open = true;
         this.title = "修改商品信息";
       });
+    },
+    /** 批量匹配按钮操作 */
+    handleMatched() {
+      // 如果 selectedSkuList 里有 spuId 不为空的，提示
+      if (this.selectedSkuList.some((sku) => sku.spuId)) {
+        this.$modal.msgError("已匹配的商品不能进行批量匹配");
+        return;
+      }
+      this.matchDialog.open = true;
+    },
+    /** 提交匹配商品库按钮 */
+    submitMatchForm() {
+      console.log("this.selectedSkuList", this.selectedSkuList);
     },
     /** 提交按钮 */
     submitForm() {

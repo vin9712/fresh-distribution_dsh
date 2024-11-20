@@ -88,7 +88,7 @@ public class ProductSku extends BaseEntity {
     /**
      * 商品售价
      */
-    @Excel(name = "商品售价")
+    @Excel(name = "商品售价", cellType= Excel.ColumnType.NUMERIC, scale = 2)
     private BigDecimal salePrice;
 
     /**
