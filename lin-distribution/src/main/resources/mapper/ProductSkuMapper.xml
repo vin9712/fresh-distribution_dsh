@@ -66,6 +66,8 @@
             <if test="salePrice != null ">and sku.sale_price = #{salePrice}</if>
             <if test="saleable != null ">and sku.saleable = #{saleable}</if>
             <if test="valid != null ">and sku.valid = #{valid}</if>
+            <if test="matchedSpu != null and matchedSpu == 0">and sku.spu_id is null</if>
+            <if test="matchedSpu != null and matchedSpu == 1">and sku.spu_id is not null</if>
         </where>
         order by sku.create_time
     </select>

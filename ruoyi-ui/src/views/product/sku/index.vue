@@ -71,6 +71,20 @@
           />
         </el-select>
       </el-form-item>
+      <el-form-item label="是否匹配" prop="matchedSpu">
+        <el-select
+          v-model="queryParams.matchedSpu"
+          placeholder="请选择是否匹配商品库"
+          clearable
+        >
+          <el-option
+            v-for="dict in dict.type.biz_yes_no"
+            :key="dict.value"
+            :label="dict.label"
+            :value="dict.value"
+          />
+        </el-select>
+      </el-form-item>
       <el-form-item>
         <el-button
           type="primary"
@@ -178,11 +192,11 @@
           <dict-tag :options="dict.type.biz_yes_no" :value="scope.row.valid" />
         </template>
       </el-table-column>
-      <el-table-column label="是否匹配" align="center" prop="matched">
+      <el-table-column label="是否匹配" align="center" prop="matchedSpu">
         <template slot-scope="scope">
           <dict-tag
             :options="dict.type.biz_yes_no"
-            :value="scope.row.matched"
+            :value="scope.row.spuId ? '1' : '0'"
           />
         </template>
       </el-table-column>
@@ -234,9 +248,9 @@
             />
           </el-select>
         </el-form-item>
-        <el-form-item v-if="!form.id" label="商品分类" prop="categoryId">
+        <el-form-item label="商品分类" prop="categoryId">
           <el-cascader
-            v-model="formSelectOptions"
+            v-model="formSelectedOptions"
             placeholder="请选择商品分类"
             :options="categoryOptions"
             @change="handleFormOptionsChanged"
@@ -426,7 +440,7 @@ export default {
       filterSpuList: [],
       // 选中的商品分类
       querySelectedOptions: [],
-      formSelectOptions: [],
+      formSelectedOptions: [],
       // 弹出层标题
       title: "",
       // 是否显示弹出层
@@ -456,7 +470,7 @@ export default {
         saleable: null,
         valid: null,
         // 辅助查询是否关联spu
-        matched: null,
+        matchedSpu: null,
       },
       // 查询校验
       queryFormRules: {
@@ -606,7 +620,7 @@ export default {
       };
       this.resetForm("form");
       // 清空级联选择器
-      this.formSelectOptions = [];
+      this.formSelectedOptions = [];
     },
     /** 搜索按钮操作 */
     handleQuery() {
@@ -641,6 +655,11 @@ export default {
       const id = row.id || this.ids;
       getSku(id).then((response) => {
         this.form = response.data;
+        // 构造级联选择器选中的数据
+        this.formSelectedOptions = this.fillWithParentCategoryId(
+          this.categoryOptions,
+          this.form.categoryId.toString()
+        );
         this.open = true;
         this.title = "修改商品信息";
       });
@@ -748,9 +767,9 @@ export default {
       if (this.filterSpuList.length === 0) {
         return;
       }
-      const matchedSpu = this.filterSpuList.find((spu) => spu.value === name);
-      if (matchedSpu) {
-        this.form.spuId = matchedSpu.spuId;
+      const spuItem = this.filterSpuList.find((spu) => spu.value === name);
+      if (spuItem) {
+        this.form.spuId = spuItem.spuId;
       }
     },
     /** 处理级联选择器，取最后一个选项 */
@@ -766,6 +785,25 @@ export default {
       return this.categoryMap
         ? this.categoryMap[row.categoryId] || ""
         : row.categoryId;
+    },
+    /** 根据 id 构造父节点列表，并添加自身 */
+    fillWithParentCategoryId(list, id) {
+      if (!id) return [];
+      function getParents(nodes, targetId, path = []) {
+        for (const node of nodes) {
+          path.push(node.value);
+          if (
+            node.value === targetId ||
+            (node.children && getParents(node.children, targetId, path))
+          ) {
+            return path;
+          }
+          path.pop();
+        }
+        return null;
+      }
+
+      return getParents(list, id) || [];
     },
     /** 导入按钮操作 */
     handleImport() {

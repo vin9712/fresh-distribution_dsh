@@ -116,10 +116,17 @@ public class ProductSku extends BaseEntity {
      */
     @TableField(exist = false)
     private String categoryName;
-
+    /**
+     * 商品分类(来自 category 表)
+     */
     @Excel(name = "商品分类编号")
     @TableField(exist = false)
     private String categoryCode;
+    /**
+     * 是否匹配spu
+     */
+    @TableField(exist = false)
+    private String matchedSpu;
 
 
     public String getSkuMnemonicCode(){
