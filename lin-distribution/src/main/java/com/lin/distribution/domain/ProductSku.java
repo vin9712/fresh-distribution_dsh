@@ -1,10 +1,12 @@
 package com.lin.distribution.domain;
 
 import java.math.BigDecimal;
+import java.util.Locale;
 
 import com.baomidou.mybatisplus.annotation.TableField;
 import com.lin.common.annotation.Excel;
 import com.lin.common.core.domain.BaseEntity;
+import com.lin.common.utils.PinYinConvertUtils;
 import lombok.*;
 import org.apache.commons.lang3.builder.ToStringBuilder;
 import org.apache.commons.lang3.builder.ToStringStyle;
@@ -31,6 +33,7 @@ public class ProductSku extends BaseEntity {
     /**
      * 客户ID
      */
+    @Excel(name = "客户编号")
     private Long customerId;
 
     /**
@@ -48,7 +51,6 @@ public class ProductSku extends BaseEntity {
      * 商品编码
      * 客户简写(前四位) + customerId + 5位自增序号
      */
-    @Excel(name = "商品编码")
     private String code;
     /**
      * 商品名称
@@ -97,13 +99,11 @@ public class ProductSku extends BaseEntity {
     /**
      * 是否上架
      */
-    @Excel(name = "是否上架")
     private Integer saleable;
 
     /**
      * 是否有效
      */
-    @Excel(name = "是否有效")
     private Integer valid;
 
     /**
@@ -117,4 +117,12 @@ public class ProductSku extends BaseEntity {
     @TableField(exist = false)
     private String categoryName;
 
+    @Excel(name = "商品分类编号")
+    @TableField(exist = false)
+    private String categoryCode;
+
+
+    public String getSkuMnemonicCode(){
+        return PinYinConvertUtils.toFirstChar(name).toUpperCase(Locale.ROOT);
+    }
 }

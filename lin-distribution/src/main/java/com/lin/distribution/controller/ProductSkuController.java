@@ -21,6 +21,7 @@ import com.lin.common.enums.BusinessType;
 import com.lin.distribution.domain.ProductSku;
 import com.lin.common.utils.poi.ExcelUtil;
 import com.lin.common.core.page.TableDataInfo;
+import org.springframework.web.multipart.MultipartFile;
 
 /**
  * 商品信息Controller
@@ -104,5 +105,19 @@ public class ProductSkuController extends BaseController {
     @DeleteMapping("/{ids}")
     public AjaxResult remove(@PathVariable String[] ids) {
         return toAjax(productSkuService.deleteProductSkuByIds(ids));
+    }
+
+    @PostMapping("/importData")
+    public AjaxResult importData(MultipartFile file) throws Exception {
+        ExcelUtil<ProductSku> util = new ExcelUtil<>(ProductSku.class);
+        List<ProductSku> skuList = util.importExcel(file.getInputStream());
+        String message = productSkuService.importProductSku(skuList);
+        return AjaxResult.success(message);
+    }
+
+    @PostMapping("/importTemplate")
+    public void importTemplate(HttpServletResponse response) {
+        ExcelUtil<ProductSku> util = new ExcelUtil<>(ProductSku.class);
+        util.importTemplateExcel(response, "商品信息");
     }
 }

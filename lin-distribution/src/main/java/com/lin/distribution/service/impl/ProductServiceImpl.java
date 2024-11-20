@@ -3,17 +3,21 @@ package com.lin.distribution.service.impl;
 import com.lin.common.exception.ServiceException;
 import com.lin.common.utils.DateUtils;
 import com.lin.common.utils.PinYinConvertUtils;
-import com.lin.common.utils.StringUtils;
+import com.lin.common.utils.bean.BeanValidators;
 import com.lin.distribution.domain.Customer;
+import com.lin.distribution.domain.ProductCategory;
 import com.lin.distribution.domain.ProductSku;
 import com.lin.distribution.domain.ProductSpu;
 import com.lin.distribution.mapper.CustomerMapper;
+import com.lin.distribution.mapper.ProductCategoryMapper;
 import com.lin.distribution.mapper.ProductSkuMapper;
 import com.lin.distribution.mapper.ProductSpuMapper;
 import com.lin.distribution.service.ProductService;
+import jakarta.validation.Validator;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.lang3.BooleanUtils;
+import org.apache.commons.collections4.CollectionUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.redisson.api.RMap;
 import org.redisson.api.RedissonClient;
 import org.springframework.stereotype.Service;
@@ -21,6 +25,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  * 商品服务业务层处理
@@ -33,10 +39,12 @@ import java.util.List;
 @RequiredArgsConstructor
 public class ProductServiceImpl implements ProductService {
 
+    private final ProductCategoryMapper productCategoryMapper;
     private final CustomerMapper customerMapper;
     private final ProductSkuMapper productSkuMapper;
     private final ProductSpuMapper productSpuMapper;
     private final RedissonClient redissonClient;
+    protected final Validator validator;
 
     /** *************************** sku *************************** **/
 
@@ -98,7 +106,7 @@ public class ProductServiceImpl implements ProductService {
 
         // generate sku code
         Customer customer = customerMapper.selectCustomerById(productSku.getCustomerId());
-        String customerCode = StringUtils.substring(customer.getShowMnemonicCode(), 0, Math.min(customer.getShowMnemonicCode().length(), 4));
+        String customerCode = customer == null ? "#" : StringUtils.substring(customer.getShowMnemonicCode(), 0, Math.min(customer.getShowMnemonicCode().length(), 4));
         String skuCode = generateSkuNo(productSku.getCustomerId(), customerCode);
 
         // insert sku one with customerId
@@ -289,6 +297,64 @@ public class ProductServiceImpl implements ProductService {
     @Override
     public int deleteProductSpuById(Long id) {
         return productSpuMapper.deleteProductSpuById(id);
+    }
+
+    @Override
+    @Transactional
+    public String importProductSku(List<ProductSku> skuList) {
+        if (CollectionUtils.isEmpty(skuList)) {
+            throw new ServiceException("导入商品数据不能为空！");
+        }
+
+        int successNum = 0;
+        int failureNum = 0;
+        StringBuilder successMsg = new StringBuilder();
+        StringBuilder failureMsg = new StringBuilder();
+
+        // get category map
+        Map<String, Long> categoryMap = productCategoryMapper.selectProductCategoryList(new ProductCategory()).stream().collect(Collectors.toMap(ProductCategory::getCode, ProductCategory::getId));
+
+        for (ProductSku sku : skuList) {
+            try {
+                // check sku format
+                Long categoryId = StringUtils.isNotEmpty(sku.getCategoryCode()) ? categoryMap.getOrDefault(sku.getCategoryCode(), null) : null;
+                if (categoryId == null) {
+                    throw new ServiceException("商品分类为空");
+                }
+                Long customerId = skuList.get(0).getCustomerId();
+                if (customerId == null) {
+                    throw new ServiceException("客户编号为空");
+                }
+
+                // 验证是否存在这个客户
+                ProductSku s = productSkuMapper.selectProductSkuByCustomerIdAndCategoryIdAndName(customerId, categoryId, sku.getName()).stream().findFirst().orElse(null);
+                if (s == null) {
+                    BeanValidators.validateWithException(validator, sku);
+                    sku.setMnemonicCode(sku.getSkuMnemonicCode());
+                    sku.setCategoryId(categoryId);
+                    sku.setSaleable(1);
+                    sku.setValid(1);
+                    this.insertProductSku(sku);
+                    successNum++;
+                    successMsg.append("<br/>" + successNum + "、商品 " + sku.getName() + " 导入成功");
+                } else {
+                    failureNum++;
+                    failureMsg.append("<br/>" + failureNum + "、商品 " + sku.getName() + " 已存在");
+                }
+            } catch (Exception e) {
+                failureNum++;
+                String msg = "<br/>" + failureNum + "、商品 " + sku.getName() + " 导入失败：";
+                failureMsg.append(msg).append(e.getMessage());
+                log.error(msg, e);
+            }
+        }
+        if (failureNum > 0) {
+            failureMsg.insert(0, "很抱歉，导入失败！共 " + failureNum + " 条数据格式不正确，错误如下：");
+            throw new ServiceException(failureMsg.toString());
+        } else {
+            successMsg.insert(0, "恭喜您，数据已全部导入成功！共 " + successNum + " 条，数据如下：");
+        }
+        return successMsg.toString();
     }
 
     private void checkUniqueSpu(ProductSpu productSpu) {

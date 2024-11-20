@@ -122,4 +122,10 @@ public interface ProductService {
      */
     int deleteProductSpuById(Long spuId);
 
+    /**
+     * 导入商品
+     * @param skuList
+     * @return
+     */
+    String importProductSku(List<ProductSku> skuList);
 }
