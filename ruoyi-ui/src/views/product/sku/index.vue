@@ -168,6 +168,14 @@
           <dict-tag :options="dict.type.biz_yes_no" :value="scope.row.valid" />
         </template>
       </el-table-column>
+      <el-table-column label="是否匹配" align="center" prop="matched">
+        <template slot-scope="scope">
+          <dict-tag
+            :options="dict.type.biz_yes_no"
+            :value="scope.row.matched"
+          />
+        </template>
+      </el-table-column>
       <el-table-column label="备注" align="center" prop="remark" />
       <el-table-column
         label="操作"
@@ -385,6 +393,8 @@ export default {
         salePrice: null,
         saleable: null,
         valid: null,
+        // 辅助查询是否关联spu
+        matched: null,
       },
       // 查询校验
       queryFormRules: {
@@ -513,6 +523,7 @@ export default {
         customerId: row
           ? row.customerId
           : this.queryParams.customerId || this.defaultCustomerId,
+        categoryId: null,
         spuId: null,
         name: null,
         mnemonicCode: null,
@@ -530,8 +541,6 @@ export default {
         updateBy: null,
         updateTime: null,
         remark: null,
-        // 辅助查询商品库
-        categoryId: null,
       };
       this.resetForm("form");
       // 清空级联选择器
@@ -669,9 +678,8 @@ export default {
     },
     /** 兜底方法，若未选中元素，再尝试填充 spu 信息 */
     handleUpdateSkuName(name) {
-      if (this.form.spuId) {
-        return;
-      }
+      // init spuId
+      this.form.spuId = null;
       if (!name) {
         return;
       }

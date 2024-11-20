@@ -131,7 +131,8 @@ CREATE TABLE `t_product_sku`
 (
     `id`            bigint(10) unsigned NOT NULL AUTO_INCREMENT COMMENT '主键',
     `customer_id`   bigint(10) unsigned NOT NULL COMMENT '客户ID',
-    `spu_id`        bigint(10) unsigned NOT NULL COMMENT '产品ID',
+    `category_id`   bigint(10) unsigned NOT NULL COMMENT '分类ID',
+    `spu_id`        bigint(10) DEFAULT NULL COMMENT '产品ID(未匹配可为空)',
     `code`          varchar(200) NOT NULL COMMENT '商品编号',
     `name`          varchar(200) NOT NULL COMMENT '商品名称',
     `mnemonic_code` varchar(128) NOT NULL COMMENT '助记码',
@@ -151,7 +152,7 @@ CREATE TABLE `t_product_sku`
     `remark`        varchar(500)          DEFAULT NULL COMMENT '商品备注',
     PRIMARY KEY (`id`) USING BTREE,
     KEY             `idx_spu_id` (`spu_id`) USING BTREE,
-    KEY             `idx_customer_id_spu_id` (`customer_id`, `spu_id`) USING BTREE,
+    KEY             `idx_customer_id_category_id` (`customer_id`, `category_id`) USING BTREE,
     UNIQUE KEY `idx_customer_id_name_unit` (`customer_id`, `name`, `unit`) USING BTREE,
     KEY             `idx_saleable` (`saleable`) USING BTREE,
     KEY             `idx_valid` (`valid`) USING BTREE,

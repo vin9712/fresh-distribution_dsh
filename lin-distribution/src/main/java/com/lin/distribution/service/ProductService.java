@@ -65,13 +65,12 @@ public interface ProductService {
      * 生成客户商品编号
      *
      * @param spuId
-     * @param spuCode spu 助记码
+     * @param customerCode 客户简写
      * @param customerId
      * @param isParent
      * @return
      */
-    String generateSkuNo(Long customerId, Long spuId, String spuCode, Boolean isParent);
-    
+    String generateSkuNo(Long customerId, String customerCode);
 
     /** *************************** spu *************************** **/
 

@@ -5,10 +5,7 @@ import java.math.BigDecimal;
 import com.baomidou.mybatisplus.annotation.TableField;
 import com.lin.common.annotation.Excel;
 import com.lin.common.core.domain.BaseEntity;
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Data;
-import lombok.RequiredArgsConstructor;
+import lombok.*;
 import org.apache.commons.lang3.builder.ToStringBuilder;
 import org.apache.commons.lang3.builder.ToStringStyle;
 
@@ -18,6 +15,7 @@ import org.apache.commons.lang3.builder.ToStringStyle;
  * @author lin
  * @date 2024-11-11
  */
+@EqualsAndHashCode(callSuper = true)
 @Data
 @Builder
 @AllArgsConstructor
@@ -36,14 +34,19 @@ public class ProductSku extends BaseEntity {
     private Long customerId;
 
     /**
-     * 产品ID
+     * 产品ID(可为空)
      */
     private Long spuId;
+
+    /**
+     * 商品分类ID
+     */
+    private Long categoryId;
 
 
     /**
      * 商品编码
-     * spu简写 + customerId + spuId + 5位自增序号
+     * 客户简写(前四位) + customerId + 5位自增序号
      */
     @Excel(name = "商品编码")
     private String code;
@@ -109,39 +112,9 @@ public class ProductSku extends BaseEntity {
     private Boolean isDeleted;
 
     /**
-     * 商品分类ID(来自 spu 表)
-     */
-    @TableField(exist = false)
-    private Long categoryId;
-    /**
      * 商品分类(来自 category 表)
      */
     @TableField(exist = false)
     private String categoryName;
 
-
-    @Override
-    public String toString() {
-        return new ToStringBuilder(this, ToStringStyle.MULTI_LINE_STYLE)
-                .append("id", getId())
-                .append("customerId", getCustomerId())
-                .append("spuId", getSpuId())
-                .append("name", getName())
-                .append("mnemonicCode", getMnemonicCode())
-                .append("unit", getUnit())
-                .append("spec", getSpec())
-                .append("images", getImages())
-                .append("properties", getProperties())
-                .append("salePrice", getSalePrice())
-                .append("visitCount", getVisitCount())
-                .append("saleable", getSaleable())
-                .append("valid", getValid())
-                .append("isDeleted", getIsDeleted())
-                .append("createBy", getCreateBy())
-                .append("createTime", getCreateTime())
-                .append("updateBy", getUpdateBy())
-                .append("updateTime", getUpdateTime())
-                .append("remark", getRemark())
-                .toString();
-    }
 }

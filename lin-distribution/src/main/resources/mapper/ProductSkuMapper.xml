@@ -7,6 +7,7 @@
     <resultMap type="com.lin.distribution.domain.ProductSku" id="ProductSkuResult">
         <result property="id" column="id"/>
         <result property="customerId" column="customer_id"/>
+        <result property="categoryId" column="category_id"/>
         <result property="spuId" column="spu_id"/>
         <result property="name" column="name"/>
         <result property="mnemonicCode" column="mnemonic_code"/>
@@ -29,8 +30,8 @@
     <sql id="selectProductSkuVo">
         select sku.id,
         sku.customer_id,
+        sku.category_id,
         sku.spu_id,
-        spu.category_id,
         category.name as categoryName,
         sku.code,
         sku.name,
@@ -51,7 +52,7 @@
         sku.remark
         from t_product_sku sku
         left join t_product_spu spu on sku.spu_id = spu.id
-        left join t_product_category category on spu.category_id = category.id
+        left join t_product_category category on sku.category_id = category.id
     </sql>
 
     <select id="selectProductSkuList" parameterType="com.lin.distribution.domain.ProductSku"
@@ -59,13 +60,14 @@
         <include refid="selectProductSkuVo"/>
         <where>
             <if test="customerId != null">and sku.customer_id = #{customerId}</if>
-            <if test="categoryId != null">and spu.category_id = #{categoryId}</if>
+            <if test="categoryId != null">and sku.category_id = #{categoryId}</if>
             <if test="spuId != null">and sku.spu_id = #{spuId}</if>
             <if test="name != null  and name != ''">and sku.name like concat('%', #{name}, '%')</if>
             <if test="salePrice != null ">and sku.sale_price = #{salePrice}</if>
             <if test="saleable != null ">and sku.saleable = #{saleable}</if>
             <if test="valid != null ">and sku.valid = #{valid}</if>
         </where>
+        order by sku.create_time
     </select>
 
     <select id="selectProductSkuById" parameterType="Long" resultMap="ProductSkuResult">
@@ -78,6 +80,7 @@
         insert into t_product_sku
         <trim prefix="(" suffix=")" suffixOverrides=",">
             <if test="customerId != null">customer_id,</if>
+            <if test="categoryId != null">category_id,</if>
             <if test="spuId != null">spu_id,</if>
             <if test="name != null and name != ''">name,</if>
             <if test="code != null and code != ''">code,</if>
@@ -99,6 +102,7 @@
         </trim>
         <trim prefix="values (" suffix=")" suffixOverrides=",">
             <if test="customerId != null">#{customerId},</if>
+            <if test="categoryId != null">#{categoryId},</if>
             <if test="spuId != null">#{spuId},</if>
             <if test="name != null and name != ''">#{name},</if>
             <if test="code != null and code != ''">#{code},</if>
@@ -124,6 +128,7 @@
         update t_product_sku
         <trim prefix="SET" suffixOverrides=",">
             <if test="customerId != null">customer_id = #{customerId},</if>
+            <if test="categoryId != null">category_id = #{categoryId},</if>
             <if test="spuId != null">spu_id = #{spuId},</if>
             <if test="code != null and code != ''">code = #{code},</if>
             <if test="name != null and name != ''">name = #{name},</if>
@@ -160,10 +165,10 @@
     <select id="selectProductSkuByCustomerIdAndCategoryIdAndName" resultMap="ProductSkuResult">
         <include refid="selectProductSkuVo"/>
         <where>
-            <if test="customerId != null">and customer_id = #{customerId}</if>
-            <if test="categoryId != null">and category_id = #{categoryId}</if>
-            <if test="name != null and name != ''">and name = #{name}</if>
-            and is_deleted = 0
+            <if test="customerId != null">and sku.customer_id = #{customerId}</if>
+            <if test="categoryId != null">and sku.category_id = #{categoryId}</if>
+            <if test="name != null and name != ''">and sku.name = #{name}</if>
+            and sku.is_deleted = 0
         </where>
     </select>
 </mapper>
