@@ -44,6 +44,16 @@ export function updateSku(data) {
   })
 }
 
+// 批量匹配商品信息
+export function matchSku(data) {
+  return request({
+    url: '/product/sku/match',
+    method: 'put',
+    data: data
+  })
+}
+
+
 // 删除商品信息
 export function delSku(id) {
   return request({

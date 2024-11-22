@@ -348,47 +348,41 @@
       </div>
     </el-dialog>
 
-    <!-- 批量匹配弹窗 -->
+    <!-- 批量匹配商品库弹窗 -->
     <el-dialog
       :visible.sync="matchDialog.open"
       title="批量匹配"
       width="1000px"
       append-to-body
     >
-      <vxe-table
-        border
-        show-overflow
-        keep-source
-        ref="xTable"
-        :row-config="{ isHover: true }"
-        :mouse-config="{ selected: true }"
-        :keyboard-config="{
-          isArrow: true,
-          isDel: true,
-          isEnter: true,
-          isTab: true,
-          isEdit: true,
-          isChecked: true,
-        }"
-        :edit-config="{
-          trigger: 'click',
-          mode: 'cell',
-          showStatus: true,
-        }"
-        :data="selectedSkuList"
-      >
-        <vxe-column type="seq" title="序号" width="60"></vxe-column>
-        <vxe-column field="code" title="商品编号"></vxe-column>
-        <vxe-column field="categoryName" title="商品分类"></vxe-column>
-        <vxe-column field="name" title="商品名称"></vxe-column>
-        <vxe-column
-          field="spuId"
-          title="关联商品库"
-          :edit-render="{}"
-        ></vxe-column>
-        <vxe-column field="unit" title="商品单位"></vxe-column>
-        <vxe-column field="spec" title="商品规格"></vxe-column>
-      </vxe-table>
+      <el-table ref="matchSpuTable" :data="selectedSkuList" row-key="columnId">
+        <el-table-column
+          label="序号"
+          type="index"
+          min-width="5%"
+          class-name="allowDrag"
+        />
+        <el-table-column label="商品编号" prop="code" />
+        <el-table-column label="商品分类" prop="categoryName" />
+        <el-table-column label="商品名称" prop="name" />
+        <el-table-column label="关联商品库" prop="spuId">
+          <template slot-scope="scope">
+            <el-autocomplete
+              v-model="scope.row.spuName"
+              @select="handleSelectMatchSpu($event, scope.row)"
+              :fetch-suggestions="
+                (queryString, cb) =>
+                  queryMatchSpuList(queryString, cb, scope.row)
+              "
+              placeholder="请输入商品名称"
+              clearable
+            >
+            </el-autocomplete>
+          </template>
+        </el-table-column>
+        <el-table-column label="商品单位" prop="unit" />
+        <el-table-column label="商品规格" prop="spec" />
+      </el-table>
 
       <div slot="footer" class="dialog-footer">
         <el-button type="primary" @click="submitMatchForm">确 定</el-button>
@@ -444,6 +438,7 @@ import {
   delSku,
   addSku,
   updateSku,
+  matchSku,
 } from "@/api/product/sku";
 import { listCategory } from "@/api/product/category";
 import { listSpu } from "@/api/product/spu";
@@ -730,7 +725,12 @@ export default {
     },
     /** 提交匹配商品库按钮 */
     submitMatchForm() {
-      console.log("this.selectedSkuList", this.selectedSkuList);
+      var data = { skuList: this.selectedSkuList };
+      matchSku(data).then((response) => {
+        this.$modal.msgSuccess("匹配成功");
+        this.matchDialog.open = false;
+        this.getPageList();
+      });
     },
     /** 提交按钮 */
     submitForm() {
@@ -872,6 +872,44 @@ export default {
       }
 
       return getParents(list, id) || [];
+    },
+    /** 选择匹配商品库 */
+    handleSelectMatchSpu(item, row) {
+      if (!item) {
+        row.spuId = null;
+      }
+      row.spuId = item.spuId;
+    },
+    /** 查询匹配商品库列表 */
+    queryMatchSpuList(queryString, cb, row) {
+      // 获取过滤后列表
+      this.filterSpuList = [];
+      var results = [];
+      // 如果输入框为空，直接返回空数组
+      if (!queryString || queryString.trim() === "") {
+        cb(results);
+        return;
+      }
+
+      var param = {
+        name: queryString,
+        categoryId: row.categoryId,
+      };
+      listSpu(param)
+        .then((response) => {
+          results = response.data.map((spu) => ({
+            value: spu.name,
+            spuId: spu.id,
+          }));
+          this.filterSpuList = results;
+          // 调用 callback 返回建议列表
+          cb(results);
+        })
+        .catch((error) => {
+          console.error("Error fetching SPUs:", error);
+          // 如果请求失败，返回空数组 cb([]);
+          cb([]);
+        });
     },
     /** 导入按钮操作 */
     handleImport() {

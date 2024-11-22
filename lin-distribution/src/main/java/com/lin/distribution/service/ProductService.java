@@ -2,6 +2,8 @@ package com.lin.distribution.service;
 
 import com.lin.distribution.domain.ProductSku;
 import com.lin.distribution.domain.ProductSpu;
+import com.lin.distribution.dto.ProductSkuMatchDTO;
+import org.springframework.web.bind.annotation.RequestBody;
 
 import java.util.List;
 
@@ -128,4 +130,6 @@ public interface ProductService {
      * @return
      */
     String importProductSku(List<ProductSku> skuList);
+
+    int matchProductSku(ProductSkuMatchDTO request);
 }

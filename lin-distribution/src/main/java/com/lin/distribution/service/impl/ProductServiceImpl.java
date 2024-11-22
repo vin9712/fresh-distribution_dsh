@@ -8,6 +8,7 @@ import com.lin.distribution.domain.Customer;
 import com.lin.distribution.domain.ProductCategory;
 import com.lin.distribution.domain.ProductSku;
 import com.lin.distribution.domain.ProductSpu;
+import com.lin.distribution.dto.ProductSkuMatchDTO;
 import com.lin.distribution.mapper.CustomerMapper;
 import com.lin.distribution.mapper.ProductCategoryMapper;
 import com.lin.distribution.mapper.ProductSkuMapper;
@@ -355,6 +356,16 @@ public class ProductServiceImpl implements ProductService {
             successMsg.insert(0, "恭喜您，数据已全部导入成功！共 " + successNum + " 条，数据如下：");
         }
         return successMsg.toString();
+    }
+
+    @Override
+    public int matchProductSku(ProductSkuMatchDTO request) {
+        List<ProductSku> skuList = request.getSkuList();
+        if (CollectionUtils.isEmpty(skuList)) {
+            throw new ServiceException("match sku list is empty！");
+        }
+        skuList.forEach(productSkuMapper::updateProductSku);
+        return 1;
     }
 
     private void checkUniqueSpu(ProductSpu productSpu) {

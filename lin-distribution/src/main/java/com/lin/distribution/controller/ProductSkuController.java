@@ -2,6 +2,7 @@ package com.lin.distribution.controller;
 
 import java.util.List;
 
+import com.lin.distribution.dto.ProductSkuMatchDTO;
 import com.lin.distribution.service.ProductService;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -98,6 +99,14 @@ public class ProductSkuController extends BaseController {
     }
 
     /**
+     * 批量配置商品信息
+     */
+    @PutMapping("/match")
+    public AjaxResult match(@RequestBody ProductSkuMatchDTO request) {
+        return toAjax(productSkuService.matchProductSku(request));
+    }
+
+    /**
      * 删除商品信息
      */
     @PreAuthorize("@ss.hasPermi('product:sku:remove')")
@@ -107,6 +116,12 @@ public class ProductSkuController extends BaseController {
         return toAjax(productSkuService.deleteProductSkuByIds(ids));
     }
 
+    /**
+     * 导入商品信息
+     * @param file
+     * @return
+     * @throws Exception
+     */
     @PostMapping("/importData")
     public AjaxResult importData(MultipartFile file) throws Exception {
         ExcelUtil<ProductSku> util = new ExcelUtil<>(ProductSku.class);
