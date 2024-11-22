@@ -42,7 +42,7 @@
             <span slot="label">
               报价编号
               <i
-                v-if="isAddMode"
+                v-if="isAddMode || isCopyMode"
                 class="el-icon-refresh"
                 @click="refreshQuoteCode"
                 style="cursor: pointer"
@@ -148,6 +148,8 @@ import { listQuoteDetail } from "@/api/product/quoteDetail";
 import { listCustomer } from "@/api/partner/customer";
 
 import XEUtils from "xe-utils";
+const quotePage = { path: "/basicInfo/quote" };
+
 export default {
   name: "QuoteDetail",
   dicts: ["biz_yes_no"],
@@ -231,6 +233,9 @@ export default {
     isViewMode() {
       return this.$route.query.mode == "view";
     },
+    isCopyMode() {
+      return this.$route.query.mode == "copy";
+    },
   },
   created() {
     // 从路由获取参数
@@ -283,7 +288,7 @@ export default {
           const quote = response.data || {};
           this.quoteForm = {
             quoteId: quote.id,
-            quoteCode: quote.code,
+            quoteCode: this.isCopyMode ? this.quoteForm.quoteCode : quote.code,
             effectiveDateRange: [
               quote.effectiveStartDate,
               quote.effectiveEndDate,
@@ -299,7 +304,7 @@ export default {
               return {
                 customerId: item.customerId,
                 categoryName: item.categoryName,
-                quoteId: item.quoteId,
+                quoteId: this.isCopyMode ? null : item.quoteId,
                 skuId: item.skuId,
                 productCode: item.skuCode,
                 productName: item.productName,
@@ -308,6 +313,11 @@ export default {
                 price: item.price,
               };
             });
+            // 若当前为复制模式，重置 quoteId
+            if (this.isCopyMode) {
+              this.defaultQuoteId = null;
+              this.quoteForm.quoteId = null;
+            }
           })
           .then(() => {
             // 刷新表格状态
@@ -351,14 +361,14 @@ export default {
             updateSkuQuote(this.quoteForm).then((response) => {
               if (response.code === 200) {
                 this.$modal.msgSuccess("修改成功");
-                this.$tab.closePage();
+                this.$tab.closeOpenPage(quotePage);
               }
             });
           } else {
             createSkuQuote(this.quoteForm).then((response) => {
               if (response.code === 200) {
                 this.$modal.msgSuccess("新增成功");
-                this.$tab.closePage();
+                this.$tab.closeOpenPage(quotePage);
               }
             });
           }
@@ -368,7 +378,7 @@ export default {
     /** 返回按钮 */
     close() {
       // todo 校验是否有改动
-      this.$tab.closePage();
+      this.$tab.closeOpenPage(quotePage);
     },
     /** 格式化商品单价 */
     priceFormatter({ row }) {

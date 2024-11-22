@@ -176,7 +176,7 @@
       <el-table-column
         label="操作"
         align="center"
-        width="180"
+        width="210"
         class-name="small-padding fixed-width"
       >
         <template slot-scope="scope">
@@ -194,6 +194,14 @@
             @click="handleUpdate(scope.row)"
             v-hasPermi="['product:quote:edit']"
             >修改</el-button
+          >
+          <el-button
+            size="mini"
+            type="text"
+            icon="el-icon-document-copy"
+            @click="handleCopy(scope.row)"
+            v-hasPermi="['product:quote:edit']"
+            >复制</el-button
           >
           <el-button
             size="mini"
@@ -432,7 +440,7 @@ export default {
         this.$modal.msgError("请先选择报价客户");
         return;
       }
-      // 跳转
+      // 跳转到新增详情
       this.$router.push({
         path: "/basicInfo/quote-detail/index/" + this.queryParams.customerId,
         query: { quoteId: null, mode: "add" },
@@ -443,6 +451,13 @@ export default {
       this.$router.push({
         path: "/basicInfo/quote-detail/index/" + row.customerId,
         query: { quoteId: row.id, mode: "edit" },
+      });
+    },
+    /** 复制按钮操作 */
+    handleCopy(row) {
+      this.$router.push({
+        path: "/basicInfo/quote-detail/index/" + row.customerId,
+        query: { quoteId: row.id, mode: "copy" },
       });
     },
     /** 删除按钮操作 */
