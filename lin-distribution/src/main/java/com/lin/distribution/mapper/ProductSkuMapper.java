@@ -46,6 +46,13 @@ public interface ProductSkuMapper extends BaseMapper<ProductSku> {
     int updateProductSku(ProductSku productSku);
 
     /**
+     * 批量清空匹配商品库
+     * @param ids
+     * @return
+     */
+    int undoMatchProductSku(Long[] ids);
+
+    /**
      * 删除商品信息
      *
      * @param id 商品信息主键

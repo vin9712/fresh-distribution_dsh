@@ -173,4 +173,12 @@
             and sku.is_deleted = 0
         </where>
     </select>
+
+    <update id="undoMatchProductSku" parameterType="Long">
+        update t_product_sku
+        set spu_id = null where id in
+        <foreach item="id" collection="array" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+    </update>
 </mapper>

@@ -112,15 +112,21 @@
         >
       </el-col>
       <el-col :span="1.5">
-        <el-button
+        <el-dropdown
+          split-button
           type="success"
-          plain
-          icon="el-icon-edit"
           size="mini"
           :disabled="ids.length == 0"
-          @click="handleMatched"
-          >匹配商品库</el-button
+          @command="handleCommand"
         >
+          关联商品库
+          <el-dropdown-menu slot="dropdown">
+            <el-dropdown-item command="matched">批量关联</el-dropdown-item>
+            <el-dropdown-item command="undoMatched"
+              >批量取消关联</el-dropdown-item
+            >
+          </el-dropdown-menu>
+        </el-dropdown>
       </el-col>
       <el-col :span="1.5">
         <el-button
@@ -439,6 +445,7 @@ import {
   addSku,
   updateSku,
   matchSku,
+  undoMatchSku,
 } from "@/api/product/sku";
 import { listCategory } from "@/api/product/category";
 import { listSpu } from "@/api/product/spu";
@@ -714,6 +721,19 @@ export default {
         this.title = "修改商品信息";
       });
     },
+    /** 批量关联按钮 */
+    handleCommand(command) {
+      switch (command) {
+        case "matched":
+          this.handleMatched();
+          break;
+        case "undoMatched":
+          this.handleUndoMatchedSku(null);
+          break;
+        default:
+          console.log("未定义的操作");
+      }
+    },
     /** 批量匹配按钮操作 */
     handleMatched() {
       // 如果 selectedSkuList 里有 spuId 不为空的，提示
@@ -751,6 +771,28 @@ export default {
           }
         }
       });
+    },
+    /** 批量取消匹配按钮操作 */
+    handleUndoMatchedSku(row) {
+      var param = { skuList: row && row.id ? [row] : this.selectedSkuList };
+      console.log(
+        "param",
+        param,
+        "selectedSkuList",
+        this.selectedSkuList,
+        "row",
+        row
+      );
+      this.$modal
+        .confirm("是否确认取消匹配选中的商品信息？")
+        .then(function () {
+          return undoMatchSku(param);
+        })
+        .then(() => {
+          this.getPageList();
+          this.$modal.msgSuccess("取消匹配成功");
+        })
+        .catch(() => {});
     },
     /** 删除按钮操作 */
     handleDelete(row) {

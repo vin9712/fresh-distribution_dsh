@@ -25,8 +25,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 /**
@@ -365,6 +367,18 @@ public class ProductServiceImpl implements ProductService {
             throw new ServiceException("match sku list is empty！");
         }
         skuList.forEach(productSkuMapper::updateProductSku);
+        return 1;
+    }
+
+    @Override
+    public int undoMatchProductSku(ProductSkuMatchDTO request) {
+        List<Long> skuList = CollectionUtils.isEmpty(request.getSkuList())
+                ? new ArrayList<>()
+                : request.getSkuList().stream().map(ProductSku::getSpuId).filter(Objects::nonNull).toList();
+        if (CollectionUtils.isEmpty(skuList)) {
+            throw new ServiceException("undo match sku list is empty！");
+        }
+        productSkuMapper.undoMatchProductSku(skuList.toArray(Long[]::new));
         return 1;
     }
 

@@ -66,10 +66,8 @@ public interface ProductService {
     /**
      * 生成客户商品编号
      *
-     * @param spuId
      * @param customerCode 客户简写
      * @param customerId
-     * @param isParent
      * @return
      */
     String generateSkuNo(Long customerId, String customerCode);
@@ -132,4 +130,6 @@ public interface ProductService {
     String importProductSku(List<ProductSku> skuList);
 
     int matchProductSku(ProductSkuMatchDTO request);
+
+    int undoMatchProductSku(ProductSkuMatchDTO request);
 }

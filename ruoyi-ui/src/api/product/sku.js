@@ -53,6 +53,14 @@ export function matchSku(data) {
   })
 }
 
+// 批量取消匹配商品信息
+export function undoMatchSku(data) {
+  return request({
+    url: '/product/sku/undoMatch',
+    method: 'put',
+    data: data
+  })
+}
 
 // 删除商品信息
 export function delSku(id) {

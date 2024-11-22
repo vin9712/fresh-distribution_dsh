@@ -99,11 +99,19 @@ public class ProductSkuController extends BaseController {
     }
 
     /**
-     * 批量配置商品信息
+     * 批量匹配商品信息
      */
     @PutMapping("/match")
     public AjaxResult match(@RequestBody ProductSkuMatchDTO request) {
         return toAjax(productSkuService.matchProductSku(request));
+    }
+
+    /**
+     * 批量解除匹配商品信息
+     */
+    @PutMapping("/undoMatch")
+    public AjaxResult undoMatch(@RequestBody ProductSkuMatchDTO request) {
+        return toAjax(productSkuService.undoMatchProductSku(request));
     }
 
     /**
