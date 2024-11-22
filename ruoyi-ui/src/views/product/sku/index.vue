@@ -181,10 +181,10 @@
         :formatter="categoryFormatter"
       />
       <el-table-column label="商品名称" align="center" prop="name" />
-      <el-table-column label="商品单位" align="center" prop="unit" />
+      <el-table-column label="单位" width="55" align="center" prop="unit" />
       <el-table-column label="商品规格" align="center" prop="spec" />
       <el-table-column label="当期售价" align="center" prop="salePrice" />
-      <el-table-column label="是否上架" align="center" prop="saleable">
+      <el-table-column label="上架" width="55" align="center" prop="saleable">
         <template slot-scope="scope">
           <dict-tag
             :options="dict.type.biz_yes_no"
@@ -192,12 +192,12 @@
           />
         </template>
       </el-table-column>
-      <el-table-column label="是否有效" align="center" prop="valid">
+      <el-table-column label="有效" width="55" align="center" prop="valid">
         <template slot-scope="scope">
           <dict-tag :options="dict.type.biz_yes_no" :value="scope.row.valid" />
         </template>
       </el-table-column>
-      <el-table-column label="是否匹配" align="center" prop="matchedSpu">
+      <el-table-column label="关联" width="55" align="center" prop="matchedSpu">
         <template slot-scope="scope">
           <dict-tag
             :options="dict.type.biz_yes_no"
@@ -228,6 +228,20 @@
             v-hasPermi="['product:sku:remove']"
             >删除</el-button
           >
+          <el-dropdown
+            v-if="scope.row.spuId ? true : false"
+            size="mini"
+            @command="(command) => handleMoreCommand(command, scope.row)"
+          >
+            <el-button size="mini" type="text" icon="el-icon-d-arrow-right"
+              >更多</el-button
+            >
+            <el-dropdown-menu slot="dropdown">
+              <el-dropdown-item command="undoMatched" icon="el-icon-delete"
+                >取消关联</el-dropdown-item
+              >
+            </el-dropdown-menu>
+          </el-dropdown>
         </template>
       </el-table-column>
     </el-table>
@@ -354,14 +368,14 @@
       </div>
     </el-dialog>
 
-    <!-- 批量匹配商品库弹窗 -->
+    <!-- 批量关联商品库弹窗 -->
     <el-dialog
       :visible.sync="matchDialog.open"
-      title="批量匹配"
+      title="批量关联商品库"
       width="1000px"
       append-to-body
     >
-      <el-table ref="matchSpuTable" :data="selectedSkuList" row-key="columnId">
+      <el-table ref="matchSkuTable" :data="selectedSkuList" row-key="columnId">
         <el-table-column
           label="序号"
           type="index"
@@ -721,6 +735,16 @@ export default {
         this.title = "修改商品信息";
       });
     },
+    /** 更多按钮操作 */
+    handleMoreCommand(command, row) {
+      switch (command) {
+        case "undoMatched":
+          this.handleUndoMatchedSku(row);
+          break;
+        default:
+          break;
+      }
+    },
     /** 批量关联按钮 */
     handleCommand(command) {
       switch (command) {
@@ -775,14 +799,6 @@ export default {
     /** 批量取消匹配按钮操作 */
     handleUndoMatchedSku(row) {
       var param = { skuList: row && row.id ? [row] : this.selectedSkuList };
-      console.log(
-        "param",
-        param,
-        "selectedSkuList",
-        this.selectedSkuList,
-        "row",
-        row
-      );
       this.$modal
         .confirm("是否确认取消匹配选中的商品信息？")
         .then(function () {

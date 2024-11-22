@@ -374,7 +374,7 @@ public class ProductServiceImpl implements ProductService {
     public int undoMatchProductSku(ProductSkuMatchDTO request) {
         List<Long> skuList = CollectionUtils.isEmpty(request.getSkuList())
                 ? new ArrayList<>()
-                : request.getSkuList().stream().map(ProductSku::getSpuId).filter(Objects::nonNull).toList();
+                : request.getSkuList().stream().map(ProductSku::getId).filter(Objects::nonNull).toList();
         if (CollectionUtils.isEmpty(skuList)) {
             throw new ServiceException("undo match sku list is empty！");
         }
