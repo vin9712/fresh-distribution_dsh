@@ -131,6 +131,13 @@
     >
       <el-table-column type="selection" width="55" align="center" />
       <el-table-column
+        label="客户名称"
+        align="center"
+        width="100"
+        prop="customerId"
+        :formatter="formatCustomerName"
+      />
+      <el-table-column
         label="报价编号"
         align="center"
         prop="code"
@@ -160,8 +167,15 @@
           }}</span>
         </template>
       </el-table-column>
-      <el-table-column label="状态" align="center" prop="status" />
-      <el-table-column label="是否有效" align="center" prop="valid">
+      <el-table-column label="状态" align="center" prop="status">
+        <template slot-scope="scope">
+          <dict-tag
+            :options="dict.type.t_sku_quote_status"
+            :value="scope.row.status"
+          />
+        </template>
+      </el-table-column>
+      <el-table-column label="有效" align="center" prop="valid">
         <template slot-scope="scope">
           <dict-tag :options="dict.type.biz_yes_no" :value="scope.row.valid" />
         </template>
@@ -190,27 +204,61 @@
           <el-button
             size="mini"
             type="text"
-            icon="el-icon-edit"
-            @click="handleUpdate(scope.row)"
-            v-hasPermi="['product:quote:edit']"
-            >修改</el-button
-          >
-          <el-button
-            size="mini"
-            type="text"
             icon="el-icon-document-copy"
             @click="handleCopy(scope.row)"
             v-hasPermi="['product:quote:edit']"
             >复制</el-button
           >
+          <!-- 变更状态 -->
           <el-button
+            v-if="scope.row.status == quoteStatus.NEW.code"
             size="mini"
             type="text"
-            icon="el-icon-delete"
-            @click="handleDelete(scope.row)"
-            v-hasPermi="['product:quote:remove']"
-            >删除</el-button
+            icon="el-icon-s-operation"
+            @click="handleUpdateStatus(scope.row, quoteStatus.PUBLISHED.name)"
+            v-hasPermi="['product:quote:edit']"
+            >发布</el-button
           >
+          <el-dropdown
+            size="mini"
+            v-if="
+              scope.row.valid == '0' &&
+              scope.row.status == quoteStatus.PUBLISHED.code
+            "
+            @command="(command) => handleStatusCommand(command, scope.row)"
+          >
+            <el-button size="mini" type="text" icon="el-icon-link"
+              >取消</el-button
+            >
+            <el-dropdown-menu slot="dropdown">
+              <el-dropdown-item command="revoke">撤销</el-dropdown-item>
+              <el-dropdown-item command="invalid">失效</el-dropdown-item>
+            </el-dropdown-menu>
+          </el-dropdown>
+          <!-- 更多操作 -->
+          <el-dropdown
+            v-if="scope.row.valid == '0'"
+            size="mini"
+            @command="(command) => handleMoreCommand(command, scope.row)"
+          >
+            <el-button size="mini" type="text" icon="el-icon-d-arrow-right"
+              >更多</el-button
+            >
+            <el-dropdown-menu slot="dropdown">
+              <el-dropdown-item
+                command="edit"
+                icon="el-icon-edit"
+                v-hasPermi="['product:quote:edit']"
+                >修改报价</el-dropdown-item
+              >
+              <el-dropdown-item
+                command="delete"
+                icon="el-icon-delete"
+                v-hasPermi="['product:quote:remove']"
+                >删除报价</el-dropdown-item
+              >
+            </el-dropdown-menu>
+          </el-dropdown>
         </template>
       </el-table-column>
     </el-table>
@@ -233,12 +281,13 @@ import {
   delQuote,
   addQuote,
   updateQuote,
+  updateQuoteStatus,
 } from "@/api/product/quote";
 import { listCustomer } from "@/api/partner/customer";
 
 export default {
   name: "SkuQuote",
-  dicts: ["biz_yes_no"],
+  dicts: ["biz_yes_no", "t_sku_quote_status"],
   data() {
     return {
       // 遮罩层
@@ -322,6 +371,12 @@ export default {
             },
           },
         ],
+      },
+      // 报价状态枚举
+      quoteStatus: {
+        NEW: { code: 0, description: "新增", name: "NEW" },
+        PUBLISHED: { code: 1, description: "发布", name: "PUBLISHED" },
+        INVALID: { code: 3, description: "失效", name: "INVALID" },
       },
     };
   },
@@ -431,6 +486,32 @@ export default {
         query: { quoteId: row.id, mode: "view" },
       });
     },
+    /** 变更状态操作 */
+    handleStatusCommand(command, row) {
+      switch (command) {
+        case "revoke":
+          this.handleUpdateStatus(row, this.quoteStatus.NEW.name);
+          break;
+        case "invalid":
+          this.handleUpdateStatus(row, this.quoteStatus.INVALID.name);
+          break;
+        default:
+          break;
+      }
+    },
+    /** 更多按钮操作 */
+    handleMoreCommand(command, row) {
+      switch (command) {
+        case "edit":
+          this.handleUpdate(row);
+          break;
+        case "delete":
+          this.handleDelete(row);
+          break;
+        default:
+          break;
+      }
+    },
     /** 新增按钮操作 */
     handleAdd() {
       this.reset();
@@ -474,6 +555,17 @@ export default {
         })
         .catch(() => {});
     },
+    /** 变更状态按钮操作 */
+    handleUpdateStatus(row, status) {
+      let param = {
+        quoteId: row.id,
+        status: status,
+      };
+      updateQuoteStatus(param).then((res) => {
+        this.getPageList();
+        this.$modal.msgSuccess("变更状态成功");
+      });
+    },
     /** 导出按钮操作 */
     handleExport() {
       this.download(
@@ -509,6 +601,13 @@ export default {
       const minutes = String(date.getMinutes()).padStart(2, "0");
       const seconds = String(date.getSeconds()).padStart(2, "0");
       return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+    },
+    /** 格式化表格客户名称 */
+    formatCustomerName(row) {
+      const customer = this.customerOptions.find(
+        (customer) => customer.id === row.customerId
+      );
+      return customer ? (customer.alias ? customer.alias : customer.name) : "";
     },
   },
 };

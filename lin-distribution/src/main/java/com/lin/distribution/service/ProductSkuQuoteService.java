@@ -2,8 +2,10 @@ package com.lin.distribution.service;
 
 import java.util.List;
 
+import com.lin.distribution.constant.ProductSkuQuoteStatus;
 import com.lin.distribution.domain.ProductSkuQuote;
 import com.lin.distribution.dto.ProductSkuQuoteCreateDTO;
+import com.lin.distribution.dto.ProductSkuQuoteUpdateStatusDTO;
 
 /**
  * 商品报价Service接口
@@ -79,4 +81,15 @@ public interface ProductSkuQuoteService {
      * @return
      */
     ProductSkuQuote updateSkuQuote(ProductSkuQuoteCreateDTO request);
+
+    /**
+     * 更新报价单状态，同时根据当前时间启用报价
+     */
+    void updateQuoteStatus(ProductSkuQuoteUpdateStatusDTO request);
+
+    /**
+     * 定时任务，批量更新客户报价状态
+     */
+    void syncUpdateQuoteStatus();
+
 }

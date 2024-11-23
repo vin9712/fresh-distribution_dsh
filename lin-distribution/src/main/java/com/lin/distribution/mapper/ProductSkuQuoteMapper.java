@@ -2,6 +2,7 @@ package com.lin.distribution.mapper;
 
 import java.util.List;
 
+import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.lin.distribution.domain.ProductSkuQuote;
 
 /**
@@ -33,6 +34,20 @@ public interface ProductSkuQuoteMapper {
      * @return 商品报价集合
      */
     List<ProductSkuQuote> selectProductSkuQuoteList(ProductSkuQuote productSkuQuote);
+
+    /**
+     * 查询客户有效的最新报价
+     * @param customerId
+     * @return
+     */
+    ProductSkuQuote selectCustomerActiveQuote(Long customerId);
+
+    /**
+     * 查询客户最新的报价(effectiveEndDate 最新, 已发布未启用)
+     * @param customerId
+     * @return
+     */
+    ProductSkuQuote selectCustomerLatestQuote(Long customerId);
 
     /**
      * 新增商品报价

@@ -2,14 +2,18 @@ package com.lin.distribution.service.impl;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
+import java.util.*;
+import java.util.stream.Collectors;
 
 import com.lin.common.exception.ServiceException;
 import com.lin.common.utils.DateUtils;
+import com.lin.distribution.constant.CommonConstants;
+import com.lin.distribution.constant.ProductSkuQuoteStatus;
+import com.lin.distribution.domain.Customer;
 import com.lin.distribution.domain.ProductSkuQuoteDetail;
 import com.lin.distribution.dto.ProductSkuQuoteCreateDTO;
+import com.lin.distribution.dto.ProductSkuQuoteUpdateStatusDTO;
+import com.lin.distribution.mapper.CustomerMapper;
 import com.lin.distribution.mapper.ProductSkuQuoteDetailMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -34,6 +38,7 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 @RequiredArgsConstructor
 public class ProductSkuQuoteServiceImpl implements ProductSkuQuoteService {
+    private final CustomerMapper customerMapper;
     private final ProductSkuQuoteMapper productSkuQuoteMapper;
     private final ProductSkuQuoteDetailMapper productSkuQuoteDetailMapper;
     private final RedissonClient redissonClient;
@@ -134,7 +139,7 @@ public class ProductSkuQuoteServiceImpl implements ProductSkuQuoteService {
                 .effectiveStartDate(request.getEffectiveStartDate())
                 .effectiveEndDate(request.getEffectiveEndDate())
                 .status(0)
-                .valid(1)
+                .valid(0)
                 .version(0)
                 .isDeleted(false)
                 .build();
@@ -193,7 +198,84 @@ public class ProductSkuQuoteServiceImpl implements ProductSkuQuoteService {
         return productSkuQuote;
     }
 
+    @Override
+    @Transactional
+    public void updateQuoteStatus(ProductSkuQuoteUpdateStatusDTO request) {
+        Long quoteId = request.getQuoteId();
+        ProductSkuQuoteStatus status = request.getStatus();
+        ProductSkuQuote quote = productSkuQuoteMapper.selectProductSkuQuoteById(quoteId);
+        switch (status) {
+            case PUBLISHED -> {
+                LocalDate now = LocalDate.now();
+                if (now.isAfter(quote.getEffectiveStartDate()) && now.isBefore(quote.getEffectiveEndDate())) {
+                    // set current quote is valid
+                    quote.setValid(CommonConstants.YES);
+
+                    // set active one is invalid
+                    ProductSkuQuote activeQuote = productSkuQuoteMapper.selectCustomerActiveQuote(quote.getCustomerId());
+                    if (activeQuote != null && !Objects.equals(activeQuote.getId(), quoteId)) {
+                        activeQuote.setValid(CommonConstants.NO);
+                        activeQuote.setUpdateTime(DateUtils.getNowDate());
+                        productSkuQuoteMapper.updateProductSkuQuote(activeQuote);
+                    }
+                }
+            }
+            case NEW, INVALID -> quote.setValid(CommonConstants.NO);
+            default -> throw new ServiceException("invalid status");
+        }
+        // save to db
+        quote.setStatus(status.getCode());
+        quote.setUpdateTime(DateUtils.getNowDate());
+        productSkuQuoteMapper.updateProductSkuQuote(quote);
+    }
+
+    @Override
+    @Transactional
+    public void syncUpdateQuoteStatus() {
+        Customer c = new Customer();
+        c.setValid(CommonConstants.YES);
+        Set<Long> customerIds = customerMapper.selectCustomerList(c).stream().map(Customer::getId).collect(Collectors.toSet());
+        // skip inactive customer
+        if (CollectionUtils.isEmpty(customerIds)) {
+            return;
+        }
+
+        for (Long customerId : customerIds) {
+            ProductSkuQuote activeQuote = productSkuQuoteMapper.selectCustomerActiveQuote(customerId);
+            // skip contains active quote
+            if (activeQuote != null) {
+                continue;
+            }
+
+            // set latest quote
+            ProductSkuQuote quote = productSkuQuoteMapper.selectCustomerLatestQuote(customerId);
+            if (quote != null) {
+                Long quoteId = quote.getId();
+                log.info("set quote status is active, customerId:{}, quoteId:{}", customerId, quoteId);
+                ProductSkuQuoteUpdateStatusDTO request = ProductSkuQuoteUpdateStatusDTO.builder()
+                        .quoteId(quoteId)
+                        .status(ProductSkuQuoteStatus.PUBLISHED)
+                        .build();
+                this.updateQuoteStatus(request);
+            }
+        }
+    }
+
     private void checkCreateOrUpdateQuoteRequest(ProductSkuQuoteCreateDTO request) {
+        // check effective date range is legal
+        LocalDate from = request.getEffectiveStartDate();
+        LocalDate to = request.getEffectiveEndDate();
+        if (from.isAfter(to)) {
+            throw new ServiceException("effective end date must after effective start date");
+        }
+
+        // check effective start date with latest active quote
+        ProductSkuQuote activeQuote = productSkuQuoteMapper.selectCustomerActiveQuote(request.getCustomerId());
+        LocalDate activeEffectiveEndDate = activeQuote != null ? activeQuote.getEffectiveEndDate() : null;
+        if (activeEffectiveEndDate != null && !from.isAfter(activeEffectiveEndDate)) {
+            throw new ServiceException("effective start date must not be after than active effective end date");
+        }
+
         if (request.getQuoteId() == null) {
             // check quote code
             String quoteCode = request.getQuoteCode();
@@ -201,12 +283,16 @@ public class ProductSkuQuoteServiceImpl implements ProductSkuQuoteService {
             if (quote != null) {
                 throw new ServiceException("product sku no existed");
             }
-        }
-
-        LocalDate from = request.getEffectiveStartDate();
-        LocalDate to = request.getEffectiveEndDate();
-        if (from.isAfter(to)) {
-            throw new ServiceException("effective end date must after effective start date");
+        } else {
+            // check quote status
+            ProductSkuQuote quote = productSkuQuoteMapper.selectProductSkuQuoteById(request.getQuoteId());
+            if (!ProductSkuQuoteStatus.NEW.getCode().equals(quote.getStatus())) {
+                throw new ServiceException("quote status must be NEW");
+            }
+            // check quote valid
+            if (CommonConstants.YES.equals(quote.getValid())) {
+                throw new ServiceException("quote valid must be invalid");
+            }
         }
 
         List<ProductSkuQuoteDetail> quoteDetailList = request.getQuoteDetails();
@@ -229,7 +315,7 @@ public class ProductSkuQuoteServiceImpl implements ProductSkuQuoteService {
         }
     }
 
-    private String genSkuQuoteNo(Boolean refresh){
+    private String genSkuQuoteNo(Boolean refresh) {
         return genSkuQuoteNo(refresh, null);
     }
 

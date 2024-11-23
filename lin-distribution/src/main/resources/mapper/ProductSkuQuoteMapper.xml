@@ -38,6 +38,7 @@
             <if test="status != null "> and status = #{status}</if>
             <if test="valid != null "> and valid = #{valid}</if>
         </where>
+        order by create_time desc
     </select>
 
     <select id="selectProductSkuQuoteById" parameterType="Long" resultMap="ProductSkuQuoteResult">
@@ -114,4 +115,23 @@
             #{id}
         </foreach>
     </delete>
+
+    <select id="selectCustomerActiveQuote" resultMap="ProductSkuQuoteResult">
+        <include refid="selectProductSkuQuoteVo"/>
+        where customer_id = #{customerId}
+          and valid = 1
+          and status = 1
+        limit 1
+    </select>
+
+    <select id="selectCustomerLatestQuote" resultMap="ProductSkuQuoteResult">
+        <include refid="selectProductSkuQuoteVo"/>
+        where customer_id = #{customerId}
+          and status = 1
+          and effective_end_date = (select max(effective_end_date)
+                                    from t_product_sku_quote
+                                    where customer_id = #{customerId}
+                                      and status = 1)
+        order by id desc limit 1
+    </select>
 </mapper>

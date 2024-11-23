@@ -2,7 +2,9 @@ package com.lin.distribution.controller;
 
 import java.util.List;
 
+import com.lin.distribution.constant.ProductSkuQuoteStatus;
 import com.lin.distribution.dto.ProductSkuQuoteCreateDTO;
+import com.lin.distribution.dto.ProductSkuQuoteUpdateStatusDTO;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -114,6 +116,7 @@ public class ProductSkuQuoteController extends BaseController {
 
     /**
      * 创建商品报价+详情
+     *
      * @param request
      * @return
      */
@@ -123,12 +126,22 @@ public class ProductSkuQuoteController extends BaseController {
     }
 
     /**
-     *
      * @param request
      * @return
      */
     @PutMapping("/update")
     public AjaxResult updateSkuQuote(@RequestBody @Validated ProductSkuQuoteCreateDTO request) {
         return success(productSkuQuoteService.updateSkuQuote(request));
+    }
+
+    /**
+     * 更新报价单状态
+     *
+     * @return
+     */
+    @PutMapping("/status")
+    public AjaxResult updateQuoteStatus(@RequestBody @Validated ProductSkuQuoteUpdateStatusDTO requset) {
+        productSkuQuoteService.updateQuoteStatus(requset);
+        return success();
     }
 }

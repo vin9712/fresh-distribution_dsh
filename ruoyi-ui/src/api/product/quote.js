@@ -62,6 +62,15 @@ export function updateSkuQuote(data) {
   })
 }
 
+// 更新报价单状态
+export function updateQuoteStatus(data) {
+  return request({
+    url: '/product/quote/status',
+    method: 'put',
+    data: data
+  })
+}
+
 // 修改商品报价
 export function updateQuote(data) {
   return request({
