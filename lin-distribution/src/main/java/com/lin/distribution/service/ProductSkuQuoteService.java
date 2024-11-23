@@ -92,4 +92,10 @@ public interface ProductSkuQuoteService {
      */
     void syncUpdateQuoteStatus();
 
+    /**
+     * 获取客户当前有效的报价单
+     * @param customerId
+     * @return
+     */
+    ProductSkuQuote getCustomerActiveQuote(Long customerId);
 }

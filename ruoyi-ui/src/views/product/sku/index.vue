@@ -13,7 +13,7 @@
         <el-select
           v-model="queryParams.customerId"
           filterable
-          @change="handleQuery"
+          @change="handleCustomerChanged"
         >
           <el-option
             v-for="item in customerOptions"
@@ -183,7 +183,17 @@
       <el-table-column label="商品名称" align="center" prop="name" />
       <el-table-column label="单位" width="55" align="center" prop="unit" />
       <el-table-column label="商品规格" align="center" prop="spec" />
-      <el-table-column label="当期售价" align="center" prop="salePrice" />
+      <el-table-column
+        align="center"
+        prop="salePrice"
+        :formatter="salePriceFormatter"
+      >
+        <template slot="header">
+          <el-tooltip :content="priceTooltips" placement="top">
+            <span>当期售价</span>
+          </el-tooltip>
+        </template>
+      </el-table-column>
       <el-table-column label="上架" width="55" align="center" prop="saleable">
         <template slot-scope="scope">
           <dict-tag
@@ -464,6 +474,8 @@ import {
 import { listCategory } from "@/api/product/category";
 import { listSpu } from "@/api/product/spu";
 import { listCustomer } from "@/api/partner/customer";
+import { getCustomerActiveQuote } from "@/api/product/quote";
+import { listQuoteDetail } from "@/api/product/quoteDetail";
 import { pinyin } from "pinyin-pro";
 import Treeselect from "@riophae/vue-treeselect";
 import "@riophae/vue-treeselect/dist/vue-treeselect.css";
@@ -584,6 +596,10 @@ export default {
           { required: true, message: "创建时间不能为空", trigger: "blur" },
         ],
       },
+      // 有效报价及明细
+      validSkuQuote: {},
+      validSkuQuoteDetails: [],
+      priceTooltips: "",
     };
   },
   watch: {
@@ -599,6 +615,7 @@ export default {
       (this.$route.params && parseInt(this.$route.params.customerId)) || 0;
     this.getTreeselect();
     this.getCustomerList();
+    this.getValidSkuQuoteDetails();
     this.getPageList();
   },
   methods: {
@@ -625,6 +642,29 @@ export default {
         this.customerOptions = response.data;
         this.customerOptions.unshift({ id: 0, name: "默认客户" });
       });
+    },
+    /** 查询有效报价明细 */
+    async getValidSkuQuoteDetails(queryCustomerId) {
+      this.validSkuQuote = {};
+      this.validSkuQuoteDetails = [];
+      this.priceTooltips = "暂无报价";
+      const customerId = queryCustomerId || this.defaultCustomerId;
+      if (!customerId) {
+        return;
+      }
+
+      const quoteResponse = await getCustomerActiveQuote(customerId);
+      const quote = quoteResponse.data || {};
+      this.validSkuQuote = quote;
+
+      // 如果报价存在，则查询报价明细
+      if (quote && quote.id) {
+        const detailResponse = await listQuoteDetail({ quoteId: quote.id });
+        this.validSkuQuoteDetails = detailResponse.data || [];
+
+        // 填充当期售价提示
+        this.priceTooltips = `报价编号：${this.validSkuQuote.code}`;
+      }
     },
     /** 查询商品库列表 */
     querySpuList(queryString, cb) {
@@ -898,6 +938,12 @@ export default {
         this.form.spuId = spuItem.spuId;
       }
     },
+    /** 处理客户选择变化 */
+    handleCustomerChanged(value) {
+      // 获取当前客户有效报价单
+      this.getValidSkuQuoteDetails(value);
+      this.handleQuery();
+    },
     /** 处理级联选择器，取最后一个选项 */
     handleQueryCascaderChange(value) {
       this.queryParams.categoryId = value[value.length - 1];
@@ -911,6 +957,18 @@ export default {
       return this.categoryMap
         ? this.categoryMap[row.categoryId] || ""
         : row.categoryId;
+    },
+    /** 当期售价格式化 */
+    salePriceFormatter(row) {
+      const quoteDetails = this.validSkuQuoteDetails;
+      if (!quoteDetails) {
+        return row.salePrice;
+      }
+      const detail = quoteDetails.find((detail) => detail.skuId === row.id);
+      if (!detail) {
+        return row.salePrice;
+      }
+      return detail.price;
     },
     /** 根据 id 构造父节点列表，并添加自身 */
     fillWithParentCategoryId(list, id) {

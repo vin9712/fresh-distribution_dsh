@@ -35,6 +35,14 @@ export function getQuote(id) {
   })
 }
 
+// 查询客户有效商品报价详细
+export function getCustomerActiveQuote(customerId) {
+  return request({
+    url: '/product/quote/active/' + customerId,
+    method: 'get'
+  })
+}
+
 // 新增商品报价
 export function addQuote(data) {
   return request({

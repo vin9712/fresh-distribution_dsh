@@ -144,4 +144,9 @@ public class ProductSkuQuoteController extends BaseController {
         productSkuQuoteService.updateQuoteStatus(requset);
         return success();
     }
+
+    @GetMapping("/active/{customerId}")
+    public AjaxResult getCustomerActiveQuote(@PathVariable("customerId") Long customerId) {
+        return success(productSkuQuoteService.getCustomerActiveQuote(customerId));
+    }
 }

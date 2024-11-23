@@ -261,6 +261,11 @@ public class ProductSkuQuoteServiceImpl implements ProductSkuQuoteService {
         }
     }
 
+    @Override
+    public ProductSkuQuote getCustomerActiveQuote(Long customerId) {
+        return productSkuQuoteMapper.selectCustomerActiveQuote(customerId);
+    }
+
     private void checkCreateOrUpdateQuoteRequest(ProductSkuQuoteCreateDTO request) {
         // check effective date range is legal
         LocalDate from = request.getEffectiveStartDate();

@@ -19,6 +19,14 @@
           />
         </el-select>
       </el-form-item>
+      <el-form-item label="报价编号" prop="code">
+        <el-input
+          v-model="queryParams.code"
+          placeholder="请输入报价编号"
+          clearable
+          @keyup.enter.native="handleQuery"
+        />
+      </el-form-item>
       <el-form-item label="是否有效" prop="valid">
         <el-select
           v-model="queryParams.valid"
@@ -285,6 +293,13 @@ import {
 } from "@/api/product/quote";
 import { listCustomer } from "@/api/partner/customer";
 
+// 初始化生效日期：获取当前日期和未来7天后的日期
+function getEffectiveDateRange() {
+  const now = new Date();
+  const sevenDaysLater = new Date(now.getTime() + 3600 * 1000 * 24 * 7);
+  return [now, sevenDaysLater];
+}
+
 export default {
   name: "SkuQuote",
   dicts: ["biz_yes_no", "t_sku_quote_status"],
@@ -320,10 +335,7 @@ export default {
         valid: null,
 
         // 额外查询参数
-        effectiveDateRange: [
-          new Date(),
-          new Date().getTime() + 3600 * 1000 * 24 * 7,
-        ],
+        effectiveDateRange: getEffectiveDateRange(),
         createTimeRange: [],
         createTimeStart: null,
         createTimeEnd: null,
