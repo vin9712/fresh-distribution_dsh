@@ -28,7 +28,7 @@
                sqd.quote_id,
                sqd.sku_id,
                sku.code as skuCode,
-               spu.category_id,
+               sku.category_id,
                category.name as categoryName,
                sqd.product_name,
                sqd.product_unit,
@@ -44,8 +44,7 @@
                sqd.remark
         from t_product_sku_quote_detail sqd
         left join t_product_sku sku on sqd.sku_id = sku.id
-        left join t_product_spu spu on sku.spu_id = spu.id
-        left join t_product_category category on spu.category_id = category.id
+        left join t_product_category category on sku.category_id = category.id
     </sql>
 
     <select id="selectProductSkuQuoteDetailList" parameterType="com.lin.distribution.domain.ProductSkuQuoteDetail"

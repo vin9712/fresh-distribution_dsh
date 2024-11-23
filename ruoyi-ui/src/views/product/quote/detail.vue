@@ -279,71 +279,80 @@ export default {
       });
     },
     /** 初始化报价表单+明细列表 */
-    initSkuQuoteData() {
-      // 从后端获取数据
+    async initSkuQuoteData() {
       const quoteId = this.quoteForm.quoteId;
-      if (quoteId) {
-        let query = { quoteId: quoteId };
-        getQuote(quoteId).then((response) => {
-          const quote = response.data || {};
-          this.quoteForm = {
-            quoteId: quote.id,
-            quoteCode: this.isCopyMode ? this.quoteForm.quoteCode : quote.code,
-            effectiveDateRange: [
-              quote.effectiveStartDate,
-              quote.effectiveEndDate,
-            ],
-            ...quote,
-          };
-        });
+      const quoteCode = this.quoteForm.quoteCode;
+      let skuQuoteList = [];
 
-        listQuoteDetail(query)
-          .then((response) => {
-            const quoteList = response.data || [];
-            this.skuQuoteList = quoteList.map((item) => {
-              return {
-                customerId: item.customerId,
-                categoryName: item.categoryName,
-                quoteId: this.isCopyMode ? null : item.quoteId,
-                skuId: item.skuId,
-                productCode: item.skuCode,
-                productName: item.productName,
-                productUnit: item.productUnit,
-                productSpec: item.productSpec,
-                price: item.price,
-              };
-            });
-            // 若当前为复制模式，重置 quoteId
-            if (this.isCopyMode) {
-              this.defaultQuoteId = null;
-              this.quoteForm.quoteId = null;
-            }
-          })
-          .then(() => {
-            // 刷新表格状态
-            this.$refs.xTable.reloadData(this.skuQuoteList);
-          });
-        return;
-      }
-
-      // 从sku列表初始化报价明细列表
-      let param = { customerId: this.quoteForm.customerId };
-      listSku(param).then((response) => {
+      try {
+        // 从sku列表初始化报价明细列表
+        const param = { customerId: this.quoteForm.customerId };
+        const response = await listSku(param);
         const skuList = response.data || [];
-        skuList.map((item) => {
-          this.skuQuoteList.push({
-            customerId: item.customerId,
-            categoryName: item.categoryName,
-            quoteId: null,
-            skuId: item.id,
-            productCode: item.code,
-            productName: item.name,
-            productUnit: item.unit,
-            productSpec: item.spec,
-            price: "0.00",
-          });
+        skuQuoteList = skuList.map((item) => ({
+          customerId: item.customerId,
+          categoryName: item.categoryName,
+          quoteId: null,
+          skuId: item.id,
+          productCode: item.code,
+          productName: item.name,
+          productUnit: item.unit,
+          productSpec: item.spec,
+          price: "0.00",
+        }));
+
+        if (!quoteId) {
+          this.skuQuoteList = skuQuoteList;
+          return;
+        }
+
+        // 获取报价信息
+        const quoteResponse = await getQuote(quoteId);
+        const quote = quoteResponse.data || {};
+        this.quoteForm = {
+          quoteId: quote.id,
+          quoteCode: quote.code,
+          effectiveDateRange: [
+            quote.effectiveStartDate,
+            quote.effectiveEndDate,
+          ],
+          ...quote,
+        };
+
+        // 获取报价详情
+        const detailResponse = await listQuoteDetail({ quoteId });
+        const quoteList = detailResponse.data || [];
+        skuQuoteList = skuQuoteList.map((item) => {
+          const quoteItem = quoteList.find((q) => q.skuId === item.skuId);
+          if (quoteItem) {
+            return {
+              ...item,
+              quoteId: quoteItem.quoteId,
+              price: quoteItem.price,
+            };
+          } else {
+            return item;
+          }
         });
-      });
+
+        // 若当前为复制模式，重置 quoteId & quoteCode
+        if (this.isCopyMode) {
+          this.defaultQuoteId = null;
+          this.quoteForm.quoteId = null;
+          this.quoteForm.quoteCode = quoteCode;
+          skuQuoteList = skuQuoteList.map((item) => ({
+            ...item,
+            quoteId: null,
+          }));
+        }
+        this.skuQuoteList = skuQuoteList;
+
+        // 刷新表格状态
+        this.$refs.xTable.reloadData(this.skuQuoteList);
+      } catch (error) {
+        console.error("Error occurred during initialization:", error);
+        // 可以选择显示错误消息给用户
+      }
     },
     /** 提交按钮 */
     submitForm() {
