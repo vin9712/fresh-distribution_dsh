@@ -1,0 +1,129 @@
+package com.lin.distribution.domain;
+
+import java.math.BigDecimal;
+
+import com.baomidou.mybatisplus.annotation.Version;
+import com.lin.common.annotation.Excel;
+import com.lin.common.core.domain.BaseEntity;
+import lombok.*;
+
+/**
+ * 销售订单详情对象 t_sale_order_detail
+ *
+ * @author lin
+ * @date 2024-11-23
+ */
+@EqualsAndHashCode(callSuper = true)
+@Data
+@Builder
+@AllArgsConstructor
+@RequiredArgsConstructor
+public class SaleOrderDetail extends BaseEntity {
+    private static final long serialVersionUID = 1L;
+
+    /**
+     * 主键
+     */
+    private Long id;
+
+    /**
+     * 订单ID
+     */
+    @Excel(name = "订单ID")
+    private Long orderId;
+
+    /**
+     * 客户ID
+     */
+    @Excel(name = "客户ID")
+    private Long customerId;
+
+    /**
+     * 客户部门ID
+     */
+    @Excel(name = "客户部门ID")
+    private Long customerDeptId;
+
+    /**
+     * 商品ID（临时添加，可为空）
+     */
+    @Excel(name = "商品ID", readConverterExp = "临=时添加，可为空")
+    private Long skuId;
+
+    /**
+     * 订单编号
+     */
+    @Excel(name = "订单编号")
+    private String orderCode;
+
+    /**
+     * 商品名称
+     */
+    @Excel(name = "商品名称")
+    private String productName;
+
+    /**
+     * 商品单位（可为空）
+     */
+    @Excel(name = "商品单位", readConverterExp = "可=为空")
+    private String productUnit;
+
+    /**
+     * 商品单价
+     */
+    @Excel(name = "商品单价")
+    private BigDecimal productPrice;
+
+    /**
+     * 商品规格
+     */
+    @Excel(name = "商品规格")
+    private String productSpec;
+
+    /**
+     * 计划数量
+     */
+    @Excel(name = "计划数量")
+    private BigDecimal num;
+
+    /**
+     * 计划总金额
+     */
+    @Excel(name = "计划总金额")
+    private BigDecimal expectAmount;
+
+    /**
+     * 验收商品单价
+     */
+    @Excel(name = "验收商品单价")
+    private BigDecimal actualPrice;
+
+    /**
+     * 验收数量
+     */
+    @Excel(name = "验收数量")
+    private BigDecimal actualNum;
+
+    /**
+     * 验收总金额
+     */
+    @Excel(name = "验收总金额")
+    private BigDecimal actualAmount;
+
+    /**
+     * 订单详情排序
+     */
+    private Integer sort;
+
+    /**
+     * 逻辑删除
+     */
+    private Boolean isDeleted;
+
+    /**
+     * 版本号
+     */
+    @Version
+    private Integer version;
+
+}

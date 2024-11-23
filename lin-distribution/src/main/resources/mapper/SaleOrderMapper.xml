@@ -1,0 +1,119 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+"http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.lin.distribution.mapper.SaleOrderMapper">
+
+    <resultMap type="com.lin.distribution.domain.SaleOrder" id="SaleOrderResult">
+        <result property="id"    column="id"    />
+        <result property="customerId"    column="customer_id"    />
+        <result property="customerDeptId"    column="customer_dept_id"    />
+        <result property="code"    column="code"    />
+        <result property="source"    column="source"    />
+        <result property="type"    column="type"    />
+        <result property="amount"    column="amount"    />
+        <result property="status"    column="status"    />
+        <result property="deliverDate"    column="deliver_date"    />
+        <result property="isDeleted"    column="is_deleted"    />
+        <result property="version"    column="version"    />
+        <result property="createBy"    column="create_by"    />
+        <result property="createTime"    column="create_time"    />
+        <result property="updateBy"    column="update_by"    />
+        <result property="updateTime"    column="update_time"    />
+        <result property="remark"    column="remark"    />
+    </resultMap>
+
+    <sql id="selectSaleOrderVo">
+        select id, customer_id, customer_dept_id, code, source, type, amount, status, deliver_date, is_deleted, version, create_by, create_time, update_by, update_time, remark from t_sale_order
+    </sql>
+
+    <select id="selectSaleOrderList" parameterType="com.lin.distribution.domain.SaleOrder" resultMap="SaleOrderResult">
+        <include refid="selectSaleOrderVo"/>
+        <where>
+            <if test="customerId != null "> and customer_id = #{customerId}</if>
+            <if test="customerDeptId != null "> and customer_dept_id = #{customerDeptId}</if>
+            <if test="code != null  and code != ''"> and code = #{code}</if>
+            <if test="source != null "> and source = #{source}</if>
+            <if test="type != null "> and type = #{type}</if>
+            <if test="amount != null "> and amount = #{amount}</if>
+            <if test="status != null "> and status = #{status}</if>
+            <if test="deliverDate != null "> and deliver_date = #{deliverDate}</if>
+        </where>
+    </select>
+
+    <select id="selectSaleOrderById" parameterType="Long" resultMap="SaleOrderResult">
+        <include refid="selectSaleOrderVo"/>
+        where id = #{id}
+    </select>
+
+    <insert id="insertSaleOrder" parameterType="com.lin.distribution.domain.SaleOrder" useGeneratedKeys="true" keyProperty="id">
+        insert into t_sale_order
+        <trim prefix="(" suffix=")" suffixOverrides=",">
+            <if test="customerId != null">customer_id,</if>
+            <if test="customerDeptId != null">customer_dept_id,</if>
+            <if test="code != null and code != ''">code,</if>
+            <if test="source != null">source,</if>
+            <if test="type != null">type,</if>
+            <if test="amount != null">amount,</if>
+            <if test="status != null">status,</if>
+            <if test="deliverDate != null">deliver_date,</if>
+            <if test="isDeleted != null">is_deleted,</if>
+            <if test="version != null">version,</if>
+            <if test="createBy != null">create_by,</if>
+            <if test="createTime != null">create_time,</if>
+            <if test="updateBy != null">update_by,</if>
+            <if test="updateTime != null">update_time,</if>
+            <if test="remark != null">remark,</if>
+         </trim>
+        <trim prefix="values (" suffix=")" suffixOverrides=",">
+            <if test="customerId != null">#{customerId},</if>
+            <if test="customerDeptId != null">#{customerDeptId},</if>
+            <if test="code != null and code != ''">#{code},</if>
+            <if test="source != null">#{source},</if>
+            <if test="type != null">#{type},</if>
+            <if test="amount != null">#{amount},</if>
+            <if test="status != null">#{status},</if>
+            <if test="deliverDate != null">#{deliverDate},</if>
+            <if test="isDeleted != null">#{isDeleted},</if>
+            <if test="version != null">#{version},</if>
+            <if test="createBy != null">#{createBy},</if>
+            <if test="createTime != null">#{createTime},</if>
+            <if test="updateBy != null">#{updateBy},</if>
+            <if test="updateTime != null">#{updateTime},</if>
+            <if test="remark != null">#{remark},</if>
+         </trim>
+    </insert>
+
+    <update id="updateSaleOrder" parameterType="com.lin.distribution.domain.SaleOrder">
+        update t_sale_order
+        <trim prefix="SET" suffixOverrides=",">
+            <if test="customerId != null">customer_id = #{customerId},</if>
+            <if test="customerDeptId != null">customer_dept_id = #{customerDeptId},</if>
+            <if test="code != null and code != ''">code = #{code},</if>
+            <if test="source != null">source = #{source},</if>
+            <if test="type != null">type = #{type},</if>
+            <if test="amount != null">amount = #{amount},</if>
+            <if test="status != null">status = #{status},</if>
+            <if test="deliverDate != null">deliver_date = #{deliverDate},</if>
+            <if test="isDeleted != null">is_deleted = #{isDeleted},</if>
+            <if test="version != null">version = #{version},</if>
+            <if test="createBy != null">create_by = #{createBy},</if>
+            <if test="createTime != null">create_time = #{createTime},</if>
+            <if test="updateBy != null">update_by = #{updateBy},</if>
+            <if test="updateTime != null">update_time = #{updateTime},</if>
+            <if test="remark != null">remark = #{remark},</if>
+        </trim>
+        where id = #{id}
+    </update>
+
+    <delete id="deleteSaleOrderById" parameterType="Long">
+        delete from t_sale_order where id = #{id}
+    </delete>
+
+    <delete id="deleteSaleOrderByIds" parameterType="String">
+        delete from t_sale_order where id in
+        <foreach item="id" collection="array" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+    </delete>
+</mapper>

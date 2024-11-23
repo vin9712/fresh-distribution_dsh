@@ -190,6 +190,20 @@ export const dynamicRoutes = [
       }
     ]
   },
+  {
+    path: '/order/sale-detail',
+    component: Layout,
+    hidden: true,
+    permissions: ['order:sale:add'],
+    children: [
+      {
+        path: 'index/:customerDeptId(\\d+)',
+        component: () => import('@/views/order/sale/detail'),
+        name: 'SaleOrderDetail',
+        meta: { title: '订单详情', activeMenu: '/order/sale' }
+      }
+    ]
+  },
 ]
 
 // 防止连续点击多次路由报错
