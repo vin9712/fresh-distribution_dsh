@@ -102,6 +102,7 @@
             <vxe-column
               field="productUnit"
               title="单位"
+              width="8%"
               :edit-render="{ name: 'input', autoselect: true }"
             ></vxe-column>
             <vxe-column
@@ -233,7 +234,7 @@ export default {
     /** 默认追加一行到表格 */
     async insertEvent(row) {
       const $table = this.$refs.xTable;
-      const record = {};
+      const record = { productUnit: "斤" };
       await $table.insertAt(record, row, { isInsert: false });
     },
     /** 刷新订单编号 */
