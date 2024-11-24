@@ -66,6 +66,7 @@
           <el-button @click="insertEvent(-1)">新增行</el-button>
           <vxe-table
             border
+            show-footer
             show-overflow
             keep-source
             ref="xTable"
@@ -81,12 +82,13 @@
               isEdit: true,
               isChecked: true,
             }"
+            :footer-method="footerMethod"
             :edit-rules="validRules"
             :edit-config="{
               trigger: 'click',
               mode: 'cell',
               showUpdateStatus: true,
-              activeMethod: checkTableActive,
+              beforeEditMethod: checkTableActive,
             }"
             :data="orderDetailList"
           >
@@ -108,12 +110,15 @@
               cell-type="number"
               :formatter="decimalFormatter('num')"
               :edit-render="{ name: 'input', autoselect: true }"
-            ></vxe-column>
-            <vxe-column
-              field="productSpec"
-              title="规格"
-              :edit-render="{ name: 'input', autoselect: true }"
-            ></vxe-column>
+            >
+              <template #edit="{ row }">
+                <vxe-input
+                  v-model="row.num"
+                  type="text"
+                  @change="calcAmount(row)"
+                ></vxe-input>
+              </template>
+            </vxe-column>
             <vxe-column
               field="price"
               title="单价"
@@ -121,14 +126,20 @@
               :formatter="decimalFormatter('price')"
               :edit-render="{ name: 'input', autoselect: true }"
             >
+              <template #edit="{ row }">
+                <vxe-input
+                  v-model="row.price"
+                  type="text"
+                  @change="calcAmount(row)"
+                ></vxe-input>
+              </template>
             </vxe-column>
+            <vxe-column field="amount" title="金额"> </vxe-column>
             <vxe-column
-              field="amount"
-              title="金额"
-              :formatter="decimalFormatter('amount')"
+              field="productSpec"
+              title="规格"
               :edit-render="{ name: 'input', autoselect: true }"
-            >
-            </vxe-column>
+            ></vxe-column>
             <vxe-column
               field="remark"
               title="备注"
@@ -259,7 +270,8 @@ export default {
       };
     },
     /** 计算商品小计 */
-    calcAmount({ row }) {
+    calcAmount(row) {
+      if (!row) return;
       let price = XEUtils.toNumber(row.price);
       let num = XEUtils.toNumber(row.num);
       let formatAmount = XEUtils.commafy(price * num, {
@@ -267,6 +279,56 @@ export default {
       });
       row.amount = formatAmount;
       return formatAmount;
+    },
+    /** 表尾合计方法 */
+    sumNum(list, field) {
+      let count = 0;
+      if (list && list.length) {
+        list.forEach((item) => {
+          const value = XEUtils.toNumber(item[field]);
+          if (!isNaN(value)) {
+            count += value;
+          }
+        });
+      }
+      return count;
+    },
+    sumNumWithGroup(list, field, groupField) {
+      if (!list || !list.length) {
+        return "";
+      }
+
+      const groupedData = XEUtils.groupBy(list, groupField);
+      const results = [];
+
+      for (const [groupKey, groupItems] of Object.entries(groupedData)) {
+        let count = 0;
+        groupItems.forEach((item) => {
+          const value = XEUtils.toNumber(item[field]);
+          if (!isNaN(value)) {
+            count += value;
+          }
+        });
+        results.push(`${count}${groupKey}`);
+      }
+
+      return results.join(" + ");
+    },
+    /** 表尾渲染方法 */
+    footerMethod({ columns, data }) {
+      return [
+        columns.map((column, columnIndex) => {
+          if (columnIndex === 0) {
+            return "合计";
+          }
+          if (column.property === "num") {
+            return this.sumNum(data, "num");
+          } else if (column.property === "amount") {
+            return this.sumNum(data, "amount");
+          }
+          return "";
+        }),
+      ];
     },
     /** vxe表格检测是否改动 */
     checkTableUpdted() {
