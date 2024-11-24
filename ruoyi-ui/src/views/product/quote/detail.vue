@@ -386,8 +386,17 @@ export default {
     },
     /** 返回按钮 */
     close() {
-      // todo 校验是否有改动
-      this.$tab.closeOpenPage(quotePage);
+      const isUpdated = this.checkTableUpdted();
+      if (isUpdated) {
+        this.$modal
+          .confirm("当前报价单有改动，是否确认关闭？")
+          .then(() => {
+            this.$tab.closeOpenPage(quotePage);
+          })
+          .catch(() => {});
+      } else {
+        this.$tab.closeOpenPage(quotePage);
+      }
     },
     /** 格式化商品单价 */
     priceFormatter({ row }) {
@@ -410,6 +419,10 @@ export default {
     /** vxe表格-全局禁用编辑 */
     checkTableActive({ row, column }) {
       return !this.isViewMode;
+    },
+    /** vxe表格检测是否改动 */
+    checkTableUpdted() {
+      return this.$refs.xTable.getUpdateRecords().length > 0;
     },
   },
 };

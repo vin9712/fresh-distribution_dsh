@@ -447,7 +447,8 @@ export default {
 
       // 跳转到新增详情
       this.$router.push({
-        path: "/order/sale-detail/index/" + this.queryParams.customerDeptId,
+        path: "/order/sale-detail/index/" + 1,
+        // path: "/order/sale-detail/index/" + this.queryParams.customerDeptId,
         query: { orderId: null },
       });
     },

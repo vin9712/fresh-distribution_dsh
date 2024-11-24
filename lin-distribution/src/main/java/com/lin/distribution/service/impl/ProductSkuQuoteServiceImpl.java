@@ -274,7 +274,7 @@ public class ProductSkuQuoteServiceImpl implements ProductSkuQuoteService {
             throw new ServiceException("effective end date must after effective start date");
         }
 
-        // check effective start date with latest active quote
+        // check effective start date with the latest active quote
         ProductSkuQuote activeQuote = productSkuQuoteMapper.selectCustomerActiveQuote(request.getCustomerId());
         LocalDate activeEffectiveEndDate = activeQuote != null ? activeQuote.getEffectiveEndDate() : null;
         if (activeEffectiveEndDate != null && !from.isAfter(activeEffectiveEndDate)) {

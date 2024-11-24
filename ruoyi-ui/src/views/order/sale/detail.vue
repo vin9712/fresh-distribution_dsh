@@ -1,214 +1,162 @@
 <template>
   <div class="app-container">
-    <el-form
-      :model="queryParams"
-      ref="queryForm"
-      size="small"
-      :inline="true"
-      v-show="showSearch"
-      label-width="68px"
-    >
-      <el-form-item label="订单编号" prop="orderCode">
-        <el-input
-          v-model="queryParams.orderCode"
-          placeholder="请输入订单编号"
-          clearable
-          @keyup.enter.native="handleQuery"
-        />
-      </el-form-item>
-      <el-form-item label="商品名称" prop="productName">
-        <el-input
-          v-model="queryParams.productName"
-          placeholder="请输入商品名称"
-          clearable
-          @keyup.enter.native="handleQuery"
-        />
-      </el-form-item>
-      <el-form-item>
-        <el-button
-          type="primary"
-          icon="el-icon-search"
-          size="mini"
-          @click="handleQuery"
-          >搜索</el-button
-        >
-        <el-button icon="el-icon-refresh" size="mini" @click="resetQuery"
-          >重置</el-button
-        >
-      </el-form-item>
-    </el-form>
-
-    <el-row :gutter="10" class="mb8">
-      <el-col :span="1.5">
-        <el-button
-          type="primary"
-          plain
-          icon="el-icon-plus"
-          size="mini"
-          @click="handleAdd"
-          v-hasPermi="['order:saleDetail:add']"
-          >新增</el-button
-        >
-      </el-col>
-      <el-col :span="1.5">
-        <el-button
-          type="success"
-          plain
-          icon="el-icon-edit"
-          size="mini"
-          :disabled="single"
-          @click="handleUpdate"
-          v-hasPermi="['order:saleDetail:edit']"
-          >修改</el-button
-        >
-      </el-col>
-      <el-col :span="1.5">
-        <el-button
-          type="danger"
-          plain
-          icon="el-icon-delete"
-          size="mini"
-          :disabled="multiple"
-          @click="handleDelete"
-          v-hasPermi="['order:saleDetail:remove']"
-          >删除</el-button
-        >
-      </el-col>
-      <el-col :span="1.5">
-        <el-button
-          type="warning"
-          plain
-          icon="el-icon-download"
-          size="mini"
-          @click="handleExport"
-          v-hasPermi="['order:saleDetail:export']"
-          >导出</el-button
-        >
-      </el-col>
-      <right-toolbar
-        :showSearch.sync="showSearch"
-        @queryTable="getPageList"
-      ></right-toolbar>
-    </el-row>
-
-    <el-table
-      v-loading="loading"
-      :data="saleDetailList"
-      @selection-change="handleSelectionChange"
-    >
-      <el-table-column type="selection" width="55" align="center" />
-      <el-table-column label="主键" align="center" prop="id" />
-      <el-table-column label="订单ID" align="center" prop="orderId" />
-      <el-table-column label="客户ID" align="center" prop="customerId" />
-      <el-table-column
-        label="客户部门ID"
-        align="center"
-        prop="customerDeptId"
-      />
-      <el-table-column label="商品ID" align="center" prop="skuId" />
-      <el-table-column label="订单编号" align="center" prop="orderCode" />
-      <el-table-column label="商品名称" align="center" prop="productName" />
-      <el-table-column label="商品单位" align="center" prop="productUnit" />
-      <el-table-column label="商品单价" align="center" prop="productPrice" />
-      <el-table-column label="商品规格" align="center" prop="productSpec" />
-      <el-table-column label="计划数量" align="center" prop="num" />
-      <el-table-column label="计划总金额" align="center" prop="expectAmount" />
-      <el-table-column label="验收商品单价" align="center" prop="actualPrice" />
-      <el-table-column label="验收数量" align="center" prop="actualNum" />
-      <el-table-column label="验收总金额" align="center" prop="actualAmount" />
-      <el-table-column label="备注" align="center" prop="remark" />
-      <el-table-column
-        label="操作"
-        align="center"
-        class-name="small-padding fixed-width"
-      >
-        <template slot-scope="scope">
-          <el-button
-            size="mini"
-            type="text"
-            icon="el-icon-edit"
-            @click="handleUpdate(scope.row)"
-            v-hasPermi="['order:saleDetail:edit']"
-            >修改</el-button
+    <!-- 做单区 -->
+    <div class="main-board">
+      <el-card>
+        <!-- 订单表单 -->
+        <div slot="header">
+          <span>订单信息</span>
+          <el-form
+            ref="orderForm"
+            :model="orderForm"
+            :rules="rules"
+            size="medium"
+            inline
+            label-width="100px"
           >
-          <el-button
-            size="mini"
-            type="text"
-            icon="el-icon-delete"
-            @click="handleDelete(scope.row)"
-            v-hasPermi="['order:saleDetail:remove']"
-            >删除</el-button
+            <el-form-item label="送货单位" prop="customerDeptId">
+              <el-select
+                v-model="orderForm.customerDeptId"
+                placeholder="请选择送货单位"
+                :disabled="orderForm.orderId != null"
+              >
+                <el-option
+                  v-for="item in customerDeptOptions"
+                  :key="item.id"
+                  :label="item.name"
+                  :value="item.id"
+                />
+              </el-select>
+            </el-form-item>
+            <el-form-item label="配送日期" prop="deliveryDate">
+              <el-date-picker
+                v-model="orderForm.deliveryDate"
+                format="yyyy-MM-dd"
+                value-format="yyyy-MM-dd"
+                placeholder="请选择配送日期"
+                clearable
+              ></el-date-picker>
+            </el-form-item>
+            <el-form-item prop="orderCode">
+              <span slot="label">
+                订单编号
+                <i
+                  class="el-icon-refresh"
+                  @click="refreshOrderCode"
+                  style="cursor: pointer"
+                ></i>
+              </span>
+              <el-input
+                v-model="orderForm.orderCode"
+                placeholder="请输入订单编号"
+                disabled
+              >
+              </el-input>
+            </el-form-item>
+            <el-form-item label="订单备注" prop="remark">
+              <el-input v-model="orderForm.remark" placeholder="请输入订单备注">
+              </el-input>
+            </el-form-item>
+          </el-form>
+        </div>
+
+        <!-- 订单表格 -->
+        <div>
+          <span>订单表格</span>
+          <el-button @click="insertEvent(-1)">新增行</el-button>
+          <vxe-table
+            border
+            show-overflow
+            keep-source
+            ref="xTable"
+            height="400"
+            size="small"
+            :row-config="{ isHover: true }"
+            :mouse-config="{ selected: true }"
+            :keyboard-config="{
+              isArrow: true,
+              isDel: true,
+              isEnter: true,
+              isTab: true,
+              isEdit: true,
+              isChecked: true,
+            }"
+            :edit-rules="validRules"
+            :edit-config="{
+              trigger: 'click',
+              mode: 'cell',
+              showUpdateStatus: true,
+              activeMethod: checkTableActive,
+            }"
+            :data="orderDetailList"
           >
-        </template>
-      </el-table-column>
-    </el-table>
+            <vxe-column type="seq" width="50"></vxe-column>
+            <vxe-column
+              field="productName"
+              title="商品名称"
+              :edit-render="{ name: 'input', autoselect: true }"
+              width="25%"
+            ></vxe-column>
+            <vxe-column
+              field="productUnit"
+              title="单位"
+              :edit-render="{ name: 'input', autoselect: true }"
+            ></vxe-column>
+            <vxe-column
+              field="num"
+              title="数量"
+              cell-type="number"
+              :formatter="decimalFormatter('num')"
+              :edit-render="{ name: 'input', autoselect: true }"
+            ></vxe-column>
+            <vxe-column
+              field="productSpec"
+              title="规格"
+              :edit-render="{ name: 'input', autoselect: true }"
+            ></vxe-column>
+            <vxe-column
+              field="price"
+              title="单价"
+              cell-type="number"
+              :formatter="decimalFormatter('price')"
+              :edit-render="{ name: 'input', autoselect: true }"
+            >
+            </vxe-column>
+            <vxe-column
+              field="amount"
+              title="金额"
+              :formatter="decimalFormatter('amount')"
+              :edit-render="{ name: 'input', autoselect: true }"
+            >
+            </vxe-column>
+            <vxe-column
+              field="remark"
+              title="备注"
+              :edit-render="{ name: 'input', autoselect: true }"
+            ></vxe-column>
+          </vxe-table>
+        </div>
 
-    <pagination
-      v-show="total > 0"
-      :total="total"
-      :page.sync="queryParams.pageNum"
-      :limit.sync="queryParams.pageSize"
-      @pagination="getPageList"
-    />
+        <!-- 底部工具栏 -->
+        <el-form label-width="100px">
+          <el-form-item
+            style="text-align: center; margin-left: -100px; margin-top: 10px"
+          >
+            <el-button type="primary" @click="submitForm()">保存</el-button>
+            <el-button @click="close()">返回</el-button>
+          </el-form-item>
+        </el-form>
+      </el-card>
+    </div>
 
-    <!-- 添加或修改销售订单详情对话框 -->
-    <el-dialog :title="title" :visible.sync="open" width="500px" append-to-body>
-      <el-form ref="form" :model="form" :rules="rules" label-width="80px">
-        <el-form-item label="订单编号" prop="orderCode">
-          <el-input v-model="form.orderCode" placeholder="请输入订单编号" />
-        </el-form-item>
-        <el-form-item label="商品名称" prop="productName">
-          <el-input v-model="form.productName" placeholder="请输入商品名称" />
-        </el-form-item>
-        <el-form-item label="商品单位" prop="productUnit">
-          <el-input v-model="form.productUnit" placeholder="请输入商品单位" />
-        </el-form-item>
-        <el-form-item label="商品单价" prop="productPrice">
-          <el-input v-model="form.productPrice" placeholder="请输入商品单价" />
-        </el-form-item>
-        <el-form-item label="商品规格" prop="productSpec">
-          <el-input v-model="form.productSpec" placeholder="请输入商品规格" />
-        </el-form-item>
-        <el-form-item label="计划数量" prop="num">
-          <el-input v-model="form.num" placeholder="请输入计划数量" />
-        </el-form-item>
-        <el-form-item label="计划总金额" prop="expectAmount">
-          <el-input
-            v-model="form.expectAmount"
-            placeholder="请输入计划总金额"
-          />
-        </el-form-item>
-        <el-form-item label="验收商品单价" prop="actualPrice">
-          <el-input
-            v-model="form.actualPrice"
-            placeholder="请输入验收商品单价"
-          />
-        </el-form-item>
-        <el-form-item label="验收数量" prop="actualNum">
-          <el-input v-model="form.actualNum" placeholder="请输入验收数量" />
-        </el-form-item>
-        <el-form-item label="验收总金额" prop="actualAmount">
-          <el-input
-            v-model="form.actualAmount"
-            placeholder="请输入验收总金额"
-          />
-        </el-form-item>
-        <el-form-item label="订单详情排序" prop="sort">
-          <el-input v-model="form.sort" placeholder="请输入订单详情排序" />
-        </el-form-item>
-        <el-form-item label="备注" prop="remark">
-          <el-input
-            v-model="form.remark"
-            type="textarea"
-            placeholder="请输入内容"
-          />
-        </el-form-item>
-      </el-form>
-      <div slot="footer" class="dialog-footer">
-        <el-button type="primary" @click="submitForm">确 定</el-button>
-        <el-button @click="cancel">取 消</el-button>
-      </div>
-    </el-dialog>
+    <!-- 选单区 -->
+    <div class="right-board">
+      <el-tabs v-model="currentTab" class="center-tabs">
+        <el-tab-pane label="最近订单" name="recentOrder" />
+        <el-tab-pane label="标签b" name="tabB" />
+      </el-tabs>
+      <div class="field-box"></div>
+    </div>
   </div>
 </template>
 
@@ -222,202 +170,164 @@ import {
   updateSaleDetail,
 } from "@/api/order/saleDetail";
 
+import XEUtils from "xe-utils";
+import Sortable from "sortablejs";
+const orderPage = { path: "/order/sale" };
+
 export default {
   name: "SaleDetail",
   data() {
     return {
-      // 遮罩层
-      loading: true,
-      // 选中数组
-      ids: [],
-      // 非单个禁用
-      single: true,
-      // 非多个禁用
-      multiple: true,
-      // 显示搜索条件
-      showSearch: true,
-      // 总条数
-      total: 0,
-      // 销售订单详情表格数据
-      saleDetailList: [],
-      // 弹出层标题
-      title: "",
-      // 是否显示弹出层
-      open: false,
-      // 查询参数
-      queryParams: {
-        pageNum: 1,
-        pageSize: 10,
-        orderId: null,
-        customerId: null,
-        customerDeptId: null,
-        skuId: null,
-        orderCode: null,
-        productName: null,
-      },
-      // 表单参数
-      form: {},
-      // 表单校验
+      // 当前激活 tab
+      currentTab: "recentOrder",
+      // 送货单位下拉选项
+      customerDeptOptions: [],
+      // 订单明细列表
+      orderDetailList: [],
+      // 订单表单
+      orderForm: {},
+      // 订单校验
       rules: {
-        orderId: [
-          { required: true, message: "订单ID不能为空", trigger: "blur" },
-        ],
-        customerId: [
-          { required: true, message: "客户ID不能为空", trigger: "blur" },
-        ],
-        customerDeptId: [
-          { required: true, message: "客户部门ID不能为空", trigger: "blur" },
-        ],
         orderCode: [
           { required: true, message: "订单编号不能为空", trigger: "blur" },
         ],
+        customerDeptId: [
+          { required: true, message: "送货单位不能为空", trigger: "blur" },
+        ],
+        deliveryDate: [
+          { required: true, message: "送货日期不能为空", trigger: "blur" },
+        ],
+      },
+      // 订单明细表格校验
+      validRules: {
         productName: [
           { required: true, message: "商品名称不能为空", trigger: "blur" },
         ],
-        productPrice: [
+        productUnit: [
+          { required: true, message: "商品单位不能为空", trigger: "blur" },
+        ],
+        num: [{ required: true, message: "商品数量不能为空", trigger: "blur" }],
+        price: [
           { required: true, message: "商品单价不能为空", trigger: "blur" },
-        ],
-        num: [{ required: true, message: "计划数量不能为空", trigger: "blur" }],
-        actualPrice: [
-          { required: true, message: "验收商品单价不能为空", trigger: "blur" },
-        ],
-        createTime: [
-          { required: true, message: "创建时间不能为空", trigger: "blur" },
         ],
       },
     };
   },
-  created() {
-    this.getPageList();
+  mounted() {
+    // 组件挂载完成后添加一行
+    this.insertEvent(-1);
   },
+  created() {},
   methods: {
-    /** 查询销售订单详情列表 */
-    getList() {
-      this.loading = true;
-      listSaleDetail(this.queryParams).then((response) => {
-        this.saleDetailList = response.data;
-        this.loading = false;
-      });
+    /** 默认追加一行到表格 */
+    async insertEvent(row) {
+      const $table = this.$refs.xTable;
+      const record = {};
+      await $table.insertAt(record, row, { isInsert: false });
     },
-    /** 分页查询销售订单详情列表 */
-    getPageList() {
-      this.loading = true;
-      pageSaleDetail(this.queryParams).then((response) => {
-        this.saleDetailList = response.rows;
-        this.total = response.total;
-        this.loading = false;
-      });
+    /** 刷新订单编号 */
+    refreshOrderCode() {},
+    /** 保存订单信息 */
+    submitForm() {},
+    /** 返回按钮 */
+    close() {
+      const isUpdated = this.checkTableUpdted();
+      if (isUpdated) {
+        this.$modal
+          .confirm("当前订单明细有改动，是否确认关闭？")
+          .then(() => {
+            this.$tab.closeOpenPage(orderPage);
+          })
+          .catch(() => {});
+      } else {
+        this.$tab.closeOpenPage(orderPage);
+      }
     },
-    // 取消按钮
-    cancel() {
-      this.open = false;
-      this.reset();
-    },
-    // 表单重置
-    reset() {
-      this.form = {
-        id: null,
-        orderId: null,
-        customerId: null,
-        customerDeptId: null,
-        skuId: null,
-        orderCode: null,
-        productName: null,
-        productUnit: null,
-        productPrice: null,
-        productSpec: null,
-        num: null,
-        expectAmount: null,
-        actualPrice: null,
-        actualNum: null,
-        actualAmount: null,
-        sort: null,
-        isDeleted: null,
-        version: null,
-        createBy: null,
-        createTime: null,
-        updateBy: null,
-        updateTime: null,
-        remark: null,
-      };
-      this.resetForm("form");
-    },
-    /** 搜索按钮操作 */
-    handleQuery() {
-      this.queryParams.pageNum = 1;
-      this.getPageList();
-    },
-    /** 重置按钮操作 */
-    resetQuery() {
-      this.resetForm("queryForm");
-      this.handleQuery();
-    },
-    // 多选框选中数据
-    handleSelectionChange(selection) {
-      this.ids = selection.map((item) => item.id);
-      this.single = selection.length !== 1;
-      this.multiple = !selection.length;
-    },
-    /** 新增按钮操作 */
-    handleAdd() {
-      this.reset();
-      this.open = true;
-      this.title = "添加销售订单详情";
-    },
-    /** 修改按钮操作 */
-    handleUpdate(row) {
-      this.reset();
-      const id = row.id || this.ids;
-      getSaleDetail(id).then((response) => {
-        this.form = response.data;
-        this.open = true;
-        this.title = "修改销售订单详情";
-      });
-    },
-    /** 提交按钮 */
-    submitForm() {
-      this.$refs["form"].validate((valid) => {
-        if (valid) {
-          if (this.form.id != null) {
-            updateSaleDetail(this.form).then((response) => {
-              this.$modal.msgSuccess("修改成功");
-              this.open = false;
-              this.getPageList();
-            });
-          } else {
-            addSaleDetail(this.form).then((response) => {
-              this.$modal.msgSuccess("新增成功");
-              this.open = false;
-              this.getPageList();
-            });
-          }
+    /** 格式化小数类型 */
+    decimalFormatter(key) {
+      return ({ row }) => {
+        let value = XEUtils.toNumber(row[key]);
+        let formatValue = XEUtils.commafy(value, {
+          digits: 2,
+        });
+        if (formatValue <= 0) {
+          formatValue = "0.00";
         }
+        // 将格式化后的值赋值回去
+        row[key] = formatValue;
+        return formatValue;
+      };
+    },
+    /** 计算商品小计 */
+    calcAmount({ row }) {
+      let price = XEUtils.toNumber(row.price);
+      let num = XEUtils.toNumber(row.num);
+      let formatAmount = XEUtils.commafy(price * num, {
+        digits: 2,
       });
+      row.amount = formatAmount;
+      return formatAmount;
     },
-    /** 删除按钮操作 */
-    handleDelete(row) {
-      const ids = row.id || this.ids;
-      this.$modal
-        .confirm('是否确认删除销售订单详情编号为"' + ids + '"的数据项？')
-        .then(function () {
-          return delSaleDetail(ids);
-        })
-        .then(() => {
-          this.getPageList();
-          this.$modal.msgSuccess("删除成功");
-        })
-        .catch(() => {});
+    /** vxe表格检测是否改动 */
+    checkTableUpdted() {
+      return this.$refs.xTable.getUpdateRecords().length > 0;
     },
-    /** 导出按钮操作 */
-    handleExport() {
-      this.download(
-        "order/saleDetail/export",
-        {
-          ...this.queryParams,
-        },
-        `saleDetail_${new Date().getTime()}.xlsx`
-      );
+    /** vxe表格-过滤商品名称方法 */
+    filterProductNameMethod({ option, row }) {
+      if (row.productName.indexOf(option.data) > -1) {
+        return row.productName;
+      }
+    },
+    /** vxe表格-全局禁用编辑 */
+    checkTableActive({ row, column }) {
+      return true;
     },
   },
 };
 </script>
+
+<style lang="scss" scoped>
+.main-board {
+  height: 100vh;
+  width: auto;
+  margin: 0 350px 0 0;
+  box-sizing: border-box;
+  background-color: coral;
+}
+
+.right-board {
+  width: 350px;
+  position: absolute;
+  right: 0;
+  top: 0;
+  padding-top: 3px;
+  .field-box {
+    position: relative;
+    height: calc(100vh - 42px);
+    box-sizing: border-box;
+    overflow: hidden;
+    background-color: cornflowerblue;
+  }
+  .el-scrollbar {
+    height: 100%;
+  }
+}
+
+.center-tabs {
+  .el-tabs__header {
+    margin-bottom: 0 !important;
+  }
+  .el-tabs__item {
+    width: 50%;
+    text-align: center;
+  }
+  .el-tabs__nav {
+    width: 100%;
+  }
+}
+.right-scrollbar {
+  .el-scrollbar__view {
+    padding: 12px 18px 15px 15px;
+  }
+}
+</style>
