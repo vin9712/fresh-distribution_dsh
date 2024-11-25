@@ -72,7 +72,7 @@
             ref="xTable"
             height="400"
             size="small"
-            :row-config="{ isHover: true }"
+            :row-config="{ isHover: true, useKey: true }"
             :mouse-config="{ selected: true }"
             :keyboard-config="{
               isArrow: true,
@@ -87,11 +87,28 @@
             :edit-config="{
               trigger: 'click',
               mode: 'cell',
-              showUpdateStatus: true,
               beforeEditMethod: checkTableActive,
             }"
             :data="orderDetailList"
           >
+            <!-- 操作列 -->
+            <vxe-column width="63">
+              <template #default>
+                <!-- 拖动 -->
+                <span class="drag-btn">
+                  <i class="el-icon-d-caret"></i>
+                </span>
+                <!-- 增加 -->
+                <span>
+                  <i class="el-icon-circle-plus"></i>
+                </span>
+                <!-- 减少 -->
+                <span>
+                  <i class="el-icon-remove"></i>
+                </span>
+              </template>
+            </vxe-column>
+
             <vxe-column type="seq" width="50"></vxe-column>
             <vxe-column
               field="productName"
@@ -223,19 +240,34 @@ export default {
           { required: true, message: "商品单价不能为空", trigger: "blur" },
         ],
       },
+      // 行拖拽
+      sortableX: null,
     };
   },
   mounted() {
     // 组件挂载完成后添加一行
-    this.insertEvent(-1);
+    this.insertEvent();
+    this.rowDrop();
+  },
+  beforeDestroy() {
+    if (this.sortableX) {
+      this.sortableX.destroy();
+    }
   },
   created() {},
   methods: {
     /** 默认追加一行到表格 */
-    async insertEvent(row) {
-      const $table = this.$refs.xTable;
-      const record = { productUnit: "斤" };
-      await $table.insertAt(record, row, { isInsert: false });
+    insertEvent() {
+      if (!this.orderDetailList) {
+        this.orderDetailList = [];
+      }
+      const record = {
+        productUnit: "斤",
+        num: "0.00",
+        price: "0.00",
+        amount: "0.00",
+      };
+      this.orderDetailList.push(record);
     },
     /** 刷新订单编号 */
     refreshOrderCode() {},
@@ -258,6 +290,9 @@ export default {
     /** 格式化小数类型 */
     decimalFormatter(key) {
       return ({ row }) => {
+        if (!row || typeof row[key] === "undefined") {
+          return "0.00";
+        }
         let value = XEUtils.toNumber(row[key]);
         let formatValue = XEUtils.commafy(value, {
           digits: 2,
@@ -344,6 +379,26 @@ export default {
     /** vxe表格-全局禁用编辑 */
     checkTableActive({ row, column }) {
       return true;
+    },
+    /** 行拖拽 */
+    rowDrop() {
+      const xTable = this.$refs.xTable;
+      this.sortableX = Sortable.create(
+        xTable.$el.querySelector(".body--wrapper>.vxe-table--body tbody"),
+        {
+          handle: ".drag-btn",
+          onEnd: ({ newIndex, oldIndex }) => {
+            const currRow = this.orderDetailList.splice(oldIndex, 1)[0];
+            this.orderDetailList.splice(newIndex, 0, currRow);
+            const newArr = this.orderDetailList.slice(0);
+            this.orderDetailList = [];
+            // 重新赋值
+            this.$nextTick(() => {
+              this.orderDetailList = newArr;
+            });
+          },
+        }
+      );
     },
   },
 };
