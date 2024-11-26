@@ -414,7 +414,12 @@ export default {
         type: "warning",
       })
         .then(() => {
+          const length = this.orderDetailList.length;
           this.orderDetailList.splice(index, 1);
+          // 防止全部删完了
+          if (length <= 1) {
+            this.handleAddRow();
+          }
         })
         .catch(() => {});
     },
