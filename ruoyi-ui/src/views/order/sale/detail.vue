@@ -63,14 +63,14 @@
         <!-- 订单表格 -->
         <div>
           <span>订单表格</span>
-          <el-button @click="insertEvent(-1)">新增行</el-button>
+          <el-button @click="handleAddRow(-1)">新增行</el-button>
           <vxe-table
             border
             show-footer
             show-overflow
             keep-source
             ref="xTable"
-            height="400"
+            height="500"
             size="small"
             :row-config="{ isHover: true, useKey: true }"
             :mouse-config="{ selected: true }"
@@ -93,18 +93,22 @@
           >
             <!-- 操作列 -->
             <vxe-column width="63">
-              <template #default>
+              <template #default="{ row, rowIndex }">
                 <!-- 拖动 -->
-                <span class="drag-btn">
-                  <i class="el-icon-d-caret"></i>
+                <span
+                  class="drag-btn"
+                  @mouseover="handleMouseInRow"
+                  @mouseout="handleMouseOutRow"
+                >
+                  <i v-if="hoverRow === row" class="el-icon-rank"></i>
                 </span>
                 <!-- 增加 -->
-                <span>
-                  <i class="el-icon-circle-plus"></i>
+                <span @click="handleAddRow(rowIndex)">
+                  <i class="el-icon-plus"></i>
                 </span>
                 <!-- 减少 -->
-                <span>
-                  <i class="el-icon-remove"></i>
+                <span @click="handleRemoveRow(row)">
+                  <i class="el-icon-minus"></i>
                 </span>
               </template>
             </vxe-column>
@@ -242,11 +246,13 @@ export default {
       },
       // 行拖拽
       sortableX: null,
+      // 当前悬停行
+      hoverRow: null,
     };
   },
   mounted() {
     // 组件挂载完成后添加一行
-    this.insertEvent();
+    this.handleAddRow();
     this.rowDrop();
   },
   beforeDestroy() {
@@ -256,19 +262,6 @@ export default {
   },
   created() {},
   methods: {
-    /** 默认追加一行到表格 */
-    insertEvent() {
-      if (!this.orderDetailList) {
-        this.orderDetailList = [];
-      }
-      const record = {
-        productUnit: "斤",
-        num: "0.00",
-        price: "0.00",
-        amount: "0.00",
-      };
-      this.orderDetailList.push(record);
-    },
     /** 刷新订单编号 */
     refreshOrderCode() {},
     /** 保存订单信息 */
@@ -399,6 +392,35 @@ export default {
           },
         }
       );
+    },
+    /** 添加行 */
+    handleAddRow(rowIndex) {
+      if (!this.orderDetailList) {
+        this.orderDetailList = [];
+      }
+      const newRecord = {
+        productUnit: "斤",
+        num: "0.00",
+        price: "0.00",
+        amount: "0.00",
+      };
+
+      const index =
+        rowIndex == null || rowIndex === -1
+          ? this.orderDetailList.length
+          : rowIndex + 1;
+      this.orderDetailList.splice(index, 0, newRecord);
+    },
+    /** 减少行 */
+    handleRemoveRow(row) {
+      console.log("row", row, "hoverRow", this.$refs.xTable.hoverRow);
+    },
+    /** 悬停当前行 */
+    handleMouseInRow({ row }) {
+      this.hoverRow = this.$refs.xTable.hoverRow;
+    },
+    handleMouseOutRow() {
+      this.hoverRow = null;
     },
   },
 };
