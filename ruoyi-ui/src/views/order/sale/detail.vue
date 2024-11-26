@@ -63,7 +63,6 @@
         <!-- 订单表格 -->
         <div>
           <span>订单表格</span>
-          <el-button @click="handleAddRow(-1)">新增行</el-button>
           <vxe-table
             border
             show-footer
@@ -95,12 +94,8 @@
             <vxe-column width="63">
               <template #default="{ row, rowIndex }">
                 <!-- 拖动 -->
-                <span
-                  class="drag-btn"
-                  @mouseover="handleMouseInRow"
-                  @mouseout="handleMouseOutRow"
-                >
-                  <i v-if="hoverRow === row" class="el-icon-rank"></i>
+                <span class="drag-btn">
+                  <i class="el-icon-rank"></i>
                 </span>
                 <!-- 增加 -->
                 <span @click="handleAddRow(rowIndex)">
@@ -246,8 +241,6 @@ export default {
       },
       // 行拖拽
       sortableX: null,
-      // 当前悬停行
-      hoverRow: null,
     };
   },
   mounted() {
@@ -413,14 +406,17 @@ export default {
     },
     /** 减少行 */
     handleRemoveRow(row) {
-      console.log("row", row, "hoverRow", this.$refs.xTable.hoverRow);
-    },
-    /** 悬停当前行 */
-    handleMouseInRow({ row }) {
-      this.hoverRow = this.$refs.xTable.hoverRow;
-    },
-    handleMouseOutRow() {
-      this.hoverRow = null;
+      if (!row) return;
+      const index = this.orderDetailList.indexOf(row);
+      this.$confirm("确定要删除第【" + (index + 1) + "】行数据吗?", "提示", {
+        confirmButtonText: "确定",
+        cancelButtonText: "取消",
+        type: "warning",
+      })
+        .then(() => {
+          this.orderDetailList.splice(index, 1);
+        })
+        .catch(() => {});
     },
   },
 };
@@ -469,5 +465,10 @@ export default {
   .el-scrollbar__view {
     padding: 12px 18px 15px 15px;
   }
+}
+
+.drag-btn {
+  cursor: move;
+  font-size: 12px;
 }
 </style>
