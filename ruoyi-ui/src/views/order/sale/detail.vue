@@ -113,9 +113,10 @@
             <vxe-column
               field="productName"
               title="商品名称"
-              :edit-render="{ name: 'input', autoselect: true }"
+              :edit-render="{ autoselect: true }"
               width="25%"
             >
+              <!-- 商品名称+报价详情下拉框 -->
               <template #edit="{ row: parentRow }">
                 <vxe-pulldown
                   ref="pulldownRef"
@@ -125,11 +126,11 @@
                   <template #default>
                     <vxe-input
                       v-model="parentRow.productName"
-                      suffix-icon="vxe-icon-table"
-                      placeholder="实现下拉选择商品报价"
+                      placeholder="请输入商品名称"
+                      clearable
                       @keyup="keyupEvent"
                       @focus="focusEvent"
-                      @suffix-click="suffixClick"
+                      @clear="clearEvent(parentRow)"
                     ></vxe-input>
                   </template>
 
@@ -334,6 +335,15 @@ export default {
           productSpec: "规格3",
           remark: "备注3",
         },
+        {
+          productName: "商品31",
+          productUnit: "个",
+          num: 31,
+          price: 301,
+          amount: 9001,
+          productSpec: "规格31",
+          remark: "备注31",
+        },
       ];
       // 根据示例生成 tableColumns
     },
@@ -511,33 +521,49 @@ export default {
         console.log("row", row, "column", column);
       }
     },
-    /** 商品名称下拉容器事件 */
-    focusEvent() {
+    /** 商品名称下拉容器-选中输入框事件 */
+    focusEvent({ value }) {
       const $pulldown = this.$refs.pulldownRef;
       if ($pulldown) {
+        if (typeof value === "undefined") {
+          this.tableData = this.skuQuoteDetails;
+        }
         $pulldown.showPanel();
       }
     },
+    /** 商品名称下拉容器-键盘按下事件 */
     keyupEvent({ value }) {
       if (value) {
         this.tableData = this.skuQuoteDetails.filter(
           (row) => row.productName.indexOf(value) > -1
         );
       } else {
-        // this.tableData = this.skuQuoteDetails.slice(0);
         this.tableData = this.skuQuoteDetails;
       }
     },
-    suffixClick() {
-      const $pulldown = this.$refs.pulldownRef;
-      if ($pulldown) {
-        $pulldown.togglePanel();
-      }
+    /** 商品名称下拉容器-清除按钮事件 */
+    clearEvent(parentRow) {
+      if (!parentRow) return;
+
+      // 重设已选项
+      parentRow.productName = "";
+      parentRow.productUnit = "";
+      parentRow.productSpec = "";
+      parentRow.num = "0.00";
+      parentRow.price = "0.00";
+      parentRow.amount = "0.00";
+
+      // 重设列表
+      this.tableData = this.skuQuoteDetails;
     },
+    /** 商品名称下拉容器-选中元素事件 */
     cellClickEvent({ parentRow, row }) {
       const $pulldown = this.$refs.pulldownRef;
       if ($pulldown) {
+        // 设置选中的 skuQuote 到订单详情
         parentRow.productName = row.productName;
+        parentRow.productUnit = row.productUnit;
+        parentRow.productSpec = row.productSpec;
         $pulldown.hidePanel();
       }
     },
