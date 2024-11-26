@@ -65,6 +65,7 @@
           <span>订单表格</span>
           <vxe-table
             border
+            resizable
             show-footer
             show-overflow
             keep-source
@@ -114,7 +115,43 @@
               title="商品名称"
               :edit-render="{ name: 'input', autoselect: true }"
               width="25%"
-            ></vxe-column>
+            >
+              <template #edit="{ row: parentRow }">
+                <vxe-pulldown
+                  ref="pulldownRef"
+                  popup-class-name="product-name-dropdown"
+                  transfer
+                >
+                  <template #default>
+                    <vxe-input
+                      v-model="parentRow.productName"
+                      suffix-icon="vxe-icon-table"
+                      placeholder="实现下拉选择商品报价"
+                      @keyup="keyupEvent"
+                      @focus="focusEvent"
+                      @suffix-click="suffixClick"
+                    ></vxe-input>
+                  </template>
+
+                  <template #dropdown>
+                    <div class="my-bodydown4">
+                      <vxe-grid
+                        border
+                        auto-resize
+                        height="auto"
+                        :row-config="{ isHover: true }"
+                        :data="tableData"
+                        :columns="tableColumn"
+                        @cell-click="
+                          cellClickEvent({ parentRow, row: $event.row })
+                        "
+                      >
+                      </vxe-grid>
+                    </div>
+                  </template>
+                </vxe-pulldown>
+              </template>
+            </vxe-column>
             <vxe-column
               field="productUnit"
               title="单位"
@@ -241,6 +278,14 @@ export default {
       },
       // 行拖拽
       sortableX: null,
+      // 商品报价明细
+      skuQuoteDetails: [],
+      tableData: [],
+      tableColumn: [
+        { field: "productName", title: "商品名称" },
+        { field: "productUnit", title: "单位" },
+        { field: "productSpec", title: "规格" },
+      ],
     };
   },
   mounted() {
@@ -253,8 +298,45 @@ export default {
       this.sortableX.destroy();
     }
   },
-  created() {},
+  created() {
+    // 初始化数据
+    this.getSkuQuoteDetailList();
+  },
   methods: {
+    /** 获取当前客户的报价明细列表 */
+    getSkuQuoteDetailList() {
+      // todo 模拟数据
+      this.skuQuoteDetails = [
+        {
+          productName: "商品1",
+          productUnit: "个",
+          num: 10,
+          price: 100,
+          amount: 1000,
+          productSpec: "规格1",
+          remark: "备注1",
+        },
+        {
+          productName: "商品2",
+          productUnit: "个",
+          num: 20,
+          price: 200,
+          amount: 4000,
+          productSpec: "规格2",
+          remark: "备注2",
+        },
+        {
+          productName: "商品3",
+          productUnit: "个",
+          num: 30,
+          price: 300,
+          amount: 9000,
+          productSpec: "规格3",
+          remark: "备注3",
+        },
+      ];
+      // 根据示例生成 tableColumns
+    },
     /** 刷新订单编号 */
     refreshOrderCode() {},
     /** 保存订单信息 */
@@ -423,6 +505,42 @@ export default {
         })
         .catch(() => {});
     },
+    /** 选择商品名称单元格 */
+    cellDblclickEvent({ row, column }) {
+      if (column.property === "productName") {
+        console.log("row", row, "column", column);
+      }
+    },
+    /** 商品名称下拉容器事件 */
+    focusEvent() {
+      const $pulldown = this.$refs.pulldownRef;
+      if ($pulldown) {
+        $pulldown.showPanel();
+      }
+    },
+    keyupEvent({ value }) {
+      if (value) {
+        this.tableData = this.skuQuoteDetails.filter(
+          (row) => row.productName.indexOf(value) > -1
+        );
+      } else {
+        // this.tableData = this.skuQuoteDetails.slice(0);
+        this.tableData = this.skuQuoteDetails;
+      }
+    },
+    suffixClick() {
+      const $pulldown = this.$refs.pulldownRef;
+      if ($pulldown) {
+        $pulldown.togglePanel();
+      }
+    },
+    cellClickEvent({ parentRow, row }) {
+      const $pulldown = this.$refs.pulldownRef;
+      if ($pulldown) {
+        parentRow.productName = row.productName;
+        $pulldown.hidePanel();
+      }
+    },
   },
 };
 </script>
@@ -475,5 +593,18 @@ export default {
 .drag-btn {
   cursor: move;
   font-size: 12px;
+}
+
+.product-name-dropdown {
+  background-color: #fff;
+  box-shadow: 0 0 6px 2px rgba(0, 0, 0, 0.1);
+  .my-bodydown4 {
+    width: 600px;
+    height: 300px;
+  }
+
+  .my-footdown4 {
+    border-top: 1px solid #e8eaec;
+  }
 }
 </style>
