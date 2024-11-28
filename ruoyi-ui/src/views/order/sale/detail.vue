@@ -90,12 +90,15 @@
               beforeEditMethod: checkTableActive,
             }"
             :data="orderDetailList"
+            @cell-dblclick="cellDblclickEvent"
+            @cell-mouseenter="cellMouseenterEvent"
+            @cell-mouseleave="cellMouseleaveEvent"
           >
             <!-- 操作列 -->
-            <vxe-column width="63">
+            <vxe-column field="operate" width="63">
               <template #default="{ row, rowIndex }">
                 <!-- 拖动 -->
-                <span class="drag-btn">
+                <span v-if="currentHoverRow === row" class="drag-btn">
                   <i class="el-icon-rank"></i>
                 </span>
                 <!-- 增加 -->
@@ -130,6 +133,7 @@
                       clearable
                       @keyup="keyupEvent"
                       @focus="focusEvent"
+                      @change="changeEvent({ parentRow, value: $event.value })"
                       @clear="clearEvent(parentRow)"
                     ></vxe-input>
                   </template>
@@ -287,6 +291,7 @@ export default {
         { field: "productUnit", title: "单位" },
         { field: "productSpec", title: "规格" },
       ],
+      currentHoverRow: null,
     };
   },
   mounted() {
@@ -518,8 +523,26 @@ export default {
     /** 选择商品名称单元格 */
     cellDblclickEvent({ row, column }) {
       if (column.property === "productName") {
-        console.log("row", row, "column", column);
+        console.log("cellDblclickEvent row", row, "column", column);
       }
+    },
+    /** 鼠标进入悬浮单元格事件 */
+    cellMouseenterEvent({ row, rowIndex, column }) {
+      if (this.currentHoverRow && this.currentHoverRow === row) return;
+      this.currentHoverRow = this.$refs.xTable.hoverRow;
+    },
+    /** 鼠标离开悬浮单元格事件 */
+    cellMouseleaveEvent({ row, rowIndex, column }) {
+      if (
+        this.currentHoverRow &&
+        this.currentHoverRow === row &&
+        rowIndex !== 0 &&
+        rowIndex !== this.orderDetailList.length - 1
+      )
+        return;
+
+      // reset hover row
+      this.currentHoverRow = null;
     },
     /** 商品名称下拉容器-选中输入框事件 */
     focusEvent({ value }) {
@@ -540,6 +563,10 @@ export default {
       } else {
         this.tableData = this.skuQuoteDetails;
       }
+    },
+    /** 商品名称下拉容器-值变更事件 */
+    changeEvent({ parentRow, value }) {
+      console.log("changeEvent parentRow", parentRow, "value", value);
     },
     /** 商品名称下拉容器-清除按钮事件 */
     clearEvent(parentRow) {
