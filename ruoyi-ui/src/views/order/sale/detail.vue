@@ -90,7 +90,6 @@
               beforeEditMethod: checkTableActive,
             }"
             :data="orderDetailList"
-            @cell-dblclick="cellDblclickEvent"
             @cell-mouseenter="cellMouseenterEvent"
             @cell-mouseleave="cellMouseleaveEvent"
           >
@@ -520,12 +519,6 @@ export default {
         })
         .catch(() => {});
     },
-    /** 选择商品名称单元格 */
-    cellDblclickEvent({ row, column }) {
-      if (column.property === "productName") {
-        console.log("cellDblclickEvent row", row, "column", column);
-      }
-    },
     /** 鼠标进入悬浮单元格事件 */
     cellMouseenterEvent({ row, rowIndex, column }) {
       if (this.currentHoverRow && this.currentHoverRow === row) return;
@@ -544,7 +537,7 @@ export default {
       // reset hover row
       this.currentHoverRow = null;
     },
-    /** 商品名称下拉容器-选中输入框事件 */
+    /** 商品名称输入框-聚焦事件 */
     focusEvent({ value }) {
       const $pulldown = this.$refs.pulldownRef;
       if ($pulldown) {
@@ -554,7 +547,7 @@ export default {
         $pulldown.showPanel();
       }
     },
-    /** 商品名称下拉容器-键盘按下事件 */
+    /** 商品名称输入框-键盘按下事件 */
     keyupEvent({ value }) {
       if (value) {
         this.tableData = this.skuQuoteDetails.filter(
@@ -564,11 +557,11 @@ export default {
         this.tableData = this.skuQuoteDetails;
       }
     },
-    /** 商品名称下拉容器-值变更事件 */
+    /** 商品名称输入框-值变更事件 */
     changeEvent({ parentRow, value }) {
       console.log("changeEvent parentRow", parentRow, "value", value);
     },
-    /** 商品名称下拉容器-清除按钮事件 */
+    /** 商品名称输入框-清除按钮事件 */
     clearEvent(parentRow) {
       if (!parentRow) return;
 
