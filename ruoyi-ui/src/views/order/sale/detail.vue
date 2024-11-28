@@ -132,7 +132,7 @@
                       clearable
                       @keyup="keyupEvent"
                       @focus="focusEvent"
-                      @change="changeEvent({ parentRow, value: $event.value })"
+                      @blur="blurEvent({ parentRow, value: $event.value })"
                       @clear="clearEvent(parentRow)"
                     ></vxe-input>
                   </template>
@@ -964,31 +964,76 @@ export default {
     focusEvent({ value }) {
       const $pulldown = this.$refs.pulldownRef;
       if ($pulldown) {
-        if (typeof value === "undefined") {
-          this.tableData = this.skuQuoteDetails;
-        }
+        this.initPulldownData(value);
         $pulldown.showPanel();
       }
     },
     /** 商品名称输入框-键盘按下事件 */
     keyupEvent({ value }) {
-      if (value) {
-        this.tableData = this.skuQuoteDetails.filter(
-          (row) => row.productName.indexOf(value) > -1
-        );
-      } else {
-        this.tableData = this.skuQuoteDetails;
-      }
+      this.initPulldownData(value);
     },
     /** 商品名称输入框-值变更事件 */
-    changeEvent({ parentRow, value }) {
-      console.log("changeEvent parentRow", parentRow, "value", value);
+    blurEvent({ parentRow, value }) {
+      console.log(
+        "blurEvent parentRow",
+        parentRow,
+        "parentRow name",
+        parentRow.productName,
+        "value",
+        value,
+        "this.tableData",
+        this.tableData
+      );
+      if (!parentRow) return;
+
+      // todo 如果没有匹配到，则清空
+      if (parentRow.productName === value) {
+        if (parentRow.skuId) {
+          const quoteItem = this.tableData.find(
+            (q) => q.skuId === parentRow.skuId
+          );
+          console.log("not equal quoteItem", quoteItem);
+          if (quoteItem && quoteItem.productName === value) {
+            return;
+          } else {
+            parentRow.skuId = null;
+            parentRow.productUnit = "";
+            parentRow.productSpec = "";
+            parentRow.num = "0.00";
+            parentRow.price = "0.00";
+            parentRow.amount = "0.00";
+          }
+        } else {
+          parentRow.skuId = null;
+          parentRow.productUnit = "";
+          parentRow.productSpec = "";
+          parentRow.num = "0.00";
+          parentRow.price = "0.00";
+          parentRow.amount = "0.00";
+        }
+      } else {
+        const quoteItem = this.tableData.find(
+          (q) => q.skuId === parentRow.skuId
+        );
+        console.log("not equal quoteItem", quoteItem);
+        if (quoteItem && quoteItem.productName === value) {
+          return;
+        } else {
+          parentRow.skuId = null;
+          parentRow.productUnit = "";
+          parentRow.productSpec = "";
+          parentRow.num = "0.00";
+          parentRow.price = "0.00";
+          parentRow.amount = "0.00";
+        }
+      }
     },
     /** 商品名称输入框-清除按钮事件 */
     clearEvent(parentRow) {
       if (!parentRow) return;
 
       // 重设已选项
+      parentRow.skuId = null;
       parentRow.productName = "";
       parentRow.productUnit = "";
       parentRow.productSpec = "";
@@ -1008,15 +1053,21 @@ export default {
         parentRow.productName = row.productName;
         parentRow.productUnit = row.productUnit;
         parentRow.productSpec = row.productSpec;
+        parentRow.skuId = 1;
 
-        // 重新聚焦到单元格
-        $table.setEditCell(parentRow, "productName");
+        // 聚焦到数量单元格
+        $table.setEditCell(parentRow, "num");
       }
-
-      // todo 隐藏下拉容器
-      this.$nextTick(() => {
-        $pulldown.hidePanel();
-      });
+    },
+    /** 商品名称下拉容器-初始化数据 */
+    initPulldownData(value) {
+      if (value) {
+        this.tableData = this.skuQuoteDetails.filter(
+          (row) => row.productName.indexOf(value) > -1
+        );
+      } else {
+        this.tableData = this.skuQuoteDetails;
+      }
     },
   },
 };
