@@ -974,58 +974,17 @@ export default {
     },
     /** 商品名称输入框-值变更事件 */
     blurEvent({ parentRow, value }) {
-      console.log(
-        "blurEvent parentRow",
-        parentRow,
-        "parentRow name",
-        parentRow.productName,
-        "value",
-        value,
-        "this.tableData",
-        this.tableData
-      );
       if (!parentRow) return;
 
-      // todo 如果没有匹配到，则清空
-      if (parentRow.productName === value) {
-        if (parentRow.skuId) {
-          const quoteItem = this.tableData.find(
-            (q) => q.skuId === parentRow.skuId
-          );
-          console.log("not equal quoteItem", quoteItem);
-          if (quoteItem && quoteItem.productName === value) {
-            return;
-          } else {
-            parentRow.skuId = null;
-            parentRow.productUnit = "";
-            parentRow.productSpec = "";
-            parentRow.num = "0.00";
-            parentRow.price = "0.00";
-            parentRow.amount = "0.00";
-          }
-        } else {
-          parentRow.skuId = null;
-          parentRow.productUnit = "";
-          parentRow.productSpec = "";
-          parentRow.num = "0.00";
-          parentRow.price = "0.00";
-          parentRow.amount = "0.00";
-        }
+      const quoteItem = this.tableData.find((q) => q.productName === value);
+      if (quoteItem) {
+        parentRow.skuId = quoteItem.skuId;
+        parentRow.productUnit = quoteItem.productUnit;
+        parentRow.productSpec = quoteItem.productSpec;
       } else {
-        const quoteItem = this.tableData.find(
-          (q) => q.skuId === parentRow.skuId
-        );
-        console.log("not equal quoteItem", quoteItem);
-        if (quoteItem && quoteItem.productName === value) {
-          return;
-        } else {
-          parentRow.skuId = null;
-          parentRow.productUnit = "";
-          parentRow.productSpec = "";
-          parentRow.num = "0.00";
-          parentRow.price = "0.00";
-          parentRow.amount = "0.00";
-        }
+        parentRow.skuId = null;
+        parentRow.productUnit = "";
+        parentRow.productSpec = "";
       }
     },
     /** 商品名称输入框-清除按钮事件 */
