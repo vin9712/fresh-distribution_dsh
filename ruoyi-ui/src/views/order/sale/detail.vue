@@ -144,7 +144,7 @@
                         auto-resize
                         height="auto"
                         :row-config="{ isHover: true }"
-                        :data="tableData"
+                        :data="pulldownTableData"
                         :columns="tableColumn"
                         @cell-click="
                           cellClickEvent({ parentRow, row: $event.row })
@@ -224,7 +224,63 @@
         <el-tab-pane label="最近订单" name="recentOrder" />
         <el-tab-pane label="标签b" name="tabB" />
       </el-tabs>
-      <div class="field-box"></div>
+      <div class="field-box">
+        <!-- 最近订单 -->
+        <div class="recent-order-tab" v-show="currentTab === 'recentOrder'">
+          <el-form size="small" label-width="100px">
+            <el-form-item label="订单编号">
+              <el-input
+                v-model="recentQuery.orderCode"
+                placeholder="请输入订单编号"
+              />
+            </el-form-item>
+            <el-form-item label="送货单位">
+              <el-input
+                v-model="recentQuery.customerDeptId"
+                placeholder="请选择送货单位"
+              />
+            </el-form-item>
+            <el-form-item>
+              <el-button
+                type="primary"
+                icon="el-icon-search"
+                size="mini"
+                @click="handleRecentQuery"
+                >搜索</el-button
+              >
+              <el-button icon="el-icon-refresh" size="mini" @click="resetQuery"
+                >重置</el-button
+              >
+            </el-form-item>
+          </el-form>
+          <el-table v-loading="loading" :data="orderList">
+            <el-table-column label="订单编号" align="center" prop="code" />
+            <el-table-column
+              label="配送时间"
+              align="center"
+              prop="deliveryDate"
+            />
+            <el-table-column
+              label="客户名称"
+              align="center"
+              prop="customerName"
+            />" />
+            <el-table-column
+              label="送货单位"
+              align="center"
+              prop="customerDeptName"
+            />
+          </el-table>
+
+          <pagination
+            v-show="total > 0"
+            :total="total"
+            :page.sync="recentQuery.pageNum"
+            :limit.sync="recentQuery.pageSize"
+            @pagination="getOrderPageList"
+          />
+        </div>
+      </div>
     </div>
   </div>
 </template>
@@ -249,6 +305,17 @@ export default {
     return {
       // 当前激活 tab
       currentTab: "recentOrder",
+      // 遮罩层
+      loading: true,
+      // 总条数
+      total: 0,
+      // 最近订单查询条件
+      recentQuery: {
+        pageNum: 1,
+        pageSize: 10,
+        orderCode: null,
+        customerDeptId: null,
+      },
       // 送货单位下拉选项
       customerDeptOptions: [],
       // 订单明细列表
@@ -284,7 +351,16 @@ export default {
       sortableX: null,
       // 商品报价明细
       skuQuoteDetails: [],
-      tableData: [],
+      // 下拉表格数据
+      pulldownTableData: [],
+      // 下拉表格列配置
+      tableColumn: [
+        { field: "productName", title: "商品名称" },
+        { field: "productUnit", title: "单位" },
+        { field: "productSpec", title: "规格" },
+      ],
+      // 当前鼠标悬停的行
+      currentHoverRow: null,
       tableColumn: [
         { field: "productName", title: "商品名称" },
         { field: "productUnit", title: "单位" },
@@ -976,7 +1052,9 @@ export default {
     blurEvent({ parentRow, value }) {
       if (!parentRow) return;
 
-      const quoteItem = this.tableData.find((q) => q.productName === value);
+      const quoteItem = this.pulldownTableData.find(
+        (q) => q.productName === value
+      );
       if (quoteItem) {
         parentRow.skuId = quoteItem.skuId;
         parentRow.productUnit = quoteItem.productUnit;
@@ -1001,7 +1079,7 @@ export default {
       parentRow.amount = "0.00";
 
       // 重设列表
-      this.tableData = this.skuQuoteDetails;
+      this.pulldownTableData = this.skuQuoteDetails;
     },
     /** 商品名称下拉容器-选中元素事件 */
     cellClickEvent({ parentRow, row }) {
@@ -1021,11 +1099,11 @@ export default {
     /** 商品名称下拉容器-初始化数据 */
     initPulldownData(value) {
       if (value) {
-        this.tableData = this.skuQuoteDetails.filter(
+        this.pulldownTableData = this.skuQuoteDetails.filter(
           (row) => row.productName.indexOf(value) > -1
         );
       } else {
-        this.tableData = this.skuQuoteDetails;
+        this.pulldownTableData = this.skuQuoteDetails;
       }
     },
   },
