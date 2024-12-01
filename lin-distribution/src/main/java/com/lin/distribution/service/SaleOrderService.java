@@ -1,8 +1,8 @@
 package com.lin.distribution.service;
 
-import java.util.List;
-
 import com.lin.distribution.domain.SaleOrder;
+
+import java.util.List;
 
 /**
  * 销售订单Service接口
@@ -58,4 +58,12 @@ public interface SaleOrderService {
      * @return 结果
      */
     int deleteSaleOrderById(Long id);
+
+    /**
+     * 生成销售订单号
+     * @param refresh
+     * @param currentCode
+     * @return
+     */
+    public String generateSaleOrderNo(Boolean refresh, String currentCode);
 }

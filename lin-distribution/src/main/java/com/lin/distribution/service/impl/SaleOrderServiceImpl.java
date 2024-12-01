@@ -1,14 +1,18 @@
 package com.lin.distribution.service.impl;
 
-import java.util.List;
-
 import com.lin.common.utils.DateUtils;
+import com.lin.distribution.domain.SaleOrder;
+import com.lin.distribution.mapper.SaleOrderMapper;
+import com.lin.distribution.service.SaleOrderService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.BooleanUtils;
+import org.apache.commons.lang3.StringUtils;
+import org.redisson.api.RMap;
+import org.redisson.api.RedissonClient;
 import org.springframework.stereotype.Service;
-import com.lin.distribution.mapper.SaleOrderMapper;
-import com.lin.distribution.domain.SaleOrder;
-import com.lin.distribution.service.SaleOrderService;
+
+import java.util.List;
 
 /**
  * 销售订单Service业务层处理
@@ -21,6 +25,7 @@ import com.lin.distribution.service.SaleOrderService;
 @RequiredArgsConstructor
 public class SaleOrderServiceImpl implements SaleOrderService {
     private final SaleOrderMapper saleOrderMapper;
+    private final RedissonClient redissonClient;
 
     /**
      * 查询销售订单
@@ -88,5 +93,32 @@ public class SaleOrderServiceImpl implements SaleOrderService {
     @Override
     public int deleteSaleOrderById(Long id) {
         return saleOrderMapper.deleteSaleOrderById(id);
+    }
+
+
+    @Override
+    public String generateSaleOrderNo(Boolean refresh, String currentCode) {
+        return generateOrderNo(refresh, currentCode);
+    }
+
+    private String generateOrderNo(Boolean refresh) {
+        return generateOrderNo(refresh, null);
+    }
+
+    private String generateOrderNo(Boolean refresh, String currentCode) {
+        String date = DateUtils.dateTime();
+        String prefix = "XD" + date;
+        RMap<String, Integer> rMap = redissonClient.getMap("saleOrderNo");
+        // get current redis seq
+        int redisSeq = rMap.getOrDefault(date, 0);
+        String redisQuoteCode = prefix + String.format("%05d", redisSeq);
+        // if current code = redis code, return
+        if (StringUtils.equals(redisQuoteCode, currentCode)) {
+            return redisQuoteCode;
+        }
+
+        int seqNbr = BooleanUtils.isTrue(refresh) ? rMap.addAndGet(date, 1) : redisSeq;
+        String seqNbrStr = String.format("%05d", seqNbr);
+        return prefix + seqNbrStr;
     }
 }

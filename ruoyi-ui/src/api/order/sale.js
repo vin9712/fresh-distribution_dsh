@@ -51,3 +51,12 @@ export function delSale(id) {
     method: 'delete'
   })
 }
+
+// 获取或生成销售单号
+export function genOrderCode(query) {
+  return request({
+    url: '/order/sale/code',
+    method: 'get',
+    params: query
+  })
+}

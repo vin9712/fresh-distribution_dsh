@@ -165,6 +165,7 @@ import {
   updateSaleDetail,
 } from "@/api/order/saleDetail";
 import { customerListQuoteDetail } from "@/api/product/quoteDetail";
+import { genOrderCode } from "@/api/order/sale";
 import { listCustomerDept } from "@/api/partner/customerDept";
 
 import XEUtils from "xe-utils";
@@ -275,11 +276,14 @@ export default {
       : null;
 
     // 设置表单参数
+    this.orderForm.orderId = this.defaultOrderId;
     this.orderForm.customerId = this.defaultCustomerId;
     this.orderForm.customerDeptId = this.defaultCustomerDeptId;
 
     // 初始化数据
+    this.getOrderCode();
     this.getTreeselect();
+    this.initDeliveryDate();
     this.getSkuQuoteDetailList();
   },
   methods: {
@@ -763,8 +767,32 @@ export default {
       ];
       // 根据示例生成 tableColumns
     },
+    /** 初始化送货日期 */
+    initDeliveryDate() {
+      if (!this.orderForm.orderId) {
+        const today = new Date();
+        const nowHour = today.getHours();
+        const tomorrow = new Date(today);
+        tomorrow.setDate(today.getDate() + 1);
+
+        // 若当前时间小于15点，则送货时间为今天，否则为明天
+        const deliveryDate = (nowHour < 15) ? today : tomorrow;
+        this.orderForm.deliveryDate = deliveryDate;
+      }
+    },
+    /** 获取当前订单编号 */
+    getOrderCode() {
+      genOrderCode().then((response) => {
+        this.orderForm.orderCode = response.msg;
+      });
+    },
     /** 刷新订单编号 */
-    refreshOrderCode() { },
+    refreshOrderCode() {
+      let param = { currentCode: this.orderForm.orderCode };
+      genOrderCode(param).then((response) => {
+        this.orderForm.orderCode = response.msg;
+      });
+    },
     /** 保存订单信息 */
     submitForm() {
       console.log('this.orderForm', this.orderForm);
