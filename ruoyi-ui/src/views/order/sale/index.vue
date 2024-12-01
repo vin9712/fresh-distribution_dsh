@@ -1,223 +1,98 @@
 <template>
   <div class="app-container">
-    <el-form
-      :model="queryParams"
-      ref="queryForm"
-      size="small"
-      :inline="true"
-      v-show="showSearch"
-      label-width="68px"
-    >
+    <el-form :model="queryParams" ref="queryForm" size="small" :inline="true" v-show="showSearch" label-width="68px">
       <el-form-item label="订单编号" prop="code">
-        <el-input
-          v-model="queryParams.code"
-          placeholder="请输入订单编号"
-          clearable
-          @keyup.enter.native="handleQuery"
-        />
+        <el-input v-model="queryParams.code" placeholder="请输入订单编号" clearable @keyup.enter.native="handleQuery" />
       </el-form-item>
       <el-form-item label="订单来源" prop="source">
-        <el-select
-          v-model="queryParams.source"
-          placeholder="请选择订单来源"
-          clearable
-        >
-          <el-option
-            v-for="dict in dict.type.t_sale_order_source"
-            :key="dict.value"
-            :label="dict.label"
-            :value="dict.value"
-          />
+        <el-select v-model="queryParams.source" placeholder="请选择订单来源" clearable>
+          <el-option v-for="dict in dict.type.t_sale_order_source" :key="dict.value" :label="dict.label"
+            :value="dict.value" />
         </el-select>
       </el-form-item>
       <el-form-item label="订单类型" prop="type">
-        <el-select
-          v-model="queryParams.type"
-          placeholder="请选择订单类型"
-          clearable
-        >
-          <el-option
-            v-for="dict in dict.type.t_sale_order_type"
-            :key="dict.value"
-            :label="dict.label"
-            :value="dict.value"
-          />
+        <el-select v-model="queryParams.type" placeholder="请选择订单类型" clearable>
+          <el-option v-for="dict in dict.type.t_sale_order_type" :key="dict.value" :label="dict.label"
+            :value="dict.value" />
         </el-select>
       </el-form-item>
       <el-form-item label="状态" prop="status">
-        <el-select
-          v-model="queryParams.status"
-          placeholder="请选择订单状态"
-          clearable
-        >
-          <el-option
-            v-for="dict in dict.type.t_sale_order_status"
-            :key="dict.value"
-            :label="dict.label"
-            :value="dict.value"
-          />
+        <el-select v-model="queryParams.status" placeholder="请选择订单状态" clearable>
+          <el-option v-for="dict in dict.type.t_sale_order_status" :key="dict.value" :label="dict.label"
+            :value="dict.value" />
         </el-select>
       </el-form-item>
       <el-form-item label="预计配送日期" prop="deliverDate">
-        <el-date-picker
-          clearable
-          v-model="queryParams.deliverDate"
-          type="date"
-          value-format="yyyy-MM-dd"
-          placeholder="请选择预计配送日期"
-        >
+        <el-date-picker clearable v-model="queryParams.deliverDate" type="date" value-format="yyyy-MM-dd"
+          placeholder="请选择预计配送日期">
         </el-date-picker>
       </el-form-item>
       <el-form-item>
-        <el-button
-          type="primary"
-          icon="el-icon-search"
-          size="mini"
-          @click="handleQuery"
-          >搜索</el-button
-        >
-        <el-button icon="el-icon-refresh" size="mini" @click="resetQuery"
-          >重置</el-button
-        >
+        <el-button type="primary" icon="el-icon-search" size="mini" @click="handleQuery">搜索</el-button>
+        <el-button icon="el-icon-refresh" size="mini" @click="resetQuery">重置</el-button>
       </el-form-item>
     </el-form>
 
     <el-row :gutter="10" class="mb8">
       <el-col :span="1.5">
-        <el-button
-          type="primary"
-          plain
-          icon="el-icon-plus"
-          size="mini"
-          @click="handleAdd"
-          v-hasPermi="['order:sale:add']"
-          >新增</el-button
-        >
+        <el-button type="primary" plain icon="el-icon-plus" size="mini" @click="handleAdd"
+          v-hasPermi="['order:sale:add']">新增</el-button>
       </el-col>
       <el-col :span="1.5">
-        <el-button
-          type="success"
-          plain
-          icon="el-icon-edit"
-          size="mini"
-          :disabled="single"
-          @click="handleUpdate"
-          v-hasPermi="['order:sale:edit']"
-          >修改</el-button
-        >
+        <el-button type="success" plain icon="el-icon-edit" size="mini" :disabled="single" @click="handleUpdate"
+          v-hasPermi="['order:sale:edit']">修改</el-button>
       </el-col>
       <el-col :span="1.5">
-        <el-button
-          type="danger"
-          plain
-          icon="el-icon-delete"
-          size="mini"
-          :disabled="multiple"
-          @click="handleDelete"
-          v-hasPermi="['order:sale:remove']"
-          >删除</el-button
-        >
+        <el-button type="danger" plain icon="el-icon-delete" size="mini" :disabled="multiple" @click="handleDelete"
+          v-hasPermi="['order:sale:remove']">删除</el-button>
       </el-col>
       <el-col :span="1.5">
-        <el-button
-          type="warning"
-          plain
-          icon="el-icon-download"
-          size="mini"
-          @click="handleExport"
-          v-hasPermi="['order:sale:export']"
-          >导出</el-button
-        >
+        <el-button type="warning" plain icon="el-icon-download" size="mini" @click="handleExport"
+          v-hasPermi="['order:sale:export']">导出</el-button>
       </el-col>
-      <right-toolbar
-        :showSearch.sync="showSearch"
-        @queryTable="getPageList"
-      ></right-toolbar>
+      <right-toolbar :showSearch.sync="showSearch" @queryTable="getPageList"></right-toolbar>
     </el-row>
 
-    <el-table
-      v-loading="loading"
-      :data="saleList"
-      @selection-change="handleSelectionChange"
-    >
+    <el-table v-loading="loading" :data="saleList" @selection-change="handleSelectionChange">
       <el-table-column type="selection" width="55" align="center" />
       <el-table-column label="主键" align="center" prop="id" />
       <el-table-column label="客户ID" align="center" prop="customerId" />
-      <el-table-column
-        label="客户部门ID"
-        align="center"
-        prop="customerDeptId"
-      />
+      <el-table-column label="客户部门ID" align="center" prop="customerDeptId" />
       <el-table-column label="订单编号" align="center" prop="code" />
       <el-table-column label="订单来源" align="center" prop="source">
         <template slot-scope="scope">
-          <dict-tag
-            :options="dict.type.t_sale_order_source"
-            :value="scope.row.source"
-          />
+          <dict-tag :options="dict.type.t_sale_order_source" :value="scope.row.source" />
         </template>
       </el-table-column>
       <el-table-column label="订单类型" align="center" prop="type">
         <template slot-scope="scope">
-          <dict-tag
-            :options="dict.type.t_sale_order_type"
-            :value="scope.row.type"
-          />
+          <dict-tag :options="dict.type.t_sale_order_type" :value="scope.row.type" />
         </template>
       </el-table-column>
       <el-table-column label="总金额" align="center" prop="amount" />
       <el-table-column label="状态" align="center" prop="status">
         <template slot-scope="scope">
-          <dict-tag
-            :options="dict.type.t_sale_order_status"
-            :value="scope.row.status"
-          />
+          <dict-tag :options="dict.type.t_sale_order_status" :value="scope.row.status" />
         </template>
       </el-table-column>
-      <el-table-column
-        label="预计配送日期"
-        align="center"
-        prop="deliverDate"
-        width="180"
-      >
+      <el-table-column label="预计配送日期" align="center" prop="deliverDate" width="180">
         <template slot-scope="scope">
           <span>{{ parseTime(scope.row.deliverDate, "{y}-{m}-{d}") }}</span>
         </template>
       </el-table-column>
       <el-table-column label="备注" align="center" prop="remark" />
-      <el-table-column
-        label="操作"
-        align="center"
-        class-name="small-padding fixed-width"
-      >
+      <el-table-column label="操作" align="center" class-name="small-padding fixed-width">
         <template slot-scope="scope">
-          <el-button
-            size="mini"
-            type="text"
-            icon="el-icon-edit"
-            @click="handleUpdate(scope.row)"
-            v-hasPermi="['order:sale:edit']"
-            >修改</el-button
-          >
-          <el-button
-            size="mini"
-            type="text"
-            icon="el-icon-delete"
-            @click="handleDelete(scope.row)"
-            v-hasPermi="['order:sale:remove']"
-            >删除</el-button
-          >
+          <el-button size="mini" type="text" icon="el-icon-edit" @click="handleUpdate(scope.row)"
+            v-hasPermi="['order:sale:edit']">修改</el-button>
+          <el-button size="mini" type="text" icon="el-icon-delete" @click="handleDelete(scope.row)"
+            v-hasPermi="['order:sale:remove']">删除</el-button>
         </template>
       </el-table-column>
     </el-table>
 
-    <pagination
-      v-show="total > 0"
-      :total="total"
-      :page.sync="queryParams.pageNum"
-      :limit.sync="queryParams.pageSize"
-      @pagination="getPageList"
-    />
+    <pagination v-show="total > 0" :total="total" :page.sync="queryParams.pageNum" :limit.sync="queryParams.pageSize"
+      @pagination="getPageList" />
 
     <!-- 添加或修改销售订单对话框 -->
     <el-dialog :title="title" :visible.sync="open" width="500px" append-to-body>
@@ -227,22 +102,14 @@
         </el-form-item>
         <el-form-item label="订单来源" prop="source">
           <el-select v-model="form.source" placeholder="请选择订单来源">
-            <el-option
-              v-for="dict in dict.type.t_sale_order_source"
-              :key="dict.value"
-              :label="dict.label"
-              :value="parseInt(dict.value)"
-            ></el-option>
+            <el-option v-for="dict in dict.type.t_sale_order_source" :key="dict.value" :label="dict.label"
+              :value="parseInt(dict.value)"></el-option>
           </el-select>
         </el-form-item>
         <el-form-item label="订单类型" prop="type">
           <el-select v-model="form.type" placeholder="请选择订单类型">
-            <el-option
-              v-for="dict in dict.type.t_sale_order_type"
-              :key="dict.value"
-              :label="dict.label"
-              :value="parseInt(dict.value)"
-            ></el-option>
+            <el-option v-for="dict in dict.type.t_sale_order_type" :key="dict.value" :label="dict.label"
+              :value="parseInt(dict.value)"></el-option>
           </el-select>
         </el-form-item>
         <el-form-item label="总金额" prop="amount">
@@ -250,33 +117,20 @@
         </el-form-item>
         <el-form-item label="状态" prop="status">
           <el-select v-model="form.status" placeholder="请选择状态">
-            <el-option
-              v-for="dict in dict.type.t_sale_order_status"
-              :key="dict.value"
-              :label="dict.label"
-              :value="parseInt(dict.value)"
-            ></el-option>
+            <el-option v-for="dict in dict.type.t_sale_order_status" :key="dict.value" :label="dict.label"
+              :value="parseInt(dict.value)"></el-option>
           </el-select>
         </el-form-item>
         <el-form-item label="预计配送日期" prop="deliverDate">
-          <el-date-picker
-            clearable
-            v-model="form.deliverDate"
-            type="date"
-            value-format="yyyy-MM-dd"
-            placeholder="请选择预计配送日期"
-          >
+          <el-date-picker clearable v-model="form.deliverDate" type="date" value-format="yyyy-MM-dd"
+            placeholder="请选择预计配送日期">
           </el-date-picker>
         </el-form-item>
         <el-form-item label="逻辑删除" prop="isDeleted">
           <el-input v-model="form.isDeleted" placeholder="请输入逻辑删除" />
         </el-form-item>
         <el-form-item label="备注" prop="remark">
-          <el-input
-            v-model="form.remark"
-            type="textarea"
-            placeholder="请输入内容"
-          />
+          <el-input v-model="form.remark" type="textarea" placeholder="请输入内容" />
         </el-form-item>
       </el-form>
       <div slot="footer" class="dialog-footer">
@@ -449,7 +303,7 @@ export default {
       this.$router.push({
         path: "/order/sale-detail/index/" + 1,
         // path: "/order/sale-detail/index/" + this.queryParams.customerDeptId,
-        query: { orderId: null },
+        query: { orderId: null, customerId: null },
       });
     },
     /** 修改按钮操作 */
@@ -494,7 +348,7 @@ export default {
           this.getPageList();
           this.$modal.msgSuccess("删除成功");
         })
-        .catch(() => {});
+        .catch(() => { });
     },
     /** 导出按钮操作 */
     handleExport() {

@@ -2,7 +2,6 @@ package com.lin.distribution.service.impl;
 
 import com.lin.common.exception.ServiceException;
 import com.lin.common.utils.DateUtils;
-import com.lin.common.utils.PinYinConvertUtils;
 import com.lin.common.utils.bean.BeanValidators;
 import com.lin.distribution.domain.Customer;
 import com.lin.distribution.domain.ProductCategory;
@@ -110,12 +109,12 @@ public class ProductServiceImpl implements ProductService {
         // generate sku code
         Customer customer = customerMapper.selectCustomerById(productSku.getCustomerId());
         String customerCode = customer == null ? "#" : StringUtils.substring(customer.getShowMnemonicCode(), 0, Math.min(customer.getShowMnemonicCode().length(), 4));
-        String skuCode = generateSkuNo(productSku.getCustomerId(), customerCode);
+        String productCode = generateSkuNo(productSku.getCustomerId(), customerCode);
 
         // insert sku one with customerId
         ProductSpu productSpu = spuId == null ? null : productSpuMapper.selectProductSpuById(spuId);
         productSku.setSpuId(productSpu == null ? null : productSpu.getId());
-        productSku.setCode(skuCode);
+        productSku.setCode(productCode);
         productSku.setCreateTime(DateUtils.getNowDate());
         return productSkuMapper.insertProductSku(productSku);
     }

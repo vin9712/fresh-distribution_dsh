@@ -1,8 +1,8 @@
 package com.lin.distribution.service;
 
-import java.util.List;
-
 import com.lin.distribution.domain.ProductSkuQuoteDetail;
+
+import java.util.List;
 
 /**
  * 商品报价明细Service接口
@@ -27,7 +27,13 @@ public interface ProductSkuQuoteDetailService {
      */
     List<ProductSkuQuoteDetail> selectProductSkuQuoteDetailList(ProductSkuQuoteDetail productSkuQuoteDetail);
 
-    List<ProductSkuQuoteDetail> selectProductSkuQuoteDetailListByQuoteId(Long quoteId);
+    /**
+     * 查询客户报价明细列表（含最新商品信息）
+     * @param customerId
+     * @param quoteId
+     * @return
+     */
+    List<ProductSkuQuoteDetail> customerQuoteDetailList(Long customerId, Long quoteId);
 
     /**
      * 新增商品报价明细

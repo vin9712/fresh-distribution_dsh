@@ -27,7 +27,7 @@
                sqd.customer_id,
                sqd.quote_id,
                sqd.sku_id,
-               sku.code as skuCode,
+               sku.code as productCode,
                sku.category_id,
                category.name as categoryName,
                sqd.product_name,

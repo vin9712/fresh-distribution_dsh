@@ -1,27 +1,20 @@
 package com.lin.distribution.controller;
 
-import java.util.List;
-
-import io.swagger.v3.oas.annotations.tags.Tag;
-import jakarta.servlet.http.HttpServletResponse;
-import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.PutMapping;
-import org.springframework.web.bind.annotation.DeleteMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
 import com.lin.common.annotation.Log;
 import com.lin.common.core.controller.BaseController;
 import com.lin.common.core.domain.AjaxResult;
+import com.lin.common.core.page.TableDataInfo;
 import com.lin.common.enums.BusinessType;
+import com.lin.common.utils.poi.ExcelUtil;
 import com.lin.distribution.domain.ProductSkuQuoteDetail;
 import com.lin.distribution.service.ProductSkuQuoteDetailService;
-import com.lin.common.utils.poi.ExcelUtil;
-import com.lin.common.core.page.TableDataInfo;
+import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
 
 /**
  * 商品报价明细Controller
@@ -56,6 +49,17 @@ public class ProductSkuQuoteDetailController extends BaseController {
         List<ProductSkuQuoteDetail> list = productSkuQuoteDetailService.selectProductSkuQuoteDetailList(productSkuQuoteDetail);
         return success(list);
     }
+
+    /**
+     * 查询客户的报价详情
+     */
+    @GetMapping("/customer/list")
+    public AjaxResult customerQuoteDetailList(@RequestParam("customerId") Long customerId,
+                                              @RequestParam(name = "quoteId", required = false) Long quoteId) {
+        List<ProductSkuQuoteDetail> list = productSkuQuoteDetailService.customerQuoteDetailList(customerId, quoteId);
+        return success(list);
+    }
+
 
     /**
      * 导出商品报价明细列表

@@ -6,51 +6,22 @@
         <!-- 订单表单 -->
         <div slot="header">
           <span>订单信息</span>
-          <el-form
-            ref="orderForm"
-            :model="orderForm"
-            :rules="rules"
-            size="medium"
-            inline
-            label-width="100px"
-          >
+          <el-form ref="orderForm" :model="orderForm" :rules="rules" size="medium" inline label-width="100px">
             <el-form-item label="送货单位" prop="customerDeptId">
-              <el-select
-                v-model="orderForm.customerDeptId"
-                placeholder="请选择送货单位"
-                :disabled="orderForm.orderId != null"
-              >
-                <el-option
-                  v-for="item in customerDeptOptions"
-                  :key="item.id"
-                  :label="item.name"
-                  :value="item.id"
-                />
+              <el-select v-model="orderForm.customerDeptId" placeholder="请选择送货单位" :disabled="orderForm.orderId != null">
+                <el-option v-for="item in customerDeptOptions" :key="item.id" :label="item.name" :value="item.id" />
               </el-select>
             </el-form-item>
             <el-form-item label="配送日期" prop="deliveryDate">
-              <el-date-picker
-                v-model="orderForm.deliveryDate"
-                format="yyyy-MM-dd"
-                value-format="yyyy-MM-dd"
-                placeholder="请选择配送日期"
-                clearable
-              ></el-date-picker>
+              <el-date-picker v-model="orderForm.deliveryDate" format="yyyy-MM-dd" value-format="yyyy-MM-dd"
+                placeholder="请选择配送日期" clearable></el-date-picker>
             </el-form-item>
             <el-form-item prop="orderCode">
               <span slot="label">
                 订单编号
-                <i
-                  class="el-icon-refresh"
-                  @click="refreshOrderCode"
-                  style="cursor: pointer"
-                ></i>
+                <i class="el-icon-refresh" @click="refreshOrderCode" style="cursor: pointer"></i>
               </span>
-              <el-input
-                v-model="orderForm.orderCode"
-                placeholder="请输入订单编号"
-                disabled
-              >
+              <el-input v-model="orderForm.orderCode" placeholder="请输入订单编号" disabled>
               </el-input>
             </el-form-item>
             <el-form-item label="订单备注" prop="remark">
@@ -63,36 +34,19 @@
         <!-- 订单表格 -->
         <div>
           <span>订单表格</span>
-          <vxe-table
-            border
-            resizable
-            show-footer
-            show-overflow
-            keep-source
-            ref="xTable"
-            height="500"
-            size="small"
-            :row-config="{ isHover: true, useKey: true }"
-            :mouse-config="{ selected: true }"
-            :keyboard-config="{
+          <vxe-table border resizable show-footer show-overflow keep-source ref="xTable" height="500" size="small"
+            :row-config="{ isHover: true, useKey: true }" :mouse-config="{ selected: true }" :keyboard-config="{
               isArrow: true,
               isDel: true,
               isEnter: true,
               isTab: true,
               isEdit: true,
               isChecked: true,
-            }"
-            :footer-method="footerMethod"
-            :edit-rules="validRules"
-            :edit-config="{
-              trigger: 'click',
-              mode: 'cell',
-              beforeEditMethod: checkTableActive,
-            }"
-            :data="orderDetailList"
-            @cell-mouseenter="cellMouseenterEvent"
-            @cell-mouseleave="cellMouseleaveEvent"
-          >
+            }" :footer-method="footerMethod" :edit-rules="validRules" :edit-config="{
+  trigger: 'click',
+  mode: 'cell',
+  beforeEditMethod: checkTableActive,
+}" :data="orderDetailList" @cell-mouseenter="cellMouseenterEvent" @cell-mouseleave="cellMouseleaveEvent">
             <!-- 操作列 -->
             <vxe-column field="operate" width="63">
               <template #default="{ row, rowIndex }">
@@ -112,105 +66,52 @@
             </vxe-column>
 
             <vxe-column type="seq" width="50"></vxe-column>
-            <vxe-column
-              field="productName"
-              title="商品名称"
-              :edit-render="{ name: 'VxeInput', autoselect: true }"
-              width="25%"
-            >
+            <vxe-column field="productName" title="商品名称" :edit-render="{ name: 'VxeInput', autoselect: true }"
+              width="25%">
               <!-- 商品名称+报价详情下拉框 -->
               <template #edit="{ row: parentRow }">
-                <vxe-pulldown
-                  ref="pulldownRef"
-                  popup-class-name="product-name-dropdown"
-                  transfer
-                >
+                <vxe-pulldown ref="pulldownRef" popup-class-name="product-name-dropdown" transfer>
                   <template #default>
-                    <vxe-input
-                      v-model="parentRow.productName"
-                      placeholder="请输入商品名称"
-                      clearable
-                      @keyup="keyupEvent"
-                      @focus="focusEvent"
-                      @blur="blurEvent({ parentRow, value: $event.value })"
-                      @clear="clearEvent(parentRow)"
-                    ></vxe-input>
+                    <vxe-input v-model="parentRow.productName" placeholder="请输入商品名称" clearable @keyup="keyupEvent"
+                      @focus="focusEvent" @blur="blurEvent({ parentRow, value: $event.value })"
+                      @clear="clearEvent(parentRow)"></vxe-input>
                   </template>
 
                   <template #dropdown>
                     <div class="my-bodydown4">
-                      <vxe-grid
-                        border
-                        auto-resize
-                        height="auto"
-                        :row-config="{ isHover: true }"
-                        :data="pulldownTableData"
-                        :columns="tableColumn"
-                        @cell-click="
+                      <vxe-grid border auto-resize height="auto" :row-config="{ isHover: true }" :data="pulldownTableData"
+                        :columns="tableColumn" @cell-click="
                           cellClickEvent({ parentRow, row: $event.row })
-                        "
-                      >
+                        ">
                       </vxe-grid>
                     </div>
                   </template>
                 </vxe-pulldown>
               </template>
             </vxe-column>
-            <vxe-column
-              field="productUnit"
-              title="单位"
-              width="8%"
-              :edit-render="{ name: 'input', autoselect: true }"
-            ></vxe-column>
-            <vxe-column
-              field="num"
-              title="数量"
-              cell-type="number"
-              :formatter="decimalFormatter('num')"
-              :edit-render="{ name: 'input', autoselect: true }"
-            >
+            <vxe-column field="productUnit" title="单位" width="8%"
+              :edit-render="{ name: 'input', autoselect: true }"></vxe-column>
+            <vxe-column field="num" title="数量" cell-type="number" :formatter="decimalFormatter('num')"
+              :edit-render="{ name: 'input', autoselect: true }">
               <template #edit="{ row }">
-                <vxe-input
-                  v-model="row.num"
-                  type="text"
-                  @change="calcAmount(row)"
-                ></vxe-input>
+                <vxe-input v-model="row.num" type="text" @change="calcAmount(row)"></vxe-input>
               </template>
             </vxe-column>
-            <vxe-column
-              field="price"
-              title="单价"
-              cell-type="number"
-              :formatter="decimalFormatter('price')"
-              :edit-render="{ name: 'input', autoselect: true }"
-            >
+            <vxe-column field="price" title="单价" cell-type="number" :formatter="decimalFormatter('price')"
+              :edit-render="{ name: 'input', autoselect: true }">
               <template #edit="{ row }">
-                <vxe-input
-                  v-model="row.price"
-                  type="text"
-                  @change="calcAmount(row)"
-                ></vxe-input>
+                <vxe-input v-model="row.price" type="text" @change="calcAmount(row)"></vxe-input>
               </template>
             </vxe-column>
             <vxe-column field="amount" title="金额"> </vxe-column>
-            <vxe-column
-              field="productSpec"
-              title="规格"
-              :edit-render="{ name: 'input', autoselect: true }"
-            ></vxe-column>
-            <vxe-column
-              field="remark"
-              title="备注"
-              :edit-render="{ name: 'input', autoselect: true }"
-            ></vxe-column>
+            <vxe-column field="productSpec" title="规格" :edit-render="{ name: 'input', autoselect: true }"></vxe-column>
+            <vxe-column field="remark" title="备注" :edit-render="{ name: 'input', autoselect: true }"></vxe-column>
           </vxe-table>
         </div>
 
         <!-- 底部工具栏 -->
         <el-form label-width="100px">
-          <el-form-item
-            style="text-align: center; margin-left: -100px; margin-top: 10px"
-          >
+          <el-form-item style="text-align: center; margin-left: -100px; margin-top: 10px">
             <el-button type="primary" @click="submitForm()">保存</el-button>
             <el-button @click="close()">返回</el-button>
           </el-form-item>
@@ -229,56 +130,25 @@
         <div class="recent-order-tab" v-show="currentTab === 'recentOrder'">
           <el-form size="small" label-width="100px">
             <el-form-item label="订单编号">
-              <el-input
-                v-model="recentQuery.orderCode"
-                placeholder="请输入订单编号"
-              />
+              <el-input v-model="recentQuery.orderCode" placeholder="请输入订单编号" />
             </el-form-item>
             <el-form-item label="送货单位">
-              <el-input
-                v-model="recentQuery.customerDeptId"
-                placeholder="请选择送货单位"
-              />
+              <el-input v-model="recentQuery.customerDeptId" placeholder="请选择送货单位" />
             </el-form-item>
             <el-form-item>
-              <el-button
-                type="primary"
-                icon="el-icon-search"
-                size="mini"
-                @click="handleRecentQuery"
-                >搜索</el-button
-              >
-              <el-button icon="el-icon-refresh" size="mini" @click="resetQuery"
-                >重置</el-button
-              >
+              <el-button type="primary" icon="el-icon-search" size="mini" @click="handleRecentQuery">搜索</el-button>
+              <el-button icon="el-icon-refresh" size="mini" @click="resetQuery">重置</el-button>
             </el-form-item>
           </el-form>
-          <el-table v-loading="loading" :data="orderList">
+          <el-table v-loading="loading" :data="recentOrderList">
             <el-table-column label="订单编号" align="center" prop="code" />
-            <el-table-column
-              label="配送时间"
-              align="center"
-              prop="deliveryDate"
-            />
-            <el-table-column
-              label="客户名称"
-              align="center"
-              prop="customerName"
-            />" />
-            <el-table-column
-              label="送货单位"
-              align="center"
-              prop="customerDeptName"
-            />
+            <el-table-column label="配送时间" align="center" prop="deliveryDate" />
+            <el-table-column label="客户名称" align="center" prop="customerName" />" />
+            <el-table-column label="送货单位" align="center" prop="customerDeptName" />
           </el-table>
 
-          <pagination
-            v-show="total > 0"
-            :total="total"
-            :page.sync="recentQuery.pageNum"
-            :limit.sync="recentQuery.pageSize"
-            @pagination="getOrderPageList"
-          />
+          <pagination v-show="total > 0" :total="total" :page.sync="recentQuery.pageNum"
+            :limit.sync="recentQuery.pageSize" @pagination="getOrderPageList" />
         </div>
       </div>
     </div>
@@ -294,6 +164,7 @@ import {
   addSaleDetail,
   updateSaleDetail,
 } from "@/api/order/saleDetail";
+import { customerListQuoteDetail } from "@/api/product/quoteDetail";
 
 import XEUtils from "xe-utils";
 import Sortable from "sortablejs";
@@ -309,6 +180,10 @@ export default {
       loading: true,
       // 总条数
       total: 0,
+      // 默认客户id
+      defaultCustomerId: null,
+      defaultCustomerDeptId: null,
+      defaultOrderId: null,
       // 最近订单查询条件
       recentQuery: {
         pageNum: 1,
@@ -316,6 +191,8 @@ export default {
         orderCode: null,
         customerDeptId: null,
       },
+      // 最近订单列表
+      recentOrderList: [],
       // 送货单位下拉选项
       customerDeptOptions: [],
       // 订单明细列表
@@ -380,12 +257,44 @@ export default {
     }
   },
   created() {
+    // 从路由获取参数
+    const customerDeptIdFromParams = this.$route.params.customerDeptId;
+    const customerIdFromParams = this.$route.query.customerId;
+    const orderIdFromParams = this.$route.query.orderId;
+    this.defaultCustomerId = customerIdFromParams
+      ? parseInt(customerIdFromParams, 10)
+      : null;
+    this.defaultCustomerDeptId = customerDeptIdFromParams
+      ? parseInt(customerDeptIdFromParams, 10)
+      : null;
+    this.defaultOrderId = orderIdFromParams
+      ? parseInt(orderIdFromParams, 10)
+      : null;
+
+    // 设置查询参数
+    this.orderForm.customerId = this.defaultCustomerId;
+    this.orderForm.customerDeptId = this.defaultCustomerDeptId;
+
     // 初始化数据
     this.getSkuQuoteDetailList();
   },
   methods: {
+    /** 获取最近订单列表 */
+    getOrderPageList() {
+
+    },
+    /** 查询最近订单列表 */
+    handleRecentQuery() { },
+    /** 重置查询条件 */
+    resetQuery() { },
     /** 获取当前客户的报价明细列表 */
-    getSkuQuoteDetailList() {
+    async getSkuQuoteDetailList() {
+      const param = {
+        customerId: this.defaultCustomerId
+      }
+      const detailResponse = await customerListQuoteDetail(param);
+      const quoteList = detailResponse.data || [];
+      console.log('quoteList', quoteList);
       // todo 模拟数据
       this.skuQuoteDetails = [
         {
@@ -851,9 +760,9 @@ export default {
       // 根据示例生成 tableColumns
     },
     /** 刷新订单编号 */
-    refreshOrderCode() {},
+    refreshOrderCode() { },
     /** 保存订单信息 */
-    submitForm() {},
+    submitForm() { },
     /** 返回按钮 */
     close() {
       const isUpdated = this.checkTableUpdted();
@@ -863,7 +772,7 @@ export default {
           .then(() => {
             this.$tab.closeOpenPage(orderPage);
           })
-          .catch(() => {});
+          .catch(() => { });
       } else {
         this.$tab.closeOpenPage(orderPage);
       }
@@ -1016,7 +925,7 @@ export default {
             this.handleAddRow();
           }
         })
-        .catch(() => {});
+        .catch(() => { });
     },
     /** 鼠标进入悬浮单元格事件 */
     cellMouseenterEvent({ row, rowIndex, column }) {
@@ -1061,6 +970,7 @@ export default {
         parentRow.productSpec = quoteItem.productSpec;
       } else {
         parentRow.skuId = null;
+        parentRow.productUnit = "斤";
         parentRow.productUnit = "";
         parentRow.productSpec = "";
       }
@@ -1125,6 +1035,7 @@ export default {
   right: 0;
   top: 0;
   padding-top: 3px;
+
   .field-box {
     position: relative;
     height: calc(100vh - 42px);
@@ -1132,6 +1043,7 @@ export default {
     overflow: hidden;
     background-color: cornflowerblue;
   }
+
   .el-scrollbar {
     height: 100%;
   }
@@ -1141,14 +1053,17 @@ export default {
   .el-tabs__header {
     margin-bottom: 0 !important;
   }
+
   .el-tabs__item {
     width: 50%;
     text-align: center;
   }
+
   .el-tabs__nav {
     width: 100%;
   }
 }
+
 .right-scrollbar {
   .el-scrollbar__view {
     padding: 12px 18px 15px 15px;
@@ -1163,6 +1078,7 @@ export default {
 .product-name-dropdown {
   background-color: #fff;
   box-shadow: 0 0 6px 2px rgba(0, 0, 0, 0.1);
+
   .my-bodydown4 {
     width: 600px;
     height: 300px;

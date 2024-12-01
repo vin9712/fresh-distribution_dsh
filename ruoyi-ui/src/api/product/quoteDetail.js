@@ -18,6 +18,15 @@ export function listQuoteDetail(query) {
   })
 }
 
+// 查询客户商品报价明细列表
+export function customerListQuoteDetail(query) {
+  return request({
+    url: '/quote/quoteDetail/customer/list',
+    method: 'get',
+    params: query
+  })
+}
+
 // 查询商品报价明细详细
 export function getQuoteDetail(id) {
   return request({
