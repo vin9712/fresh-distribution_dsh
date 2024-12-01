@@ -1,6 +1,10 @@
 <template>
   <div class="app-container">
     <el-form :model="queryParams" ref="queryForm" size="small" :inline="true" v-show="showSearch" label-width="68px">
+      <el-form-item label="送货单位" prop="customerDeptId">
+        <el-cascader v-model="formSelectedOptions" placeholder="请选择送货单位" :options="customerDeptOptions"
+          @change="handleFormOptionsChanged" :props="{ expandTrigger: 'hover' }" filterable clearable />
+      </el-form-item>
       <el-form-item label="订单编号" prop="code">
         <el-input v-model="queryParams.code" placeholder="请输入订单编号" clearable @keyup.enter.native="handleQuery" />
       </el-form-item>
@@ -150,6 +154,7 @@ import {
   addSale,
   updateSale,
 } from "@/api/order/sale";
+import { listCustomerDept } from "@/api/partner/customerDept";
 
 export default {
   name: "Sale",
@@ -225,9 +230,16 @@ export default {
           { required: true, message: "创建时间不能为空", trigger: "blur" },
         ],
       },
+      // 已选择的列表
+      formSelectedOptions: [],
+      // 送货单位map: <customerDeptId, customerId>
+      customerDeptMap: {},
+      // 送货单位树列表
+      customerDeptOptions: [],
     };
   },
   created() {
+    this.getTreeselect();
     this.getPageList();
   },
   methods: {
@@ -293,17 +305,16 @@ export default {
     },
     /** 新增按钮操作 */
     handleAdd() {
-      // this.reset();
-      // this.open = true;
-      // this.title = "添加销售订单";
-
-      // todo 先选定客户
+      // 先选定客户
+      if (!this.queryParams.customerDeptId && !this.queryParams.customerId) {
+        this.$modal.msgError("请先选择送货单位");
+        return;
+      }
 
       // 跳转到新增详情
       this.$router.push({
-        path: "/order/sale-detail/index/" + 1,
-        // path: "/order/sale-detail/index/" + this.queryParams.customerDeptId,
-        query: { orderId: null, customerId: null },
+        path: "/order/sale-detail/index/" + this.queryParams.customerDeptId,
+        query: { orderId: null, customerId: this.queryParams.customerId },
       });
     },
     /** 修改按钮操作 */
@@ -359,6 +370,39 @@ export default {
         },
         `sale_${new Date().getTime()}.xlsx`
       );
+    },
+    /** 选择送货单位树回调 */
+    handleFormOptionsChanged(value) {
+      const customerDeptId = value[value.length - 1]
+      this.queryParams.customerDeptId = customerDeptId;
+      this.queryParams.customerId = this.customerDeptMap[customerDeptId];
+    },
+    /** 查询商品分类下拉树结构 */
+    getTreeselect() {
+      listCustomerDept().then((response) => {
+        // init customerDeptMap
+        this.customerDeptMap = response.data.reduce((map, item) => {
+          map[item.id] = item.customerId;
+          return map;
+        });
+
+        // init customerDeptOptions
+        const treeList = this.handleTree(response.data);
+        this.customerDeptOptions = this.transformData(treeList);
+      });
+    },
+    /** 树形列表转换为级联列表 */
+    transformData(data) {
+      return data.map((item) => {
+        const newItem = {
+          value: item.id.toString(),
+          label: item.name,
+        };
+        if (Array.isArray(item.children) && item.children.length > 0) {
+          newItem.children = this.transformData(item.children);
+        }
+        return newItem;
+      });
     },
   },
 };

@@ -8,9 +8,9 @@
           <span>订单信息</span>
           <el-form ref="orderForm" :model="orderForm" :rules="rules" size="medium" inline label-width="100px">
             <el-form-item label="送货单位" prop="customerDeptId">
-              <el-select v-model="orderForm.customerDeptId" placeholder="请选择送货单位" :disabled="orderForm.orderId != null">
-                <el-option v-for="item in customerDeptOptions" :key="item.id" :label="item.name" :value="item.id" />
-              </el-select>
+              <el-cascader v-model="formSelectedOptions" placeholder="请选择送货单位" :disabled="orderForm.orderId != null"
+                :options="customerDeptOptions" @change="handleFormOptionsChanged" :props="{ expandTrigger: 'hover' }"
+                filterable clearable />
             </el-form-item>
             <el-form-item label="配送日期" prop="deliveryDate">
               <el-date-picker v-model="orderForm.deliveryDate" format="yyyy-MM-dd" value-format="yyyy-MM-dd"
@@ -140,7 +140,7 @@
               <el-button icon="el-icon-refresh" size="mini" @click="resetQuery">重置</el-button>
             </el-form-item>
           </el-form>
-          <el-table v-loading="loading" :data="recentOrderList">
+          <el-table :data="recentOrderList">
             <el-table-column label="订单编号" align="center" prop="code" />
             <el-table-column label="配送时间" align="center" prop="deliveryDate" />
             <el-table-column label="客户名称" align="center" prop="customerName" />" />
@@ -165,6 +165,7 @@ import {
   updateSaleDetail,
 } from "@/api/order/saleDetail";
 import { customerListQuoteDetail } from "@/api/product/quoteDetail";
+import { listCustomerDept } from "@/api/partner/customerDept";
 
 import XEUtils from "xe-utils";
 import Sortable from "sortablejs";
@@ -176,8 +177,6 @@ export default {
     return {
       // 当前激活 tab
       currentTab: "recentOrder",
-      // 遮罩层
-      loading: true,
       // 总条数
       total: 0,
       // 默认客户id
@@ -193,6 +192,10 @@ export default {
       },
       // 最近订单列表
       recentOrderList: [],
+      // 已选择的列表
+      formSelectedOptions: [],
+      // 送货单位map: <customerDeptId, customerId>
+      customerDeptMap: {},
       // 送货单位下拉选项
       customerDeptOptions: [],
       // 订单明细列表
@@ -271,11 +274,12 @@ export default {
       ? parseInt(orderIdFromParams, 10)
       : null;
 
-    // 设置查询参数
+    // 设置表单参数
     this.orderForm.customerId = this.defaultCustomerId;
     this.orderForm.customerDeptId = this.defaultCustomerDeptId;
 
     // 初始化数据
+    this.getTreeselect();
     this.getSkuQuoteDetailList();
   },
   methods: {
@@ -762,7 +766,14 @@ export default {
     /** 刷新订单编号 */
     refreshOrderCode() { },
     /** 保存订单信息 */
-    submitForm() { },
+    submitForm() {
+      console.log('this.orderForm', this.orderForm);
+      this.$refs["orderForm"].validate((valid) => {
+        if (valid) {
+
+        }
+      });
+    },
     /** 返回按钮 */
     close() {
       const isUpdated = this.checkTableUpdted();
@@ -1015,6 +1026,64 @@ export default {
       } else {
         this.pulldownTableData = this.skuQuoteDetails;
       }
+    },
+    /** 选择送货单位树回调 */
+    handleFormOptionsChanged(value) {
+      const customerDeptId = value[value.length - 1]
+      this.orderForm.customerDeptId = customerDeptId;
+      this.orderForm.customerId = this.customerDeptMap[customerDeptId];
+    },
+    /** 查询商品分类下拉树结构 */
+    getTreeselect() {
+      listCustomerDept().then((response) => {
+        // init customerDeptMap
+        this.customerDeptMap = response.data.reduce((map, item) => {
+          map[item.id] = item.customerId;
+          return map;
+        });
+
+        // init customerDeptOptions
+        const treeList = this.handleTree(response.data);
+        this.customerDeptOptions = this.transformData(treeList);
+      }).then(() => {
+        // 构造级联选择器选中的数据
+        this.formSelectedOptions = this.fillWithParentCustomerDeptId(
+          this.customerDeptOptions,
+          this.orderForm.customerDeptId.toString()
+        );
+      })
+    },
+    /** 树形列表转换为级联列表 */
+    transformData(data) {
+      return data.map((item) => {
+        const newItem = {
+          value: item.id.toString(),
+          label: item.name,
+        };
+        if (Array.isArray(item.children) && item.children.length > 0) {
+          newItem.children = this.transformData(item.children);
+        }
+        return newItem;
+      });
+    },
+    /** 根据 id 构造父节点列表，并添加自身 */
+    fillWithParentCustomerDeptId(list, id) {
+      if (!id) return [];
+      function getParents(nodes, targetId, path = []) {
+        for (const node of nodes) {
+          path.push(node.value);
+          if (
+            node.value === targetId ||
+            (node.children && getParents(node.children, targetId, path))
+          ) {
+            return path;
+          }
+          path.pop();
+        }
+        return null;
+      }
+
+      return getParents(list, id) || [];
     },
   },
 };
