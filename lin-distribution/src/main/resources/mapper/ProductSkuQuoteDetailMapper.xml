@@ -28,6 +28,7 @@
                sqd.quote_id,
                sqd.sku_id,
                sku.code as productCode,
+               sku.mnemonic_code as productMnemonicCode,
                sku.category_id,
                category.name as categoryName,
                sqd.product_name,

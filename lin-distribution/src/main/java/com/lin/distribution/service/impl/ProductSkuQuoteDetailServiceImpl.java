@@ -11,6 +11,7 @@ import com.lin.distribution.service.ProductSkuQuoteDetailService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
+import org.springframework.beans.BeanUtils;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
@@ -69,10 +70,12 @@ public class ProductSkuQuoteDetailServiceImpl implements ProductSkuQuoteDetailSe
             for (ProductSku sku : skuList) {
                 ProductSkuQuoteDetail detail = new ProductSkuQuoteDetail();
                 detail.setCustomerId(customerId);
+                detail.setCategoryId(sku.getCategoryId());
                 detail.setCategoryName(sku.getCategoryName());
                 detail.setQuoteId(quoteId);
                 detail.setSkuId(sku.getId());
                 detail.setProductCode(sku.getCode());
+                detail.setProductMnemonicCode(sku.getMnemonicCode());
                 detail.setProductName(sku.getName());
                 detail.setProductUnit(sku.getUnit());
                 detail.setProductSpec(sku.getSpec());
@@ -99,6 +102,7 @@ public class ProductSkuQuoteDetailServiceImpl implements ProductSkuQuoteDetailSe
                 Long skuId = quoteDetail.getSkuId();
                 ProductSkuQuoteDetail skuQuoteDetail = skuQuoteDetailMap.get(skuId);
                 if (skuQuoteDetail != null) {
+                    skuQuoteDetail.setId(quoteDetail.getId());
                     skuQuoteDetail.setQuoteId(quoteDetail.getQuoteId());
                     skuQuoteDetail.setPrice(quoteDetail.getPrice());
                     result.add(skuQuoteDetail);

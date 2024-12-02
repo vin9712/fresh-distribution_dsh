@@ -534,10 +534,9 @@ export default {
     getTreeselect() {
       listCustomerDept().then((response) => {
         // init customerDeptMap
-        this.customerDeptMap = response.data.reduce((map, item) => {
-          map[item.id] = item.customerId;
-          return map;
-        });
+        this.customerDeptMap = Object.fromEntries(
+          response.data.map(({ id, customerId }) => [id, customerId])
+        );
 
         // init customerDeptOptions
         const treeList = this.handleTree(response.data);

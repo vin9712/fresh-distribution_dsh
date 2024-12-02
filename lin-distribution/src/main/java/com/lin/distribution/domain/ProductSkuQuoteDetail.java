@@ -89,6 +89,11 @@ public class ProductSkuQuoteDetail extends BaseEntity {
     @TableField(exist = false)
     private String productCode;
     /**
+     * 商品助记码(来自 sku 表)
+     */
+    @TableField(exist = false)
+    private String productMnemonicCode;
+    /**
      * 商品分类ID(来自 spu 表)
      */
     @TableField(exist = false)
