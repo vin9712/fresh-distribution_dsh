@@ -75,7 +75,7 @@ public class SaleOrder extends BaseEntity {
      */
     @JsonFormat(pattern = "yyyy-MM-dd")
     @Excel(name = "预计配送日期", width = 30, dateFormat = "yyyy-MM-dd")
-    private Date deliverDate;
+    private Date deliveryDate;
 
     /**
      * 逻辑删除

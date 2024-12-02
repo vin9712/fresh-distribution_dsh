@@ -218,7 +218,7 @@ CREATE TABLE `t_sale_order`
     `type`             tinyint(3) unsigned NOT NULL COMMENT '订单类型：1正常订单,2加单',
     `amount`           decimal(10, 2) unsigned NOT NULL COMMENT '总金额',
     `status`           tinyint(3) unsigned NOT NULL COMMENT '状态：0制单,1审核,2送货,3验收,4完成',
-    `deliver_date`     date         NOT NULL COMMENT '预计配送日期',
+    `delivery_date`     date         NOT NULL COMMENT '预计配送日期',
     `is_deleted`       tinyint(1) NOT NULL DEFAULT '0' COMMENT '逻辑删除',
     `version`          int(10) unsigned NOT NULL DEFAULT '0' COMMENT '版本号',
     `create_by`        varchar(64)           DEFAULT '' COMMENT '创建者',
@@ -232,7 +232,7 @@ CREATE TABLE `t_sale_order`
     KEY                `idx_customer_id` (`customer_id`) USING BTREE,
     KEY                `idx_customer_dept_id` (`customer_dept_id`) USING BTREE,
     KEY                `idx_status` (`status`) USING BTREE,
-    KEY                `idx_deliver_date` (`deliver_date`) USING BTREE,
+    KEY                `idx_delivery_date` (`delivery_date`) USING BTREE,
     KEY                `idx_create_time` (`create_time`) USING BTREE,
     KEY                `idx_type` (`type`) USING BTREE
 ) ENGINE=InnoDB AUTO_INCREMENT=1 DEFAULT CHARSET=utf8 ROW_FORMAT=DYNAMIC COMMENT='销售订单表';
