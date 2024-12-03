@@ -439,15 +439,6 @@ export default {
     this.initDeliveryDate();
     this.getSkuQuoteDetailList();
   },
-  watch: {
-    orderDetailList: function (oldVal, newVal) {
-      const orderId = this.orderForm.orderId;
-      if (orderId != null) {
-        this.customerDeptDisabled = true;
-        return;
-      }
-    },
-  },
   methods: {
     /** 获取最近订单列表 */
     getOrderPageList() {},
@@ -642,6 +633,9 @@ export default {
           ? this.orderDetailList.length
           : rowIndex + 1;
       this.orderDetailList.splice(index, 0, newRecord);
+
+      // check & update customerDept cascader status
+      this.updateCustomerDeptStatus();
     },
     /** 减少行 */
     handleRemoveRow(row) {
@@ -659,6 +653,8 @@ export default {
           if (length <= 1) {
             this.handleAddRow();
           }
+          // check & update customerDept cascader status
+          this.updateCustomerDeptStatus();
         })
         .catch(() => {});
     },
@@ -758,6 +754,11 @@ export default {
     },
     /** 选择送货单位树回调 */
     handleFormOptionsChanged(value) {
+      // init table item
+      this.orderDetailList = [];
+      this.handleAddRow();
+
+      // init customerDeptId
       const customerDeptId = value[value.length - 1];
       this.orderForm.customerDeptId = customerDeptId;
       this.orderForm.customerId = this.customerDeptMap[customerDeptId];
@@ -817,8 +818,6 @@ export default {
     },
     /** 商品单位变更事件 */
     changedProductUnitEvent(row) {
-      console.log("changedProductUnitEvent", row);
-
       const skuQuote = this.skuQuoteDetails.find(
         (item) =>
           item.productName === row.productName &&
@@ -831,6 +830,21 @@ export default {
         row.skuId = skuQuote.skuId;
       } else {
         row.skuId = null;
+      }
+    },
+    /** 更新送货单位下拉选择器状态 */
+    updateCustomerDeptStatus() {
+      const orderId = this.orderForm.orderId;
+      if (orderId != null) {
+        this.customerDeptDisabled = true;
+        return;
+      }
+
+      // 只有 orderDetailList 为空或只有一条数据时才为 false
+      if (this.orderDetailList.length > 1) {
+        this.customerDeptDisabled = true;
+      } else {
+        this.customerDeptDisabled = false;
       }
     },
   },
