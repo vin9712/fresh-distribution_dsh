@@ -14,16 +14,24 @@
             inline
             label-width="100px"
           >
-            <el-form-item label="送货单位" prop="customerDeptId">
+            <el-form-item prop="customerDeptId">
+              <span slot="label">
+                送货单位
+                <el-tooltip
+                  content="查看模式或有新增明细时不可修改"
+                  placement="top"
+                >
+                  <i class="el-icon-question"></i>
+                </el-tooltip>
+              </span>
               <el-cascader
                 v-model="formSelectedOptions"
                 placeholder="请选择送货单位"
-                :disabled="orderForm.orderId != null"
+                :disabled="customerDeptDisabled"
                 :options="customerDeptOptions"
                 @change="handleFormOptionsChanged"
                 :props="{ expandTrigger: 'hover' }"
                 filterable
-                clearable
               />
             </el-form-item>
             <el-form-item label="配送日期" prop="deliveryDate">
@@ -337,6 +345,8 @@ export default {
       customerDeptMap: {},
       // 送货单位下拉选项
       customerDeptOptions: [],
+      // 送货单位是否禁用
+      customerDeptDisabled: false,
       // 订单明细列表
       orderDetailList: [],
       // 订单表单
@@ -420,11 +430,23 @@ export default {
     this.orderForm.customerId = this.defaultCustomerId;
     this.orderForm.customerDeptId = this.defaultCustomerDeptId;
 
+    // 初始化送货单位下拉列表
+    this.customerDeptDisabled = this.orderForm.orderId != null;
+
     // 初始化数据
     this.getOrderCode();
     this.getTreeselect();
     this.initDeliveryDate();
     this.getSkuQuoteDetailList();
+  },
+  watch: {
+    orderDetailList: function (oldVal, newVal) {
+      const orderId = this.orderForm.orderId;
+      if (orderId != null) {
+        this.customerDeptDisabled = true;
+        return;
+      }
+    },
   },
   methods: {
     /** 获取最近订单列表 */
