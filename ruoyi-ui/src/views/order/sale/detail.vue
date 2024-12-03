@@ -303,15 +303,13 @@
 
 <script>
 import {
-  pageSaleDetail,
-  listSaleDetail,
-  getSaleDetail,
-  delSaleDetail,
-  addSaleDetail,
-  updateSaleDetail,
-} from "@/api/order/saleDetail";
+  getSale,
+  genOrderCode,
+  createSaleOrder,
+  updateSaleOrder,
+} from "@/api/order/sale";
+import { listSaleDetail } from "@/api/order/saleDetail";
 import { customerListQuoteDetail } from "@/api/product/quoteDetail";
-import { genOrderCode } from "@/api/order/sale";
 import { listCustomerDept } from "@/api/partner/customerDept";
 
 import XEUtils from "xe-utils";
@@ -357,6 +355,7 @@ export default {
         customerDeptId: null,
         deliveryDate: null,
         remark: null,
+        orderDetails: [],
       },
       // 订单校验
       rules: {
@@ -486,6 +485,27 @@ export default {
       console.log("this.orderDetails", this.orderDetailList);
       this.$refs["orderForm"].validate((valid) => {
         if (valid) {
+          // set orderDetails
+          if (this.orderDetailList.length == 0) {
+            this.$modal.msgError("订单明细列表不能为空！");
+            return;
+          }
+          this.orderForm.orderDetails = this.orderDetailList;
+
+          // save or update order
+          if (this.orderForm.orderId) {
+            updateSaleOrder(this.orderForm).then((response) => {
+              if (response.code === 200) {
+                this.$modal.msgSuccess("修改成功");
+              }
+            });
+          } else {
+            createSaleOrder(this.orderForm).then((response) => {
+              if (response.code === 200) {
+                this.$modal.msgSuccess("新增成功");
+              }
+            });
+          }
         }
       });
     },

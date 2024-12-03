@@ -138,7 +138,7 @@ public class ProductSkuQuoteServiceImpl implements ProductSkuQuoteService {
                 .code(request.getQuoteCode())
                 .effectiveStartDate(request.getEffectiveStartDate())
                 .effectiveEndDate(request.getEffectiveEndDate())
-                .status(0)
+                .status(ProductSkuQuoteStatus.NEW.getCode())
                 .valid(0)
                 .version(0)
                 .isDeleted(false)

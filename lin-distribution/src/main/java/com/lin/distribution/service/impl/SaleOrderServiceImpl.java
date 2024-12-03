@@ -1,18 +1,29 @@
 package com.lin.distribution.service.impl;
 
+import com.lin.common.exception.ServiceException;
 import com.lin.common.utils.DateUtils;
+import com.lin.distribution.constant.SaleOrderStatus;
 import com.lin.distribution.domain.SaleOrder;
+import com.lin.distribution.domain.SaleOrderDetail;
+import com.lin.distribution.dto.SaleOrderCreateDTO;
+import com.lin.distribution.mapper.SaleOrderDetailMapper;
 import com.lin.distribution.mapper.SaleOrderMapper;
 import com.lin.distribution.service.SaleOrderService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.BooleanUtils;
 import org.apache.commons.lang3.StringUtils;
+import org.apache.commons.lang3.math.NumberUtils;
 import org.redisson.api.RMap;
 import org.redisson.api.RedissonClient;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.List;
+import java.util.Optional;
 
 /**
  * 销售订单Service业务层处理
@@ -25,6 +36,7 @@ import java.util.List;
 @RequiredArgsConstructor
 public class SaleOrderServiceImpl implements SaleOrderService {
     private final SaleOrderMapper saleOrderMapper;
+    private final SaleOrderDetailMapper saleOrderDetailMapper;
     private final RedissonClient redissonClient;
 
     /**
@@ -99,6 +111,128 @@ public class SaleOrderServiceImpl implements SaleOrderService {
     @Override
     public String generateSaleOrderNo(Boolean refresh, String currentCode) {
         return generateOrderNo(refresh, currentCode);
+    }
+
+    @Override
+    @Transactional
+    public SaleOrder createSaleOrder(SaleOrderCreateDTO request) {
+        checkCreateOrUpdateOrderRequest(request);
+
+        Long customerId = request.getCustomerId();
+        Long customerDeptId = request.getCustomerDeptId();
+        String orderCode = request.getOrderCode();
+        List<SaleOrderDetail> orderDetails = request.getOrderDetails();
+        // calc amount
+        BigDecimal amount = orderDetails.stream().map(it -> {
+            BigDecimal productNum = Optional.ofNullable(it.getNum()).orElse(BigDecimal.ZERO);
+            BigDecimal productPrice = Optional.ofNullable(it.getProductPrice()).orElse(BigDecimal.ZERO);
+            BigDecimal expectAmount = NumberUtils.toScaledBigDecimal(productNum.multiply(productPrice), 2, RoundingMode.HALF_UP);
+            // set expectAmount
+            it.setExpectAmount(expectAmount);
+            // return to calc sum amount
+            return expectAmount;
+        }).reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        SaleOrder order = SaleOrder.builder()
+                .customerId(customerId)
+                .customerDeptId(customerDeptId)
+                .code(orderCode)
+                .deliveryDate(request.getDeliveryDate())
+                .amount(amount)
+                .status(SaleOrderStatus.NEW.getCode())
+                .source(1)
+                .type(1)
+                .version(0)
+                .isDeleted(Boolean.FALSE)
+                .build();
+        order.setRemark(request.getRemark());
+        saleOrderMapper.insertSaleOrder(order);
+
+        // batch insert order details
+        Long orderId = order.getId();
+        orderDetails.forEach(detail -> {
+            detail.setOrderId(orderId);
+            detail.setOrderCode(orderCode);
+            detail.setCustomerId(customerId);
+            detail.setCustomerDeptId(customerDeptId);
+            detail.setIsDeleted(Boolean.FALSE);
+            detail.setVersion(0);
+            saleOrderDetailMapper.insertSaleOrderDetail(detail);
+        });
+
+        // increase orderCode
+        generateOrderNo(true);
+
+        return order;
+    }
+
+    @Override
+    @Transactional
+    public SaleOrder updateSaleOrderWithDetails(SaleOrderCreateDTO request) {
+        checkCreateOrUpdateOrderRequest(request);
+        Long orderId = request.getOrderId();
+        if (orderId == null) {
+            throw new ServiceException("order id is null");
+        }
+
+        Long customerId = request.getCustomerId();
+        Long customerDeptId = request.getCustomerDeptId();
+        String orderCode = request.getOrderCode();
+        List<SaleOrderDetail> orderDetails = request.getOrderDetails();
+        // calc amount
+        BigDecimal amount = orderDetails.stream().map(it -> {
+            BigDecimal productNum = Optional.ofNullable(it.getNum()).orElse(BigDecimal.ZERO);
+            BigDecimal productPrice = Optional.ofNullable(it.getProductPrice()).orElse(BigDecimal.ZERO);
+            BigDecimal expectAmount = NumberUtils.toScaledBigDecimal(productNum.multiply(productPrice), 2, RoundingMode.HALF_UP);
+            // set expectAmount
+            it.setExpectAmount(expectAmount);
+            // return to calc sum amount
+            return expectAmount;
+        }).reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        SaleOrder order = saleOrderMapper.selectSaleOrderById(orderId);
+
+        // update order
+        order.setDeliveryDate(request.getDeliveryDate());
+        order.setAmount(amount);
+        order.setRemark(request.getRemark());
+        saleOrderMapper.updateSaleOrder(order);
+
+        saleOrderDetailMapper.deleteSaleOrderDetailByOrderId(orderId);
+
+        // batch insert order details
+        orderDetails.forEach(detail -> {
+            detail.setOrderId(orderId);
+            detail.setOrderCode(orderCode);
+            detail.setCustomerId(customerId);
+            detail.setCustomerDeptId(customerDeptId);
+            detail.setIsDeleted(false);
+            detail.setVersion(0);
+            saleOrderDetailMapper.insertSaleOrderDetail(detail);
+        });
+
+        return order;
+    }
+
+    private void checkCreateOrUpdateOrderRequest(SaleOrderCreateDTO request) {
+        List<SaleOrderDetail> orderDetails = request.getOrderDetails();
+        if (CollectionUtils.isEmpty(orderDetails)) {
+            throw new ServiceException("order details is empty");
+        }
+
+        Long orderId = request.getOrderId();
+        if (orderId == null) {
+            // check order code
+            SaleOrder saleOrder = saleOrderMapper.selectSaleOrderByCode(request.getOrderCode());
+            if (saleOrder != null) {
+                throw new ServiceException("sale order no existed");
+            }
+        } else {
+            SaleOrder saleOrder = saleOrderMapper.selectSaleOrderById(orderId);
+            if (!SaleOrderStatus.NEW.getCode().equals(saleOrder.getStatus())) {
+                throw new ServiceException("order status must be NEW");
+            }
+        }
     }
 
     private String generateOrderNo(Boolean refresh) {

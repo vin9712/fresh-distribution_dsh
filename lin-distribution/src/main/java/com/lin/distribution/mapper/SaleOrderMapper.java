@@ -20,6 +20,13 @@ public interface SaleOrderMapper {
     SaleOrder selectSaleOrderById(Long id);
 
     /**
+     * 根据订单编号查询订单
+     * @param orderCode 订单编号
+     * @return
+     */
+    SaleOrder selectSaleOrderByCode(String orderCode);
+
+    /**
      * 查询销售订单列表
      *
      * @param saleOrder 销售订单
@@ -58,4 +65,5 @@ public interface SaleOrderMapper {
      * @return 结果
      */
     int deleteSaleOrderByIds(Long[] ids);
+
 }

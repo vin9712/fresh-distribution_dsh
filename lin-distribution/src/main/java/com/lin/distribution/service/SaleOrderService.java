@@ -1,6 +1,7 @@
 package com.lin.distribution.service;
 
 import com.lin.distribution.domain.SaleOrder;
+import com.lin.distribution.dto.SaleOrderCreateDTO;
 
 import java.util.List;
 
@@ -65,5 +66,19 @@ public interface SaleOrderService {
      * @param currentCode
      * @return
      */
-    public String generateSaleOrderNo(Boolean refresh, String currentCode);
+    String generateSaleOrderNo(Boolean refresh, String currentCode);
+
+    /**
+     * 创建销售订单+详情
+     * @param request
+     * @return
+     */
+    SaleOrder createSaleOrder(SaleOrderCreateDTO request);
+
+    /**
+     * 更新销售订单+详情
+     * @param request
+     * @return
+     */
+    SaleOrder updateSaleOrderWithDetails(SaleOrderCreateDTO request);
 }

@@ -43,13 +43,14 @@ public interface SaleOrderDetailMapper {
      */
     int updateSaleOrderDetail(SaleOrderDetail saleOrderDetail);
 
+
     /**
-     * 删除销售订单详情
+     * 根据 orderId 删除销售订单详情
      *
-     * @param id 销售订单详情主键
+     * @param orderId 销售订单主键
      * @return 结果
      */
-    int deleteSaleOrderDetailById(Long id);
+    int deleteSaleOrderDetailByOrderId(Long orderId);
 
     /**
      * 批量删除销售订单详情

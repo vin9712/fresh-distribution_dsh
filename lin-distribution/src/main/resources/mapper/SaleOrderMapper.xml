@@ -46,6 +46,11 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         where id = #{id}
     </select>
 
+    <select id="selectSaleOrderByCode" resultMap="SaleOrderResult">
+        <include refid="selectSaleOrderVo"/>
+        where code = #{code}
+    </select>
+
     <insert id="insertSaleOrder" parameterType="com.lin.distribution.domain.SaleOrder" useGeneratedKeys="true" keyProperty="id">
         insert into t_sale_order
         <trim prefix="(" suffix=")" suffixOverrides=",">

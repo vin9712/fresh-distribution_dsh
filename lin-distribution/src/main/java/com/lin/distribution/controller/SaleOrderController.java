@@ -7,11 +7,13 @@ import com.lin.common.core.page.TableDataInfo;
 import com.lin.common.enums.BusinessType;
 import com.lin.common.utils.poi.ExcelUtil;
 import com.lin.distribution.domain.SaleOrder;
+import com.lin.distribution.dto.SaleOrderCreateDTO;
 import com.lin.distribution.service.SaleOrderService;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -108,5 +110,27 @@ public class SaleOrderController extends BaseController {
     public AjaxResult generateSaleOrderNo(@RequestParam(name = "refresh", required = false, defaultValue = "false") Boolean refresh,
                                           @RequestParam(name = "currentCode", required = false) String currentCode) {
         return success(saleOrderService.generateSaleOrderNo(refresh, currentCode));
+    }
+
+    /**
+     * 创建销售订单+详情
+     *
+     * @param request
+     * @return
+     */
+    @PostMapping("/create")
+    public AjaxResult createSaleOrder(@RequestBody @Validated SaleOrderCreateDTO request) {
+        return success(saleOrderService.createSaleOrder(request));
+    }
+
+    /**
+     * 更新销售订单+详情
+     *
+     * @param request
+     * @return
+     */
+    @PutMapping("/update")
+    public AjaxResult updateSaleOrder(@RequestBody @Validated SaleOrderCreateDTO request) {
+        return success(saleOrderService.updateSaleOrderWithDetails(request));
     }
 }

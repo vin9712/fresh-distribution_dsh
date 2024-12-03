@@ -35,6 +35,25 @@ export function addSale(data) {
   })
 }
 
+
+// 新增销售订单+明细
+export function createSaleOrder(data) {
+  return request({
+    url: '/order/sale/create',
+    method: 'post',
+    data: data
+  })
+}
+
+// 修改销售订单+明细
+export function updateSaleOrder(data) {
+  return request({
+    url: '/order/sale/update',
+    method: 'put',
+    data: data
+  })
+}
+
 // 修改销售订单
 export function updateSale(data) {
   return request({

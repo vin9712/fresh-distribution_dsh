@@ -1,6 +1,7 @@
 package com.lin.distribution.domain;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.Date;
 
 import com.baomidou.mybatisplus.annotation.Version;
@@ -75,7 +76,7 @@ public class SaleOrder extends BaseEntity {
      */
     @JsonFormat(pattern = "yyyy-MM-dd")
     @Excel(name = "预计配送日期", width = 30, dateFormat = "yyyy-MM-dd")
-    private Date deliveryDate;
+    private LocalDate deliveryDate;
 
     /**
      * 逻辑删除
