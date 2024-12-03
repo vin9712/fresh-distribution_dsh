@@ -19,7 +19,7 @@ export function listSale(query) {
 }
 
 // 查询销售订单详细
-export function getSale(id) {
+export function getSaleOrder(id) {
   return request({
     url: '/order/sale/' + id,
     method: 'get'

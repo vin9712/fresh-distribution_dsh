@@ -52,6 +52,15 @@ public interface SaleOrderDetailMapper {
      */
     int deleteSaleOrderDetailByOrderId(Long orderId);
 
+
+    /**
+     * 删除销售订单详情
+     *
+     * @param id 销售订单明细主键
+     * @return 结果
+     */
+    int deleteSaleOrderDetailById(Long id);
+
     /**
      * 批量删除销售订单详情
      *

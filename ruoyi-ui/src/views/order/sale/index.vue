@@ -302,7 +302,7 @@
 import {
   pageSale,
   listSale,
-  getSale,
+  getSaleOrder,
   delSale,
   addSale,
   updateSale,
@@ -474,7 +474,7 @@ export default {
     handleUpdate(row) {
       this.reset();
       const id = row.id || this.ids;
-      getSale(id).then((response) => {
+      getSaleOrder(id).then((response) => {
         this.form = response.data;
         this.open = true;
         this.title = "修改销售订单";

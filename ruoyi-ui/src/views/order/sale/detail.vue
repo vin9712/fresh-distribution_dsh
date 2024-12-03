@@ -194,15 +194,15 @@
               </template>
             </vxe-column>
             <vxe-column
-              field="price"
+              field="productPrice"
               title="单价"
               cell-type="number"
-              :formatter="decimalFormatter('price')"
+              :formatter="decimalFormatter('productPrice')"
               :edit-render="{ name: 'input', autoselect: true }"
             >
               <template #edit="{ row }">
                 <vxe-input
-                  v-model="row.price"
+                  v-model="row.productPrice"
                   type="text"
                   @change="calcAmount(row)"
                 ></vxe-input>
@@ -303,7 +303,7 @@
 
 <script>
 import {
-  getSale,
+  getSaleOrder,
   genOrderCode,
   createSaleOrder,
   updateSaleOrder,
@@ -378,7 +378,7 @@ export default {
           { required: true, message: "商品单位不能为空", trigger: "blur" },
         ],
         num: [{ required: true, message: "商品数量不能为空", trigger: "blur" }],
-        price: [
+        productPrice: [
           { required: true, message: "商品单价不能为空", trigger: "blur" },
         ],
       },
@@ -433,9 +433,8 @@ export default {
     this.customerDeptDisabled = this.orderForm.orderId != null;
 
     // 初始化数据
-    this.getOrderCode();
     this.getTreeselect();
-    this.initDeliveryDate();
+    this.initOrderDetailPage();
     this.getSkuQuoteDetailList();
   },
   methods: {
@@ -448,30 +447,46 @@ export default {
     /** 获取当前客户的报价明细列表 */
     async getSkuQuoteDetailList() {
       const param = {
-        customerId: this.defaultCustomerId,
+        customerId: this.orderForm.customerId || this.defaultCustomerId,
       };
       const detailResponse = await customerListQuoteDetail(param);
       this.skuQuoteDetails = detailResponse.data || [];
     },
-    /** 初始化送货日期 */
-    initDeliveryDate() {
-      if (!this.orderForm.orderId) {
-        const today = new Date();
-        const nowHour = today.getHours();
-        const tomorrow = new Date(today);
-        tomorrow.setDate(today.getDate() + 1);
+    /** 初始化订单明细页 */
+    initOrderDetailPage(orderId) {
+      // 初始化页面
+      if (orderId) {
+        // 获取当前 order 信息
+        getSaleOrder(orderId).then((response) => {
+          const orderData = response.data;
+          this.orderForm = {
+            ...orderData,
+            orderId: orderData.id,
+            orderCode: orderData.code,
+          };
+          // todo init orderDetailList
+        });
+      } else {
+        genOrderCode()
+          .then((response) => {
+            // 初始化订单编号
+            this.orderForm.orderCode = response.msg;
+          })
+          .then(() => {
+            // 初始化送货日期
+            const today = new Date();
+            const nowHour = today.getHours();
+            const tomorrow = new Date(today);
+            tomorrow.setDate(today.getDate() + 1);
 
-        // 若当前时间小于15点，则送货时间为今天，否则为明天
-        const deliveryDate = nowHour < 15 ? today : tomorrow;
-        this.orderForm.deliveryDate = deliveryDate;
+            // 若当前时间小于15点，则送货时间为今天，否则为明天
+            const deliveryDate = nowHour < 15 ? today : tomorrow;
+            this.orderForm.deliveryDate = deliveryDate;
+          });
       }
     },
     /** 获取当前订单编号 */
-    getOrderCode() {
-      genOrderCode().then((response) => {
-        this.orderForm.orderCode = response.msg;
-      });
-    },
+    getOrderCode() {},
     /** 刷新订单编号 */
     refreshOrderCode() {
       let param = { currentCode: this.orderForm.orderCode };
@@ -481,8 +496,6 @@ export default {
     },
     /** 保存订单信息 */
     submitForm() {
-      console.log("this.orderForm", this.orderForm);
-      console.log("this.orderDetails", this.orderDetailList);
       this.$refs["orderForm"].validate((valid) => {
         if (valid) {
           // set orderDetails
@@ -497,12 +510,15 @@ export default {
             updateSaleOrder(this.orderForm).then((response) => {
               if (response.code === 200) {
                 this.$modal.msgSuccess("修改成功");
+                this.initOrderDetailPage(this.orderForm.orderId);
               }
             });
           } else {
             createSaleOrder(this.orderForm).then((response) => {
               if (response.code === 200) {
                 this.$modal.msgSuccess("新增成功");
+                const orderId = response.data.id;
+                this.initOrderDetailPage(orderId);
               }
             });
           }
@@ -544,7 +560,7 @@ export default {
     /** 计算商品小计 */
     calcAmount(row) {
       if (!row) return;
-      let price = XEUtils.toNumber(row.price);
+      let price = XEUtils.toNumber(row.productPrice);
       let num = XEUtils.toNumber(row.num);
       let formatAmount = XEUtils.commafy(price * num, {
         digits: 2,
@@ -644,7 +660,7 @@ export default {
       const newRecord = {
         productUnit: "斤",
         num: "0.00",
-        price: "0.00",
+        productPrice: "0.00",
         amount: "0.00",
       };
 
@@ -738,7 +754,7 @@ export default {
       parentRow.productSpec = "";
       parentRow.remark = "";
       parentRow.num = "0.00";
-      parentRow.price = "0.00";
+      parentRow.productPrice = "0.00";
       parentRow.amount = "0.00";
 
       // 重设列表
@@ -753,6 +769,7 @@ export default {
         parentRow.productName = row.productName;
         parentRow.productUnit = row.productUnit;
         parentRow.productSpec = row.productSpec;
+        parentRow.productPrice = row.price;
         parentRow.skuId = row.skuId;
 
         // 聚焦到数量单元格
@@ -782,6 +799,9 @@ export default {
       const customerDeptId = value[value.length - 1];
       this.orderForm.customerDeptId = customerDeptId;
       this.orderForm.customerId = this.customerDeptMap[customerDeptId];
+
+      // init skuQuoteDetails
+      this.getSkuQuoteDetailList();
     },
     /** 查询商品分类下拉树结构 */
     getTreeselect() {

@@ -133,6 +133,7 @@ public class SaleOrderServiceImpl implements SaleOrderService {
             return expectAmount;
         }).reduce(BigDecimal.ZERO, BigDecimal::add);
 
+        // insert order
         SaleOrder order = SaleOrder.builder()
                 .customerId(customerId)
                 .customerDeptId(customerDeptId)
