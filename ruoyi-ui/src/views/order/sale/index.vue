@@ -300,7 +300,7 @@
 
 <script>
 import {
-  pageSale,
+  pageSaleOrder,
   listSale,
   getSaleOrder,
   delSale,
@@ -407,7 +407,7 @@ export default {
     /** 分页查询销售订单列表 */
     getPageList() {
       this.loading = true;
-      pageSale(this.queryParams).then((response) => {
+      pageSaleOrder(this.queryParams).then((response) => {
         this.saleList = response.rows;
         this.total = response.total;
         this.loading = false;

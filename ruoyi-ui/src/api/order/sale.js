@@ -1,7 +1,7 @@
 import request from '@/utils/request'
 
 // 分页查询销售订单列表
-export function pageSale(query) {
+export function pageSaleOrder(query) {
   return request({
     url: '/order/sale/page',
     method: 'get',

@@ -303,6 +303,7 @@
 
 <script>
 import {
+  pageSaleOrder,
   getSaleOrder,
   genOrderCode,
   createSaleOrder,
@@ -439,9 +440,17 @@ export default {
   },
   methods: {
     /** 获取最近订单列表 */
-    getOrderPageList() {},
+    getOrderPageList() {
+      pageSaleOrder(this.recentQuery).then((response) => {
+        this.recentOrderList = response.rows;
+        this.total = response.total;
+      });
+    },
     /** 查询最近订单列表 */
-    handleRecentQuery() {},
+    handleRecentQuery() {
+      this.recentQuery.pageNum = 1;
+      this.getOrderPageList();
+    },
     /** 重置查询条件 */
     resetQuery() {},
     /** 获取当前客户的报价明细列表 */
@@ -463,8 +472,12 @@ export default {
             ...orderData,
             orderId: orderData.id,
             orderCode: orderData.code,
-          };
-          // todo init orderDetailList
+          }.then(() => {
+            // 获取当前 orderDetail 列表
+            listSaleDetail({ orderId: orderId }).then((response) => {
+              this.orderDetailList = response.data;
+            });
+          });
         });
       } else {
         genOrderCode()
@@ -484,6 +497,8 @@ export default {
             this.orderForm.deliveryDate = deliveryDate;
           });
       }
+      // 初始化最近订单列表
+      this.handleRecentQuery();
     },
     /** 获取当前订单编号 */
     getOrderCode() {},
@@ -503,7 +518,13 @@ export default {
             this.$modal.msgError("订单明细列表不能为空！");
             return;
           }
-          this.orderForm.orderDetails = this.orderDetailList;
+          // 去除空行，保留 productName, productUnit 都不为空，num > 0 的数据
+          this.orderForm.orderDetails = this.orderDetailList.filter((item) => {
+            let productNum = XEUtils.toNumber(item.num);
+            const isValidNum =
+              !isNaN(productNum) && productNum && productNum > 0;
+            return item.productName && item.productUnit && isValidNum;
+          });
 
           // save or update order
           if (this.orderForm.orderId) {
@@ -912,7 +933,6 @@ export default {
     height: calc(100vh - 42px);
     box-sizing: border-box;
     overflow: hidden;
-    background-color: cornflowerblue;
   }
 
   .el-scrollbar {
