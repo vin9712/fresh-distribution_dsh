@@ -111,7 +111,7 @@
                     <i class="el-icon-rank"></i>
                   </span>
                   <!-- 增加 -->
-                  <span @click="handleAddRow(rowIndex)">
+                  <span @click="throttledAddRow(rowIndex)">
                     <i class="el-icon-plus"></i>
                   </span>
                   <!-- 减少 -->
@@ -322,7 +322,7 @@ import {
 import { listSaleDetail } from "@/api/order/saleDetail";
 import { customerListQuoteDetail } from "@/api/product/quoteDetail";
 import { listCustomerDept } from "@/api/partner/customerDept";
-import { debounce } from "@/utils";
+import { throttle } from "@/utils";
 
 import XEUtils from "xe-utils";
 import Sortable from "sortablejs";
@@ -415,8 +415,11 @@ export default {
     };
   },
   mounted() {
+    // 对添加行事件的加入节流处理, 150毫秒内多次触发只会执行一次
+    this.throttledAddRow = throttle(150, this.handleAddRow.bind(this));
+
     // 组件挂载完成后添加一行
-    this.handleAddRow();
+    this.throttledAddRow();
     this.rowDrop();
   },
   beforeDestroy() {
@@ -738,7 +741,7 @@ export default {
           this.orderDetailList.splice(index, 1);
           // 防止全部删完了
           if (length <= 1) {
-            this.handleAddRow();
+            this.throttledAddRow();
           }
           // check & update customerDept cascader status
           this.updateCustomerDeptStatus();
@@ -800,7 +803,7 @@ export default {
         this.orderDetailList.indexOf(parentRow);
       const isValidRow = !XEUtils.isEmpty(parentRow.productName);
       if (isLastRow && isValidRow) {
-        this.handleAddRow(-1);
+        this.throttledAddRow(-1);
       }
     },
     /** 商品名称输入框-清除按钮事件 */
@@ -840,7 +843,7 @@ export default {
           this.orderDetailList.length - 1 ===
           this.orderDetailList.indexOf(parentRow);
         if (isLastRow) {
-          this.handleAddRow(-1);
+          this.throttledAddRow(-1);
         }
       }
     },
@@ -861,7 +864,7 @@ export default {
     handleFormOptionsChanged(value) {
       // init table item
       this.orderDetailList = [];
-      this.handleAddRow();
+      this.throttledAddRow();
 
       // init customerDeptId
       const customerDeptId = value[value.length - 1];

@@ -218,7 +218,7 @@ export function getTime(type) {
 export function debounce(func, wait, immediate) {
   let timeout, args, context, timestamp, result
 
-  const later = function() {
+  const later = function () {
     // 据上一次触发时间间隔
     const last = +new Date() - timestamp
 
@@ -235,7 +235,7 @@ export function debounce(func, wait, immediate) {
     }
   }
 
-  return function(...args) {
+  return function (...args) {
     context = this
     timestamp = +new Date()
     const callNow = immediate && !timeout
@@ -247,6 +247,31 @@ export function debounce(func, wait, immediate) {
     }
 
     return result
+  }
+}
+
+/**
+ * @description: 节流
+ * @param {*} delay
+ * @param {*} fn
+ * @return {*}
+ */
+export function throttle(delay, fn) {
+  let firstTime = true
+  let timer = null
+  return function () {
+    const args = [].slice.apply(arguments)
+    if (firstTime) {
+      fn.apply(this, args)
+      firstTime = false
+      return
+    }
+    if (timer) return
+    timer = setTimeout(() => {
+      fn.apply(this, args)
+      clearTimeout(timer)
+      timer = null
+    }, delay)
   }
 }
 
