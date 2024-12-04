@@ -3,7 +3,7 @@
     <el-row :gutter="10">
       <!-- 做单区 -->
       <el-col :span="18">
-        <el-card style="height: calc(100vh - 125px)">
+        <el-card class="order-card">
           <!-- 订单表单 -->
           <div slot="header">
             <span>订单信息</span>
@@ -71,7 +71,7 @@
           </div>
 
           <!-- 订单表格 -->
-          <div style="height: calc(100vh - 300px)">
+          <div class="order-table-container" :style="{ height: tableHeight }">
             <vxe-table
               border
               resizable
@@ -80,7 +80,8 @@
               keep-source
               ref="xTable"
               size="small"
-              height="100%"
+              class="order-table"
+              :height="tableInnerHeight"
               :row-config="{ isHover: true, useKey: true }"
               :mouse-config="{ selected: true }"
               :keyboard-config="{
@@ -229,7 +230,7 @@
           </div>
 
           <!-- 底部工具栏 -->
-          <el-form label-width="100px">
+          <el-form class="order-footer" label-width="100px">
             <el-form-item
               style="text-align: center; margin-left: -100px; margin-top: 10px"
             >
@@ -321,6 +322,7 @@ import {
 import { listSaleDetail } from "@/api/order/saleDetail";
 import { customerListQuoteDetail } from "@/api/product/quoteDetail";
 import { listCustomerDept } from "@/api/partner/customerDept";
+import { debounce } from "@/utils";
 
 import XEUtils from "xe-utils";
 import Sortable from "sortablejs";
@@ -400,11 +402,16 @@ export default {
       tableColumn: [
         { field: "productName", title: "商品名称" },
         { field: "productUnit", title: "单位" },
+        { field: "price", title: "单价" },
         { field: "productSpec", title: "规格" },
         { field: "remark", title: "备注" },
       ],
       // 当前鼠标悬停的行
       currentHoverRow: null,
+      // 每行的大致高度，单位为像素
+      rowHeight: 40,
+      // 最大显示行数
+      maxRows: 17,
     };
   },
   mounted() {
@@ -416,6 +423,22 @@ export default {
     if (this.sortableX) {
       this.sortableX.destroy();
     }
+  },
+  computed: {
+    // 计算表格容器的高度
+    tableHeight() {
+      const headerFooterHeight = 120; // 头部和底部的高度总和，可以根据实际情况调整
+      const calculatedHeight = this.maxRows * this.rowHeight + "px";
+      const viewportHeight = `calc(100vh - ${headerFooterHeight}px)`;
+
+      // 返回较小的那个值作为表格容器的最大高度
+      return `min(${calculatedHeight}, ${viewportHeight})`;
+    },
+    // 计算表格内部的高度
+    tableInnerHeight() {
+      // 固定17行的高度
+      return `${this.maxRows * this.rowHeight}px`;
+    },
   },
   created() {
     // 从路由获取参数
@@ -770,6 +793,15 @@ export default {
         parentRow.productSpec = "";
         parentRow.remark = "";
       }
+
+      // 若当前为最后一行且当前商品名称不为空，新增一行
+      const isLastRow =
+        this.orderDetailList.length - 1 ===
+        this.orderDetailList.indexOf(parentRow);
+      const isValidRow = !XEUtils.isEmpty(parentRow.productName);
+      if (isLastRow && isValidRow) {
+        this.handleAddRow(-1);
+      }
     },
     /** 商品名称输入框-清除按钮事件 */
     clearProductNameEvent(parentRow) {
@@ -802,6 +834,14 @@ export default {
 
         // 聚焦到数量单元格
         $table.setEditCell(parentRow, "num");
+
+        // 若当前为最后一行，则新增一行
+        const isLastRow =
+          this.orderDetailList.length - 1 ===
+          this.orderDetailList.indexOf(parentRow);
+        if (isLastRow) {
+          this.handleAddRow(-1);
+        }
       }
     },
     /** 商品名称下拉容器-初始化数据 */
@@ -920,6 +960,27 @@ export default {
 </script>
 
 <style lang="scss" scoped>
+.order-card {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.order-header,
+.order-footer {
+  flex-shrink: 0; /* 确保头部和底部不被压缩 */
+}
+
+.order-table-container {
+  flex-grow: 1; /* 让表格区域占据剩余的所有空间 */
+  overflow-y: auto; /* 如果内容超出容器高度，允许滚动 */
+}
+
+.order-table {
+  width: 100%;
+  height: 100%;
+}
+
 .drag-btn {
   cursor: move;
   font-size: 12px;
