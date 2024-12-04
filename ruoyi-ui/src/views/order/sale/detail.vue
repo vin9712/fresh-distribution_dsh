@@ -1,303 +1,312 @@
 <template>
   <div class="app-container">
-    <!-- 做单区 -->
-    <div class="main-board">
-      <el-card>
-        <!-- 订单表单 -->
-        <div slot="header">
-          <span>订单信息</span>
-          <el-form
-            ref="orderForm"
-            :model="orderForm"
-            :rules="rules"
-            size="medium"
-            inline
-            label-width="100px"
-          >
-            <el-form-item prop="customerDeptId">
-              <span slot="label">
-                送货单位
-                <el-tooltip
-                  content="查看模式或有新增明细时不可修改"
-                  placement="top"
-                >
-                  <i class="el-icon-question"></i>
-                </el-tooltip>
-              </span>
-              <el-cascader
-                v-model="formSelectedOptions"
-                placeholder="请选择送货单位"
-                :disabled="customerDeptDisabled"
-                :options="customerDeptOptions"
-                @change="handleFormOptionsChanged"
-                :props="{ expandTrigger: 'hover' }"
-                filterable
-              />
-            </el-form-item>
-            <el-form-item label="配送日期" prop="deliveryDate">
-              <el-date-picker
-                v-model="orderForm.deliveryDate"
-                format="yyyy-MM-dd"
-                value-format="yyyy-MM-dd"
-                placeholder="请选择配送日期"
-                clearable
-              ></el-date-picker>
-            </el-form-item>
-            <el-form-item prop="orderCode">
-              <span slot="label">
-                订单编号
-                <i
-                  class="el-icon-refresh"
-                  @click="refreshOrderCode"
-                  style="cursor: pointer"
-                ></i>
-              </span>
-              <el-input
-                v-model="orderForm.orderCode"
-                placeholder="请输入订单编号"
-                disabled
-              >
-              </el-input>
-            </el-form-item>
-            <el-form-item label="订单备注" prop="remark">
-              <el-input v-model="orderForm.remark" placeholder="请输入订单备注">
-              </el-input>
-            </el-form-item>
-          </el-form>
-        </div>
-
-        <!-- 订单表格 -->
-        <div>
-          <span>订单表格</span>
-          <vxe-table
-            border
-            resizable
-            show-footer
-            show-overflow
-            keep-source
-            ref="xTable"
-            height="500"
-            size="small"
-            :row-config="{ isHover: true, useKey: true }"
-            :mouse-config="{ selected: true }"
-            :keyboard-config="{
-              isArrow: true,
-              isDel: true,
-              isEnter: true,
-              isTab: true,
-              isEdit: true,
-              isChecked: true,
-            }"
-            :footer-method="footerMethod"
-            :edit-rules="validRules"
-            :edit-config="{
-              trigger: 'click',
-              mode: 'cell',
-              beforeEditMethod: checkTableActive,
-            }"
-            :data="orderDetailList"
-            @cell-mouseenter="cellMouseenterEvent"
-            @cell-mouseleave="cellMouseleaveEvent"
-          >
-            <!-- 操作列 -->
-            <vxe-column field="operate" width="63">
-              <template #default="{ row, rowIndex }">
-                <!-- 拖动 -->
-                <span v-if="currentHoverRow === row" class="drag-btn">
-                  <i class="el-icon-rank"></i>
-                </span>
-                <!-- 增加 -->
-                <span @click="handleAddRow(rowIndex)">
-                  <i class="el-icon-plus"></i>
-                </span>
-                <!-- 减少 -->
-                <span @click="handleRemoveRow(row)">
-                  <i class="el-icon-minus"></i>
-                </span>
-              </template>
-            </vxe-column>
-
-            <vxe-column type="seq" width="50"></vxe-column>
-            <vxe-column
-              field="productName"
-              title="商品名称"
-              :edit-render="{ name: 'VxeInput', autoselect: true }"
-              width="25%"
+    <el-row :gutter="10">
+      <!-- 做单区 -->
+      <el-col :span="18">
+        <el-card style="height: calc(100vh - 125px)">
+          <!-- 订单表单 -->
+          <div slot="header">
+            <span>订单信息</span>
+            <el-form
+              ref="orderForm"
+              :model="orderForm"
+              :rules="rules"
+              size="medium"
+              inline
+              label-width="100px"
             >
-              <!-- 商品名称+报价详情下拉框 -->
-              <template #edit="{ row: parentRow }">
-                <vxe-pulldown
-                  ref="pulldownRef"
-                  popup-class-name="product-name-dropdown"
-                  transfer
+              <el-form-item prop="customerDeptId">
+                <span slot="label">
+                  送货单位
+                  <el-tooltip
+                    content="查看模式或有新增明细时不可修改"
+                    placement="top"
+                  >
+                    <i class="el-icon-question"></i>
+                  </el-tooltip>
+                </span>
+                <el-cascader
+                  v-model="formSelectedOptions"
+                  placeholder="请选择送货单位"
+                  :disabled="customerDeptDisabled"
+                  :options="customerDeptOptions"
+                  @change="handleFormOptionsChanged"
+                  :props="{ expandTrigger: 'hover' }"
+                  filterable
+                />
+              </el-form-item>
+              <el-form-item label="配送日期" prop="deliveryDate">
+                <el-date-picker
+                  v-model="orderForm.deliveryDate"
+                  format="yyyy-MM-dd"
+                  value-format="yyyy-MM-dd"
+                  placeholder="请选择配送日期"
+                  clearable
+                ></el-date-picker>
+              </el-form-item>
+              <el-form-item prop="orderCode">
+                <span slot="label">
+                  订单编号
+                  <i
+                    class="el-icon-refresh"
+                    @click="refreshOrderCode"
+                    style="cursor: pointer"
+                  ></i>
+                </span>
+                <el-input
+                  v-model="orderForm.orderCode"
+                  placeholder="请输入订单编号"
+                  disabled
                 >
-                  <template #default>
-                    <vxe-input
-                      v-model="parentRow.productName"
-                      placeholder="请输入商品名称"
-                      clearable
-                      @keyup="keyupProductNameEvent"
-                      @focus="focusProductNameEvent"
-                      @blur="
-                        blurProductNameEvent({ parentRow, value: $event.value })
-                      "
-                      @clear="clearProductNameEvent(parentRow)"
-                    ></vxe-input>
-                  </template>
+                </el-input>
+              </el-form-item>
+              <el-form-item label="订单备注" prop="remark">
+                <el-input
+                  v-model="orderForm.remark"
+                  placeholder="请输入订单备注"
+                >
+                </el-input>
+              </el-form-item>
+            </el-form>
+          </div>
 
-                  <template #dropdown>
-                    <div class="my-bodydown4">
-                      <vxe-grid
-                        border
-                        auto-resize
-                        height="auto"
-                        :row-config="{ isHover: true }"
-                        :data="pulldownTableData"
-                        :columns="tableColumn"
-                        @cell-click="
-                          cellClickEvent({ parentRow, row: $event.row })
+          <!-- 订单表格 -->
+          <div style="height: calc(100vh - 300px)">
+            <vxe-table
+              border
+              resizable
+              show-footer
+              show-overflow
+              keep-source
+              ref="xTable"
+              size="small"
+              height="100%"
+              :row-config="{ isHover: true, useKey: true }"
+              :mouse-config="{ selected: true }"
+              :keyboard-config="{
+                isArrow: true,
+                isDel: true,
+                isEnter: true,
+                isTab: true,
+                isEdit: true,
+                isChecked: true,
+              }"
+              :footer-method="footerMethod"
+              :edit-rules="validRules"
+              :edit-config="{
+                trigger: 'click',
+                mode: 'cell',
+                beforeEditMethod: checkTableActive,
+              }"
+              :data="orderDetailList"
+              @cell-mouseenter="cellMouseenterEvent"
+              @cell-mouseleave="cellMouseleaveEvent"
+            >
+              <!-- 操作列 -->
+              <vxe-column field="operate" width="63">
+                <template #default="{ row, rowIndex }">
+                  <!-- 拖动 -->
+                  <span v-if="currentHoverRow === row" class="drag-btn">
+                    <i class="el-icon-rank"></i>
+                  </span>
+                  <!-- 增加 -->
+                  <span @click="handleAddRow(rowIndex)">
+                    <i class="el-icon-plus"></i>
+                  </span>
+                  <!-- 减少 -->
+                  <span @click="handleRemoveRow(row)">
+                    <i class="el-icon-minus"></i>
+                  </span>
+                </template>
+              </vxe-column>
+
+              <vxe-column type="seq" width="50"></vxe-column>
+              <vxe-column
+                field="productName"
+                title="商品名称"
+                :edit-render="{ name: 'VxeInput', autoselect: true }"
+                width="25%"
+              >
+                <!-- 商品名称+报价详情下拉框 -->
+                <template #edit="{ row: parentRow }">
+                  <vxe-pulldown
+                    ref="pulldownRef"
+                    popup-class-name="product-name-dropdown"
+                    transfer
+                  >
+                    <template #default>
+                      <vxe-input
+                        v-model="parentRow.productName"
+                        placeholder="请输入商品名称"
+                        clearable
+                        @keyup="keyupProductNameEvent"
+                        @focus="focusProductNameEvent"
+                        @blur="
+                          blurProductNameEvent({
+                            parentRow,
+                            value: $event.value,
+                          })
                         "
-                      >
-                      </vxe-grid>
-                    </div>
-                  </template>
-                </vxe-pulldown>
-              </template>
-            </vxe-column>
-            <vxe-column
-              field="productUnit"
-              title="单位"
-              width="8%"
-              :edit-render="{ name: 'input', autoselect: true }"
-            >
-              <template #edit="{ row }">
-                <vxe-input
-                  v-model="row.productUnit"
-                  type="text"
-                  @change="changedProductUnitEvent(row)"
-                ></vxe-input>
-              </template>
-            </vxe-column>
-            <vxe-column
-              field="num"
-              title="数量"
-              cell-type="number"
-              :formatter="decimalFormatter('num')"
-              :edit-render="{ name: 'input', autoselect: true }"
-            >
-              <template #edit="{ row }">
-                <vxe-input
-                  v-model="row.num"
-                  type="text"
-                  @change="calcAmount(row)"
-                ></vxe-input>
-              </template>
-            </vxe-column>
-            <vxe-column
-              field="productPrice"
-              title="单价"
-              cell-type="number"
-              :formatter="decimalFormatter('productPrice')"
-              :edit-render="{ name: 'input', autoselect: true }"
-            >
-              <template #edit="{ row }">
-                <vxe-input
-                  v-model="row.productPrice"
-                  type="text"
-                  @change="calcAmount(row)"
-                ></vxe-input>
-              </template>
-            </vxe-column>
-            <vxe-column field="amount" title="金额"> </vxe-column>
-            <vxe-column
-              field="productSpec"
-              title="规格"
-              :edit-render="{ name: 'input', autoselect: true }"
-            ></vxe-column>
-            <vxe-column
-              field="remark"
-              title="备注"
-              :edit-render="{ name: 'input', autoselect: true }"
-            ></vxe-column>
-          </vxe-table>
-        </div>
+                        @clear="clearProductNameEvent(parentRow)"
+                      ></vxe-input>
+                    </template>
 
-        <!-- 底部工具栏 -->
-        <el-form label-width="100px">
-          <el-form-item
-            style="text-align: center; margin-left: -100px; margin-top: 10px"
-          >
-            <el-button type="primary" @click="submitForm()">保存</el-button>
-            <el-button @click="close()">返回</el-button>
-          </el-form-item>
-        </el-form>
-      </el-card>
-    </div>
+                    <template #dropdown>
+                      <div class="my-bodydown4">
+                        <vxe-grid
+                          border
+                          auto-resize
+                          height="auto"
+                          :row-config="{ isHover: true }"
+                          :data="pulldownTableData"
+                          :columns="tableColumn"
+                          @cell-click="
+                            cellClickEvent({ parentRow, row: $event.row })
+                          "
+                        >
+                        </vxe-grid>
+                      </div>
+                    </template>
+                  </vxe-pulldown>
+                </template>
+              </vxe-column>
+              <vxe-column
+                field="productUnit"
+                title="单位"
+                width="8%"
+                :edit-render="{ name: 'input', autoselect: true }"
+              >
+                <template #edit="{ row }">
+                  <vxe-input
+                    v-model="row.productUnit"
+                    type="text"
+                    @change="changedProductUnitEvent(row)"
+                  ></vxe-input>
+                </template>
+              </vxe-column>
+              <vxe-column
+                field="num"
+                title="数量"
+                cell-type="number"
+                :formatter="decimalFormatter('num')"
+                :edit-render="{ name: 'input', autoselect: true }"
+              >
+                <template #edit="{ row }">
+                  <vxe-input
+                    v-model="row.num"
+                    type="text"
+                    @change="calcAmount(row)"
+                  ></vxe-input>
+                </template>
+              </vxe-column>
+              <vxe-column
+                field="productPrice"
+                title="单价"
+                cell-type="number"
+                :formatter="decimalFormatter('productPrice')"
+                :edit-render="{ name: 'input', autoselect: true }"
+              >
+                <template #edit="{ row }">
+                  <vxe-input
+                    v-model="row.productPrice"
+                    type="text"
+                    @change="calcAmount(row)"
+                  ></vxe-input>
+                </template>
+              </vxe-column>
+              <vxe-column field="amount" title="金额"> </vxe-column>
+              <vxe-column
+                field="productSpec"
+                title="规格"
+                :edit-render="{ name: 'input', autoselect: true }"
+              ></vxe-column>
+              <vxe-column
+                field="remark"
+                title="备注"
+                :edit-render="{ name: 'input', autoselect: true }"
+              ></vxe-column>
+            </vxe-table>
+          </div>
 
-    <!-- 选单区 -->
-    <div class="right-board">
-      <el-tabs v-model="currentTab" class="center-tabs">
-        <el-tab-pane label="最近订单" name="recentOrder" />
-        <el-tab-pane label="标签b" name="tabB" />
-      </el-tabs>
-      <div class="field-box">
-        <!-- 最近订单 -->
-        <div class="recent-order-tab" v-show="currentTab === 'recentOrder'">
-          <el-form :model="recentQuery" size="small" label-width="100px">
-            <el-form-item label="订单编号">
-              <el-input
-                v-model="recentQuery.orderCode"
-                placeholder="请输入订单编号"
-              />
-            </el-form-item>
-            <el-form-item label="送货单位">
-              <el-input
-                v-model="recentQuery.customerDeptId"
-                placeholder="请选择送货单位"
-              />
-            </el-form-item>
-            <el-form-item>
-              <el-button
-                type="primary"
-                icon="el-icon-search"
-                size="mini"
-                @click="handleRecentQuery"
-                >搜索</el-button
-              >
-              <el-button icon="el-icon-refresh" size="mini" @click="resetQuery"
-                >重置</el-button
-              >
+          <!-- 底部工具栏 -->
+          <el-form label-width="100px">
+            <el-form-item
+              style="text-align: center; margin-left: -100px; margin-top: 10px"
+            >
+              <el-button type="primary" @click="submitForm()">保存</el-button>
+              <el-button @click="close()">返回</el-button>
             </el-form-item>
           </el-form>
-          <el-table :data="recentOrderList">
-            <el-table-column label="订单编号" align="center" prop="code" />
-            <el-table-column
-              label="配送时间"
-              align="center"
-              prop="deliveryDate"
-            />
-            <el-table-column
-              label="客户名称"
-              align="center"
-              prop="customerName"
-            />" />
-            <el-table-column
-              label="送货单位"
-              align="center"
-              prop="customerDeptName"
-            />
-          </el-table>
+        </el-card>
+      </el-col>
 
-          <pagination
-            v-show="total > 0"
-            :total="total"
-            :page.sync="recentQuery.pageNum"
-            :limit.sync="recentQuery.pageSize"
-            @pagination="getOrderPageList"
-          />
-        </div>
-      </div>
-    </div>
+      <!-- 选单区 -->
+      <el-col :span="6">
+        <el-card style="height: calc(100vh - 125px)">
+          <div slot="header">
+            <span>最近订单</span>
+            <el-form :model="recentQuery" size="small" label-width="100px">
+              <el-form-item label="订单编号">
+                <el-input
+                  v-model="recentQuery.orderCode"
+                  placeholder="请输入订单编号"
+                />
+              </el-form-item>
+              <el-form-item label="送货单位">
+                <el-input
+                  v-model="recentQuery.customerDeptId"
+                  placeholder="请选择送货单位"
+                />
+              </el-form-item>
+              <el-form-item>
+                <el-button
+                  type="primary"
+                  icon="el-icon-search"
+                  size="mini"
+                  @click="handleRecentQuery"
+                  >搜索</el-button
+                >
+                <el-button
+                  icon="el-icon-refresh"
+                  size="mini"
+                  @click="resetQuery"
+                  >重置</el-button
+                >
+              </el-form-item>
+            </el-form>
+          </div>
+          <!-- 最近订单列表 -->
+          <div>
+            <el-table :data="recentOrderList">
+              <el-table-column label="订单编号" align="center" prop="code" />
+              <el-table-column
+                label="配送时间"
+                align="center"
+                prop="deliveryDate"
+              />
+              <el-table-column
+                label="客户名称"
+                align="center"
+                prop="customerName"
+              />" />
+              <el-table-column
+                label="送货单位"
+                align="center"
+                prop="customerDeptName"
+              />
+            </el-table>
+
+            <pagination
+              v-show="total > 0"
+              :total="total"
+              :page.sync="recentQuery.pageNum"
+              :limit.sync="recentQuery.pageSize"
+              @pagination="getOrderPageList"
+            />
+          </div>
+        </el-card>
+      </el-col>
+    </el-row>
   </div>
 </template>
 
@@ -321,8 +330,6 @@ export default {
   name: "SaleDetail",
   data() {
     return {
-      // 当前激活 tab
-      currentTab: "recentOrder",
       // 总条数
       total: 0,
       // 默认客户id
@@ -913,54 +920,6 @@ export default {
 </script>
 
 <style lang="scss" scoped>
-.main-board {
-  height: 100vh;
-  width: auto;
-  margin: 0 350px 0 0;
-  box-sizing: border-box;
-  background-color: coral;
-}
-
-.right-board {
-  width: 350px;
-  position: absolute;
-  right: 0;
-  top: 0;
-  padding-top: 3px;
-
-  .field-box {
-    position: relative;
-    height: calc(100vh - 42px);
-    box-sizing: border-box;
-    overflow: hidden;
-  }
-
-  .el-scrollbar {
-    height: 100%;
-  }
-}
-
-.center-tabs {
-  .el-tabs__header {
-    margin-bottom: 0 !important;
-  }
-
-  .el-tabs__item {
-    width: 50%;
-    text-align: center;
-  }
-
-  .el-tabs__nav {
-    width: 100%;
-  }
-}
-
-.right-scrollbar {
-  .el-scrollbar__view {
-    padding: 12px 18px 15px 15px;
-  }
-}
-
 .drag-btn {
   cursor: move;
   font-size: 12px;
