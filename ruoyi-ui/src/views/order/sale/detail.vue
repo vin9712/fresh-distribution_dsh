@@ -11,7 +11,7 @@
               ref="orderForm"
               :model="orderForm"
               :rules="rules"
-              size="medium"
+              size="small"
               inline
               label-width="100px"
             >
@@ -19,7 +19,7 @@
                 <span slot="label">
                   送货单位
                   <el-tooltip
-                    content="查看模式或有新增明细时不可修改"
+                    content="查看或新增明细时不可修改"
                     placement="top"
                   >
                     <i class="el-icon-question"></i>
@@ -244,36 +244,87 @@
       <!-- 选单区 -->
       <el-col :span="8">
         <el-card class="recent-order-card">
+          <!-- 最近订单表单 -->
           <div slot="header">
             <span>最近订单</span>
-            <el-form :model="recentQuery" size="small" label-width="100px">
-              <el-form-item label="订单编号">
-                <el-input
-                  v-model="recentQuery.orderCode"
-                  placeholder="请输入订单编号"
-                />
-              </el-form-item>
-              <el-form-item label="送货客户">
-                <el-input
-                  v-model="recentQuery.customerId"
-                  placeholder="请选择送货客户"
-                />
-              </el-form-item>
-              <el-form-item>
-                <el-button
-                  type="primary"
-                  icon="el-icon-search"
-                  size="mini"
-                  @click="handleRecentQuery"
-                  >搜索</el-button
+            <el-form
+              :model="recentQuery"
+              size="small"
+              ref="recentOrderForm"
+              label-width="80px"
+            >
+              <!-- 第一行：天数选择器和客户选择器 -->
+              <el-row :gutter="20">
+                <el-col :span="9">
+                  <el-form-item label="查询天数" prop="days">
+                    <el-select
+                      v-model="recentQuery.days"
+                      placeholder="请选择查询天数"
+                      style="width: 100%"
+                    >
+                      <el-option label="1天" :value="1"></el-option>
+                      <el-option label="3天" :value="3"></el-option>
+                      <el-option label="7天" :value="7"></el-option>
+                      <el-option label="14天" :value="14"></el-option>
+                      <el-option label="30天" :value="30"></el-option>
+                    </el-select>
+                  </el-form-item>
+                </el-col>
+                <el-col :span="15">
+                  <el-form-item label="送货客户" prop="customerId">
+                    <el-select
+                      v-model="recentQuery.customerId"
+                      filterable
+                      clearable
+                      style="width: 100%"
+                    >
+                      <el-option
+                        v-for="item in customerOptions"
+                        :key="item.id"
+                        :label="item.alias ? item.alias : item.name"
+                        :value="item.id"
+                      ></el-option>
+                    </el-select>
+                  </el-form-item>
+                </el-col>
+              </el-row>
+
+              <!-- 第二行：搜索词输入框和按钮 -->
+              <el-row :gutter="20" style="display: flex; align-items: center">
+                <el-col :span="18">
+                  <el-form-item
+                    label="搜索词"
+                    prop="keyword"
+                    style="margin-bottom: 0"
+                  >
+                    <el-input
+                      v-model="recentQuery.keyword"
+                      placeholder="请输入订单编号/送货单位"
+                      clearable
+                      style="width: 100%"
+                    ></el-input>
+                  </el-form-item>
+                </el-col>
+                <el-col
+                  :span="6"
+                  style="display: flex; justify-content: flex-end"
                 >
-                <el-button
-                  icon="el-icon-refresh"
-                  size="mini"
-                  @click="resetQuery"
-                  >重置</el-button
-                >
-              </el-form-item>
+                  <el-button
+                    icon="el-icon-search"
+                    type="primary"
+                    @click="handleRecentQuery"
+                    circle
+                    title="搜索"
+                  ></el-button>
+                  <el-button
+                    icon="el-icon-refresh"
+                    @click="resetQuery"
+                    circle
+                    title="重置"
+                    style="margin-left: 10px"
+                  ></el-button>
+                </el-col>
+              </el-row>
             </el-form>
           </div>
           <!-- 最近订单列表 -->
@@ -305,6 +356,7 @@ import {
 } from "@/api/order/sale";
 import { listSaleDetail } from "@/api/order/saleDetail";
 import { customerListQuoteDetail } from "@/api/product/quoteDetail";
+import { listCustomer } from "@/api/partner/customer";
 import { listCustomerDept } from "@/api/partner/customerDept";
 import { throttle } from "@/utils";
 
@@ -324,6 +376,7 @@ export default {
       recentQuery: {
         customerId: null,
         keyword: null,
+        days: 3,
       },
       // 最近订单表格列
       recentTableColumns: [
@@ -334,6 +387,8 @@ export default {
       ],
       // 最近订单列表
       recentOrderList: [],
+      // 客户列表数据
+      customerOptions: [],
       // 已选择的列表
       formSelectedOptions: [],
       // 送货单位map: <customerDeptId, customerId>
@@ -426,7 +481,7 @@ export default {
     },
     // 计算表格内部的高度
     tableInnerHeight() {
-      // 固定17行的高度
+      // 固定15行的高度
       return `${this.maxRows * this.rowHeight}px`;
     },
   },
@@ -455,6 +510,7 @@ export default {
 
     // 初始化数据
     this.getTreeselect();
+    this.getCustomerList();
     this.initOrderDetailPage();
     this.getSkuQuoteDetailList();
   },
@@ -465,8 +521,17 @@ export default {
         this.recentOrderList = response.data;
       });
     },
+    /** 查询客户列表 */
+    getCustomerList() {
+      listCustomer().then((response) => {
+        this.customerOptions = response.data;
+      });
+    },
     /** 重置查询条件 */
-    resetQuery() {},
+    resetQuery() {
+      this.resetForm("recentOrderForm");
+      this.handleRecentQuery();
+    },
     /** 获取当前客户的报价明细列表 */
     async getSkuQuoteDetailList() {
       const param = {
@@ -514,8 +579,6 @@ export default {
       // 初始化最近订单列表
       this.handleRecentQuery();
     },
-    /** 获取当前订单编号 */
-    getOrderCode() {},
     /** 刷新订单编号 */
     refreshOrderCode() {
       let param = { currentCode: this.orderForm.orderCode };

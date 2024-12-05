@@ -157,5 +157,6 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
             </if>
             and so.status = '0'
         </where>
+        order by so.code desc, so.delivery_date desc
     </select>
 </mapper>
