@@ -18,6 +18,15 @@ export function listSale(query) {
   })
 }
 
+// 查询最近销售订单列表
+export function recentSaleOrder(query) {
+  return request({
+    url: '/order/sale/recent/list',
+    method: 'get',
+    params: query
+  })
+}
+
 // 查询销售订单详细
 export function getSaleOrder(id) {
   return request({

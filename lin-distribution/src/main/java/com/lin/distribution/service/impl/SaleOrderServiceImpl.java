@@ -22,6 +22,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 
@@ -213,6 +214,14 @@ public class SaleOrderServiceImpl implements SaleOrderService {
         });
 
         return order;
+    }
+
+    @Override
+    public List<SaleOrder> selectRecentOrderList(Long customerId, String keyword, Integer recentDays) {
+        int days = Optional.ofNullable(recentDays).orElse(7);
+        LocalDate deliveryEndDate = LocalDate.now();
+        LocalDate deliveryStartDate = deliveryEndDate.minusDays(days);
+        return saleOrderMapper.selectRecentOrderList(customerId, keyword, deliveryStartDate, deliveryEndDate);
     }
 
     private void checkCreateOrUpdateOrderRequest(SaleOrderCreateDTO request) {

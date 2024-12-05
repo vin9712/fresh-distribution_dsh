@@ -1,8 +1,10 @@
 package com.lin.distribution.mapper;
 
+import java.time.LocalDate;
 import java.util.List;
 
 import com.lin.distribution.domain.SaleOrder;
+import org.apache.ibatis.annotations.Param;
 
 /**
  * 销售订单Mapper接口
@@ -66,4 +68,17 @@ public interface SaleOrderMapper {
      */
     int deleteSaleOrderByIds(Long[] ids);
 
+    /**
+     * 获取最近订单列表
+     *
+     * @param customerId
+     * @param keyword
+     * @param deliveryStartDate
+     * @param deliveryEndDate
+     * @return
+     */
+    List<SaleOrder> selectRecentOrderList(@Param("customerId") Long customerId,
+                                          @Param("keyword") String keyword,
+                                          @Param("deliveryStartDate") LocalDate deliveryStartDate,
+                                          @Param("deliveryEndDate") LocalDate deliveryEndDate);
 }

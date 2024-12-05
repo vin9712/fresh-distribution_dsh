@@ -4,6 +4,7 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.Date;
 
+import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.Version;
 import com.fasterxml.jackson.annotation.JsonFormat;
 import com.lin.common.annotation.Excel;
@@ -88,5 +89,12 @@ public class SaleOrder extends BaseEntity {
      */
     @Version
     private Integer version;
+
+    /**
+     * 送货单位名
+     * 客户(别)名 + 部门名
+     */
+    @TableField(exist = false)
+    private String customerDeptName;
 
 }

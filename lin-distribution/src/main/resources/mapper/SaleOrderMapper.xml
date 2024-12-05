@@ -24,31 +24,51 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
     </resultMap>
 
     <sql id="selectSaleOrderVo">
-        select id, customer_id, customer_dept_id, code, source, type, amount, status, delivery_date, is_deleted, version, create_by, create_time, update_by, update_time, remark from t_sale_order
+        select
+            so.id,
+            so.customer_id,
+            so.customer_dept_id,
+            so.code,
+            so.source,
+            so.type,
+            so.amount,
+            so.status,
+            so.delivery_date,
+            so.is_deleted,
+            so.version,
+            so.create_by,
+            so.create_time,
+            so.update_by,
+            so.update_time,
+            so.remark,
+            concat(coalesce(customer.alias, customer.name), '-', cd.name) as customerDeptName
+        from t_sale_order so
+        left join t_customer_dept cd on cd.id = so.customer_dept_id
+        left join t_customer customer on customer.id = so.customer_id
     </sql>
 
     <select id="selectSaleOrderList" parameterType="com.lin.distribution.domain.SaleOrder" resultMap="SaleOrderResult">
         <include refid="selectSaleOrderVo"/>
         <where>
-            <if test="customerId != null "> and customer_id = #{customerId}</if>
-            <if test="customerDeptId != null "> and customer_dept_id = #{customerDeptId}</if>
-            <if test="code != null  and code != ''"> and code = #{code}</if>
-            <if test="source != null "> and source = #{source}</if>
-            <if test="type != null "> and type = #{type}</if>
-            <if test="amount != null "> and amount = #{amount}</if>
-            <if test="status != null "> and status = #{status}</if>
-            <if test="deliveryDate != null "> and delivery_date = #{deliveryDate}</if>
+            <if test="customerId != null "> and so.customer_id = #{customerId}</if>
+            <if test="customerDeptId != null "> and so.customer_dept_id = #{customerDeptId}</if>
+            <if test="code != null  and code != ''"> and so.code = #{code}</if>
+            <if test="source != null "> and so.source = #{source}</if>
+            <if test="type != null "> and so.type = #{type}</if>
+            <if test="amount != null "> and so.amount = #{amount}</if>
+            <if test="status != null "> and so.status = #{status}</if>
+            <if test="deliveryDate != null "> and so.delivery_date = #{deliveryDate}</if>
         </where>
     </select>
 
     <select id="selectSaleOrderById" parameterType="Long" resultMap="SaleOrderResult">
         <include refid="selectSaleOrderVo"/>
-        where id = #{id}
+        where so.id = #{id}
     </select>
 
     <select id="selectSaleOrderByCode" resultMap="SaleOrderResult">
         <include refid="selectSaleOrderVo"/>
-        where code = #{code}
+        where so.code = #{code}
     </select>
 
     <insert id="insertSaleOrder" parameterType="com.lin.distribution.domain.SaleOrder" useGeneratedKeys="true" keyProperty="id">
@@ -121,4 +141,21 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
             #{id}
         </foreach>
     </delete>
+
+    <select id="selectRecentOrderList" resultMap="SaleOrderResult">
+        <include refid="selectSaleOrderVo"/>
+        <where>
+            <if test="customerId != null "> and so.customer_id = #{customerId}</if>
+            <if test="keyword != null and keyword != ''">
+                and (so.code like concat('%', #{keyword}, '%')
+                or cd.name like concat('%', #{keyword}, '%')
+                or customer.name like concat('%', #{keyword}, '%')
+                or customer.alias like concat('%', #{keyword}, '%'))
+            </if>
+            <if test="deliveryStartDate != null and deliveryEndDate != null">and so.delivery_date between
+                #{deliveryStartDate} and #{deliveryEndDate}
+            </if>
+            and so.status = '0'
+        </where>
+    </select>
 </mapper>

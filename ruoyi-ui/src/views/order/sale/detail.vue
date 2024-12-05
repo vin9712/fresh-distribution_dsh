@@ -2,7 +2,7 @@
   <div class="app-container">
     <el-row :gutter="10">
       <!-- 做单区 -->
-      <el-col :span="18">
+      <el-col :span="16">
         <el-card class="order-card">
           <!-- 订单表单 -->
           <div slot="header">
@@ -153,14 +153,14 @@
                     </template>
 
                     <template #dropdown>
-                      <div class="my-bodydown4">
+                      <div class="product-dropdown-planel">
                         <vxe-grid
                           border
                           auto-resize
                           height="auto"
                           :row-config="{ isHover: true }"
                           :data="pulldownTableData"
-                          :columns="tableColumn"
+                          :columns="pulldownTableColumn"
                           @cell-click="
                             cellClickEvent({ parentRow, row: $event.row })
                           "
@@ -242,8 +242,8 @@
       </el-col>
 
       <!-- 选单区 -->
-      <el-col :span="6">
-        <el-card style="height: calc(100vh - 125px)">
+      <el-col :span="8">
+        <el-card class="recent-order-card">
           <div slot="header">
             <span>最近订单</span>
             <el-form :model="recentQuery" size="small" label-width="100px">
@@ -253,10 +253,10 @@
                   placeholder="请输入订单编号"
                 />
               </el-form-item>
-              <el-form-item label="送货单位">
+              <el-form-item label="送货客户">
                 <el-input
-                  v-model="recentQuery.customerDeptId"
-                  placeholder="请选择送货单位"
+                  v-model="recentQuery.customerId"
+                  placeholder="请选择送货客户"
                 />
               </el-form-item>
               <el-form-item>
@@ -278,31 +278,14 @@
           </div>
           <!-- 最近订单列表 -->
           <div>
-            <el-table :data="recentOrderList">
-              <el-table-column label="订单编号" align="center" prop="code" />
-              <el-table-column
-                label="配送时间"
-                align="center"
-                prop="deliveryDate"
-              />
-              <el-table-column
-                label="客户名称"
-                align="center"
-                prop="customerName"
-              />" />
-              <el-table-column
-                label="送货单位"
-                align="center"
-                prop="customerDeptName"
-              />
-            </el-table>
-
-            <pagination
-              v-show="total > 0"
-              :total="total"
-              :page.sync="recentQuery.pageNum"
-              :limit.sync="recentQuery.pageSize"
-              @pagination="getOrderPageList"
+            <vxe-grid
+              border
+              auto-resize
+              size="small"
+              height="auto"
+              :row-config="{ isHover: true }"
+              :data="recentOrderList"
+              :columns="recentTableColumns"
             />
           </div>
         </el-card>
@@ -318,6 +301,7 @@ import {
   genOrderCode,
   createSaleOrder,
   updateSaleOrder,
+  recentSaleOrder,
 } from "@/api/order/sale";
 import { listSaleDetail } from "@/api/order/saleDetail";
 import { customerListQuoteDetail } from "@/api/product/quoteDetail";
@@ -332,19 +316,22 @@ export default {
   name: "SaleDetail",
   data() {
     return {
-      // 总条数
-      total: 0,
       // 默认客户id
       defaultCustomerId: null,
       defaultCustomerDeptId: null,
       defaultOrderId: null,
       // 最近订单查询条件
       recentQuery: {
-        pageNum: 1,
-        pageSize: 10,
-        orderCode: null,
-        customerDeptId: null,
+        customerId: null,
+        keyword: null,
       },
+      // 最近订单表格列
+      recentTableColumns: [
+        { field: "code", title: "订单编号" },
+        { field: "deliveryDate", title: "配送时间" },
+        { field: "customerDeptName", title: "送货单位" },
+        { field: "remark", title: "备注" },
+      ],
       // 最近订单列表
       recentOrderList: [],
       // 已选择的列表
@@ -399,7 +386,7 @@ export default {
       // 下拉表格数据
       pulldownTableData: [],
       // 下拉表格列配置
-      tableColumn: [
+      pulldownTableColumn: [
         { field: "productName", title: "商品名称" },
         { field: "productUnit", title: "单位" },
         { field: "price", title: "单价" },
@@ -411,7 +398,7 @@ export default {
       // 每行的大致高度，单位为像素
       rowHeight: 40,
       // 最大显示行数
-      maxRows: 17,
+      maxRows: 15,
     };
   },
   mounted() {
@@ -472,17 +459,11 @@ export default {
     this.getSkuQuoteDetailList();
   },
   methods: {
-    /** 获取最近订单列表 */
-    getOrderPageList() {
-      pageSaleOrder(this.recentQuery).then((response) => {
-        this.recentOrderList = response.rows;
-        this.total = response.total;
-      });
-    },
     /** 查询最近订单列表 */
     handleRecentQuery() {
-      this.recentQuery.pageNum = 1;
-      this.getOrderPageList();
+      recentSaleOrder(this.recentQuery).then((response) => {
+        this.recentOrderList = response.data;
+      });
     },
     /** 重置查询条件 */
     resetQuery() {},
@@ -984,6 +965,12 @@ export default {
   height: 100%;
 }
 
+.recent-order-card {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
 .drag-btn {
   cursor: move;
   font-size: 12px;
@@ -993,7 +980,7 @@ export default {
   background-color: #fff;
   box-shadow: 0 0 6px 2px rgba(0, 0, 0, 0.1);
 
-  .my-bodydown4 {
+  .product-dropdown-planel {
     width: 600px;
     height: 300px;
   }

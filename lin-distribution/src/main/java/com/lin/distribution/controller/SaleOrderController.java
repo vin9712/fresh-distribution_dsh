@@ -11,6 +11,7 @@ import com.lin.distribution.dto.SaleOrderCreateDTO;
 import com.lin.distribution.service.SaleOrderService;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletResponse;
+import jakarta.validation.constraints.Max;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.validation.annotation.Validated;
@@ -132,5 +133,19 @@ public class SaleOrderController extends BaseController {
     @PutMapping("/update")
     public AjaxResult updateSaleOrder(@RequestBody @Validated SaleOrderCreateDTO request) {
         return success(saleOrderService.updateSaleOrderWithDetails(request));
+    }
+
+    /**
+     * 获取最近订单列表
+     * 默认获取最近7天
+     *
+     * @return
+     */
+    @GetMapping("/recent/list")
+    public AjaxResult recentList(@RequestParam(name = "customerId", required = false) Long customerId,
+                                 @RequestParam(name = "keyword", required = false) String keyword,
+                                 @RequestParam(name = "recentDays", required = false, defaultValue = "7")
+                                 @Max(value = 30, message = "recentDays cannot be greater than 30") Integer recentDays) {
+        return success(saleOrderService.selectRecentOrderList(customerId, keyword, recentDays));
     }
 }
