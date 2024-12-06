@@ -162,7 +162,10 @@
                           :data="pulldownTableData"
                           :columns="pulldownTableColumn"
                           @cell-click="
-                            cellClickEvent({ parentRow, row: $event.row })
+                            pulldownCellClickEvent({
+                              parentRow,
+                              row: $event.row,
+                            })
                           "
                         >
                         </vxe-grid>
@@ -234,6 +237,7 @@
             <el-form-item
               style="text-align: center; margin-left: -100px; margin-top: 10px"
             >
+              <el-button @click="resetOrderForm">重置</el-button>
               <el-button type="primary" @click="submitForm()">保存</el-button>
               <el-button @click="close()">返回</el-button>
             </el-form-item>
@@ -335,11 +339,13 @@
             <vxe-grid
               border
               auto-resize
+              ref="recentOrderTable"
               size="small"
               height="auto"
-              :row-config="{ isHover: true }"
+              :row-config="{ isHover: true, isCurrent: true }"
               :data="recentOrderList"
               :columns="recentTableColumns"
+              @current-change="handleRecentOrderRowChange"
             />
           </div>
         </el-card>
@@ -361,7 +367,7 @@ import { listSaleDetail } from "@/api/order/saleDetail";
 import { customerListQuoteDetail } from "@/api/product/quoteDetail";
 import { listCustomer } from "@/api/partner/customer";
 import { listCustomerDept } from "@/api/partner/customerDept";
-import { throttle } from "@/utils";
+import { throttle, deepCloneWithoutFields, deepEqual } from "@/utils";
 
 import XEUtils from "xe-utils";
 import Sortable from "sortablejs";
@@ -402,6 +408,8 @@ export default {
       customerDeptDisabled: false,
       // 订单明细列表
       orderDetailList: [],
+      // 原订单明细列表，用于对比
+      originalOrderDetailList: [],
       // 订单表单
       orderForm: {
         orderId: null,
@@ -557,20 +565,40 @@ export default {
       // 初始化页面
       if (orderId) {
         // 获取当前 order 信息
-        getSaleOrder(orderId).then((response) => {
-          const orderData = response.data;
-          this.orderForm = {
-            ...orderData,
-            orderId: orderData.id,
-            orderCode: orderData.code,
-          }.then(() => {
+        getSaleOrder(orderId)
+          .then((response) => {
+            const orderData = response.data;
+            this.orderForm = {
+              ...orderData,
+              orderId: orderData.id,
+              orderCode: orderData.code,
+            };
+          })
+          .then(() => {
             // 获取当前 orderDetail 列表
             listSaleDetail({ orderId: orderId }).then((response) => {
-              this.orderDetailList = response.data;
+              const responseOrderDetails = response.data.map((item) => {
+                return {
+                  ...item,
+                  productPrice: XEUtils.commafy(item.productPrice, {
+                    digits: 2,
+                  }),
+                  num: XEUtils.commafy(item.num, {
+                    digits: 2,
+                  }),
+                  amount: XEUtils.commafy(item.expectAmount, {
+                    digits: 2,
+                  }),
+                };
+              });
+              this.orderDetailList =
+                this.deepCloneOrderDetailList(responseOrderDetails);
+              this.originalOrderDetailList =
+                this.deepCloneOrderDetailList(responseOrderDetails);
             });
           });
-        });
       } else {
+        this.resetForm("orderForm");
         genOrderCode()
           .then((response) => {
             // 初始化订单编号
@@ -586,6 +614,13 @@ export default {
             // 若当前时间小于15点，则送货时间为今天，否则为明天
             const deliveryDate = nowHour < 15 ? today : tomorrow;
             this.orderForm.deliveryDate = deliveryDate;
+
+            // 初始化订单表格
+            this.orderDetailList = [];
+            this.handleAddRow();
+            this.originalOrderDetailList = this.deepCloneOrderDetailList(
+              this.orderDetailList
+            );
           });
       }
       // 初始化最近订单列表
@@ -597,6 +632,21 @@ export default {
       genOrderCode(param).then((response) => {
         this.orderForm.orderCode = response.msg;
       });
+    },
+    /** 重置订单表单 */
+    resetOrderForm() {
+      const orderId = this.orderForm.orderId;
+      const isUpdated = this.checkTableUpdted();
+      if (isUpdated) {
+        this.$modal
+          .confirm("当前订单明细有改动，是否确认重置？")
+          .then(() => {
+            this.initOrderDetailPage(orderId);
+          })
+          .catch(() => {});
+      } else {
+        this.initOrderDetailPage(orderId);
+      }
     },
     /** 保存订单信息 */
     submitForm() {
@@ -730,7 +780,16 @@ export default {
     },
     /** vxe表格检测是否改动 */
     checkTableUpdted() {
-      return this.$refs.xTable.getUpdateRecords().length > 0;
+      const oldOrderDetails = this.deepCloneOrderDetailList(
+        this.originalOrderDetailList
+      );
+      const orderDetails = this.deepCloneOrderDetailList(this.orderDetailList);
+      return !deepEqual(oldOrderDetails, orderDetails);
+    },
+    /** 深拷贝订单明细列表 */
+    deepCloneOrderDetailList(orderDetails) {
+      if (!orderDetails) return [];
+      return deepCloneWithoutFields(orderDetails, ["_X_ROW_KEY"]);
     },
     /** vxe表格-过滤商品名称方法 */
     filterProductNameMethod({ option, row }) {
@@ -880,7 +939,7 @@ export default {
       this.pulldownTableData = this.skuQuoteDetails;
     },
     /** 商品名称下拉容器-选中元素事件 */
-    cellClickEvent({ parentRow, row }) {
+    pulldownCellClickEvent({ parentRow, row }) {
       const $table = this.$refs.xTable;
       const $pulldown = this.$refs.pulldownRef;
       if ($pulldown) {
@@ -1012,6 +1071,25 @@ export default {
         this.customerDeptDisabled = true;
       } else {
         this.customerDeptDisabled = false;
+      }
+    },
+    /** 最近订单行变更事件 */
+    handleRecentOrderRowChange(event) {
+      if (!event || !event.row) return;
+      const orderId = event.row.id;
+      const isUpdated = this.checkTableUpdted();
+      if (isUpdated) {
+        this.$modal
+          .confirm("当前订单明细有改动，是否确认变更？")
+          .then(() => {
+            this.initOrderDetailPage(orderId);
+          })
+          .catch(() => {
+            // 取消选中当前行
+            this.$refs.recentOrderTable.clearCurrentRow();
+          });
+      } else {
+        this.initOrderDetailPage(orderId);
       }
     },
   },

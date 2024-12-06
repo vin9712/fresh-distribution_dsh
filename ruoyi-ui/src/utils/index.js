@@ -297,6 +297,62 @@ export function deepClone(source) {
   return targetObj
 }
 
+/** 深拷贝含忽略字段 */
+export function deepCloneWithoutFields(obj, ignoreFields = []) {
+  const clone = structuredClone(obj); // 深拷贝
+
+  function removeFields(o) {
+    if (Array.isArray(o)) {
+      o.forEach(item => removeFields(item));
+    } else if (typeof o === 'object' && o !== null) {
+      ignoreFields.forEach(field => delete o[field]);
+      Object.values(o).forEach(removeFields);
+    }
+  }
+
+  removeFields(clone);
+  return clone;
+}
+
+/** 深对象对比(含注释) */
+export function deepEqual(obj1, obj2, path = '') {
+  if (obj1 === obj2) return true; // 相同引用或基本类型相等
+
+  // 检查是否为对象或 null
+  if (typeof obj1 !== 'object' || obj1 === null || typeof obj2 !== 'object' || obj2 === null) {
+    console.log(`Mismatch at ${path}: Types differ.`, { obj1, obj2 });
+    return false;
+  }
+
+  const keys1 = Object.keys(obj1);
+  const keys2 = Object.keys(obj2);
+
+  // 比较键的数量
+  if (keys1.length !== keys2.length) {
+    console.log(`Mismatch at ${path}: Key lengths differ.`, { keys1, keys2 });
+    return false;
+  }
+
+  // 比较每个键的值
+  for (let key of keys1) {
+    const newPath = path ? `${path}.${key}` : key;
+
+    // 检查键是否存在
+    if (!keys2.includes(key)) {
+      console.log(`Mismatch at ${newPath}: Key does not exist in obj2.`);
+      return false;
+    }
+
+    // 深度递归比较
+    if (!deepEqual(obj1[key], obj2[key], newPath)) {
+      console.log(`Mismatch at ${newPath}: Values do not match.`);
+      return false;
+    }
+  }
+
+  return true;
+}
+
 /**
  * @param {Array} arr
  * @returns {Array}
