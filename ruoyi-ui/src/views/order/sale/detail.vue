@@ -245,7 +245,7 @@
       <el-col :span="8">
         <el-card class="recent-order-card">
           <!-- 最近订单表单 -->
-          <div slot="header">
+          <div slot="header" class="recent-order-card-header">
             <span>最近订单</span>
             <el-form
               :model="recentQuery"
@@ -328,7 +328,10 @@
             </el-form>
           </div>
           <!-- 最近订单列表 -->
-          <div>
+          <div
+            class="recent-order-table-container"
+            :style="{ height: recentTableHeight }"
+          >
             <vxe-grid
               border
               auto-resize
@@ -474,6 +477,15 @@ export default {
     tableHeight() {
       const headerFooterHeight = 120; // 头部和底部的高度总和，可以根据实际情况调整
       const calculatedHeight = this.maxRows * this.rowHeight + "px";
+      const viewportHeight = `calc(100vh - ${headerFooterHeight}px)`;
+
+      // 返回较小的那个值作为表格容器的最大高度
+      return `min(${calculatedHeight}, ${viewportHeight})`;
+    },
+    // 计算最近订单表格容器的高度
+    recentTableHeight() {
+      const headerFooterHeight = 120; // 头部和底部的高度总和，可以根据实际情况调整
+      const calculatedHeight = 17 * this.rowHeight + "px";
       const viewportHeight = `calc(100vh - ${headerFooterHeight}px)`;
 
       // 返回较小的那个值作为表格容器的最大高度
@@ -1032,6 +1044,11 @@ export default {
   display: flex;
   flex-direction: column;
   height: 100%;
+}
+
+.recent-order-table-container {
+  flex-grow: 1; /* 让表格区域占据剩余的所有空间 */
+  overflow-y: auto; /* 如果内容超出容器高度，允许滚动 */
 }
 
 .drag-btn {
