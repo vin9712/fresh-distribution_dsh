@@ -594,9 +594,6 @@ export default {
             );
           })
           .then(() => {
-            // 初始化 orderForm
-            XEUtils.clear(this.orderForm);
-
             // 获取当前 orderDetail 列表
             listSaleDetail({ orderId: orderId }).then((response) => {
               const responseOrderDetails = response.data.map((item) => {
@@ -620,6 +617,15 @@ export default {
             });
           });
       } else {
+        // 初始化 orderForm
+        this.orderForm = {
+          orderId: null,
+          orderCode: null,
+          customerId: this.defaultCustomerId,
+          customerDeptId: this.defaultCustomerDeptId,
+          deliveryDate: null,
+          remark: null,
+        };
         genOrderCode()
           .then((response) => {
             // 初始化订单编号
