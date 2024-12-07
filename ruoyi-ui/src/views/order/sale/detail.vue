@@ -67,6 +67,9 @@
                 >
                 </el-input>
               </el-form-item>
+              <el-form-item label="是否继续新增">
+                <el-switch v-model="isContinueAdd" />
+              </el-form-item>
             </el-form>
           </div>
 
@@ -237,7 +240,7 @@
             <el-form-item
               style="text-align: center; margin-left: -100px; margin-top: 10px"
             >
-              <el-button @click="resetOrderForm">重置</el-button>
+              <el-button @click="resetOrderForm()">重置</el-button>
               <el-button type="primary" @click="submitForm()">保存</el-button>
               <el-button @click="close()">返回</el-button>
             </el-form-item>
@@ -264,6 +267,7 @@
                     <el-select
                       v-model="recentQuery.days"
                       placeholder="请选择查询天数"
+                      @change="handleRecentQuery"
                       style="width: 100%"
                     >
                       <el-option label="1天" :value="1"></el-option>
@@ -278,6 +282,7 @@
                   <el-form-item label="送货客户" prop="customerId">
                     <el-select
                       v-model="recentQuery.customerId"
+                      @change="handleRecentQuery"
                       filterable
                       clearable
                       style="width: 100%"
@@ -465,6 +470,8 @@ export default {
       rowHeight: 40,
       // 最大显示行数
       maxRows: 15,
+      // 是否继续添加订单
+      isContinueAdd: true,
     };
   },
   mounted() {
@@ -557,12 +564,18 @@ export default {
         return;
       }
       const detailResponse = await customerListQuoteDetail({ customerId });
-      this.skuQuoteDetails = detailResponse.data || [];
+      const skuQuoteDetails = detailResponse.data || [];
+      this.skuQuoteDetails = skuQuoteDetails.map((item) => {
+        return {
+          ...item,
+          price: XEUtils.commafy(item.price, {
+            digits: 2,
+          }),
+        };
+      });
     },
     /** 初始化订单明细页 */
     initOrderDetailPage(orderId) {
-      console.log("initOrderDetailPage orderId", orderId);
-      // 初始化页面
       if (orderId) {
         // 获取当前 order 信息
         getSaleOrder(orderId)
@@ -581,6 +594,9 @@ export default {
             );
           })
           .then(() => {
+            // 初始化 orderForm
+            XEUtils.clear(this.orderForm);
+
             // 获取当前 orderDetail 列表
             listSaleDetail({ orderId: orderId }).then((response) => {
               const responseOrderDetails = response.data.map((item) => {
@@ -604,7 +620,6 @@ export default {
             });
           });
       } else {
-        this.resetForm("orderForm");
         genOrderCode()
           .then((response) => {
             // 初始化订单编号
@@ -647,7 +662,7 @@ export default {
     },
     /** 重置订单表单 */
     resetOrderForm() {
-      const orderId = this.orderForm.orderId;
+      const orderId = this.isContinueAdd ? null : this.orderForm.orderId;
       const isUpdated = this.checkTableUpdted();
       if (isUpdated) {
         this.$modal
@@ -671,25 +686,41 @@ export default {
           }
           // 去除空行，保留 productName, productUnit 都不为空，num > 0 的数据
           this.orderForm.orderDetails = this.orderDetailList.filter((item) => {
+            // 判断是否为有效的商品数量
             let productNum = XEUtils.toNumber(item.num);
             const isValidNum =
               !isNaN(productNum) && productNum && productNum > 0;
             return item.productName && item.productUnit && isValidNum;
           });
 
+          // 格式化金额
+          this.orderForm.orderDetails = this.orderForm.orderDetails.map(
+            (item) => {
+              return {
+                ...item,
+                num: XEUtils.toNumber(item.num, /,/g, ".", 0),
+                productPrice: XEUtils.toNumber(item.productPrice, /,/g, ".", 0),
+                amount: XEUtils.toNumber(item.amount, /,/g, ".", 0),
+              };
+            }
+          );
+
           // save or update order
           if (this.orderForm.orderId) {
             updateSaleOrder(this.orderForm).then((response) => {
               if (response.code === 200) {
                 this.$modal.msgSuccess("修改成功");
-                this.initOrderDetailPage(this.orderForm.orderId);
+                const orderId = this.isContinueAdd
+                  ? null
+                  : this.orderForm.orderId;
+                this.initOrderDetailPage(orderId);
               }
             });
           } else {
             createSaleOrder(this.orderForm).then((response) => {
               if (response.code === 200) {
                 this.$modal.msgSuccess("新增成功");
-                const orderId = response.data.id;
+                const orderId = this.isContinueAdd ? null : response.data.id;
                 this.initOrderDetailPage(orderId);
               }
             });
@@ -721,7 +752,7 @@ export default {
         let formatValue = XEUtils.commafy(value, {
           digits: 2,
         });
-        if (formatValue <= 0) {
+        if (formatValue <= 0 || formatValue < 0.01) {
           formatValue = "0.00";
         }
         // 将格式化后的值赋值回去
@@ -1077,7 +1108,7 @@ export default {
     /** 更新送货单位下拉选择器状态 */
     updateCustomerDeptStatus() {
       const orderId = this.orderForm.orderId;
-      if (orderId != null) {
+      if (orderId) {
         this.customerDeptDisabled = true;
         return;
       }

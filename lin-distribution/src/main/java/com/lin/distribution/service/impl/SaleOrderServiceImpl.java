@@ -23,6 +23,8 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -219,9 +221,18 @@ public class SaleOrderServiceImpl implements SaleOrderService {
     @Override
     public List<SaleOrder> selectRecentOrderList(Long customerId, String keyword, Integer recentDays) {
         int days = Optional.ofNullable(recentDays).orElse(7);
-        LocalDate deliveryEndDate = LocalDate.now();
-        LocalDate deliveryStartDate = deliveryEndDate.minusDays(days);
-        return saleOrderMapper.selectRecentOrderList(customerId, keyword, deliveryStartDate, deliveryEndDate);
+        LocalDateTime createEndTime = LocalDate.now().atTime(LocalTime.MAX);
+        LocalDateTime createStartTime = LocalDate.now().minusDays(days).atStartOfDay();
+        List<SaleOrder> list = saleOrderMapper.selectRecentOrderList(customerId, keyword, createStartTime, createEndTime);
+
+        // 设置送货单位名为 客户(别)名 + 部门名
+        list.forEach(item -> {
+            if (!StringUtils.equals(item.getCustomerName(), item.getCustomerDeptName())) {
+                item.setCustomerDeptName(item.getCustomerName() + "-" + item.getCustomerDeptName());
+            }
+        });
+
+        return list;
     }
 
     private void checkCreateOrUpdateOrderRequest(SaleOrderCreateDTO request) {

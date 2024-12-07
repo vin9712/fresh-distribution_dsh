@@ -1,6 +1,6 @@
 package com.lin.distribution.mapper;
 
-import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 
 import com.lin.distribution.domain.SaleOrder;
@@ -69,16 +69,16 @@ public interface SaleOrderMapper {
     int deleteSaleOrderByIds(Long[] ids);
 
     /**
-     * 获取最近订单列表
+     * 获取最近创建订单列表
      *
      * @param customerId
      * @param keyword
-     * @param deliveryStartDate
-     * @param deliveryEndDate
+     * @param createStartTime
+     * @param createEndTime
      * @return
      */
     List<SaleOrder> selectRecentOrderList(@Param("customerId") Long customerId,
                                           @Param("keyword") String keyword,
-                                          @Param("deliveryStartDate") LocalDate deliveryStartDate,
-                                          @Param("deliveryEndDate") LocalDate deliveryEndDate);
+                                          @Param("createStartTime") LocalDateTime createStartTime,
+                                          @Param("createEndTime") LocalDateTime createEndTime);
 }

@@ -91,8 +91,12 @@ public class SaleOrder extends BaseEntity {
     private Integer version;
 
     /**
+     * 客户(别)名
+     */
+    @TableField(exist = false)
+    private String customerName;
+    /**
      * 送货单位名
-     * 客户(别)名 + 部门名
      */
     @TableField(exist = false)
     private String customerDeptName;

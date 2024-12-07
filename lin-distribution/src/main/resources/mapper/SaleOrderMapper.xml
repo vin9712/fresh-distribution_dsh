@@ -41,7 +41,8 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
             so.update_by,
             so.update_time,
             so.remark,
-            concat(coalesce(customer.alias, customer.name), '-', cd.name) as customerDeptName
+            coalesce(customer.alias, customer.name) as customerName,
+            cd.name as customerDeptName
         from t_sale_order so
         left join t_customer_dept cd on cd.id = so.customer_dept_id
         left join t_customer customer on customer.id = so.customer_id
@@ -152,8 +153,8 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
                 or customer.name like concat('%', #{keyword}, '%')
                 or customer.alias like concat('%', #{keyword}, '%'))
             </if>
-            <if test="deliveryStartDate != null and deliveryEndDate != null">and so.delivery_date between
-                #{deliveryStartDate} and #{deliveryEndDate}
+            <if test="createStartTime != null and createEndTime != null">and so.create_time between
+                #{createStartTime} and #{createEndTime}
             </if>
             and so.status = '0'
         </where>
