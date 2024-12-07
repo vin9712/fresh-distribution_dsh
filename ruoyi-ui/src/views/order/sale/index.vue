@@ -458,16 +458,14 @@ export default {
     },
     /** 新增按钮操作 */
     handleAdd() {
-      // 先选定客户
-      if (!this.queryParams.customerDeptId && !this.queryParams.customerId) {
-        this.$modal.msgError("请先选择送货单位");
-        return;
-      }
-
       // 跳转到新增详情
       this.$router.push({
-        path: "/order/sale-detail/index/" + this.queryParams.customerDeptId,
-        query: { orderId: null, customerId: this.queryParams.customerId },
+        path: "/order/sale-detail/index/",
+        query: {
+          orderId: null,
+          customerId: this.queryParams.customerId,
+          customerDeptId: this.queryParams.customerDeptId,
+        },
       });
     },
     /** 修改按钮操作 */

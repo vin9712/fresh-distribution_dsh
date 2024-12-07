@@ -507,7 +507,7 @@ export default {
   },
   created() {
     // 从路由获取参数
-    const customerDeptIdFromParams = this.$route.params.customerDeptId;
+    const customerDeptIdFromParams = this.$route.query.customerDeptId;
     const customerIdFromParams = this.$route.query.customerId;
     const orderIdFromParams = this.$route.query.orderId;
     this.defaultCustomerId = customerIdFromParams
@@ -524,9 +524,6 @@ export default {
     this.orderForm.orderId = this.defaultOrderId;
     this.orderForm.customerId = this.defaultCustomerId;
     this.orderForm.customerDeptId = this.defaultCustomerDeptId;
-
-    // 初始化送货单位下拉列表
-    this.customerDeptDisabled = this.orderForm.orderId != null;
 
     // 初始化数据
     this.getTreeselect();
@@ -554,14 +551,17 @@ export default {
     },
     /** 获取当前客户的报价明细列表 */
     async getSkuQuoteDetailList() {
-      const param = {
-        customerId: this.orderForm.customerId || this.defaultCustomerId,
-      };
-      const detailResponse = await customerListQuoteDetail(param);
+      const customerId = this.orderForm.customerId || this.defaultCustomerId;
+      if (!customerId) {
+        this.skuQuoteDetails = [];
+        return;
+      }
+      const detailResponse = await customerListQuoteDetail({ customerId });
       this.skuQuoteDetails = detailResponse.data || [];
     },
     /** 初始化订单明细页 */
     initOrderDetailPage(orderId) {
+      console.log("initOrderDetailPage orderId", orderId);
       // 初始化页面
       if (orderId) {
         // 获取当前 order 信息
@@ -573,6 +573,12 @@ export default {
               orderId: orderData.id,
               orderCode: orderData.code,
             };
+            // 初始化送货单位下拉列表
+            this.customerDeptDisabled = true;
+            this.formSelectedOptions = this.fillWithParentCustomerDeptId(
+              this.customerDeptOptions,
+              this.orderForm.customerDeptId.toString()
+            );
           })
           .then(() => {
             // 获取当前 orderDetail 列表
@@ -605,6 +611,10 @@ export default {
             this.orderForm.orderCode = response.msg;
           })
           .then(() => {
+            // 初始化送货单位下拉列表
+            this.customerDeptDisabled = false;
+            this.formSelectedOptions = [];
+
             // 初始化送货日期
             const today = new Date();
             const nowHour = today.getHours();
@@ -623,6 +633,8 @@ export default {
             );
           });
       }
+      // 初始化下拉列表
+      this.getSkuQuoteDetailList();
       // 初始化最近订单列表
       this.handleRecentQuery();
     },
@@ -1003,11 +1015,15 @@ export default {
           this.customerDeptOptions = this.transformData(treeList);
         })
         .then(() => {
+          this.customerDeptDisabled = false;
           // 构造级联选择器选中的数据
-          this.formSelectedOptions = this.fillWithParentCustomerDeptId(
-            this.customerDeptOptions,
-            this.orderForm.customerDeptId.toString()
-          );
+          const customerDeptId = this.orderForm.customerDeptId;
+          if (customerDeptId) {
+            this.formSelectedOptions = this.fillWithParentCustomerDeptId(
+              this.customerDeptOptions,
+              customerDeptId.toString()
+            );
+          }
         });
     },
     /** 树形列表转换为级联列表 */

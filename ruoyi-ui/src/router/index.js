@@ -197,7 +197,7 @@ export const dynamicRoutes = [
     permissions: ['order:sale:add'],
     children: [
       {
-        path: 'index/:customerDeptId(\\d+)',
+        path: 'index/',
         component: () => import('@/views/order/sale/detail'),
         name: 'SaleOrderDetail',
         meta: { title: '订单详情', activeMenu: '/order/sale' }
