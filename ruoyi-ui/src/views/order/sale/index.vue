@@ -112,9 +112,9 @@
           icon="el-icon-edit"
           size="mini"
           :disabled="single"
-          @click="handleUpdate"
+          @click="handleUpdateStatus"
           v-hasPermi="['order:sale:edit']"
-          >修改</el-button
+          >批量处理</el-button
         >
       </el-col>
       <el-col :span="1.5">
@@ -149,6 +149,7 @@
     <el-table
       v-loading="loading"
       :data="saleList"
+      @row-dblclick="handleRowDblClick"
       @selection-change="handleSelectionChange"
     >
       <el-table-column type="selection" width="55" align="center" />
@@ -461,21 +462,45 @@ export default {
       // 跳转到新增详情
       this.$router.push({
         path: "/order/sale-detail/index/",
-        query: {
-          orderId: null,
-          customerId: this.queryParams.customerId,
-          customerDeptId: this.queryParams.customerDeptId,
-        },
       });
     },
     /** 修改按钮操作 */
     handleUpdate(row) {
       this.reset();
-      const id = row.id || this.ids;
-      getSaleOrder(id).then((response) => {
-        this.form = response.data;
-        this.open = true;
-        this.title = "修改销售订单";
+      const orderId = row.id;
+      // 跳转到订单详情
+      this.$router.push({
+        path: "/order/sale-detail/index/",
+        query: { orderId: orderId },
+      });
+    },
+    /** 批量修改状态 */
+    handleUpdateStatus() {
+      const ids = this.ids;
+      if (ids.length === 0) {
+        this.$modal.msgError("请选择要修改状态的订单");
+        return;
+      }
+      this.$modal
+        .confirm("是否确认修改选中的" + ids.length + "条数据的状态？")
+        .then(function () {
+          // return updateSaleOrderStatus(ids);
+        })
+        .then(() => {});
+    },
+    /** 双击行处理详情 */
+    handleRowDblClick(row) {
+      // 检查是否有多选
+      if (this.ids.length > 1) {
+        this.$modal.msgError("当前为多选模式，不可双击查看详情");
+        return;
+      }
+
+      if (!row) return;
+      // 跳转到订单详情
+      this.$router.push({
+        path: "/order/sale-detail/index/",
+        query: { orderId: row.id },
       });
     },
     /** 提交按钮 */

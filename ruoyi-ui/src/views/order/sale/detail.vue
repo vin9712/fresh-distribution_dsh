@@ -67,7 +67,7 @@
                 >
                 </el-input>
               </el-form-item>
-              <el-form-item label="是否继续新增">
+              <el-form-item label="自动新增">
                 <el-switch v-model="isContinueAdd" />
               </el-form-item>
             </el-form>
@@ -382,9 +382,7 @@ export default {
   name: "SaleDetail",
   data() {
     return {
-      // 默认客户id
-      defaultCustomerId: null,
-      defaultCustomerDeptId: null,
+      // 默认订单id
       defaultOrderId: null,
       // 最近订单查询条件
       recentQuery: {
@@ -514,29 +512,15 @@ export default {
   },
   created() {
     // 从路由获取参数
-    const customerDeptIdFromParams = this.$route.query.customerDeptId;
-    const customerIdFromParams = this.$route.query.customerId;
     const orderIdFromParams = this.$route.query.orderId;
-    this.defaultCustomerId = customerIdFromParams
-      ? parseInt(customerIdFromParams, 10)
-      : null;
-    this.defaultCustomerDeptId = customerDeptIdFromParams
-      ? parseInt(customerDeptIdFromParams, 10)
-      : null;
     this.defaultOrderId = orderIdFromParams
       ? parseInt(orderIdFromParams, 10)
       : null;
 
-    // 设置表单参数
-    this.orderForm.orderId = this.defaultOrderId;
-    this.orderForm.customerId = this.defaultCustomerId;
-    this.orderForm.customerDeptId = this.defaultCustomerDeptId;
-
     // 初始化数据
     this.getTreeselect();
     this.getCustomerList();
-    this.initOrderDetailPage();
-    this.getSkuQuoteDetailList();
+    this.initOrderDetailPage(this.defaultOrderId);
   },
   methods: {
     /** 查询最近订单列表 */
@@ -558,7 +542,7 @@ export default {
     },
     /** 获取当前客户的报价明细列表 */
     async getSkuQuoteDetailList() {
-      const customerId = this.orderForm.customerId || this.defaultCustomerId;
+      const customerId = this.orderForm.customerId;
       if (!customerId) {
         this.skuQuoteDetails = [];
         return;
@@ -594,7 +578,7 @@ export default {
             );
           })
           .then(() => {
-            // 获取当前 orderDetail 列表
+            // 初始化订单表格
             listSaleDetail({ orderId: orderId }).then((response) => {
               const responseOrderDetails = response.data.map((item) => {
                 return {
@@ -614,6 +598,9 @@ export default {
                 this.deepCloneOrderDetailList(responseOrderDetails);
               this.originalOrderDetailList =
                 this.deepCloneOrderDetailList(responseOrderDetails);
+
+              // 初始化下拉列表
+              this.getSkuQuoteDetailList();
             });
           });
       } else {
@@ -621,8 +608,8 @@ export default {
         this.orderForm = {
           orderId: null,
           orderCode: null,
-          customerId: this.defaultCustomerId,
-          customerDeptId: this.defaultCustomerDeptId,
+          customerId: null,
+          customerDeptId: null,
           deliveryDate: null,
           remark: null,
         };
@@ -652,10 +639,11 @@ export default {
             this.originalOrderDetailList = this.deepCloneOrderDetailList(
               this.orderDetailList
             );
+
+            // 初始化下拉列表
+            this.getSkuQuoteDetailList();
           });
       }
-      // 初始化下拉列表
-      this.getSkuQuoteDetailList();
       // 初始化最近订单列表
       this.handleRecentQuery();
     },
