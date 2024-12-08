@@ -10,6 +10,7 @@ import com.fasterxml.jackson.annotation.JsonFormat;
 import com.lin.common.annotation.Excel;
 import com.lin.common.core.domain.BaseEntity;
 import lombok.*;
+import org.apache.commons.lang3.StringUtils;
 
 /**
  * 销售订单对象 t_sale_order
@@ -96,9 +97,22 @@ public class SaleOrder extends BaseEntity {
     @TableField(exist = false)
     private String customerName;
     /**
-     * 送货单位名
+     * 客户部门名
      */
     @TableField(exist = false)
     private String customerDeptName;
+    /**
+     * 送货单位名
+     * 客户(别)名 + 部门名
+     */
+    @TableField(exist = false)
+    private String deliveryName;
 
+    public String getDeliveryName() {
+        if (!StringUtils.equals(customerName, customerDeptName)) {
+            return customerName + "-" + customerDeptName;
+        } else {
+            return customerName;
+        }
+    }
 }

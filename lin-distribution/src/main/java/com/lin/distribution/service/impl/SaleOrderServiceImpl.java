@@ -223,16 +223,7 @@ public class SaleOrderServiceImpl implements SaleOrderService {
         int days = Optional.ofNullable(recentDays).orElse(7);
         LocalDateTime createEndTime = LocalDate.now().atTime(LocalTime.MAX);
         LocalDateTime createStartTime = LocalDate.now().minusDays(days).atStartOfDay();
-        List<SaleOrder> list = saleOrderMapper.selectRecentOrderList(customerId, keyword, createStartTime, createEndTime);
-
-        // 设置送货单位名为 客户(别)名 + 部门名
-        list.forEach(item -> {
-            if (!StringUtils.equals(item.getCustomerName(), item.getCustomerDeptName())) {
-                item.setCustomerDeptName(item.getCustomerName() + "-" + item.getCustomerDeptName());
-            }
-        });
-
-        return list;
+        return saleOrderMapper.selectRecentOrderList(customerId, keyword, createStartTime, createEndTime);
     }
 
     private void checkCreateOrUpdateOrderRequest(SaleOrderCreateDTO request) {

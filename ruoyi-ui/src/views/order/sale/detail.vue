@@ -394,7 +394,7 @@ export default {
       recentTableColumns: [
         { field: "code", title: "订单编号" },
         { field: "deliveryDate", title: "配送时间" },
-        { field: "customerDeptName", title: "送货单位" },
+        { field: "deliveryName", title: "送货单位" },
         { field: "remark", title: "备注" },
       ],
       // 最近订单列表

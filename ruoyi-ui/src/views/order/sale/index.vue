@@ -153,13 +153,7 @@
       @selection-change="handleSelectionChange"
     >
       <el-table-column type="selection" width="55" align="center" />
-      <el-table-column label="主键" align="center" prop="id" />
-      <el-table-column label="客户ID" align="center" prop="customerId" />
-      <el-table-column
-        label="客户部门ID"
-        align="center"
-        prop="customerDeptId"
-      />
+      <el-table-column label="送货单位" align="center" prop="deliveryName" />
       <el-table-column label="订单编号" align="center" prop="code" />
       <el-table-column label="订单来源" align="center" prop="source">
         <template slot-scope="scope">
@@ -552,6 +546,7 @@ export default {
       const customerDeptId = value[value.length - 1];
       this.queryParams.customerDeptId = customerDeptId;
       this.queryParams.customerId = this.customerDeptMap[customerDeptId];
+      this.handleQuery();
     },
     /** 查询商品分类下拉树结构 */
     getTreeselect() {
