@@ -10,7 +10,7 @@
     >
       <el-form-item label="送货单位" prop="customerDeptId">
         <el-cascader
-          v-model="formSelectedOptions"
+          v-model="selectedCustomerDepts"
           placeholder="请选择送货单位"
           :options="customerDeptOptions"
           @change="handleFormOptionsChanged"
@@ -55,10 +55,11 @@
           />
         </el-select>
       </el-form-item>
-      <el-form-item label="状态" prop="status">
+      <el-form-item label="订单状态" prop="status">
         <el-select
           v-model="queryParams.status"
           placeholder="请选择订单状态"
+          @change="handleQuery"
           clearable
         >
           <el-option
@@ -111,7 +112,7 @@
           plain
           icon="el-icon-edit"
           size="mini"
-          :disabled="single"
+          :disabled="multiple"
           @click="handleUpdateStatus"
           v-hasPermi="['order:sale:edit']"
           >批量处理</el-button
@@ -172,7 +173,7 @@
         </template>
       </el-table-column>
       <el-table-column label="总金额" align="center" prop="amount" />
-      <el-table-column label="状态" align="center" prop="status">
+      <el-table-column label="订单状态" align="center" prop="status">
         <template slot-scope="scope">
           <dict-tag
             :options="dict.type.t_sale_order_status"
@@ -301,6 +302,7 @@ import {
   delSale,
   addSale,
   updateSale,
+  updateOrderStatus,
 } from "@/api/order/sale";
 import { listCustomerDept } from "@/api/partner/customerDept";
 
@@ -380,6 +382,8 @@ export default {
       },
       // 已选择的列表
       formSelectedOptions: [],
+      // 已选择的送货单位
+      selectedCustomerDepts: [],
       // 送货单位map: <customerDeptId, customerId>
       customerDeptMap: {},
       // 送货单位树列表
@@ -447,6 +451,7 @@ export default {
     },
     // 多选框选中数据
     handleSelectionChange(selection) {
+      this.formSelectedOptions = selection;
       this.ids = selection.map((item) => item.id);
       this.single = selection.length !== 1;
       this.multiple = !selection.length;
@@ -470,15 +475,21 @@ export default {
     },
     /** 批量修改状态 */
     handleUpdateStatus() {
-      const ids = this.ids;
-      if (ids.length === 0) {
+      // 审核
+      this.formSelectedOptions.filter((item) => item.status === 0);
+      if (this.formSelectedOptions.length === 0) {
         this.$modal.msgError("请选择要修改状态的订单");
         return;
       }
+      const orderIds = this.formSelectedOptions.map((item) => item.id);
       this.$modal
-        .confirm("是否确认修改选中的" + ids.length + "条数据的状态？")
+        .confirm("是否确认修改选中的" + orderIds.length + "条数据的状态？")
         .then(function () {
-          // return updateSaleOrderStatus(ids);
+          const params = {
+            orderIds: orderIds,
+            status: 1,
+          };
+          return updateOrderStatus(params);
         })
         .then(() => {});
     },

@@ -2,6 +2,7 @@ package com.lin.distribution.service;
 
 import com.lin.distribution.domain.SaleOrder;
 import com.lin.distribution.dto.SaleOrderCreateDTO;
+import com.lin.distribution.dto.SaleOrderUpdateStatusDTO;
 import jakarta.validation.constraints.Max;
 
 import java.util.List;
@@ -88,4 +89,10 @@ public interface SaleOrderService {
      * @return
      */
     List<SaleOrder> selectRecentOrderList(Long customerId, String keyword, Integer recentDays);
+
+    /**
+     * 批量更新订单状态
+     * @param request
+     */
+    void updateSaleOrderStatus(SaleOrderUpdateStatusDTO request);
 }

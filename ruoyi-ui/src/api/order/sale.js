@@ -72,6 +72,15 @@ export function updateSale(data) {
   })
 }
 
+// 修改销售订单状态
+export function updateOrderStatus(data) {
+  return request({
+    url: '/order/sale/status',
+    method: 'put',
+    data: data
+  })
+}
+
 // 删除销售订单
 export function delSale(id) {
   return request({

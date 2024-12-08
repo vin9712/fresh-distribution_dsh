@@ -160,4 +160,12 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         </where>
         order by so.code desc, so.delivery_date desc
     </select>
+
+    <select id="selectSaleOrderByIdIn" resultMap="SaleOrderResult">
+        <include refid="selectSaleOrderVo"/>
+        where so.id in
+        <foreach item="id" collection="list" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+    </select>
 </mapper>

@@ -26,7 +26,7 @@
                   </el-tooltip>
                 </span>
                 <el-cascader
-                  v-model="formSelectedOptions"
+                  v-model="selectedCustomerDepts"
                   placeholder="请选择送货单位"
                   :disabled="customerDeptDisabled"
                   :options="customerDeptOptions"
@@ -401,8 +401,8 @@ export default {
       recentOrderList: [],
       // 客户列表数据
       customerOptions: [],
-      // 已选择的列表
-      formSelectedOptions: [],
+      // 已选择的送货单位
+      selectedCustomerDepts: [],
       // 送货单位map: <customerDeptId, customerId>
       customerDeptMap: {},
       // 送货单位下拉选项
@@ -572,7 +572,7 @@ export default {
             };
             // 初始化送货单位下拉列表
             this.customerDeptDisabled = true;
-            this.formSelectedOptions = this.fillWithParentCustomerDeptId(
+            this.selectedCustomerDepts = this.fillWithParentCustomerDeptId(
               this.customerDeptOptions,
               this.orderForm.customerDeptId.toString()
             );
@@ -621,7 +621,7 @@ export default {
           .then(() => {
             // 初始化送货单位下拉列表
             this.customerDeptDisabled = false;
-            this.formSelectedOptions = [];
+            this.selectedCustomerDepts = [];
 
             // 初始化送货日期
             const today = new Date();
@@ -1044,7 +1044,7 @@ export default {
           // 构造级联选择器选中的数据
           const customerDeptId = this.orderForm.customerDeptId;
           if (customerDeptId) {
-            this.formSelectedOptions = this.fillWithParentCustomerDeptId(
+            this.selectedCustomerDepts = this.fillWithParentCustomerDeptId(
               this.customerDeptOptions,
               customerDeptId.toString()
             );

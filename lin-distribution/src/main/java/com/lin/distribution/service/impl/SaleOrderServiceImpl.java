@@ -6,6 +6,7 @@ import com.lin.distribution.constant.SaleOrderStatus;
 import com.lin.distribution.domain.SaleOrder;
 import com.lin.distribution.domain.SaleOrderDetail;
 import com.lin.distribution.dto.SaleOrderCreateDTO;
+import com.lin.distribution.dto.SaleOrderUpdateStatusDTO;
 import com.lin.distribution.mapper.SaleOrderDetailMapper;
 import com.lin.distribution.mapper.SaleOrderMapper;
 import com.lin.distribution.service.SaleOrderService;
@@ -25,6 +26,7 @@ import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
@@ -224,6 +226,36 @@ public class SaleOrderServiceImpl implements SaleOrderService {
         LocalDateTime createEndTime = LocalDate.now().atTime(LocalTime.MAX);
         LocalDateTime createStartTime = LocalDate.now().minusDays(days).atStartOfDay();
         return saleOrderMapper.selectRecentOrderList(customerId, keyword, createStartTime, createEndTime);
+    }
+
+    @Override
+    @Transactional
+    public void updateSaleOrderStatus(SaleOrderUpdateStatusDTO request) {
+        List<Long> orderIds = request.getOrderIds();
+        SaleOrderStatus newStatus = SaleOrderStatus.fromCode(request.getStatus());
+        List<SaleOrder> orders = saleOrderMapper.selectSaleOrderByIdIn(orderIds);
+
+        // check new order status
+        boolean checkNewStatus = false;
+        switch (newStatus) {
+            case NEW, DELIVERED ->
+                    checkNewStatus = orders.stream().anyMatch(it -> !SaleOrderStatus.REVIEWED.getCode().equals(it.getStatus()));
+            case REVIEWED ->
+                    checkNewStatus = orders.stream().anyMatch(it -> !SaleOrderStatus.NEW.getCode().equals(it.getStatus()));
+            case CHECKED ->
+                    checkNewStatus = orders.stream().anyMatch(it -> !SaleOrderStatus.DELIVERED.getCode().equals(it.getStatus()));
+            case FINISHED ->
+                    checkNewStatus = orders.stream().anyMatch(it -> !SaleOrderStatus.CHECKED.getCode().equals(it.getStatus()));
+        }
+        if (!checkNewStatus) {
+            throw new ServiceException("check new order status error");
+        }
+
+        // update order list
+        for (SaleOrder order : orders) {
+            order.setStatus(newStatus.getCode());
+            saleOrderMapper.updateSaleOrder(order);
+        }
     }
 
     private void checkCreateOrUpdateOrderRequest(SaleOrderCreateDTO request) {

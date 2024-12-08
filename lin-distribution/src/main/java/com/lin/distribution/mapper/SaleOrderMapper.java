@@ -22,6 +22,14 @@ public interface SaleOrderMapper {
     SaleOrder selectSaleOrderById(Long id);
 
     /**
+     * 批量查询销售订单
+     *
+     * @param ids 销售订单主键
+     * @return 销售订单
+     */
+    List<SaleOrder> selectSaleOrderByIdIn(List<Long> ids);
+
+    /**
      * 根据订单编号查询订单
      * @param orderCode 订单编号
      * @return

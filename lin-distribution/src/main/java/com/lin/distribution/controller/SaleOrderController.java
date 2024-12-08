@@ -7,6 +7,7 @@ import com.lin.common.core.page.TableDataInfo;
 import com.lin.common.enums.BusinessType;
 import com.lin.common.utils.poi.ExcelUtil;
 import com.lin.distribution.domain.SaleOrder;
+import com.lin.distribution.dto.SaleOrderUpdateStatusDTO;
 import com.lin.distribution.dto.SaleOrderCreateDTO;
 import com.lin.distribution.service.SaleOrderService;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -147,5 +148,17 @@ public class SaleOrderController extends BaseController {
                                  @RequestParam(name = "recentDays", required = false, defaultValue = "7")
                                  @Max(value = 30, message = "recentDays cannot be greater than 30") Integer recentDays) {
         return success(saleOrderService.selectRecentOrderList(customerId, keyword, recentDays));
+    }
+
+     /**
+     * 更新销售订单状态
+     *
+     * @param request
+     * @return
+     */
+    @PutMapping("/status")
+    public AjaxResult updateSaleOrder(@RequestBody @Validated SaleOrderUpdateStatusDTO request) {
+        saleOrderService.updateSaleOrderStatus(request);
+        return success();
     }
 }
