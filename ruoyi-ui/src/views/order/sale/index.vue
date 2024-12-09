@@ -163,11 +163,10 @@
         <el-button
           type="warning"
           plain
-          icon="el-icon-download"
+          icon="el-icon-shopping-bag-2"
           size="mini"
-          @click="handleExport"
-          v-hasPermi="['order:sale:export']"
-          >导出</el-button
+          @click="handleBuildPurchase"
+          >生成采购单</el-button
         >
       </el-col>
       <right-toolbar
@@ -620,6 +619,18 @@ export default {
           this.$modal.msgSuccess("删除成功");
         })
         .catch(() => {});
+    },
+    /** 生成采购单 */
+    handleBuildPurchase() {
+      // todo 使用 el-drawer 来加载已审核的订单，用于生成采购单
+
+      // 校验是否全为审核状态订单
+      const valid = this.formSelectedOptions.some((item) => item.status !== 1);
+      if (valid) {
+        this.$modal.msgError("请选择审核状态的订单");
+        return;
+      }
+      const orderIds = this.formSelectedOptions.map((item) => item.id);
     },
     /** 导出按钮操作 */
     handleExport() {
