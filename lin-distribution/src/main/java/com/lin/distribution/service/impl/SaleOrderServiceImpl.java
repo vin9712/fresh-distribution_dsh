@@ -239,13 +239,13 @@ public class SaleOrderServiceImpl implements SaleOrderService {
         boolean checkNewStatus = false;
         switch (newStatus) {
             case NEW, DELIVERED ->
-                    checkNewStatus = orders.stream().anyMatch(it -> !SaleOrderStatus.REVIEWED.getCode().equals(it.getStatus()));
-            case REVIEWED ->
-                    checkNewStatus = orders.stream().anyMatch(it -> !SaleOrderStatus.NEW.getCode().equals(it.getStatus()));
+                    checkNewStatus = orders.stream().allMatch(it -> SaleOrderStatus.APPROVED.getCode().equals(it.getStatus()));
+            case APPROVED ->
+                    checkNewStatus = orders.stream().allMatch(it -> SaleOrderStatus.NEW.getCode().equals(it.getStatus()));
             case CHECKED ->
-                    checkNewStatus = orders.stream().anyMatch(it -> !SaleOrderStatus.DELIVERED.getCode().equals(it.getStatus()));
+                    checkNewStatus = orders.stream().allMatch(it -> SaleOrderStatus.DELIVERED.getCode().equals(it.getStatus()));
             case FINISHED ->
-                    checkNewStatus = orders.stream().anyMatch(it -> !SaleOrderStatus.CHECKED.getCode().equals(it.getStatus()));
+                    checkNewStatus = orders.stream().allMatch(it -> SaleOrderStatus.CHECKED.getCode().equals(it.getStatus()));
         }
         if (!checkNewStatus) {
             throw new ServiceException("check new order status error");

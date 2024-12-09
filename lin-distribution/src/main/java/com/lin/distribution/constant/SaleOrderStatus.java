@@ -14,7 +14,7 @@ import java.util.Objects;
 @AllArgsConstructor
 public enum SaleOrderStatus {
     NEW(0, "制单"),
-    REVIEWED(1, "审核"),
+    APPROVED(1, "审核"),
     DELIVERED(2, "送货"),
     CHECKED(3, "验收"),
     FINISHED(4, "完成"),

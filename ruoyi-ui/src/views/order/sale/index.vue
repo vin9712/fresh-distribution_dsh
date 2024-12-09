@@ -107,28 +107,57 @@
         >
       </el-col>
       <el-col :span="1.5">
-        <el-button
-          type="success"
-          plain
+        <vxe-button
           icon="el-icon-edit"
           size="mini"
           :disabled="multiple"
-          @click="handleUpdateStatus"
-          v-hasPermi="['order:sale:edit']"
-          >批量处理</el-button
+          transfer
+          placement="bottom"
         >
-      </el-col>
-      <el-col :span="1.5">
-        <el-button
-          type="danger"
-          plain
-          icon="el-icon-delete"
-          size="mini"
-          :disabled="multiple"
-          @click="handleDelete"
-          v-hasPermi="['order:sale:remove']"
-          >删除</el-button
-        >
+          <template #default>批量处理</template>
+          <template #dropdowns>
+            <vxe-button
+              mode="button"
+              status="success"
+              icon="el-icon-s-check"
+              :disabled="multiple"
+              content="批量审核"
+              @click="handleOrderApproval"
+            ></vxe-button>
+            <vxe-button
+              mode="button"
+              class="check-order-btn"
+              icon="el-icon-check"
+              :disabled="multiple"
+              content="批量验收"
+              @click="handleOrderCheck"
+            ></vxe-button>
+            <vxe-button
+              mode="button"
+              status="primary"
+              icon="el-icon-finished"
+              :disabled="multiple"
+              content="批量完成"
+              @click="handleOrderFinish"
+            ></vxe-button>
+            <vxe-button
+              mode="button"
+              status="info"
+              icon="el-icon-refresh-left"
+              :disabled="multiple"
+              content="批量还原"
+              @click="handleOrderRestore"
+            ></vxe-button>
+            <vxe-button
+              mode="button"
+              status="danger"
+              icon="el-icon-delete"
+              :disabled="multiple"
+              content="批量删除"
+              @click="handleDelete"
+            ></vxe-button>
+          </template>
+        </vxe-button>
       </el-col>
       <el-col :span="1.5">
         <el-button
@@ -473,17 +502,17 @@ export default {
         query: { orderId: orderId },
       });
     },
-    /** 批量修改状态 */
-    handleUpdateStatus() {
-      // 审核
-      this.formSelectedOptions.filter((item) => item.status === 0);
-      if (this.formSelectedOptions.length === 0) {
-        this.$modal.msgError("请选择要修改状态的订单");
+    /** 批量审核订单 */
+    handleOrderApproval() {
+      // 校验是否全为制单状态订单
+      const valid = this.formSelectedOptions.some((item) => item.status !== 0);
+      if (valid) {
+        this.$modal.msgError("请选择制单状态的订单");
         return;
       }
       const orderIds = this.formSelectedOptions.map((item) => item.id);
       this.$modal
-        .confirm("是否确认修改选中的" + orderIds.length + "条数据的状态？")
+        .confirm("是否确认审核选中的" + orderIds.length + "条的订单？")
         .then(function () {
           const params = {
             orderIds: orderIds,
@@ -491,7 +520,57 @@ export default {
           };
           return updateOrderStatus(params);
         })
-        .then(() => {});
+        .then(() => {
+          this.handleQuery();
+        });
+    },
+    /** 批量还原订单状态 */
+    handleOrderRestore(row) {
+      // 获取选中的订单
+      const orderList = row && row.status ? [row] : this.formSelectedOptions;
+      // 校验是否全为审核状态订单
+      const valid = orderList.some((item) => item.status !== 1);
+      if (valid) {
+        this.$modal.msgError("请选择审核状态的订单");
+        return;
+      }
+      const orderIds = orderList.map((item) => item.id);
+      this.$modal
+        .confirm("是否确认还原选中的" + orderIds.length + "条订单的状态？")
+        .then(function () {
+          const params = {
+            orderIds: orderIds,
+            status: 0,
+          };
+          return updateOrderStatus(params);
+        })
+        .then(() => {
+          this.handleQuery();
+        });
+    },
+    /** 批量验收订单状态 */
+    handleOrderCheck(row) {
+      // 获取选中的订单
+      const orderList = row && row.status ? [row] : this.formSelectedOptions;
+      // 校验是否全为送货状态的订单
+      const valid = orderList.some((item) => item.status !== 2);
+      if (valid) {
+        this.$modal.msgError("请选择送货状态的订单");
+        return;
+      }
+      const orderIds = orderList.map((item) => item.id);
+    },
+    /** 批量完成订单状态 */
+    handleOrderFinish(row) {
+      // 获取选中的订单
+      const orderList = row && row.status ? [row] : this.formSelectedOptions;
+      // 校验是否全为验收状态的订单
+      const valid = orderList.some((item) => item.status !== 3);
+      if (valid) {
+        this.$modal.msgError("请选择验收状态的订单");
+        return;
+      }
+      const orderIds = orderList.map((item) => item.id);
     },
     /** 双击行处理详情 */
     handleRowDblClick(row) {
@@ -588,3 +667,32 @@ export default {
   },
 };
 </script>
+
+<style lang="scss" scoped>
+.check-order-btn {
+  background-color: #625ceb;
+  color: #fff;
+  border: none;
+  padding: 10px 20px;
+  transition: all 0.3s ease; /* 添加过渡效果 */
+}
+
+.check-order-btn:hover {
+  background-color: lighten(#625ceb, 15%); /* 悬停时颜色变淡 */
+  color: #fff !important;
+  cursor: pointer;
+}
+
+.check-order-btn:active {
+  background-color: darken(#625ceb, 10%); /* 激活时颜色加深 */
+  color: #fff; /* 确保文本颜色始终为白色 */
+}
+
+.check-order-btn:disabled {
+  background-color: lighten(#625ceb, 20%); /* 禁用时背景颜色 */
+  color: #fff; /* 禁用时文本颜色 */
+  cursor: not-allowed; /* 改变鼠标指针形状 */
+  opacity: 0.65; /* 降低透明度以显示禁用状态 */
+  pointer-events: none; /* 禁止所有鼠标事件 */
+}
+</style>
