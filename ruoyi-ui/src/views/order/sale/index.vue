@@ -103,7 +103,7 @@
           size="mini"
           @click="handleAdd"
           v-hasPermi="['order:sale:add']"
-          >新增</el-button
+          >新增明细</el-button
         >
       </el-col>
       <el-col :span="1.5">
@@ -167,6 +167,16 @@
           size="mini"
           @click="handleBuildPurchase"
           >生成采购单</el-button
+        >
+      </el-col>
+      <el-col :span="1.5">
+        <el-button
+          type="success"
+          plain
+          icon="el-icon-truck"
+          size="mini"
+          @click="handleBuildDelivery"
+          >生成送货单</el-button
         >
       </el-col>
       <right-toolbar
@@ -632,6 +642,8 @@ export default {
       }
       const orderIds = this.formSelectedOptions.map((item) => item.id);
     },
+    /** 生成送货单 */
+    handleBuildDelivery() {},
     /** 导出按钮操作 */
     handleExport() {
       this.download(
