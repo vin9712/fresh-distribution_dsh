@@ -1,0 +1,109 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+"http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.lin.distribution.mapper.DeliveryOrderDetailMapper">
+    
+    <resultMap type="com.lin.distribution.domain.DeliveryOrderDetail" id="DeliveryOrderDetailResult">
+        <result property="id"    column="id"    />
+        <result property="deliveryId"    column="delivery_id"    />
+        <result property="orderId"    column="order_id"    />
+        <result property="customerId"    column="customer_id"    />
+        <result property="customerDeptId"    column="customer_dept_id"    />
+        <result property="orderCode"    column="order_code"    />
+        <result property="isPrint"    column="is_print"    />
+        <result property="isDeleted"    column="is_deleted"    />
+        <result property="version"    column="version"    />
+        <result property="createBy"    column="create_by"    />
+        <result property="createTime"    column="create_time"    />
+        <result property="updateBy"    column="update_by"    />
+        <result property="updateTime"    column="update_time"    />
+        <result property="remark"    column="remark"    />
+    </resultMap>
+
+    <sql id="selectDeliveryOrderDetailVo">
+        select id, delivery_id, order_id, customer_id, customer_dept_id, order_code, is_print, is_deleted, version, create_by, create_time, update_by, update_time, remark from t_delivery_order_detail
+    </sql>
+
+    <select id="selectDeliveryOrderDetailList" parameterType="com.lin.distribution.domain.DeliveryOrderDetail" resultMap="DeliveryOrderDetailResult">
+        <include refid="selectDeliveryOrderDetailVo"/>
+        <where>  
+            <if test="deliveryId != null "> and delivery_id = #{deliveryId}</if>
+            <if test="orderId != null "> and order_id = #{orderId}</if>
+            <if test="customerId != null "> and customer_id = #{customerId}</if>
+            <if test="customerDeptId != null "> and customer_dept_id = #{customerDeptId}</if>
+            <if test="orderCode != null  and orderCode != ''"> and order_code = #{orderCode}</if>
+            <if test="isPrint != null "> and is_print = #{isPrint}</if>
+        </where>
+    </select>
+    
+    <select id="selectDeliveryOrderDetailById" parameterType="Long" resultMap="DeliveryOrderDetailResult">
+        <include refid="selectDeliveryOrderDetailVo"/>
+        where id = #{id}
+    </select>
+
+    <insert id="insertDeliveryOrderDetail" parameterType="com.lin.distribution.domain.DeliveryOrderDetail" useGeneratedKeys="true" keyProperty="id">
+        insert into t_delivery_order_detail
+        <trim prefix="(" suffix=")" suffixOverrides=",">
+            <if test="deliveryId != null">delivery_id,</if>
+            <if test="orderId != null">order_id,</if>
+            <if test="customerId != null">customer_id,</if>
+            <if test="customerDeptId != null">customer_dept_id,</if>
+            <if test="orderCode != null and orderCode != ''">order_code,</if>
+            <if test="isPrint != null">is_print,</if>
+            <if test="isDeleted != null">is_deleted,</if>
+            <if test="version != null">version,</if>
+            <if test="createBy != null">create_by,</if>
+            <if test="createTime != null">create_time,</if>
+            <if test="updateBy != null">update_by,</if>
+            <if test="updateTime != null">update_time,</if>
+            <if test="remark != null">remark,</if>
+         </trim>
+        <trim prefix="values (" suffix=")" suffixOverrides=",">
+            <if test="deliveryId != null">#{deliveryId},</if>
+            <if test="orderId != null">#{orderId},</if>
+            <if test="customerId != null">#{customerId},</if>
+            <if test="customerDeptId != null">#{customerDeptId},</if>
+            <if test="orderCode != null and orderCode != ''">#{orderCode},</if>
+            <if test="isPrint != null">#{isPrint},</if>
+            <if test="isDeleted != null">#{isDeleted},</if>
+            <if test="version != null">#{version},</if>
+            <if test="createBy != null">#{createBy},</if>
+            <if test="createTime != null">#{createTime},</if>
+            <if test="updateBy != null">#{updateBy},</if>
+            <if test="updateTime != null">#{updateTime},</if>
+            <if test="remark != null">#{remark},</if>
+         </trim>
+    </insert>
+
+    <update id="updateDeliveryOrderDetail" parameterType="com.lin.distribution.domain.DeliveryOrderDetail">
+        update t_delivery_order_detail
+        <trim prefix="SET" suffixOverrides=",">
+            <if test="deliveryId != null">delivery_id = #{deliveryId},</if>
+            <if test="orderId != null">order_id = #{orderId},</if>
+            <if test="customerId != null">customer_id = #{customerId},</if>
+            <if test="customerDeptId != null">customer_dept_id = #{customerDeptId},</if>
+            <if test="orderCode != null and orderCode != ''">order_code = #{orderCode},</if>
+            <if test="isPrint != null">is_print = #{isPrint},</if>
+            <if test="isDeleted != null">is_deleted = #{isDeleted},</if>
+            <if test="version != null">version = #{version},</if>
+            <if test="createBy != null">create_by = #{createBy},</if>
+            <if test="createTime != null">create_time = #{createTime},</if>
+            <if test="updateBy != null">update_by = #{updateBy},</if>
+            <if test="updateTime != null">update_time = #{updateTime},</if>
+            <if test="remark != null">remark = #{remark},</if>
+        </trim>
+        where id = #{id}
+    </update>
+
+    <delete id="deleteDeliveryOrderDetailById" parameterType="Long">
+        delete from t_delivery_order_detail where id = #{id}
+    </delete>
+
+    <delete id="deleteDeliveryOrderDetailByIds" parameterType="String">
+        delete from t_delivery_order_detail where id in 
+        <foreach item="id" collection="array" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+    </delete>
+</mapper>

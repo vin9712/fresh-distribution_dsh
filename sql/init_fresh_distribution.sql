@@ -218,7 +218,7 @@ CREATE TABLE `t_sale_order`
     `type`             tinyint(3) unsigned NOT NULL COMMENT '订单类型：1正常订单,2加单',
     `amount`           decimal(10, 2) unsigned NOT NULL COMMENT '总金额',
     `status`           tinyint(3) unsigned NOT NULL COMMENT '状态：0制单,1审核,2送货,3验收,4完成',
-    `delivery_date`     date         NOT NULL COMMENT '预计配送日期',
+    `delivery_date`    date         NOT NULL COMMENT '预计配送日期',
     `is_deleted`       tinyint(1) NOT NULL DEFAULT '0' COMMENT '逻辑删除',
     `version`          int(10) unsigned NOT NULL DEFAULT '0' COMMENT '版本号',
     `create_by`        varchar(64)           DEFAULT '' COMMENT '创建者',
@@ -270,13 +270,37 @@ CREATE TABLE `t_sale_order_detail`
 -- 送货单表
 CREATE TABLE `t_delivery_order`
 (
+    `id`            bigint(10) unsigned NOT NULL AUTO_INCREMENT COMMENT '主键',
+    `customer_id`   bigint(10) unsigned DEFAULT NULL COMMENT '客户ID',
+    `code`          varchar(200) NOT NULL COMMENT '送货单编号',
+    `status`        tinyint(3) unsigned NOT NULL COMMENT '送货单状态：0待打印,1送货,2完成',
+    `delivery_date` date         NOT NULL COMMENT '配送日期',
+    `is_deleted`    tinyint(1) NOT NULL DEFAULT '0' COMMENT '逻辑删除',
+    `version`       int(10) unsigned NOT NULL DEFAULT '0' COMMENT '版本号',
+    `create_by`     varchar(64)           DEFAULT '' COMMENT '创建者',
+    `create_time`   timestamp    NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    `update_by`     varchar(64)           DEFAULT '' COMMENT '更新者',
+    `update_time`   datetime              DEFAULT NULL COMMENT '更新时间',
+    `remark`        varchar(500)          DEFAULT NULL COMMENT '备注',
+    PRIMARY KEY (`id`) USING BTREE,
+    UNIQUE KEY `unq_code` (`code`) USING BTREE,
+    KEY             `idx_code` (`code`) USING BTREE,
+    KEY             `idx_customer_id` (`customer_id`) USING BTREE,
+    KEY             `idx_status` (`status`) USING BTREE,
+    KEY             `idx_delivery_date` (`delivery_date`) USING BTREE,
+    KEY             `idx_create_time` (`create_time`) USING BTREE
+) ENGINE=InnoDB AUTO_INCREMENT=1 DEFAULT CHARSET=utf8 ROW_FORMAT=DYNAMIC COMMENT='送货单表';
+
+-- 送货单详情表
+CREATE TABLE `t_delivery_order_detail`
+(
     `id`               bigint(10) unsigned NOT NULL AUTO_INCREMENT COMMENT '主键',
+    `delivery_id`      bigint(10) unsigned DEFAULT NULL COMMENT '送货单ID',
     `order_id`         bigint(10) unsigned DEFAULT NULL COMMENT '订单ID',
     `customer_id`      bigint(10) unsigned DEFAULT NULL COMMENT '客户ID',
     `customer_dept_id` bigint(10) unsigned DEFAULT NULL COMMENT '客户部门ID',
     `order_code`       varchar(200) NOT NULL COMMENT '订单编号',
-    `status`           tinyint(3) unsigned NOT NULL COMMENT '送货单状态：0制单,1送货,2完成',
-    `delivery_date`    date         NOT NULL COMMENT '配送日期',
+    `is_print`         tinyint(1) NOT NULL DEFAULT '0' COMMENT '打印状态',
     `is_deleted`       tinyint(1) NOT NULL DEFAULT '0' COMMENT '逻辑删除',
     `version`          int(10) unsigned NOT NULL DEFAULT '0' COMMENT '版本号',
     `create_by`        varchar(64)           DEFAULT '' COMMENT '创建者',
@@ -286,10 +310,10 @@ CREATE TABLE `t_delivery_order`
     `remark`           varchar(500)          DEFAULT NULL COMMENT '备注',
     PRIMARY KEY (`id`) USING BTREE,
     UNIQUE KEY `unq_order_id` (`order_id`) USING BTREE,
+    KEY                `idx_delivery_id` (`delivery_id`) USING BTREE,
+    KEY                `idx_order_id` (`order_id`) USING BTREE,
     KEY                `idx_order_code` (`order_code`) USING BTREE,
     KEY                `idx_customer_id` (`customer_id`) USING BTREE,
     KEY                `idx_customer_dept_id` (`customer_dept_id`) USING BTREE,
-    KEY                `idx_status` (`status`) USING BTREE,
-    KEY                `idx_delivery_date` (`delivery_date`) USING BTREE,
     KEY                `idx_create_time` (`create_time`) USING BTREE
-) ENGINE=InnoDB AUTO_INCREMENT=1 DEFAULT CHARSET=utf8 ROW_FORMAT=DYNAMIC COMMENT='送货单表';
+) ENGINE=InnoDB AUTO_INCREMENT=1 DEFAULT CHARSET=utf8 ROW_FORMAT=DYNAMIC COMMENT='送货单详情表';

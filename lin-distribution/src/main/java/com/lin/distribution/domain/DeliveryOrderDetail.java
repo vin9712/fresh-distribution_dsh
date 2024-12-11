@@ -1,15 +1,11 @@
 package com.lin.distribution.domain;
 
-import java.util.Date;
-
-import com.baomidou.mybatisplus.annotation.Version;
-import com.fasterxml.jackson.annotation.JsonFormat;
 import com.lin.common.annotation.Excel;
 import com.lin.common.core.domain.BaseEntity;
 import lombok.*;
 
 /**
- * 送货单对象 t_delivery_order
+ * 送货单详情对象 t_delivery_order_detail
  *
  * @author lin
  * @date 2024-12-11
@@ -19,7 +15,7 @@ import lombok.*;
 @Builder
 @AllArgsConstructor
 @RequiredArgsConstructor
-public class DeliveryOrder extends BaseEntity {
+public class DeliveryOrderDetail extends BaseEntity {
     private static final long serialVersionUID = 1L;
 
     /**
@@ -28,29 +24,40 @@ public class DeliveryOrder extends BaseEntity {
     private Long id;
 
     /**
+     * 送货单ID
+     */
+    @Excel(name = "送货单ID")
+    private Long deliveryId;
+
+    /**
+     * 订单ID
+     */
+    @Excel(name = "订单ID")
+    private Long orderId;
+
+    /**
      * 客户ID
      */
     @Excel(name = "客户ID")
     private Long customerId;
 
     /**
-     * 送货单编号
+     * 客户部门ID
      */
-    @Excel(name = "送货单编号")
-    private String code;
+    @Excel(name = "客户部门ID")
+    private Long customerDeptId;
 
     /**
-     * 送货单状态：0待打印,1送货,2完成
+     * 订单编号
      */
-    @Excel(name = "送货单状态：0待打印,1送货,2完成")
-    private Integer status;
+    @Excel(name = "订单编号")
+    private String orderCode;
 
     /**
-     * 配送日期
+     * 打印状态
      */
-    @JsonFormat(pattern = "yyyy-MM-dd")
-    @Excel(name = "配送日期", width = 30, dateFormat = "yyyy-MM-dd")
-    private Date deliveryDate;
+    @Excel(name = "打印状态")
+    private Boolean isPrint;
 
     /**
      * 逻辑删除
@@ -60,7 +67,6 @@ public class DeliveryOrder extends BaseEntity {
     /**
      * 版本号
      */
-    @Version
     private Integer version;
 
 }
