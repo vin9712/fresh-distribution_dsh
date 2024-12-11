@@ -1,0 +1,109 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.lin.distribution.mapper.DeliveryOrderMapper">
+
+    <resultMap type="com.lin.distribution.domain.DeliveryOrder" id="DeliveryOrderResult">
+        <result property="id"    column="id"    />
+        <result property="orderId"    column="order_id"    />
+        <result property="customerId"    column="customer_id"    />
+        <result property="customerDeptId"    column="customer_dept_id"    />
+        <result property="orderCode"    column="order_code"    />
+        <result property="status"    column="status"    />
+        <result property="deliveryDate"    column="delivery_date"    />
+        <result property="isDeleted"    column="is_deleted"    />
+        <result property="version"    column="version"    />
+        <result property="createBy"    column="create_by"    />
+        <result property="createTime"    column="create_time"    />
+        <result property="updateBy"    column="update_by"    />
+        <result property="updateTime"    column="update_time"    />
+        <result property="remark"    column="remark"    />
+    </resultMap>
+
+    <sql id="selectDeliveryOrderVo">
+        select id, order_id, customer_id, customer_dept_id, order_code, status, delivery_date, is_deleted, version, create_by, create_time, update_by, update_time, remark from t_delivery_order
+    </sql>
+
+    <select id="selectDeliveryOrderList" parameterType="com.lin.distribution.domain.DeliveryOrder" resultMap="DeliveryOrderResult">
+        <include refid="selectDeliveryOrderVo"/>
+        <where>
+            <if test="orderId != null "> and order_id = #{orderId}</if>
+            <if test="customerId != null "> and customer_id = #{customerId}</if>
+            <if test="customerDeptId != null "> and customer_dept_id = #{customerDeptId}</if>
+            <if test="orderCode != null  and orderCode != ''"> and order_code = #{orderCode}</if>
+            <if test="status != null "> and status = #{status}</if>
+            <if test="deliveryDate != null "> and delivery_date = #{deliveryDate}</if>
+        </where>
+    </select>
+
+    <select id="selectDeliveryOrderById" parameterType="Long" resultMap="DeliveryOrderResult">
+        <include refid="selectDeliveryOrderVo"/>
+        where id = #{id}
+    </select>
+
+    <insert id="insertDeliveryOrder" parameterType="com.lin.distribution.domain.DeliveryOrder" useGeneratedKeys="true" keyProperty="id">
+        insert into t_delivery_order
+        <trim prefix="(" suffix=")" suffixOverrides=",">
+            <if test="orderId != null">order_id,</if>
+            <if test="customerId != null">customer_id,</if>
+            <if test="customerDeptId != null">customer_dept_id,</if>
+            <if test="orderCode != null and orderCode != ''">order_code,</if>
+            <if test="status != null">status,</if>
+            <if test="deliveryDate != null">delivery_date,</if>
+            <if test="isDeleted != null">is_deleted,</if>
+            <if test="version != null">version,</if>
+            <if test="createBy != null">create_by,</if>
+            <if test="createTime != null">create_time,</if>
+            <if test="updateBy != null">update_by,</if>
+            <if test="updateTime != null">update_time,</if>
+            <if test="remark != null">remark,</if>
+        </trim>
+        <trim prefix="values (" suffix=")" suffixOverrides=",">
+            <if test="orderId != null">#{orderId},</if>
+            <if test="customerId != null">#{customerId},</if>
+            <if test="customerDeptId != null">#{customerDeptId},</if>
+            <if test="orderCode != null and orderCode != ''">#{orderCode},</if>
+            <if test="status != null">#{status},</if>
+            <if test="deliveryDate != null">#{deliveryDate},</if>
+            <if test="isDeleted != null">#{isDeleted},</if>
+            <if test="version != null">#{version},</if>
+            <if test="createBy != null">#{createBy},</if>
+            <if test="createTime != null">#{createTime},</if>
+            <if test="updateBy != null">#{updateBy},</if>
+            <if test="updateTime != null">#{updateTime},</if>
+            <if test="remark != null">#{remark},</if>
+        </trim>
+    </insert>
+
+    <update id="updateDeliveryOrder" parameterType="com.lin.distribution.domain.DeliveryOrder">
+        update t_delivery_order
+        <trim prefix="SET" suffixOverrides=",">
+            <if test="orderId != null">order_id = #{orderId},</if>
+            <if test="customerId != null">customer_id = #{customerId},</if>
+            <if test="customerDeptId != null">customer_dept_id = #{customerDeptId},</if>
+            <if test="orderCode != null and orderCode != ''">order_code = #{orderCode},</if>
+            <if test="status != null">status = #{status},</if>
+            <if test="deliveryDate != null">delivery_date = #{deliveryDate},</if>
+            <if test="isDeleted != null">is_deleted = #{isDeleted},</if>
+            <if test="version != null">version = #{version},</if>
+            <if test="createBy != null">create_by = #{createBy},</if>
+            <if test="createTime != null">create_time = #{createTime},</if>
+            <if test="updateBy != null">update_by = #{updateBy},</if>
+            <if test="updateTime != null">update_time = #{updateTime},</if>
+            <if test="remark != null">remark = #{remark},</if>
+        </trim>
+        where id = #{id}
+    </update>
+
+    <delete id="deleteDeliveryOrderById" parameterType="Long">
+        delete from t_delivery_order where id = #{id}
+    </delete>
+
+    <delete id="deleteDeliveryOrderByIds" parameterType="String">
+        delete from t_delivery_order where id in
+        <foreach item="id" collection="array" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+    </delete>
+</mapper>
