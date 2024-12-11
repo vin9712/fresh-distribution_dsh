@@ -3,6 +3,7 @@ package com.lin.distribution.service;
 import java.util.List;
 
 import com.lin.distribution.domain.DeliveryOrder;
+import com.lin.distribution.domain.SaleOrder;
 
 /**
  * 送货单据Service接口
@@ -58,4 +59,10 @@ public interface DeliveryOrderService {
      * @return 结果
      */
     int deleteDeliveryOrderById(Long id);
+
+    /**
+     * 根据审核订单创建送货单
+     * @param orders
+     */
+    void createDeliveryOrder(List<SaleOrder> orders);
 }

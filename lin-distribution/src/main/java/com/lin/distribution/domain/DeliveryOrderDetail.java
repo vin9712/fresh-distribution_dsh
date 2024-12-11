@@ -1,5 +1,6 @@
 package com.lin.distribution.domain;
 
+import com.baomidou.mybatisplus.annotation.Version;
 import com.lin.common.annotation.Excel;
 import com.lin.common.core.domain.BaseEntity;
 import lombok.*;
@@ -67,6 +68,7 @@ public class DeliveryOrderDetail extends BaseEntity {
     /**
      * 版本号
      */
+    @Version
     private Integer version;
 
 }

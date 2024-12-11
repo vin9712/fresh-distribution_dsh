@@ -20,6 +20,13 @@ public interface DeliveryOrderDetailMapper {
     DeliveryOrderDetail selectDeliveryOrderDetailById(Long id);
 
     /**
+     * 根据送货单ID查询送货单详情列表
+     * @param deliveryId
+     * @return
+     */
+    List<DeliveryOrderDetail> selectListByDeliveryId(Long deliveryId);
+
+    /**
      * 查询送货单详情列表
      *
      * @param deliveryOrderDetail 送货单详情

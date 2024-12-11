@@ -9,6 +9,7 @@ import com.lin.distribution.dto.SaleOrderCreateDTO;
 import com.lin.distribution.dto.SaleOrderUpdateStatusDTO;
 import com.lin.distribution.mapper.SaleOrderDetailMapper;
 import com.lin.distribution.mapper.SaleOrderMapper;
+import com.lin.distribution.service.DeliveryOrderService;
 import com.lin.distribution.service.SaleOrderService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -26,7 +27,6 @@ import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
@@ -42,6 +42,7 @@ import java.util.Optional;
 public class SaleOrderServiceImpl implements SaleOrderService {
     private final SaleOrderMapper saleOrderMapper;
     private final SaleOrderDetailMapper saleOrderDetailMapper;
+    private final DeliveryOrderService deliveryOrderService;
     private final RedissonClient redissonClient;
 
     /**
@@ -255,6 +256,11 @@ public class SaleOrderServiceImpl implements SaleOrderService {
         for (SaleOrder order : orders) {
             order.setStatus(newStatus.getCode());
             saleOrderMapper.updateSaleOrder(order);
+        }
+
+        // if status is approved, create delivery order
+        if (newStatus == SaleOrderStatus.APPROVED) {
+            deliveryOrderService.createDeliveryOrder(orders);
         }
     }
 
