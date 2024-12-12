@@ -5,13 +5,12 @@ import Cookies from 'js-cookie'
 import Element from 'element-ui'
 import './assets/styles/element-variables.scss'
 
-// vue-easytable
-import VueEasytable from "vue-easytable";
-import "vue-easytable/libs/theme-default/index.css";
-
 // vxe-table
 import VXETable from 'vxe-table'
 import 'vxe-table/lib/style.css'
+
+// sv-print 引入组件样式
+import "sv-print/dist/style.css";
 
 import '@/assets/styles/index.scss' // global css
 import '@/assets/styles/ruoyi.scss' // ruoyi css
