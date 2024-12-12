@@ -38,6 +38,14 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         where id = #{id}
     </select>
 
+    <select id="selectListByIds" resultMap="DeliveryOrderResult">
+        <include refid="selectDeliveryOrderVo"/>
+        where id in
+        <foreach item="id" collection="ids" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+    </select>
+
     <insert id="insertDeliveryOrder" parameterType="com.lin.distribution.domain.DeliveryOrder" useGeneratedKeys="true" keyProperty="id">
         insert into t_delivery_order
         <trim prefix="(" suffix=")" suffixOverrides=",">

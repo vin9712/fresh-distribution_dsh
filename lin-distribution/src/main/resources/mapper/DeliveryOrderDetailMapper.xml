@@ -47,6 +47,13 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         where delivery_id = #{deliveryId}
     </select>
 
+    <select id="selectListByOrderIdIn" resultMap="DeliveryOrderDetailResult">
+        <include refid="selectDeliveryOrderDetailVo"/> where order_id in
+        <foreach item="orderId" collection="orderIds" open="(" separator="," close=")">
+            #{orderId}
+        </foreach>
+    </select>
+
     <insert id="insertDeliveryOrderDetail" parameterType="com.lin.distribution.domain.DeliveryOrderDetail" useGeneratedKeys="true" keyProperty="id">
         insert into t_delivery_order_detail
         <trim prefix="(" suffix=")" suffixOverrides=",">

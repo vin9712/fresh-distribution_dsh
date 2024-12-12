@@ -65,4 +65,9 @@ public interface DeliveryOrderService {
      * @param orders
      */
     void createDeliveryOrder(List<SaleOrder> orders);
+
+    /**
+     * 根据还原订单删除送货单详情
+     */
+    void clearDeliveryOrder(List<SaleOrder> orders);
 }

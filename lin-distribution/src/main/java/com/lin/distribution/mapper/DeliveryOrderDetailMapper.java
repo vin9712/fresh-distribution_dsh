@@ -1,8 +1,10 @@
 package com.lin.distribution.mapper;
 
+import java.util.Collection;
 import java.util.List;
 
 import com.lin.distribution.domain.DeliveryOrderDetail;
+import org.apache.ibatis.annotations.Param;
 
 /**
  * 送货单详情Mapper接口
@@ -25,6 +27,13 @@ public interface DeliveryOrderDetailMapper {
      * @return
      */
     List<DeliveryOrderDetail> selectListByDeliveryId(Long deliveryId);
+
+    /**
+     * 根据订单ID查询送货单详情列表
+     * @param orderIds
+     * @return
+     */
+    List<DeliveryOrderDetail> selectListByOrderIdIn(@Param("orderIds") Collection<Long> orderIds);
 
     /**
      * 查询送货单详情列表

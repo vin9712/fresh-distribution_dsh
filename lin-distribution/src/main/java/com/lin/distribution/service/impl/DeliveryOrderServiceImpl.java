@@ -1,10 +1,7 @@
 package com.lin.distribution.service.impl;
 
 import java.time.LocalDate;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
+import java.util.*;
 import java.util.stream.Collectors;
 
 import com.lin.common.utils.DateUtils;
@@ -168,6 +165,42 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
                 }
             }
         }
+    }
+
+    @Override
+    @Transactional
+    public void clearDeliveryOrder(List<SaleOrder> orders) {
+        if (CollectionUtils.isEmpty(orders) ||
+                orders.stream().anyMatch(order -> !Objects.equals(order.getStatus(), SaleOrderStatus.NEW.getCode()))) {
+            return;
+        }
+
+        // skip if no delivery detail list
+        Set<Long> orderIds = orders.stream().map(SaleOrder::getId).collect(Collectors.toSet());
+        List<DeliveryOrderDetail> clearDeliveryOrderDetails = deliveryOrderDetailMapper.selectListByOrderIdIn(orderIds);
+        Set<Long> clearDeliveryDetailIds = clearDeliveryOrderDetails.stream().map(DeliveryOrderDetail::getId).collect(Collectors.toSet());
+        if (CollectionUtils.isEmpty(clearDeliveryOrderDetails)) {
+            return;
+        }
+
+        // get all delivery detail with delivery id list
+        List<Long> clearDeliveryOrderIds = new ArrayList<>();
+        Set<Long> deliveryIds = clearDeliveryOrderDetails.stream().map(DeliveryOrderDetail::getDeliveryId).collect(Collectors.toSet());
+        List<DeliveryOrder> deliveryOrders = deliveryOrderMapper.selectListByIds(deliveryIds);
+        for (DeliveryOrder deliveryOrder : deliveryOrders) {
+            Long deliveryId = deliveryOrder.getId();
+            Set<Long> deliveryOrderDetailIds = deliveryOrderDetailMapper.selectListByDeliveryId(deliveryId).stream().map(DeliveryOrderDetail::getId).collect(Collectors.toSet());
+            boolean clearDeliveryOrder = clearDeliveryDetailIds.containsAll(deliveryOrderDetailIds);
+            if (clearDeliveryOrder) {
+                clearDeliveryOrderIds.add(deliveryId);
+            }
+        }
+
+        // batch clear delivery & details
+        if (CollectionUtils.isNotEmpty(clearDeliveryOrderIds)) {
+            deliveryOrderMapper.deleteDeliveryOrderByIds(clearDeliveryOrderIds.stream().distinct().toList().toArray(new Long[0]));
+        }
+        deliveryOrderDetailMapper.deleteDeliveryOrderDetailByIds(clearDeliveryDetailIds.stream().distinct().toList().toArray(new Long[0]));
     }
 
     private String generateDeliveryOrderNo(Boolean refresh) {
