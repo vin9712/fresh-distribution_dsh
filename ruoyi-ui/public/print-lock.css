@@ -11,8 +11,10 @@
 
 .hiprint-printPaper * {
   box-sizing: border-box;
-  -moz-box-sizing: border-box; /* Firefox */
-  -webkit-box-sizing: border-box; /* Safari */
+  -moz-box-sizing: border-box;
+  /* Firefox */
+  -webkit-box-sizing: border-box;
+  /* Safari */
 }
 
 .hiprint-printPaper *:focus {
@@ -23,8 +25,10 @@
   position: relative;
   padding: 0 0 0 0;
   page-break-after: always;
-  -webkit-user-select: none; /* Chrome/Safari/Opera */
-  -moz-user-select: none; /* Firefox */
+  -webkit-user-select: none;
+  /* Chrome/Safari/Opera */
+  -moz-user-select: none;
+  /* Firefox */
   user-select: none;
   overflow-x: hidden;
   overflow: hidden;
@@ -52,7 +56,8 @@
   page-break-after: always;
 }
 
-.hiprint-printPaper, hiprint-printPanel {
+.hiprint-printPaper,
+hiprint-printPanel {
   box-sizing: border-box;
   border: 0px;
 }
@@ -77,7 +82,8 @@
   border: 1px dashed rgba(170, 170, 170, 0.7);
 }
 
-.design .hiprint-printElement-table-content, .design .hiprint-printElement-longText-content {
+.design .hiprint-printElement-table-content,
+.design .hiprint-printElement-longText-content {
   overflow: hidden;
   box-sizing: border-box;
 }
@@ -168,7 +174,9 @@ table.hiprint-printElement-tableTarget {
   width: 100%;
 }
 
-.hiprint-printElement-tableTarget, .hiprint-printElement-tableTarget tr, .hiprint-printElement-tableTarget td {
+.hiprint-printElement-tableTarget,
+.hiprint-printElement-tableTarget tr,
+.hiprint-printElement-tableTarget td {
   border-color: rgb(0, 0, 0);
   /*border-style: none;*/
   /*border: 1px solid rgb(0, 0, 0);*/
@@ -190,26 +198,33 @@ table.hiprint-printElement-tableTarget {
 .hiprint-printElement-tableTarget-border-all {
   border: 1px solid;
 }
+
 .hiprint-printElement-tableTarget-border-none {
   border: 0px solid;
 }
+
 .hiprint-printElement-tableTarget-border-lr {
   border-left: 1px solid;
   border-right: 1px solid;
 }
+
 .hiprint-printElement-tableTarget-border-left {
   border-left: 1px solid;
 }
+
 .hiprint-printElement-tableTarget-border-right {
   border-right: 1px solid;
 }
+
 .hiprint-printElement-tableTarget-border-tb {
   border-top: 1px solid;
   border-bottom: 1px solid;
 }
+
 .hiprint-printElement-tableTarget-border-top {
   border-top: 1px solid;
 }
+
 .hiprint-printElement-tableTarget-border-bottom {
   border-bottom: 1px solid;
 }
@@ -217,15 +232,19 @@ table.hiprint-printElement-tableTarget {
 .hiprint-printElement-tableTarget-border-td-none td {
   border: 0px solid;
 }
+
 .hiprint-printElement-tableTarget-border-td-all td:not(:nth-last-child(-n+2)) {
   border-right: 1px solid;
 }
+
 .hiprint-printElement-tableTarget-border-td-all td:not(last-child) {
   border-right: 1px solid;
 }
+
 .hiprint-printElement-tableTarget-border-td-all td:last-child {
   border-left: 1px solid;
 }
+
 .hiprint-printElement-tableTarget-border-td-all td:last-child:first-child {
   border-left: none;
 }
@@ -253,7 +272,8 @@ table.hiprint-printElement-tableTarget {
   color: gainsboro !important;
 }
 
-.hiprint-printElement-vline, .hiprint-printElement-hline {
+.hiprint-printElement-vline,
+.hiprint-printElement-hline {
   border: 0px none rgb(0, 0, 0);
 
 }
@@ -272,28 +292,26 @@ table.hiprint-printElement-tableTarget {
   border-left: 0px none rgb(0, 0, 0) !important;
 }
 
-.hiprint-printElement-oval, .hiprint-printElement-rect {
+.hiprint-printElement-oval,
+.hiprint-printElement-rect {
   border: 0.75pt solid #000;
 }
 
-.hiprint-text-content-middle {
-}
+.hiprint-text-content-middle {}
 
-.hiprint-text-content-middle > div {
+.hiprint-text-content-middle>div {
   display: grid;
   align-items: center;
 }
 
-.hiprint-text-content-bottom {
-}
+.hiprint-text-content-bottom {}
 
-.hiprint-text-content-bottom > div {
+.hiprint-text-content-bottom>div {
   display: grid;
   align-items: flex-end;
 }
 
-.hiprint-text-content-wrap {
-}
+.hiprint-text-content-wrap {}
 
 .hiprint-text-content-wrap .hiprint-text-content-wrap-nowrap {
   white-space: nowrap;
@@ -322,7 +340,8 @@ table.hiprint-printElement-tableTarget {
   box-sizing: border-box;
 }
 
-.hi-grid-row::after, .hi-grid-row::before {
+.hi-grid-row::after,
+.hi-grid-row::before {
   display: table;
   content: '';
   box-sizing: border-box;
