@@ -31,7 +31,7 @@ import com.lin.common.core.page.TableDataInfo;
  */
 @Tag(name = "送货单详情接口")
 @RestController
-@RequestMapping("/order/delivery")
+@RequestMapping("/order/deliveryDetail")
 public class DeliveryOrderDetailController extends BaseController {
     @Autowired
     private DeliveryOrderDetailService deliveryOrderDetailService;

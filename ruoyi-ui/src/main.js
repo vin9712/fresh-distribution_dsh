@@ -9,8 +9,9 @@ import './assets/styles/element-variables.scss'
 import VXETable from 'vxe-table'
 import 'vxe-table/lib/style.css'
 
-// sv-print 引入组件样式
-import "sv-print/dist/style.css";
+// vue-plugin-hiprint
+import {hiPrintPlugin} from 'vue-plugin-hiprint'
+Vue.use(hiPrintPlugin);
 
 import '@/assets/styles/index.scss' // global css
 import '@/assets/styles/ruoyi.scss' // ruoyi css
@@ -83,7 +84,6 @@ Vue.use(Element, {
   size: Cookies.get('size') || 'medium' // set element-ui default size
 })
 
-Vue.use(VueEasytable);
 Vue.use(VXETable)
 
 Vue.config.productionTip = false

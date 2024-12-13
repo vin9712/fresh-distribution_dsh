@@ -70,6 +70,13 @@ module.exports = {
         deleteOriginalAssets: false                    // 压缩后删除原文件
       })
     ],
+    module: {
+      rules: [{
+        test: /\.mjs$/,
+        include: /node_modules/,
+        type: 'javascript/auto'
+      }]
+    }  
   },
   chainWebpack(config) {
     config.plugins.delete('preload') // TODO: need test
