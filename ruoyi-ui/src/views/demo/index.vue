@@ -80,46 +80,54 @@
               >确定</el-button
             >
           </div>
-          <el-button slot="reference" type="primary" style="margin: 0 10px"
+          <el-button
+            slot="reference"
+            type="primary"
+            size="small"
+            style="margin: 0 10px"
             >自定义宽高</el-button
           >
         </el-popover>
 
-        <!--          <a-button-group>-->
-        <!--            <template v-for="(value,type) in paperTypes">-->
-        <!--              <a-button :type="curPaperType === type ? 'primary' : 'info'" @click="setPaper(type,value)" :key="type">-->
-        <!--                {{ type }}-->
-        <!--              </a-button>-->
-        <!--            </template>-->
-        <!--            <a-popover v-model="paperPopVisible" title="设置纸张宽高(mm)" trigger="click">-->
-        <!--              <div slot="content">-->
-        <!--                <a-input-group compact style="margin: 10px 10px">-->
-        <!--                  <a-input type="number" v-model="paperWidth" style=" width: 100px; text-align: center"-->
-        <!--                           placeholder="宽(mm)"/>-->
-        <!--                  <a-input style=" width: 30px; border-left: 0; pointer-events: none; backgroundColor: #fff"-->
-        <!--                           placeholder="~" disabled-->
-        <!--                  />-->
-        <!--                  <a-input type="number" v-model="paperHeight" style="width: 100px; text-align: center; border-left: 0"-->
-        <!--                           placeholder="高(mm)"/>-->
-        <!--                </a-input-group>-->
-        <!--                <a-button type="primary" style="width: 100%" @click="otherPaper">确定</a-button>-->
-        <!--              </div>-->
-        <!--              <a-button :type="'other'==curPaperType?'primary':''">自定义纸张</a-button>-->
-        <!--            </a-popover>-->
-        <!--          </a-button-group>-->
-
         <!-- 预览/打印 -->
         <el-button-group>
-          <el-button type="primary" icon="el-icon-view" @click="preView">
+          <el-button
+            type="primary"
+            size="small"
+            icon="el-icon-refresh-left"
+            @click="rotatePaper()"
+            >旋转</el-button
+          >
+          <el-button
+            type="primary"
+            size="small"
+            icon="el-icon-view"
+            @click="preView"
+          >
             预览
           </el-button>
-          <el-button type="primary" icon="el-icon-printer" @click="print">
+          <el-button
+            type="primary"
+            size="small"
+            icon="el-icon-printer"
+            @click="print"
+          >
             直接打印
           </el-button>
-          <el-button type="primary" icon="el-icon-s-management" @click="save">
+          <el-button
+            type="primary"
+            size="small"
+            icon="el-icon-s-management"
+            @click="save"
+          >
             保存
           </el-button>
-          <el-button type="danger" icon="el-icon-delete" @click="clearPaper">
+          <el-button
+            type="danger"
+            size="small"
+            icon="el-icon-delete"
+            @click="clearPaper"
+          >
             清空
           </el-button>
         </el-button-group>
@@ -222,7 +230,10 @@ export default {
       for (const key in types) {
         let item = types[key];
         let { width, height } = this.curPaper;
-        if (item.width === width && item.height === height) {
+        if (
+          (item.width === width && item.height === height) ||
+          (item.width === height && item.height === width)
+        ) {
           type = key;
         }
       }
@@ -330,6 +341,18 @@ export default {
       value.height = this.paperHeight;
       this.paperPopVisible = false;
       this.setPaper("other", value);
+    },
+    rotatePaper() {
+      if (hiprintTemplate) {
+        hiprintTemplate.rotatePaper();
+        // reverse paper width and height
+        let { type, width, height } = this.curPaper;
+        this.curPaper = {
+          type: type,
+          width: height,
+          height: width,
+        };
+      }
     },
     preView() {
       let { width } = this.curPaper;

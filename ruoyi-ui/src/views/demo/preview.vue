@@ -3,7 +3,7 @@
     :visible="visible"
     :maskClosable="false"
     @close="hideModal"
-    :width="width + 'mm'"
+    :width="dialogWidth"
   >
     <div id="preview_content"></div>
     <template slot="title">
@@ -42,7 +42,14 @@ export default {
       printData: {},
     };
   },
-  computed: {},
+  computed: {
+    // 计算属性用于将 mm 转换为 px
+    dialogWidth() {
+      // 每毫米大约等于3.78像素
+      const mmToPx = Math.round(this.width * 3.78);
+      return `${mmToPx}px`;
+    },
+  },
   watch: {},
   created() {},
   mounted() {},
@@ -83,11 +90,11 @@ export default {
 </script>
 
 <style lang="scss" scoped>
-::v-deep .ant-modal-body {
+::v-deep .el-dialog__body {
   padding: 0;
 }
 
-::v-deep .ant-modal-content {
+::v-deep .el-dialog {
   margin-bottom: 24px;
 }
 </style>
