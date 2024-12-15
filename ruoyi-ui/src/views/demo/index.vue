@@ -1,47 +1,20 @@
 <template>
   <el-card>
     <el-row style="margin-bottom: 10px">
-      <el-col :span="4">
-        <!-- 模板选择 -->
-        <el-select
-          v-model="mode"
-          filterable
-          @change="changeMode"
-          :defaultValue="0"
-          option-label-prop="label"
-          style="width: 100%"
-        >
-          <el-option
-            v-for="(opt, idx) in modeList"
-            :key="idx"
-            :label="opt.name"
-            :value="idx"
-          >
-            {{ opt.name }}
-          </el-option>
-        </el-select>
-      </el-col>
       <el-col :span="20">
         <!-- 纸张设置 -->
         <el-button-group style="margin: 0 10px">
           <el-button
             v-for="(value, type) in paperTypes"
-            :type="curPaperType === type ? 'primary' : ' '"
+            :type="curPaperType === type ? 'primary' : ''"
             @click="setPaper(type, value)"
             :key="type"
           >
             {{ type }}
           </el-button>
         </el-button-group>
-        <el-input-number
-          style="margin: 0 10px"
-          :value="scaleValue"
-          :precision="2"
-          :step="0.1"
-          :min="scaleMin"
-          :max="scaleMax"
-          @change="changeScale"
-        ></el-input-number>
+
+        <!-- 自定义宽高 -->
         <el-popover
           placement="bottom"
           width="300"
@@ -56,19 +29,25 @@
               margin-bottom: 10px;
             "
           >
-            <el-input
-              type="number"
+            <el-input-number
+              :min="0"
+              :max="400"
+              :step="50"
+              size="small"
               v-model="paperWidth"
-              style="width: 100px; text-align: center"
+              style="width: 120px; text-align: center"
               place="宽（mm）"
-            ></el-input
+            ></el-input-number
             >~
-            <el-input
-              type="number"
+            <el-input-number
+              :min="0"
+              :max="400"
+              :step="50"
+              size="small"
               v-model="paperHeight"
-              style="width: 100px; text-align: center"
+              style="width: 120px; text-align: center"
               place="高（mm）"
-            ></el-input>
+            ></el-input-number>
           </div>
           <div>
             <el-button
@@ -81,12 +60,23 @@
           </div>
           <el-button
             slot="reference"
-            type="primary"
-            size="small"
+            :type="curPaperType === 'other' ? 'primary' : ''"
             style="margin: 0 10px"
             >自定义宽高</el-button
           >
         </el-popover>
+
+        <!-- 缩放 -->
+        <el-input-number
+          style="margin: 0 10px"
+          size="small"
+          :value="scaleValue"
+          :precision="2"
+          :step="0.1"
+          :min="scaleMin"
+          :max="scaleMax"
+          @change="changeScale"
+        ></el-input-number>
 
         <!-- 预览/打印 -->
         <el-button-group>
@@ -173,9 +163,8 @@
 
 <script>
 import printPreview from "./preview";
-import { MessageBox } from "element-ui";
 import { hiprint } from "vue-plugin-hiprint";
-import providers from "./providers";
+import CustomProvider from "./customProvider";
 import printData from "./print-data";
 
 let hiprintTemplate;
@@ -184,50 +173,54 @@ export default {
   components: { printPreview },
   data() {
     return {
-      // 模板选择
-      mode: 0,
-      modeList: [],
       // 当前纸张
       curPaper: {
         type: "other",
         width: 220,
         height: 80,
-        paperHeader: 20,
-        paperFooter: 200,
+        paperHeader: this.mmToPt(7),
+        paperFooter: this.mmToPt(70),
       },
       // 纸张类型
       paperTypes: {
         A3: {
           width: 420,
           height: 297,
-          paperHeader: 49,
-          paperFooter: 780,
+          paperHeader: this.mmToPt(18),
+          paperFooter: this.mmToPt(275),
         },
         A4: {
           width: 210,
           height: 297,
-          paperHeader: 49,
-          paperFooter: 780,
+          paperHeader: this.mmToPt(18),
+          paperFooter: this.mmToPt(275),
         },
         A5: {
-          width: 210,
-          height: 148,
-          paperHeader: 25,
-          paperFooter: 390,
+          width: 148,
+          height: 210,
+          paperHeader: this.mmToPt(13),
+          paperFooter: this.mmToPt(193),
         },
         B3: {
           width: 500,
-          height: 352.6,
+          height: 353,
+          paperHeader: this.mmToPt(21),
+          paperFooter: this.mmToPt(324),
         },
         B4: {
           width: 250,
-          height: 352.6,
+          height: 353,
+          paperHeader: this.mmToPt(21),
+          paperFooter: this.mmToPt(324),
         },
         B5: {
-          width: 250,
-          height: 175.6,
+          width: 176,
+          height: 250,
+          paperHeader: this.mmToPt(15),
+          paperFooter: this.mmToPt(230),
         },
       },
+      // 缩放
       scaleValue: 1,
       scaleMax: 5,
       scaleMin: 0.5,
@@ -280,25 +273,15 @@ export default {
   },
   methods: {
     init() {
-      this.modeList = providers.map((e) => {
-        return { type: e.type, name: e.name, value: e.value };
-      });
-      this.changeMode();
-    },
-    changeMode() {
-      let { mode } = this;
-      let provider = providers[mode];
       hiprint.init({
-        providers: [provider.f],
+        providers: [new CustomProvider()],
       });
       $(".hiprintEpContainer").empty();
       hiprint.PrintElementTypeManager.build(
         ".hiprintEpContainer",
-        provider.value
+        "customProviderModule"
       );
       $("#hiprint-printTemplate").empty();
-      let templates = this.$ls.get("KEY_TEMPLATES", {});
-      let template = templates[provider.value] ? templates[provider.value] : {};
       hiprintTemplate = new hiprint.PrintTemplate({
         template: this.templatePanel,
         settingContainer: "#PrintElementOptionSetting",
@@ -343,14 +326,9 @@ export default {
     },
     setPageHeaderFooter() {
       let templateJson = hiprintTemplate.getJson();
-      const { name, paperHeader, paperFooter } = this.templatePanel.panels[0];
-      if (
-        templateJson.panels &&
-        templateJson.panels.length &&
-        paperHeader &&
-        paperFooter
-      ) {
-        templateJson.panels[0].name = name;
+      const { paperHeader, paperFooter } = this.curPaper;
+      if (this.curPaper && paperHeader && paperFooter) {
+        templateJson.panels[0].name = 0;
         // 设置页眉页脚
         templateJson.panels[0].paperHeader = paperHeader;
         templateJson.panels[0].paperFooter = paperFooter;
@@ -375,11 +353,12 @@ export default {
       }
     },
     clearPaper() {
-      MessageBox.confirm("是否确认清空模板信息?", "警告", {
-        confirmButtonText: "确定",
-        cancelButtonText: "取消",
-        type: "warning",
-      })
+      this.$modal
+        .confirm("是否确认清空模板信息?", "警告", {
+          confirmButtonText: "确定",
+          cancelButtonText: "取消",
+          type: "warning",
+        })
         .then(() => {
           try {
             hiprintTemplate.clear();
@@ -402,12 +381,9 @@ export default {
       if (hiprintTemplate) {
         hiprintTemplate.rotatePaper();
         // reverse paper width and height
-        let { type, width, height } = this.curPaper;
-        this.curPaper = {
-          type: type,
-          width: height,
-          height: width,
-        };
+        let { width, height } = this.curPaper;
+        this.curPaper.width = height;
+        this.curPaper.height = width;
       }
     },
     preView() {
@@ -445,12 +421,12 @@ export default {
         });
     },
     save() {
-      let { mode } = this;
-      let provider = providers[mode];
-      this.setTemplate({
-        name: provider.value,
-        json: hiprintTemplate.getJson(),
-      });
+      // let { mode } = this;
+      // let provider = providers[mode];
+      // this.setTemplate({
+      //   name: provider.value,
+      //   json: hiprintTemplate.getJson(),
+      // });
     },
     setTemplate(payload) {
       let templates = this.$ls.get("KEY_TEMPLATES", {});
@@ -458,6 +434,10 @@ export default {
       templates[payload.name] = payload.json;
       this.$ls.set("KEY_TEMPLATES", templates);
       this.$message.info("保存成功");
+    },
+    /** 单位换算 mm 为 pt */
+    mmToPt(value) {
+      return value ? Math.round((value * 72) / 25.4, 2) : 0;
     },
   },
 };
