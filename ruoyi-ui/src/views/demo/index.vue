@@ -3,7 +3,6 @@
     <el-row style="margin-bottom: 10px">
       <el-col :span="4">
         <!-- 模板选择 -->
-
         <el-select
           v-model="mode"
           filterable
@@ -106,13 +105,21 @@
           >
             预览
           </el-button>
-          <el-button
+          <!-- <el-button
             type="primary"
             size="small"
             icon="el-icon-printer"
             @click="print"
           >
             直接打印
+          </el-button> -->
+          <el-button
+            type="primary"
+            size="small"
+            icon="el-icon-s-management"
+            @click="copy"
+          >
+            复制
           </el-button>
           <el-button
             type="primary"
@@ -177,7 +184,6 @@ export default {
   components: { printPreview },
   data() {
     return {
-      paperPopVisible: false,
       // 模板选择
       mode: 0,
       modeList: [],
@@ -186,20 +192,28 @@ export default {
         type: "other",
         width: 220,
         height: 80,
+        paperHeader: 20,
+        paperFooter: 200,
       },
       // 纸张类型
       paperTypes: {
         A3: {
           width: 420,
-          height: 296.6,
+          height: 297,
+          paperHeader: 49,
+          paperFooter: 780,
         },
         A4: {
           width: 210,
-          height: 296.6,
+          height: 297,
+          paperHeader: 49,
+          paperFooter: 780,
         },
         A5: {
           width: 210,
-          height: 147.6,
+          height: 148,
+          paperHeader: 25,
+          paperFooter: 390,
         },
         B3: {
           width: 500,
@@ -239,6 +253,26 @@ export default {
       }
       return type;
     },
+    // 面板配置
+    templatePanel() {
+      return {
+        panels: [
+          {
+            name: 0,
+            width: this.curPaper.width,
+            height: this.curPaper.height,
+            paperFooter: this.curPaper.paperFooter,
+            paperHeader: this.curPaper.paperHeader,
+          },
+        ],
+      };
+    },
+  },
+  watch: {
+    curPaperType(val) {
+      if (val === "other") {
+      }
+    },
   },
   mounted() {
     this.init();
@@ -266,7 +300,7 @@ export default {
       let templates = this.$ls.get("KEY_TEMPLATES", {});
       let template = templates[provider.value] ? templates[provider.value] : {};
       hiprintTemplate = new hiprint.PrintTemplate({
-        template: template,
+        template: this.templatePanel,
         settingContainer: "#PrintElementOptionSetting",
         paginationContainer: ".hiprint-printPagination",
       });
@@ -287,18 +321,40 @@ export default {
             type: type,
             width: value.width,
             height: value.height,
+            paperHeader: value.paperHeader,
+            paperFooter: value.paperFooter,
           };
           hiprintTemplate.setPaper(value.width, value.height);
+          this.setPageHeaderFooter();
         } else {
           this.curPaper = {
             type: "other",
             width: value.width,
             height: value.height,
+            paperHeader: value.paperHeader,
+            paperFooter: value.paperFooter,
           };
           hiprintTemplate.setPaper(value.width, value.height);
+          this.setPageHeaderFooter();
         }
       } catch (error) {
         this.$message.error(`操作失败: ${error}`);
+      }
+    },
+    setPageHeaderFooter() {
+      let templateJson = hiprintTemplate.getJson();
+      const { name, paperHeader, paperFooter } = this.templatePanel.panels[0];
+      if (
+        templateJson.panels &&
+        templateJson.panels.length &&
+        paperHeader &&
+        paperFooter
+      ) {
+        templateJson.panels[0].name = name;
+        // 设置页眉页脚
+        templateJson.panels[0].paperHeader = paperHeader;
+        templateJson.panels[0].paperFooter = paperFooter;
+        hiprintTemplate.update(templateJson);
       }
     },
     changeScale(currentValue, oldValue) {
@@ -370,6 +426,24 @@ export default {
       }
       this.$message.error("客户端未连接,无法直接打印");
     },
+    copy() {
+      // 将对象转换为 JSON 字符串
+      const jsonString = JSON.stringify(hiprintTemplate.getJson(), null, 2);
+
+      // 使用 Clipboard API 复制文本到剪贴板
+      navigator.clipboard
+        .writeText(jsonString)
+        .then(() => {
+          this.$message({
+            message: "模板 json 已复制到剪贴板",
+            type: "success",
+          });
+        })
+        .catch((err) => {
+          console.error("无法复制JSON: ", err);
+          this.$message.error("复制JSON失败");
+        });
+    },
     save() {
       let { mode } = this;
       let provider = providers[mode];
@@ -409,5 +483,36 @@ export default {
   overflow: hidden;
   overflow-x: auto;
   overflow-y: auto;
+}
+
+// 修改 页眉/页脚线 样式
+::v-deep .hiprint-headerLine,
+::v-deep .hiprint-footerLine {
+  border-color: red !important;
+}
+
+::v-deep .hiprint-headerLine:hover,
+::v-deep .hiprint-footerLine:hover {
+  border-top: 3px dashed red !important;
+}
+
+::v-deep .hiprint-headerLine:hover:before {
+  content: "页眉线";
+  left: calc(50% - 18px);
+  position: relative;
+  background: #ffff;
+  top: -12px;
+  color: red;
+  font-size: 12px;
+}
+
+::v-deep .hiprint-footerLine:hover:before {
+  content: "页脚线";
+  left: calc(50% - 18px);
+  position: relative;
+  color: red;
+  background: #ffff;
+  top: -12px;
+  font-size: 12px;
 }
 </style>

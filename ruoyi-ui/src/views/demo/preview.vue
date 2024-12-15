@@ -43,11 +43,11 @@ export default {
     };
   },
   computed: {
-    // 计算属性用于将 mm 转换为 px
+    // 计算属性用于将 mm 转换为 pt
     dialogWidth() {
-      // 每毫米大约等于3.78像素
-      const mmToPx = Math.round(this.width * 3.78);
-      return `${mmToPx}px`;
+      // 每毫米大约等于2.83磅
+      const mmToPx = Math.round(this.width * 2.83);
+      return `${mmToPx}pt`;
     },
   },
   watch: {},
