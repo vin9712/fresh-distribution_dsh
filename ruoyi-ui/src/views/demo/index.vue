@@ -131,6 +131,28 @@
         <!-- 保存/清空 -->
       </el-col>
     </el-row>
+
+    <!-- 读取 json 更新 -->
+    <el-row :gutter="8">
+      <el-col :span="4">
+        <el-input
+          type="textarea"
+          placeholder="请输入json样式"
+          v-model="jsonIn"
+        />
+      </el-col>
+      <el-col :span="4">
+        <el-button
+          type="primary"
+          size="small"
+          icon="el-icon-s-management"
+          @click="updateJson"
+        >
+          更新
+        </el-button></el-col
+      >
+    </el-row>
+
     <el-row :gutter="8">
       <el-col :span="4">
         <el-card style="height: 100vh">
@@ -228,6 +250,8 @@ export default {
       paperPopVisible: false,
       paperWidth: "220",
       paperHeight: "80",
+      // 导入的 json
+      jsonIn: "",
     };
   },
   computed: {
@@ -401,6 +425,15 @@ export default {
         return;
       }
       this.$message.error("客户端未连接,无法直接打印");
+    },
+    updateJson() {
+      if (hiprintTemplate && this.jsonIn) {
+        try {
+          hiprintTemplate.update(JSON.parse(this.jsonIn));
+        } catch (e) {
+          this.$message.error(`更新失败: ${e}`);
+        }
+      }
     },
     copy() {
       // 将对象转换为 JSON 字符串
