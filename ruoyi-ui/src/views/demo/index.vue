@@ -32,7 +32,7 @@
             <el-input-number
               :min="0"
               :max="400"
-              :step="50"
+              :step="10"
               size="small"
               v-model="paperWidth"
               style="width: 120px; text-align: center"
@@ -42,7 +42,7 @@
             <el-input-number
               :min="0"
               :max="400"
-              :step="50"
+              :step="10"
               size="small"
               v-model="paperHeight"
               style="width: 120px; text-align: center"
