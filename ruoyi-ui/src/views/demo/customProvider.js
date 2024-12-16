@@ -220,56 +220,56 @@ export default function (options) {
                 title: "序号",
                 align: "center",
                 field: "index",
-                width: 30,
+                width: 10,
               },
               {
                 title: "商品名称",
                 align: "center",
                 field: "productName",
-                width: 150,
+                width: 40,
               },
               {
                 title: "单位",
                 align: "center",
                 field: "productUnit",
-                width: 50,
+                width: 10,
               },
               {
                 title: "计划数量",
                 align: "center",
                 field: "num",
-                width: 80,
+                width: 20,
               },
               {
                 title: "实收数量",
                 align: "center",
                 field: "actualNum",
-                width: 80,
+                width: 20,
               },
               {
                 title: "单价",
                 align: "center",
                 field: "productPrice",
-                width: 80,
+                width: 20,
               },
               {
                 title: "金额",
                 align: "center",
                 field: "expectAmount",
-                width: 80,
+                width: 20,
               },
               {
                 title: "规格",
                 align: "center",
                 field: "productSpec",
-                width: 80,
+                width: 20,
                 checked: false,
               },
               {
                 title: "条码",
                 align: "center",
                 field: "TM",
-                width: 100,
+                width: 25,
                 checked: false,
               },
             ],
@@ -281,9 +281,8 @@ export default function (options) {
             currentPageGridRowsData
           ) {
             if (data && data["totalCap"]) {
-              return `<td style="padding:0 10px" colspan="100">${
-                "小计: " + data["totalCap"]
-              }</td>`;
+              return `<td style="padding:0 10px" colspan="100">${"小计: " + data["totalCap"]
+                }</td>`;
             }
             return '<td style="padding:0 10px" colspan="100">小计: </td>';
           },

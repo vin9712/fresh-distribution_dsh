@@ -198,10 +198,10 @@ export default {
       // 当前纸张
       curPaper: {
         type: "other",
-        width: 220,
-        height: 80,
-        paperHeader: this.mmToPt(7),
-        paperFooter: this.mmToPt(70),
+        width: 140,
+        height: 216,
+        paperHeader: this.mmToPt(22),
+        paperFooter: this.mmToPt(186),
       },
       // 纸张类型
       paperTypes: {
@@ -248,8 +248,8 @@ export default {
       scaleMin: 0.5,
       // 自定义纸张
       paperPopVisible: false,
-      paperWidth: "220",
-      paperHeight: "80",
+      paperWidth: 140,
+      paperHeight: 216,
       // 导入的 json
       jsonIn: "",
     };
@@ -306,6 +306,7 @@ export default {
         "customProviderModule"
       );
       $("#hiprint-printTemplate").empty();
+      console.log("templatePanel", this.templatePanel);
       hiprintTemplate = new hiprint.PrintTemplate({
         template: this.templatePanel,
         settingContainer: "#PrintElementOptionSetting",
