@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="utf-8"> 
+  <title>菜鸟教程(runoob.com)</title> 
+  <style type="text/css">
+    thead {
+      color: green;
+    }
+
+    tbody {
+      color: blue;
+    }
+
+    tfoot {
+      color: red;
+    }
+  </style>
+</head>
+
+<body>
+
+  <table border="1">
+    <thead>
+      <tr>
+        <th>Index</th>
+        <th>Name</th>
+        <th>Month</th>
+        <th>Savings</th>
+      </tr>
+    </thead>
+    <tfoot>
+      <tr>
+        <td>Sum</td>
+        <td>$180</td>
+      </tr>
+    </tfoot>
+    <tbody>
+      <tr>
+        <td>1</td>
+        <td>a</td>
+        <td>January</td>
+        <td>$100</td>
+      </tr>
+      <tr>
+        <td>2</td>
+        <td>b</td>
+        <td>February</td>
+        <td>$80</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <p><b>提示:</b> thead, tbody, 和 tfoot 元素默认不会影响表格的布局。不过，您可以使用 CSS 来为这些元素定义样式，从而改变表格的外观。</p>
+
+</body>
+
+</html>
+
+<script>
+  function footerFormatter(options, rows, data, pageData, pageIndex) {
+    console.log('options', options, 'rows', rows, 'data', data, 'pageData', pageData, 'pageIndex', pageIndex);
+
+    const columnsCount = [...options.columns[0].allColumns].filter(item => item.checked).length
+    console.log('columnsCount', columnsCount);
+
+    // 动态计算colspan值
+    const colspan1 = Math.ceil(columnsCount / 2);
+    const colspan2 = columnsCount - colspan1;
+
+    // 返回带有正确colspan属性的表尾HTML
+    return `
+        <tr>
+            <td colspan="${colspan1}" style="text-align:left; border:none;">收货单位：aaaaaaaaaa</td>
+            <td colspan="${colspan2}" style="text-align:right; border:none;">送货单位：xxxxxxxxxxxx</td>
+        </tr>
+    `;
+
+  }
+
+</script>
