@@ -163,6 +163,7 @@ insert into sys_menu values('2', '系统监控', '0', '98', 'monitor',          
 insert into sys_menu values('3', '系统工具', '0', '99', 'tool',             null, '', '', 1, 0, 'M', '0', '0', '', 'tool',     'admin', sysdate(), '', null, '系统工具目录');
 insert into sys_menu values('4', '基础信息', '0', '1', 'basicInfo', null, '', '', 1, 0, 'M', '0', '0', '', 'star',    'admin', sysdate(), '', null, '基础设施目录');
 insert into sys_menu values('5', '单据管理', '0', '2', 'order', null, '', '', 1, 0, 'M', '0', '0', '', 'build',    'admin', sysdate(), '', null, '单据管理目录');
+insert into sys_menu values('6', '打印管理', '0', '3', 'print', null, '', '', 1, 0, 'M', '0', '0', '', 'table',    'admin', sysdate(), '', null, '打印管理目录');
 
 -- 二级菜单
 insert into sys_menu values('100',  '用户管理', '1',   '1', 'user',       'system/user/index',        '', '', 1, 0, 'C', '0', '0', 'system:user:list',        'user',          'admin', sysdate(), '', null, '用户管理菜单');

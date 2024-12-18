@@ -317,3 +317,25 @@ CREATE TABLE `t_delivery_order_detail`
     KEY                `idx_customer_dept_id` (`customer_dept_id`) USING BTREE,
     KEY                `idx_create_time` (`create_time`) USING BTREE
 ) ENGINE=InnoDB AUTO_INCREMENT=1 DEFAULT CHARSET=utf8 ROW_FORMAT=DYNAMIC COMMENT='送货单详情表';
+
+-- 打印模板表
+CREATE TABLE `t_print_template`
+(
+    `id`          bigint(10) unsigned NOT NULL AUTO_INCREMENT COMMENT '主键',
+    `customer_id` bigint(10) unsigned NOT NULL DEFAULT '0' COMMENT '客户ID（默认为0，表示通用模板）',
+    `code`        varchar(200) NOT NULL COMMENT '打印模板编号',
+    `name`        varchar(200) NOT NULL COMMENT '打印模板名称',
+    `content`     JSON         NOT NULL COMMENT '打印模板内容',
+    `type`        tinyint(1) NOT NULL DEFAULT '0' COMMENT '打印模板类型，0-送货单，1-汇总表',
+    `is_deleted`  tinyint(1) NOT NULL DEFAULT '0' COMMENT '逻辑删除',
+    `version`     int(10) unsigned NOT NULL DEFAULT '0' COMMENT '版本号',
+    `create_by`   varchar(64)           DEFAULT '' COMMENT '创建者',
+    `create_time` timestamp    NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    `update_by`   varchar(64)           DEFAULT '' COMMENT '更新者',
+    `update_time` datetime              DEFAULT NULL COMMENT '更新时间',
+    `remark`      varchar(500)          DEFAULT NULL COMMENT '备注',
+    PRIMARY KEY (`id`) USING BTREE,
+    UNIQUE KEY `unq_code` (`code`) USING BTREE,
+    KEY           `idx_name` (`name`) USING BTREE,
+    KEY           `idx_customer_id` (`customer_id`) USING BTREE
+)ENGINE=InnoDB AUTO_INCREMENT=1 DEFAULT CHARSET=utf8 ROW_FORMAT=DYNAMIC COMMENT='打印模板表';
