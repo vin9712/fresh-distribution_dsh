@@ -8,109 +8,91 @@ export default function (options) {
       new hiprint.PrintElementTypeGroup("常规", [
         {
           tid: "customProviderModule.header",
-          title: "单据表头",
-          data: "单据表头",
+          title: "标题",
+          data: "送货单",
           type: "text",
           options: {
-            testData: "单据表头",
             height: 17,
             fontSize: 16.5,
             fontWeight: "700",
             textAlign: "center",
             hideTitle: true,
+            fontFamily: "SimSun",
           },
         },
         {
-          tid: "customProviderModule.type",
-          title: "单据类型",
-          data: "单据类型",
+          tid: "customProviderModule.text",
+          title: "文本",
           type: "text",
-          options: {
-            testData: "单据类型",
-            height: 16,
-            fontSize: 15,
-            fontWeight: "700",
-            textAlign: "center",
-            hideTitle: true,
-          },
         },
         {
-          tid: "customProviderModule.order",
-          title: "订单编号",
-          data: "XS888888888",
-          type: "text",
-          options: {
-            field: "orderId",
-            testData: "XS888888888",
-            height: 16,
-            fontSize: 6.75,
-            fontWeight: "700",
-            textAlign: "left",
-            textContentVerticalAlign: "middle",
-          },
+          tid: "customProviderModule.longText",
+          title: "长文本",
+          type: "longText",
         },
         {
-          tid: "customProviderModule.date",
-          title: "业务日期",
-          data: "2020-01-01",
-          type: "text",
-          options: {
-            field: "date",
-            testData: "2020-01-01",
-            height: 16,
-            fontSize: 6.75,
-            fontWeight: "700",
-            textAlign: "left",
-            textContentVerticalAlign: "middle",
-          },
+          tid: "customProviderModule.hline",
+          title: "横线",
+          type: "hline",
+        },
+        {
+          tid: "customProviderModule.vline",
+          title: "竖线",
+          type: "vline",
+        },
+        {
+          tid: "customProviderModule.rect",
+          title: "矩形",
+          type: "rect",
+        },
+        {
+          tid: "customProviderModule.oval",
+          title: "椭圆",
+          type: "oval",
         },
         {
           tid: "customProviderModule.barcode",
           title: "条形码",
-          data: "XS888888888",
-          type: "text",
-          options: {
-            field: "barcode",
-            testData: "XS888888888",
-            height: 32,
-            fontSize: 12,
-            lineHeight: 18,
-            textType: "barcode",
-          },
+          type: "barcode",
         },
         {
           tid: "customProviderModule.qrcode",
           title: "二维码",
-          data: "XS888888888",
-          type: "text",
-          options: {
-            field: "qrcode",
-            testData: "XS888888888",
-            height: 32,
-            fontSize: 12,
-            lineHeight: 18,
-            textType: "qrcode",
-          },
+          type: "qrcode",
         },
         {
-          tid: "customProviderModule.platform",
-          title: "平台名称",
-          data: "平台名称",
-          type: "text",
-          options: {
-            testData: "平台名称",
-            height: 17,
-            fontSize: 16.5,
-            fontWeight: "700",
-            textAlign: "center",
-            hideTitle: true,
-          },
-        },
-        {
-          tid: "customProviderModule.image",
-          title: "Logo",
+          tid: "customProviderModule.logo",
+          title: "图片",
           data: "",
           type: "image",
+        },
+        {
+          tid: "customProviderModule.table",
+          title: "表格",
+          type: "table",
+          width: 50,
+          columns: [
+            [
+              {
+                title: "Col1",
+                field: "column1",
+                width: 50,
+              },
+              {
+                title: "Col2",
+                field: "column2",
+                width: 50,
+              },
+            ],
+          ],
+        },
+        {
+          tid: "customProviderModule.html",
+          title: "html",
+          formatter: function (data, options) {
+            return '<div style="height:50pt;width:50pt;background:red;"></div>';
+          },
+          type: "html",
         },
       ]),
       new hiprint.PrintElementTypeGroup("送货订单", [
@@ -281,8 +263,9 @@ export default function (options) {
             currentPageGridRowsData
           ) {
             if (data && data["totalCap"]) {
-              return `<td style="padding:0 10px" colspan="100">${"小计: " + data["totalCap"]
-                }</td>`;
+              return `<td style="padding:0 10px" colspan="100">${
+                "小计: " + data["totalCap"]
+              }</td>`;
             }
             return '<td style="padding:0 10px" colspan="100">小计: </td>';
           },
