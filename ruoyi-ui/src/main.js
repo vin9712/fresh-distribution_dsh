@@ -9,20 +9,6 @@ import "./assets/styles/element-variables.scss";
 import VXETable from "vxe-table";
 import "vxe-table/lib/style.css";
 
-// vue-plugin-hiprint
-import { hiPrintPlugin } from "vue-plugin-hiprint";
-Vue.use(hiPrintPlugin);
-
-import Storage from "vue-ls";
-let options = {
-  namespace: "hiPrint-",
-  name: "ls",
-  storage: "local",
-};
-Vue.use(Storage, options);
-
-import "@/assets/styles/sv-print.css"; // sv-print css
-
 import "@/assets/styles/index.scss"; // global css
 import "@/assets/styles/ruoyi.scss"; // ruoyi css
 import App from "./App";
