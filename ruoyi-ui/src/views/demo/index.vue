@@ -1,8 +1,10 @@
 <template>
   <div class="sv-print-container">
     <Designer
+      :key="designerKey"
       :template="template"
       :printData="printData"
+      :events="events"
       @onDesigned="onDesigned"
     >
       <!-- 自定义 header -->
@@ -31,6 +33,14 @@
                 </div>
               </div>
               <i class="nav svicon sv-nav-down svelte-ien9fs"></i>
+            </div>
+            <div
+              class="svp-header-menu svelte-ien9fs"
+              id="printTest"
+              @click="printTest"
+            >
+              <i class="svicon sv-print svelte-ien9fs"></i>
+              <p class="svelte-ien9fs">测试打印</p>
             </div>
           </div>
 
@@ -86,6 +96,7 @@
 
 <script>
 import { Designer } from "@sv-print/vue";
+import { disAutoConnect, hiprint } from "@sv-print/hiprint";
 import "sv-print/dist/style.css"; // sv-print 样式
 
 export default {
@@ -95,313 +106,25 @@ export default {
       // 设计器工具类
       designerUtils: null,
       printTemplate: null,
-      hiprint: null,
 
-      // 打印模板+数据
+      // 默认打印模板+数据
+      designerKey: 0,
       template: {},
-      printData: {
-        table: [
-          {
-            index: 1,
-            productName: "测试商品01",
-            num: 2,
-            productUnit: "斤",
-            productSpec: "1*24g",
-            TM: "2O22010100110",
-            productPrice: "6.8",
-            expectAmount: "13.6",
-          },
-          {
-            index: 2,
-            productName: "测试商品02",
-            num: 2,
-            productUnit: "斤",
-            productSpec: "1*24g",
-            TM: "2O22010100110",
-            productPrice: "6.8",
-            expectAmount: "13.6",
-          },
-          {
-            index: 3,
-            productName: "测试商品03",
-            num: 2,
-            productUnit: "斤",
-            productSpec: "1*24g",
-            TM: "2O22010100110",
-            productPrice: "6.8",
-            expectAmount: "13.6",
-          },
-          {
-            index: 4,
-            productName: "测试商品04",
-            num: 2,
-            productUnit: "斤",
-            productSpec: "1*24g",
-            TM: "2O22010100110",
-            productPrice: "6.8",
-            expectAmount: "13.6",
-          },
-          {
-            index: 5,
-            productName: "测试商品05",
-            num: 2,
-            productUnit: "斤",
-            productSpec: "1*24g",
-            TM: "2O22010100110",
-            productPrice: "6.8",
-            expectAmount: "13.6",
-          },
-          {
-            index: 6,
-            productName: "测试商品06",
-            num: 2,
-            productUnit: "斤",
-            productSpec: "1*24g",
-            TM: "2O22010100110",
-            productPrice: "6.8",
-            expectAmount: "13.6",
-          },
-          {
-            index: 7,
-            productName: "测试商品07",
-            num: 2,
-            productUnit: "斤",
-            productSpec: "1*24g",
-            TM: "2O22010100110",
-            productPrice: "6.8",
-            expectAmount: "13.6",
-          },
-          {
-            index: 8,
-            productName: "测试商品08",
-            num: 2,
-            productUnit: "斤",
-            productSpec: "1*24g",
-            TM: "2O22010100110",
-            productPrice: "6.8",
-            expectAmount: "13.6",
-          },
-          {
-            index: 9,
-            productName: "测试商品09",
-            num: 2,
-            productUnit: "斤",
-            productSpec: "1*24g",
-            TM: "2O22010100110",
-            productPrice: "6.8",
-            expectAmount: "13.6",
-          },
-          {
-            index: 10,
-            productName: "测试商品10",
-            num: 2,
-            productUnit: "斤",
-            productSpec: "1*24g",
-            TM: "2O22010100110",
-            productPrice: "6.8",
-            expectAmount: "13.6",
-          },
-          {
-            index: 11,
-            productName: "测试商品11",
-            num: 2,
-            productUnit: "斤",
-            productSpec: "1*24g",
-            TM: "2O22010100110",
-            productPrice: "6.8",
-            expectAmount: "13.6",
-          },
-          {
-            index: 12,
-            productName: "测试商品12",
-            num: 2,
-            productUnit: "斤",
-            productSpec: "1*24g",
-            TM: "2O22010100110",
-            productPrice: "6.8",
-            expectAmount: "13.6",
-          },
-          {
-            index: 13,
-            productName: "测试商品13",
-            num: 2,
-            productUnit: "斤",
-            productSpec: "1*24g",
-            TM: "2O22010100110",
-            productPrice: "6.8",
-            expectAmount: "13.6",
-          },
-          {
-            index: 14,
-            productName: "测试商品14",
-            num: 2,
-            productUnit: "斤",
-            productSpec: "1*24g",
-            TM: "2O22010100110",
-            productPrice: "6.8",
-            expectAmount: "13.6",
-          },
-          {
-            index: 15,
-            productName: "测试商品15",
-            num: 2,
-            productUnit: "斤",
-            productSpec: "1*24g",
-            TM: "2O22010100110",
-            productPrice: "6.8",
-            expectAmount: "13.6",
-          },
-          {
-            index: 16,
-            productName: "测试商品16",
-            num: 2,
-            productUnit: "斤",
-            productSpec: "1*24g",
-            TM: "2O22010100110",
-            productPrice: "6.8",
-            expectAmount: "13.6",
-          },
-          {
-            index: 17,
-            productName: "测试商品17",
-            num: 2,
-            productUnit: "斤",
-            productSpec: "1*24g",
-            TM: "2O22010100110",
-            productPrice: "6.8",
-            expectAmount: "13.6",
-          },
-          {
-            index: 18,
-            productName: "测试商品18",
-            num: 2,
-            productUnit: "斤",
-            productSpec: "1*24g",
-            TM: "2O22010100110",
-            productPrice: "6.8",
-            expectAmount: "13.6",
-          },
-          {
-            index: 19,
-            productName: "测试商品19",
-            num: 2,
-            productUnit: "斤",
-            productSpec: "1*24g",
-            TM: "2O22010100110",
-            productPrice: "6.8",
-            expectAmount: "13.6",
-          },
-          {
-            index: 20,
-            productName: "测试商品20",
-            num: 2,
-            productUnit: "斤",
-            productSpec: "1*24g",
-            TM: "2O22010100110",
-            productPrice: "6.8",
-            expectAmount: "13.6",
-          },
-          {
-            index: 21,
-            productName: "测试商品21",
-            num: 2,
-            productUnit: "斤",
-            productSpec: "1*24g",
-            TM: "2O22010100110",
-            productPrice: "6.8",
-            expectAmount: "13.6",
-          },
-          {
-            index: 22,
-            productName: "测试商品22",
-            num: 2,
-            productUnit: "斤",
-            productSpec: "1*24g",
-            TM: "2O22010100110",
-            productPrice: "6.8",
-            expectAmount: "13.6",
-          },
-          {
-            index: 23,
-            productName: "测试商品23",
-            num: 2,
-            productUnit: "斤",
-            productSpec: "1*24g",
-            TM: "2O22010100110",
-            productPrice: "6.8",
-            expectAmount: "13.6",
-          },
-          {
-            index: 24,
-            productName: "测试商品24",
-            num: 2,
-            productUnit: "斤",
-            productSpec: "1*24g",
-            TM: "2O22010100110",
-            productPrice: "6.8",
-            expectAmount: "13.6",
-          },
-          {
-            index: 25,
-            productName: "测试商品25",
-            num: 2,
-            productUnit: "斤",
-            productSpec: "1*24g",
-            TM: "2O22010100110",
-            productPrice: "6.8",
-            expectAmount: "13.6",
-          },
-          {
-            index: 26,
-            productName: "测试商品26",
-            num: 2,
-            productUnit: "斤",
-            productSpec: "1*24g",
-            TM: "2O22010100110",
-            productPrice: "6.8",
-            expectAmount: "13.6",
-          },
-          {
-            index: 27,
-            productName: "测试商品27",
-            num: 2,
-            productUnit: "斤",
-            productSpec: "1*24g",
-            TM: "2O22010100110",
-            productPrice: "6.8",
-            expectAmount: "13.6",
-          },
-          {
-            index: 28,
-            productName: "测试商品28",
-            num: 2,
-            productUnit: "斤",
-            productSpec: "1*24g",
-            TM: "2O22010100110",
-            productPrice: "6.8",
-            expectAmount: "13.6",
-          },
-          {
-            index: 29,
-            productName: "测试商品29",
-            num: 2,
-            productUnit: "斤",
-            productSpec: "1*24g",
-            TM: "2O22010100110",
-            productPrice: "6.8",
-            expectAmount: "13.6",
-          },
-          {
-            index: 30,
-            productName: "测试商品30",
-            num: 2,
-            productUnit: "斤",
-            productSpec: "1*24g",
-            TM: "2O22010100110",
-            productPrice: "6.8",
-            expectAmount: "13.6",
-          },
-        ],
+      printData: { name: "demo" },
+
+      // 事件内重设打印模板+数据
+      events: {
+        template: {},
+        printData: {},
+        onSave: function (templateKey, templateLayoutData) {
+          this.template = JSON.parse(JSON.stringify(templateLayoutData));
+        },
+        onEdit: function (templateLayoutData) {
+          this.template = JSON.parse(JSON.stringify(templateLayoutData));
+        },
+        onEditData: function (templatePrintData) {
+          this.printData = JSON.parse(JSON.stringify(templatePrintData));
+        },
       },
 
       // 隐藏水印元素
@@ -421,6 +144,7 @@ export default {
     },
   },
   mounted() {
+    // disAutoConnect();
     this.hideWatermark();
   },
   beforeDestroy() {
@@ -479,6 +203,40 @@ export default {
       console.log("printTemplate", this.printTemplate);
 
       this.designerUtils.preview.show();
+    },
+    /** 测试打印 */
+    printTest() {
+      let hiprintTemplate = new hiprint.PrintTemplate({
+        template: this.events.template,
+      });
+      console.log("hiprintTemplate", hiprintTemplate);
+      let html = hiprintTemplate.getHtml(this.events.printData);
+      console.log("html data", html);
+
+      // 添加隐藏打印时水印和其他元素的样式
+      const printHideStyle = document.createElement("style");
+      printHideStyle.id = "print-hide-style";
+      printHideStyle.innerHTML = `
+        div[class*="${hiprintTemplate.id}"],
+        .hiprint-printPaper-background,
+        #dragBox-rotateTools,
+        #SVPrint .svp-footer {
+          display: none !important;
+        }
+      `;
+
+      console.log("printHideStyle", printHideStyle);
+      hiprintTemplate.print2(this.events.printData, {
+        styleHandler: () => {
+          // 这里拼接成放html->head标签内的css/style
+          let css =
+            '<link rel="stylesheet" type="text/css" media="print" href="/print-lock.css">';
+
+          // 2.重写样式：在原有基础上加上 printHideStyle
+          css += printHideStyle.outerHTML;
+          return css;
+        },
+      });
     },
   },
 };
