@@ -34,6 +34,31 @@
               </div>
               <i class="nav svicon sv-nav-down svelte-ien9fs"></i>
             </div>
+
+            <div
+              class="svp-header-menu svelte-ien9fs"
+              id="editTemplate"
+              @click="editTemplate"
+            >
+              <i class="svicon sv-edit svelte-ien9fs"></i>
+              <p class="svelte-ien9fs">编辑模板</p>
+            </div>
+            <div
+              class="svp-header-menu svelte-ien9fs"
+              id="editPrintData"
+              @click="editPrintData"
+            >
+              <i class="svicon sv-edit-data svelte-ien9fs"></i>
+              <p class="svelte-ien9fs">编辑数据</p>
+            </div>
+            <div
+              class="svp-header-menu svelte-ien9fs"
+              id="preview"
+              @click="preview"
+            >
+              <i class="svicon sv-preview svelte-ien9fs"></i>
+              <p class="svelte-ien9fs">预览</p>
+            </div>
             <div
               class="svp-header-menu svelte-ien9fs"
               id="printTest"
@@ -58,30 +83,6 @@
                 </div>
               </div>
               <i class="nav svicon sv-nav-down svelte-ien9fs"></i>
-            </div>
-            <div
-              class="svp-header-menu svelte-ien9fs"
-              id="editTemplate"
-              @click="editTemplate"
-            >
-              <i class="svicon sv-edit svelte-ien9fs"></i>
-              <p class="svelte-ien9fs">编辑模板</p>
-            </div>
-            <div
-              class="svp-header-menu svelte-ien9fs"
-              id="editPrintData"
-              @click="editPrintData"
-            >
-              <i class="svicon sv-edit-data svelte-ien9fs"></i>
-              <p class="svelte-ien9fs">编辑数据</p>
-            </div>
-            <div
-              class="svp-header-menu svelte-ien9fs"
-              id="preview"
-              @click="preview"
-            >
-              <i class="svicon sv-preview svelte-ien9fs"></i>
-              <p class="svelte-ien9fs">预览</p>
             </div>
             <div class="svp-header-menu svelte-ien9fs">
               <i class="svicon sv-close svelte-ien9fs"></i>
@@ -125,6 +126,10 @@ export default {
         onEditData: function (templatePrintData) {
           this.printData = JSON.parse(JSON.stringify(templatePrintData));
         },
+        onKeyDownEvent: function (e, b) {
+          console.log("e", e);
+          console.log("b", b);
+        },
       },
 
       // 隐藏水印元素
@@ -146,6 +151,7 @@ export default {
   mounted() {
     // disAutoConnect();
     this.hideWatermark();
+    this.designerKey++;
   },
   beforeDestroy() {
     // 直接移除之前添加的 <style> 标签（如果有）
