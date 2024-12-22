@@ -151,7 +151,6 @@ export default {
   mounted() {
     // disAutoConnect();
     this.hideWatermark();
-    this.designerKey++;
   },
   beforeDestroy() {
     // 直接移除之前添加的 <style> 标签（如果有）
