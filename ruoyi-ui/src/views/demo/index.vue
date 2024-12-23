@@ -9,87 +9,41 @@
     >
       <!-- 自定义 header -->
       <div class="svp-header svelte-ien9fs" slot="header">
-        <div class="children svelte-ien9fs">
-          <!-- 左侧部分 -->
-          <div class="flex svp-flex-row basis-1/5 svelte-ien9fs">
-            <span class="svp-header-title svelte-ien9fs">{{
-              "送货单位: " + customerDeptName
-            }}</span>
-          </div>
-
-          <!-- 中间部分 -->
-          <div
-            class="flex svp-flex-row px-4 basis-3/5 svp-justify-center svelte-ien9fs"
-          >
-            <div
-              class="svp-header-more-ele svelte-ien9fs"
-              style="position: unset"
-            >
-              <div class="parent svelte-ien9fs">
-                <i class="svicon sv-base svelte-ien9fs"></i>
-                <p class="svelte-ien9fs">基础</p>
-                <div class="children svelte-ien9fs">
-                  <!-- 这里可以放置具体的可拖动元素 -->
-                </div>
-              </div>
-              <i class="nav svicon sv-nav-down svelte-ien9fs"></i>
-            </div>
-
-            <div
-              class="svp-header-menu svelte-ien9fs"
-              id="editTemplate"
-              @click="editTemplate"
-            >
-              <i class="svicon sv-edit svelte-ien9fs"></i>
-              <p class="svelte-ien9fs">编辑模板</p>
-            </div>
-            <div
-              class="svp-header-menu svelte-ien9fs"
-              id="editPrintData"
-              @click="editPrintData"
-            >
-              <i class="svicon sv-edit-data svelte-ien9fs"></i>
-              <p class="svelte-ien9fs">编辑数据</p>
-            </div>
-            <div
-              class="svp-header-menu svelte-ien9fs"
-              id="preview"
-              @click="preview"
-            >
-              <i class="svicon sv-preview svelte-ien9fs"></i>
-              <p class="svelte-ien9fs">预览</p>
-            </div>
-            <div
-              class="svp-header-menu svelte-ien9fs"
-              id="printTest"
-              @click="printTest"
-            >
-              <i class="svicon sv-print svelte-ien9fs"></i>
-              <p class="svelte-ien9fs">测试打印</p>
-            </div>
-          </div>
-
-          <!-- 右侧部分 -->
-          <div class="flex svp-flex-row basis-1/5 justify-end svelte-ien9fs">
-            <div
-              class="svp-header-more-menu svelte-ien9fs"
-              style="position: unset"
-            >
-              <div class="parent svelte-ien9fs">
+        <el-row :gutter="20" class="desinger-header">
+          <el-col :span="4" style="text-align: left">{{
+            "送货单位: " + customerDeptName
+          }}</el-col>
+          <el-col :span="16" class="svp-header-center-menu-container">
+            <ul class="svp-header-menu-list">
+              <li
+                v-for="(menu, index) in headerMenus"
+                :key="index"
+                :id="menu.id"
+                class="svp-header-menu svelte-ien9fs"
+                @click="menu.action"
+              >
+                <i :class="['svicon', menu.iconClass, 'svelte-ien9fs']"></i>
+                <p class="svelte-ien9fs">{{ menu.label }}</p>
+              </li>
+            </ul>
+          </el-col>
+          <el-col :span="4" class="svp-header-right-menu-container">
+            <ul class="svp-header-menu-list">
+              <li id="save" class="svp-header-menu svelte-ien9fs" @click="save">
                 <i class="svicon sv-save svelte-ien9fs"></i>
                 <p class="svelte-ien9fs">保存</p>
-                <div class="children svelte-ien9fs">
-                  <!-- 这里可以放置具体的菜单项 -->
-                </div>
-              </div>
-              <i class="nav svicon sv-nav-down svelte-ien9fs"></i>
-            </div>
-            <div class="svp-header-menu svelte-ien9fs">
-              <i class="svicon sv-close svelte-ien9fs"></i>
-              <p class="svelte-ien9fs">关闭</p>
-            </div>
-          </div>
-        </div>
+              </li>
+              <li
+                id="close"
+                class="svp-header-menu svelte-ien9fs"
+                @click="close"
+              >
+                <i class="svicon sv-close svelte-ien9fs"></i>
+                <p class="svelte-ien9fs">关闭</p>
+              </li>
+            </ul>
+          </el-col>
+        </el-row>
       </div>
     </Designer>
   </div>
@@ -138,6 +92,39 @@ export default {
 
       // 当前送货单位名称
       customerDeptName: "demo",
+      // 自定义表头按钮
+      headerMenus: [
+        {
+          id: "editTemplate",
+          iconClass: "sv-edit",
+          label: "编辑模板",
+          action: this.editTemplate,
+        },
+        {
+          id: "editPrintData",
+          iconClass: "sv-edit-data",
+          label: "编辑数据",
+          action: this.editPrintData,
+        },
+        {
+          id: "preview",
+          iconClass: "sv-preview",
+          label: "预览",
+          action: this.preview,
+        },
+        {
+          id: "printTest",
+          iconClass: "sv-print",
+          label: "测试打印",
+          action: this.printTest,
+        },
+        {
+          id: "printTestDirectly",
+          iconClass: "sv-print",
+          label: "测试直接打印",
+          action: this.printTestDirectly,
+        },
+      ],
     };
   },
   watch: {
@@ -149,7 +136,7 @@ export default {
     },
   },
   mounted() {
-    // disAutoConnect();
+    disAutoConnect();
     this.hideWatermark();
   },
   beforeDestroy() {
@@ -231,6 +218,44 @@ export default {
       `;
 
       console.log("printHideStyle", printHideStyle);
+      hiprintTemplate.print(
+        this.events.printData,
+        {},
+        {
+          styleHandler: () => {
+            // 这里拼接成放html->head标签内的css/style
+            let css =
+              '<link rel="stylesheet" type="text/css" media="print" href="/print-lock.css">';
+
+            // 2.重写样式：在原有基础上加上 printHideStyle
+            css += printHideStyle.outerHTML;
+            return css;
+          },
+        }
+      );
+    },
+    /** 测试直接打印 */
+    printTestDirectly() {
+      let hiprintTemplate = new hiprint.PrintTemplate({
+        template: this.events.template,
+      });
+      console.log("directly hiprintTemplate", hiprintTemplate);
+      let html = hiprintTemplate.getHtml(this.events.printData);
+      console.log("directly html data", html);
+
+      // 添加隐藏打印时水印和其他元素的样式
+      const printHideStyle = document.createElement("style");
+      printHideStyle.id = "directly-print-hide-style";
+      printHideStyle.innerHTML = `
+        div[class*="${hiprintTemplate.id}"],
+        .hiprint-printPaper-background,
+        #dragBox-rotateTools,
+        #SVPrint .svp-footer {
+          display: none !important;
+        }
+      `;
+
+      console.log("printHideStyle", printHideStyle);
       hiprintTemplate.print2(this.events.printData, {
         styleHandler: () => {
           // 这里拼接成放html->head标签内的css/style
@@ -243,6 +268,14 @@ export default {
         },
       });
     },
+    /** 保存样式 */
+    save() {
+      console.log("close template designer");
+    },
+    /** 关闭 */
+    close() {
+      console.log("close designer window");
+    },
   },
 };
 </script>
@@ -251,5 +284,42 @@ export default {
 .sv-print-container {
   width: 100%;
   height: 100%;
+}
+
+.desinger-header {
+  width: 100vw;
+  justify-content: space-between;
+}
+
+.svp-header-center-menu-container {
+  display: flex;
+  text-align: center;
+  justify-content: center;
+}
+
+.svp-header-right-menu-container {
+  display: flex;
+  padding-right: 0px !important;
+  text-align: right;
+  justify-content: right;
+}
+
+.svp-header-menu-list {
+  list-style: none; /* 移除默认的列表符号 */
+  padding: 0;
+  margin: 0;
+  display: flex;
+  justify-content: center; /* 水平居中对齐 */
+  align-items: center; /* 垂直居中对齐 */
+}
+
+.svp-header-menu-list li {
+  display: inline-block; /* 确保列表项并排显示 */
+  margin: 0 1px; /* 列表项之间的间距 */
+  cursor: pointer; /* 更改鼠标指针为手型 */
+}
+
+.svp-header-menu-list li:hover {
+  background-color: #f5f5f5; /* 鼠标悬停时改变背景色 */
 }
 </style>
