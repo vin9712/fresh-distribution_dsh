@@ -7,6 +7,7 @@
       :events="events"
       :providers="providerList"
       :providerMap="providerMapList"
+      theme="winter"
       @onDesigned="onDesigned"
     >
       <!-- 自定义 header -->
@@ -83,9 +84,30 @@ export default {
         onEditData: function (templatePrintData) {
           this.printData = JSON.parse(JSON.stringify(templatePrintData));
         },
-        onKeyDownEvent: function (events, b) {
+        onKeyDownEvent: function (events, self) {
           console.log("e", events);
-          console.log("b", b);
+          console.log("b", self);
+
+          // 如果点下 Esc，则关闭设计器弹窗
+          if (events.keyCode === 27) {
+            const openModalDom = document.querySelector(".modal-open");
+            if (openModalDom) {
+              // 编辑弹窗
+              const editModal = openModalDom.querySelector(".editorBox");
+              if (editModal) {
+                self.editor.close();
+                return;
+              }
+
+              // 预览弹窗
+              const previewModal =
+                openModalDom.querySelector("#preview_content");
+              if (previewModal) {
+                self.preview.hide();
+                return;
+              }
+            }
+          }
         },
       },
 
@@ -303,6 +325,7 @@ export default {
   display: flex;
   text-align: center;
   justify-content: center;
+  padding-top: 3px;
 }
 
 .svp-header-right-menu-container {
@@ -310,6 +333,7 @@ export default {
   padding-right: 0px !important;
   text-align: right;
   justify-content: right;
+  padding-top: 3px;
 }
 
 .svp-header-menu-list {
