@@ -5,6 +5,8 @@
       :template="template"
       :printData="printData"
       :events="events"
+      :providers="providerList"
+      :providerMap="providerMapList"
       @onDesigned="onDesigned"
     >
       <!-- 自定义 header -->
@@ -53,6 +55,7 @@
 import { Designer } from "@sv-print/vue";
 import { disAutoConnect, hiprint } from "@sv-print/hiprint";
 import "sv-print/dist/style.css"; // sv-print 样式
+import provider from "./provider";
 
 export default {
   components: { Designer },
@@ -80,8 +83,8 @@ export default {
         onEditData: function (templatePrintData) {
           this.printData = JSON.parse(JSON.stringify(templatePrintData));
         },
-        onKeyDownEvent: function (e, b) {
-          console.log("e", e);
+        onKeyDownEvent: function (events, b) {
+          console.log("e", events);
           console.log("b", b);
         },
       },
@@ -124,6 +127,11 @@ export default {
           label: "测试直接打印",
           action: this.printTestDirectly,
         },
+      ],
+      // 自定义拖拽元素
+      providerList: [new provider()],
+      providerMapList: [
+        { container: ".hiprintEpContainer", value: "customProviderModule" },
       ],
     };
   },
