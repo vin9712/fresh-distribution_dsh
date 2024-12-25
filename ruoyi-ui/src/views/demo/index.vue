@@ -152,9 +152,10 @@ export default {
       ],
       // 自定义拖拽元素
       providerList: [new provider()],
-      providerMapList: [
-        { container: ".hiprintEpContainer", value: "customProviderModule" },
-      ],
+      providerMapList: {
+        container: ".hiprintEpContainer",
+        value: "customProviderModule",
+      },
     };
   },
   watch: {
