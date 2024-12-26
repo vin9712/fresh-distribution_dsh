@@ -1,10 +1,10 @@
 <template>
   <div class="sv-print-container">
     <Designer
-      :key="designerKey"
       :template="template"
       :printData="printData"
       :events="events"
+      :plugins="plugins"
       :providers="providerList"
       :providerMap="providerMapList"
       theme="winter"
@@ -57,6 +57,7 @@ import { Designer } from "@sv-print/vue";
 import { disAutoConnect, hiprint } from "@sv-print/hiprint";
 import "sv-print/dist/style.css"; // sv-print 样式
 import provider from "./provider";
+import svPrintPlugin from "@/views/demo/sv-print-plugin.js";
 
 export default {
   components: { Designer },
@@ -67,7 +68,6 @@ export default {
       printTemplate: null,
 
       // 默认打印模板+数据
-      designerKey: 0,
       template: {},
       printData: { name: "demo" },
 
@@ -113,7 +113,7 @@ export default {
 
       // 隐藏水印元素
       templateId: null,
-      hideStyleElement: null,
+      plugins: [],
 
       // 当前送货单位名称
       customerDeptName: "demo",
@@ -158,48 +158,15 @@ export default {
       },
     };
   },
-  watch: {
-    templateId(val) {
-      if (val) {
-        console.log("templateId changed", val);
-        this.hideWatermark();
-      }
-    },
-  },
   mounted() {
-    disAutoConnect();
-    this.hideWatermark();
-  },
-  beforeDestroy() {
-    // 直接移除之前添加的 <style> 标签（如果有）
-    if (this.hideStyleElement) {
-      document.head.removeChild(this.hideStyleElement);
-    }
+    // disAutoConnect();
+    this.initSvPrintPlugin();
   },
   methods: {
-    /** 隐藏水印 */
-    hideWatermark() {
-      if (!this.templateId) return;
-
-      // 如果已经存在旧的隐藏水印样式，则先移除它
-      if (this.hideStyleElement) {
-        document.head.removeChild(this.hideStyleElement);
-      }
-
-      // 添加隐藏水印和其他元素的样式
-      const hideStyle = document.createElement("style");
-      hideStyle.id = "hide-style";
-      hideStyle.innerHTML = `
-        div[class*="${this.templateId}"],
-        .hiprint-printPaper-background,
-        #dragBox-rotateTools,
-        #SVPrint .svp-footer {
-          display: none !important;
-        }
-      `;
-      document.head.appendChild(hideStyle);
-
-      console.log("style added", hideStyle);
+    /** 初始化插件 */
+    initSvPrintPlugin() {
+      this.plugins = [];
+      this.plugins.push(svPrintPlugin());
     },
     /** 组件初始化回调方法 */
     onDesigned(e) {
@@ -232,72 +199,16 @@ export default {
       let hiprintTemplate = new hiprint.PrintTemplate({
         template: this.events.template,
       });
-      console.log("hiprintTemplate", hiprintTemplate);
-      let html = hiprintTemplate.getHtml(this.events.printData);
-      console.log("html data", html);
 
-      // 添加隐藏打印时水印和其他元素的样式
-      const printHideStyle = document.createElement("style");
-      printHideStyle.id = "print-hide-style";
-      printHideStyle.innerHTML = `
-        div[class*="${hiprintTemplate.id}"],
-        .hiprint-printPaper-background,
-        #dragBox-rotateTools,
-        #SVPrint .svp-footer {
-          display: none !important;
-        }
-      `;
-
-      console.log("printHideStyle", printHideStyle);
-      hiprintTemplate.print(
-        this.events.printData,
-        {},
-        {
-          styleHandler: () => {
-            // 这里拼接成放html->head标签内的css/style
-            let css =
-              '<link rel="stylesheet" type="text/css" media="print" href="/print-lock.css">';
-
-            // 2.重写样式：在原有基础上加上 printHideStyle
-            css += printHideStyle.outerHTML;
-            return css;
-          },
-        }
-      );
+      hiprintTemplate.print(this.events.printData);
     },
     /** 测试直接打印 */
     printTestDirectly() {
       let hiprintTemplate = new hiprint.PrintTemplate({
         template: this.events.template,
       });
-      console.log("directly hiprintTemplate", hiprintTemplate);
-      let html = hiprintTemplate.getHtml(this.events.printData);
-      console.log("directly html data", html);
 
-      // 添加隐藏打印时水印和其他元素的样式
-      const printHideStyle = document.createElement("style");
-      printHideStyle.id = "directly-print-hide-style";
-      printHideStyle.innerHTML = `
-        div[class*="${hiprintTemplate.id}"],
-        .hiprint-printPaper-background,
-        #dragBox-rotateTools,
-        #SVPrint .svp-footer {
-          display: none !important;
-        }
-      `;
-
-      console.log("printHideStyle", printHideStyle);
-      hiprintTemplate.print2(this.events.printData, {
-        styleHandler: () => {
-          // 这里拼接成放html->head标签内的css/style
-          let css =
-            '<link rel="stylesheet" type="text/css" media="print" href="/print-lock.css">';
-
-          // 2.重写样式：在原有基础上加上 printHideStyle
-          css += printHideStyle.outerHTML;
-          return css;
-        },
-      });
+      hiprintTemplate.print2(this.events.printData);
     },
     /** 保存样式 */
     save() {
