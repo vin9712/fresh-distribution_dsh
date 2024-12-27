@@ -70,11 +70,10 @@ export default {
       // 默认打印模板+数据
       template: {},
       printData: { name: "demo" },
-
-      // 事件内重设打印模板+数据
+      // 插件列表
+      plugins: [],
+      // 重设回调事件
       events: {
-        template: {},
-        printData: {},
         onSave: function (templateKey, templateLayoutData) {
           this.template = JSON.parse(JSON.stringify(templateLayoutData));
         },
@@ -110,10 +109,12 @@ export default {
           }
         },
       },
-
-      // 隐藏水印元素
-      templateId: null,
-      plugins: [],
+      // 自定义拖拽元素
+      providerList: [new provider()],
+      providerMapList: {
+        container: ".hiprintEpContainer",
+        value: "customProviderModule",
+      },
 
       // 当前送货单位名称
       customerDeptName: "demo",
@@ -150,12 +151,6 @@ export default {
           action: this.printTestDirectly,
         },
       ],
-      // 自定义拖拽元素
-      providerList: [new provider()],
-      providerMapList: {
-        container: ".hiprintEpContainer",
-        value: "customProviderModule",
-      },
     };
   },
   mounted() {
@@ -173,9 +168,8 @@ export default {
       const designer = e.detail;
       console.log("designer ", designer);
 
-      this.templateId = designer.printTemplate.id;
+      // this.hiprint = designer.hiprint;
       this.designerUtils = designer.designerUtils;
-      this.hiprint = designer.hiprint;
       this.printTemplate = designer.printTemplate;
     },
     /** 编辑打印模板 */
@@ -188,27 +182,28 @@ export default {
     },
     /** 点击预览 */
     preview() {
-      console.log("designerUtils", this.designerUtils);
-      console.log("hiprint", this.hiprint);
-      console.log("printTemplate", this.printTemplate);
-
       this.designerUtils.preview.show();
     },
     /** 测试打印 */
     printTest() {
+      // 重设打印模板
+      this.template = this.printTemplate.getJson();
       let hiprintTemplate = new hiprint.PrintTemplate({
-        template: this.events.template,
+        template: this.template,
       });
 
-      hiprintTemplate.print(this.events.printData);
+      hiprintTemplate.print(this.printData);
     },
     /** 测试直接打印 */
     printTestDirectly() {
+      // 重设打印模板
+      this.template = this.printTemplate.getJson();
+      console.log("this.template", this.template);
       let hiprintTemplate = new hiprint.PrintTemplate({
-        template: this.events.template,
+        template: this.template,
       });
 
-      hiprintTemplate.print2(this.events.printData);
+      hiprintTemplate.print2(this.printData);
     },
     /** 保存样式 */
     save() {
