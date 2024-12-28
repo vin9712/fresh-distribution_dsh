@@ -25,7 +25,7 @@ const plugin = function (config) {
   let configs = config || {};
   return {
     name: "sv-print-plugin",
-    description: "功能：隐藏水印，隐藏无用组件",
+    description: "功能：隐藏水印和无用组件",
     hooks: [
       {
         hook: "init",

@@ -209,6 +209,20 @@ export const dynamicRoutes = [
       }
     ]
   },
+  {
+    path: '/print/template-detail',
+    component: Layout,
+    hidden: true,
+    permissions: ['print:template:add'],
+    children: [
+      {
+        path: 'index/',
+        component: () => import('@/views/print/template/detail'),
+        name: 'PrintTemplateDetail',
+        meta: { title: '打印模板设计', activeMenu: '/print/template' }
+      }
+    ]
+  },
 ]
 
 // 防止连续点击多次路由报错

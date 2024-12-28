@@ -325,14 +325,9 @@ export default {
     },
     /** 新增按钮操作 */
     handleAdd() {
-      // this.reset();
-      // this.open = true;
-      // this.title = "添加打印模板";
-
-      // todo 跳转到新增详情
+      // 跳转到新增详情
       this.$router.push({
-        // path: "/basicInfo/quote-detail/index/" + this.queryParams.customerId,
-        // query: { quoteId: null, mode: "add" },
+        path: "/print/template-detail/index/",
       });
     },
     /** 修改按钮操作 */

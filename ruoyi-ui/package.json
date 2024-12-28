@@ -60,7 +60,6 @@
     "vue-easytable": "^2.27.1",
     "vue-ls": "^4.2.0",
     "vue-meta": "2.4.0",
-    "vue-plugin-hiprint": "^0.0.58-fix",
     "vue-router": "3.4.9",
     "vuedraggable": "2.24.3",
     "vuex": "3.6.0",
