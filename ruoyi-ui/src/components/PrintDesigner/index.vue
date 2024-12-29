@@ -1,6 +1,7 @@
 <template>
   <div class="sv-print-container">
     <Designer
+      :autoConnect="autoConnect"
       :template="template"
       :printData="printData"
       :events="events"
@@ -78,6 +79,7 @@ export default {
   components: { Designer },
   props: {
     printTitle: { type: String, default: "demo" },
+    autoConnect: { type: Boolean, default: false },
   },
   data() {
     return {
@@ -175,12 +177,6 @@ export default {
           label: "打印",
           action: this.printTest,
         },
-        {
-          id: "printTestDirectly",
-          iconClass: "sv-printer",
-          label: "直接打印",
-          action: this.printTestDirectly,
-        },
       ],
       headerRightMenus: [
         {
@@ -201,7 +197,9 @@ export default {
     };
   },
   mounted() {
-    disAutoConnect();
+    if (!this.autoConnect) {
+      disAutoConnect();
+    }
     this.initSvPrintPlugin();
   },
   methods: {

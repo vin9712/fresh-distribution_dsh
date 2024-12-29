@@ -332,12 +332,10 @@ export default {
     },
     /** 修改按钮操作 */
     handleUpdate(row) {
-      this.reset();
-      const id = row.id || this.ids;
-      getTemplate(id).then((response) => {
-        this.form = response.data;
-        this.open = true;
-        this.title = "修改打印模板";
+      // 跳转到修改详情
+      this.$router.push({
+        path: "/print/template-detail/index/",
+        query: { templateId: row.id },
       });
     },
     /** 提交按钮 */

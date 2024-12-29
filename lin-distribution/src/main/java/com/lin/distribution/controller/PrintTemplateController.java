@@ -1,27 +1,20 @@
 package com.lin.distribution.controller;
 
-import java.util.List;
-
-import io.swagger.v3.oas.annotations.tags.Tag;
-import jakarta.servlet.http.HttpServletResponse;
-import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.PutMapping;
-import org.springframework.web.bind.annotation.DeleteMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
 import com.lin.common.annotation.Log;
 import com.lin.common.core.controller.BaseController;
 import com.lin.common.core.domain.AjaxResult;
+import com.lin.common.core.page.TableDataInfo;
 import com.lin.common.enums.BusinessType;
+import com.lin.common.utils.poi.ExcelUtil;
 import com.lin.distribution.domain.PrintTemplate;
 import com.lin.distribution.service.PrintTemplateService;
-import com.lin.common.utils.poi.ExcelUtil;
-import com.lin.common.core.page.TableDataInfo;
+import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
 
 /**
  * 打印模板Controller
@@ -58,6 +51,15 @@ public class PrintTemplateController extends BaseController {
     }
 
     /**
+     * 获取或生成打印模板编号
+     */
+    @GetMapping("/code")
+    public AjaxResult generatePrintTemplateNo(@RequestParam(name = "refresh", required = false, defaultValue = "false") Boolean refresh,
+                                              @RequestParam(name = "currentCode", required = false) String currentCode) {
+        return success(printTemplateService.generatePrintTemplateNo(refresh, currentCode));
+    }
+
+    /**
      * 导出打印模板列表
      */
     @PreAuthorize("@ss.hasPermi('print:template:export')")
@@ -85,7 +87,7 @@ public class PrintTemplateController extends BaseController {
     @Log(title = "打印模板", businessType = BusinessType.INSERT)
     @PostMapping
     public AjaxResult add(@RequestBody PrintTemplate printTemplate) {
-        return toAjax(printTemplateService.insertPrintTemplate(printTemplate));
+        return success(printTemplateService.insertPrintTemplate(printTemplate));
     }
 
     /**

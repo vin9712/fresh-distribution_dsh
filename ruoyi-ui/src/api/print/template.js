@@ -26,6 +26,15 @@ export function getTemplate(id) {
   });
 }
 
+// 获取或生成打印模板单号
+export function genTemplateCode(query) {
+  return request({
+    url: '/print/template/code',
+    method: 'get',
+    params: query
+  })
+}
+
 // 新增打印模板
 export function addTemplate(data) {
   return request({

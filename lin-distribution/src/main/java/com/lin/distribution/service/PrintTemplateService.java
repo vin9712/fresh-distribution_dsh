@@ -1,8 +1,8 @@
 package com.lin.distribution.service;
 
-import java.util.List;
-
 import com.lin.distribution.domain.PrintTemplate;
+
+import java.util.List;
 
 /**
  * 打印模板Service接口
@@ -33,7 +33,7 @@ public interface PrintTemplateService {
      * @param printTemplate 打印模板
      * @return 结果
      */
-    int insertPrintTemplate(PrintTemplate printTemplate);
+    PrintTemplate insertPrintTemplate(PrintTemplate printTemplate);
 
     /**
      * 修改打印模板
@@ -58,4 +58,13 @@ public interface PrintTemplateService {
      * @return 结果
      */
     int deletePrintTemplateById(Long id);
+
+    /**
+     * 生成打印模板编号
+     *
+     * @param refresh       是否刷新
+     * @param currentCode   当前编号
+     * @return 打印模板编号
+     */
+    String generatePrintTemplateNo(Boolean refresh, String currentCode);
 }
