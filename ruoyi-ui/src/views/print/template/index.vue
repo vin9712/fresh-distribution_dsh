@@ -8,26 +8,18 @@
       v-show="showSearch"
       label-width="68px"
     >
-      <el-form-item label="打印模板编号" prop="code">
+      <el-form-item label="模板编号" prop="code">
         <el-input
           v-model="queryParams.code"
-          placeholder="请输入打印模板编号"
+          placeholder="请输入模板编号"
           clearable
           @keyup.enter.native="handleQuery"
         />
       </el-form-item>
-      <el-form-item label="打印模板名称" prop="name">
+      <el-form-item label="模板名称" prop="name">
         <el-input
           v-model="queryParams.name"
-          placeholder="请输入打印模板名称"
-          clearable
-          @keyup.enter.native="handleQuery"
-        />
-      </el-form-item>
-      <el-form-item label="逻辑删除" prop="isDeleted">
-        <el-input
-          v-model="queryParams.isDeleted"
-          placeholder="请输入逻辑删除"
+          placeholder="请输入模板名称"
           clearable
           @keyup.enter.native="handleQuery"
         />
@@ -105,18 +97,9 @@
       @selection-change="handleSelectionChange"
     >
       <el-table-column type="selection" width="55" align="center" />
-      <el-table-column label="主键" align="center" prop="id" />
-      <el-table-column label="客户ID" align="center" prop="customerId" />
+      <el-table-column label="客户" align="center" prop="customerId" />
       <el-table-column label="打印模板编号" align="center" prop="code" />
       <el-table-column label="打印模板名称" align="center" prop="name" />
-      <el-table-column label="打印模板内容" align="center" prop="content" />
-      <el-table-column
-        label="打印模板类型，0-送货单，1-汇总表"
-        align="center"
-        prop="type"
-      />
-      <el-table-column label="逻辑删除" align="center" prop="isDeleted" />
-      <el-table-column label="版本号" align="center" prop="version" />
       <el-table-column label="备注" align="center" prop="remark" />
       <el-table-column
         label="操作"
@@ -160,9 +143,6 @@
         </el-form-item>
         <el-form-item label="打印模板名称" prop="name">
           <el-input v-model="form.name" placeholder="请输入打印模板名称" />
-        </el-form-item>
-        <el-form-item label="打印模板内容">
-          <editor v-model="form.content" :min-height="192" />
         </el-form-item>
         <el-form-item label="逻辑删除" prop="isDeleted">
           <el-input v-model="form.isDeleted" placeholder="请输入逻辑删除" />

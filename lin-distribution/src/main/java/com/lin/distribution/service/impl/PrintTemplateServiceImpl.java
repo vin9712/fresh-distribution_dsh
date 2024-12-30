@@ -59,6 +59,7 @@ public class PrintTemplateServiceImpl implements PrintTemplateService {
     public PrintTemplate insertPrintTemplate(PrintTemplate printTemplate) {
         printTemplate.setCreateTime(DateUtils.getNowDate());
         printTemplateMapper.insertPrintTemplate(printTemplate);
+        genPrintTemplateNo(true);
         return printTemplate;
     }
 

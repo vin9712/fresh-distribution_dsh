@@ -1,6 +1,7 @@
 <template>
   <div>
     <div class="print-template-container">
+      <!-- 模板设计表单 -->
       <el-form
         ref="templateForm"
         :model="templateForm"
@@ -73,6 +74,7 @@ import {
   updateTemplate,
 } from "@/api/print/template";
 import PrintDesigner from "@/components/PrintDesigner";
+import { deepEqual } from "@/utils";
 const printTemplatePage = { path: "/print/template" };
 
 export default {
@@ -102,17 +104,16 @@ export default {
       },
     };
   },
-  mounted() {
+  created() {
     // 从路由获取并设置表单参数
     const templateIdFromQuery = this.$route.query.templateId;
     this.templateForm.id = templateIdFromQuery
       ? parseInt(templateIdFromQuery, 10)
       : null;
-    this.getTemplateDetail();
-  },
-  created() {
+
     this.getCustomerList();
     this.getTemplateCode();
+    this.getTemplateDetail();
   },
   methods: {
     /** 查询客户列表 */
@@ -125,16 +126,12 @@ export default {
     /** 打印模板数据 */
     getTemplateDetail() {
       const templateId = this.templateForm.id;
-      console.log("templateId", templateId);
       if (templateId) {
         getTemplate(templateId).then((response) => {
           this.templateForm = response.data;
-          console.log("templateForm", this.templateForm);
           // 更新获取模板样式
-          this.$refs.printDesigner.template = JSON.parse(
-            this.templateForm.content
-          );
-          console.log("designer template", this.$refs.printDesigner.template);
+          const templateContent = JSON.parse(this.templateForm.content);
+          this.$refs.printDesigner.printTemplate.update(templateContent);
         });
       }
     },
@@ -154,35 +151,27 @@ export default {
     /** 保存打印模板设计器 */
     saveTemplate() {
       const printTemplate = this.$refs.printDesigner.printTemplate;
-      console.log("printTemplate", printTemplate);
+      const templateId = this.templateForm.id;
 
       this.$refs["templateForm"].validate((valid) => {
         if (valid) {
           // 校验并赋值 template content(json)
-
-          const defaultJson = printTemplate.historyList.filter(
-            (item) => item.type === "初始"
-          ).json;
-          const lastJson =
-            printTemplate.historyList.length > 1
-              ? printTemplate.lastJson
-              : defaultJson;
-          console.log("lastJson", lastJson, "defaultJson", defaultJson);
-          if (!lastJson || defaultJson === lastJson) {
+          if (!templateId && !this.changeTemplate()) {
             this.$modal.msgError("请先设计模板内容");
             return;
           }
-          this.templateForm.content = JSON.stringify(lastJson);
+          this.templateForm.content = JSON.stringify(printTemplate.getJson());
 
-          if (this.templateForm.id != null) {
+          if (templateId) {
             updateTemplate(this.templateForm).then((response) => {
               this.$modal.msgSuccess("修改成功");
-              this.$tab.closeOpenPage(printTemplatePage);
+              this.getTemplateDetail();
             });
           } else {
             addTemplate(this.templateForm).then((response) => {
               this.$modal.msgSuccess("新增成功");
-              this.$tab.closeOpenPage(printTemplatePage);
+              printTemplate.update(JSON.parse(this.templateForm.content));
+              this.templateForm = response.data;
             });
           }
         }
@@ -190,10 +179,7 @@ export default {
     },
     /** 关闭打印模板设计器 */
     closeTemplate() {
-      const historyList = this.$refs.printDesigner.printTemplate.historyList;
-      const isChanged =
-        historyList.filter((item) => item.type !== "初始").length > 0;
-      if (isChanged) {
+      if (this.changeTemplate()) {
         this.$confirm("当前模板有修改，是否关闭？", "提示", {
           confirmButtonText: "确定",
           cancelButtonText: "取消",
@@ -206,6 +192,23 @@ export default {
       } else {
         this.$tab.closeOpenPage(printTemplatePage);
       }
+    },
+    /** 是否更改打印模板 */
+    changeTemplate() {
+      const printTemplate = this.$refs.printDesigner.printTemplate;
+      const templateId = this.templateForm.id;
+      const lastJson = printTemplate.lastJson;
+      // 修改模式
+      if (templateId) {
+        const templateContent = JSON.parse(this.templateForm.content);
+        const currentTemplate = JSON.parse(
+          JSON.stringify(printTemplate.getJson())
+        );
+        return !deepEqual(templateContent, currentTemplate);
+      }
+
+      // 新增模式
+      return lastJson && lastJson?.panels ? true : false;
     },
   },
 };
