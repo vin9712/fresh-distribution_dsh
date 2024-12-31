@@ -8,10 +8,10 @@
       v-show="showSearch"
       label-width="68px"
     >
-      <el-form-item label="送货单编号" prop="code">
+      <el-form-item label="送货单号" prop="code">
         <el-input
           v-model="queryParams.code"
-          placeholder="请输入送货单编号"
+          placeholder="请输入送货单号"
           clearable
           @keyup.enter.native="handleQuery"
         />
