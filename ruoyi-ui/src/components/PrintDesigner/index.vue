@@ -317,7 +317,7 @@ export default {
 }
 
 /* 调整纸张位置 */
-::v-deep .svp-paperBox.svelte-1bkx69y {
+/* ::v-deep .svp-paperBox.svelte-1bkx69y {
   padding: 80px 380px !important;
-}
+} */
 </style>

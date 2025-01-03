@@ -197,18 +197,20 @@ export default {
     changeTemplate() {
       const printTemplate = this.$refs.printDesigner.printTemplate;
       const templateId = this.templateForm.id;
-      const lastJson = printTemplate.lastJson;
+      const currentJson = printTemplate.getJson();
       // 修改模式
       if (templateId) {
         const templateContent = JSON.parse(this.templateForm.content);
-        const currentTemplate = JSON.parse(
-          JSON.stringify(printTemplate.getJson())
-        );
+        const currentTemplate = JSON.parse(JSON.stringify(currentJson));
         return !deepEqual(templateContent, currentTemplate);
       }
 
       // 新增模式
-      return lastJson && lastJson?.panels ? true : false;
+      return currentJson &&
+        currentJson?.panels &&
+        currentJson.panels[0].printElements.length > 0
+        ? true
+        : false;
     },
   },
 };
