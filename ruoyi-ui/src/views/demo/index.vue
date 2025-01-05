@@ -7,7 +7,7 @@
 </template>
 
 <script>
-import { disAutoConnect, autoConnect, hiprint } from "@sv-print/hiprint";
+import { disAutoConnect, hiprint } from "@sv-print/hiprint";
 import "sv-print/dist/style.css"; // sv-print 样式
 
 import Preview from "@/components/PrintDesigner/preview.vue";

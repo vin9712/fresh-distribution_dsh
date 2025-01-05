@@ -101,10 +101,9 @@ export default {
   watch: {
     /** 显示预览时才发起连接 */
     visible(val) {
+      hiprint.hiwebSocket.stop();
       if (val) {
-        autoConnect((status, msg) => {});
-      } else {
-        disAutoConnect();
+        hiprint.hiwebSocket.start(() => {});
       }
     },
   },
