@@ -11,22 +11,49 @@
       <el-row :gutter="20">
         <el-col :span="12" :offset="6" style="text-align: center">
           <el-button
+            type="primary"
+            icon="el-icon-notebook-2"
+            @click.stop="toPdf"
+            >导出pdf</el-button
+          >
+          <el-button
             :loading="waitShowPrinter"
             type="primary"
-            icon="printer"
+            icon="el-icon-printer"
             @click.stop="print"
             >打印</el-button
           >
 
+          <el-divider direction="vertical"></el-divider>
+          <el-select
+            v-model="selectPrinter"
+            placeholder="请选择打印机"
+            @change="changePrinter"
+          >
+            <el-option
+              v-for="printer in printerList"
+              :key="printer.name"
+              :label="printer.displayName"
+              :value="printer.name"
+            />
+          </el-select>
+          <el-button
+            size="small"
+            type="success"
+            icon="el-icon-refresh"
+            circle
+            title="刷新打印机列表"
+            style="margin-left: 3px"
+            @click="refreshPrinters"
+          ></el-button>
+          <el-divider direction="vertical"></el-divider>
+
           <el-button
             :loading="waitShowDirectlyPrinter"
             type="primary"
-            icon="printer"
+            icon="el-icon-download"
             @click.stop="printDirectly"
             >直接打印</el-button
-          >
-          <el-button type="primary" icon="printer" @click.stop="toPdf"
-            >pdf</el-button
           >
         </el-col>
       </el-row>
@@ -40,6 +67,8 @@
 </template>
 
 <script>
+import { autoConnect, disAutoConnect, hiprint } from "@sv-print/hiprint";
+
 export default {
   name: "printPreview",
   props: {},
@@ -55,6 +84,10 @@ export default {
       hiprintTemplate: {},
       // 数据
       printData: {},
+      // 选择的打印机
+      selectPrinter: null,
+      // 打印机列表
+      printerList: [],
     };
   },
   computed: {
@@ -65,7 +98,16 @@ export default {
       return `${mmToPx}px`;
     },
   },
-  watch: {},
+  watch: {
+    /** 显示预览时才发起连接 */
+    visible(val) {
+      if (val) {
+        autoConnect((status, msg) => {});
+      } else {
+        disAutoConnect();
+      }
+    },
+  },
   created() {},
   mounted() {},
   methods: {
@@ -79,6 +121,12 @@ export default {
       this.hiprintTemplate = hiprintTemplate;
       this.printData = printData;
       setTimeout(() => {
+        // 更新打印机列表
+        this.printerList = this.hiprintTemplate.getPrinterList();
+        if (this.printerList.length > 0) {
+          this.selectPrinter = this.printerList[0].name;
+        }
+
         // eslint-disable-next-line no-undef
         $("#preview_content").html(hiprintTemplate.getHtml(printData));
         this.spinning = false;
@@ -107,6 +155,23 @@ export default {
         console.log("直接打印失败");
       });
       this.waitShowDirectlyPrinter = false;
+    },
+    refreshPrinters() {
+      // 刷新打印机列表+已选打印机
+      hiprint.refreshPrinterList(() => {
+        this.printerList = this.hiprintTemplate.getPrinterList();
+        const exist = this.printerList.find(
+          (item) => item.name === this.selectPrinter
+        );
+        if (exist) {
+          this.selectPrinter = exist.name;
+        } else {
+          this.selectPrinter = null;
+        }
+      });
+    },
+    changePrinter(item) {
+      this.selectPrinter = item;
     },
     toPdf() {
       this.hiprintTemplate.toPdf({}, "打印预览");
