@@ -103,7 +103,26 @@ export default {
     visible(val) {
       hiprint.hiwebSocket.stop();
       if (val) {
-        hiprint.hiwebSocket.start(() => {});
+        hiprint.hiwebSocket.start(() => {
+          const socket = hiprint.hiwebSocket.socket;
+          // 处理 socket 连接异常的情况
+          socket.on("connect_error", (e) => {
+            console.log("connect_error, e: ", e);
+            hiprint.hiwebSocket.stop();
+            this.$message.error(
+              "WebSocket 连接失败，请检查是否安装打印客户端或联系管理员。"
+            );
+            return;
+          });
+          socket.on("connect_timeout", (e) => {
+            console.log("connect_timeout, e: ", e);
+            hiprint.hiwebSocket.stop();
+            this.$message.error(
+              "WebSocket 启动超时，请检查是否安装打印客户端或联系管理员。"
+            );
+            return;
+          });
+        });
       }
     },
   },
