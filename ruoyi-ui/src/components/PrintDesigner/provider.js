@@ -266,14 +266,8 @@ export default function (options) {
               },
             ],
           ],
-          gridColumnsFooterFormatter(options, rows, data, pageData) {
+          gridColumnsFooterFormatter: function (options, rows, data, pageData) {
             if (data) {
-              const customEle = document.getElementById("custom-grid-footer");
-              // 已执行替换逻辑则提前返回
-              if (customEle) {
-                console.log("customEle", customEle);
-                return;
-              }
               // 设置自定义内容，id 为 custom-grid-footer
               const textContent = `
                     <div id="custom-grid-footer"; style="display: flex; justify-content: space-between; padding-top: 8px; font-size: 11pt; font-weight: bold; font-family: 'SimSun'">

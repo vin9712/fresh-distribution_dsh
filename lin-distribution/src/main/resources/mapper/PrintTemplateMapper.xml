@@ -10,6 +10,7 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         <result property="code"    column="code"    />
         <result property="name"    column="name"    />
         <result property="content"    column="content"    />
+        <result property="data"    column="data"    />
         <result property="type"    column="type"    />
         <result property="isDeleted"    column="is_deleted"    />
         <result property="version"    column="version"    />
@@ -21,7 +22,7 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
     </resultMap>
 
     <sql id="selectPrintTemplateVo">
-        select id, customer_id, code, name, content, type, is_deleted, version, create_by, create_time, update_by, update_time, remark from t_print_template
+        select id, customer_id, code, name, content, data, type, is_deleted, version, create_by, create_time, update_by, update_time, remark from t_print_template
     </sql>
 
     <select id="selectPrintTemplateList" parameterType="com.lin.distribution.domain.PrintTemplate" resultMap="PrintTemplateResult">
@@ -46,6 +47,7 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
             <if test="code != null and code != ''">code,</if>
             <if test="name != null and name != ''">name,</if>
             <if test="content != null and content != ''">content,</if>
+            <if test="data != null and data != ''">data,</if>
             <if test="type != null">type,</if>
             <if test="isDeleted != null">is_deleted,</if>
             <if test="version != null">version,</if>
@@ -60,6 +62,7 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
             <if test="code != null and code != ''">#{code},</if>
             <if test="name != null and name != ''">#{name},</if>
             <if test="content != null and content != ''">#{content},</if>
+            <if test="data != null and data != ''">#{data},</if>
             <if test="type != null">#{type},</if>
             <if test="isDeleted != null">#{isDeleted},</if>
             <if test="version != null">#{version},</if>
@@ -78,6 +81,7 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
             <if test="code != null and code != ''">code = #{code},</if>
             <if test="name != null and name != ''">name = #{name},</if>
             <if test="content != null and content != ''">content = #{content},</if>
+            <if test="data != null and data != ''">data = #{data},</if>
             <if test="type != null">type = #{type},</if>
             <if test="isDeleted != null">is_deleted = #{isDeleted},</if>
             <if test="version != null">version = #{version},</if>

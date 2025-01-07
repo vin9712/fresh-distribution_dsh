@@ -326,6 +326,7 @@ CREATE TABLE `t_print_template`
     `code`        varchar(200) NOT NULL COMMENT '打印模板编号',
     `name`        varchar(200) NOT NULL COMMENT '打印模板名称',
     `content`     JSON         NOT NULL COMMENT '打印模板内容',
+    `data`        JSON         NOT NULL COMMENT '打印测试数据',
     `type`        tinyint(1) NOT NULL DEFAULT '0' COMMENT '打印模板类型，0-送货单，1-汇总表',
     `is_deleted`  tinyint(1) NOT NULL DEFAULT '0' COMMENT '逻辑删除',
     `version`     int(10) unsigned NOT NULL DEFAULT '0' COMMENT '版本号',

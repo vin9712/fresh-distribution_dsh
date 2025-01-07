@@ -231,10 +231,12 @@ export default {
     },
     /** 编辑打印数据 */
     editPrintData() {
+      this.designerUtils.printData = this.printData;
       this.designerUtils.editData();
     },
     /** 点击预览 */
     preview() {
+      this.designerUtils.printData = this.printData;
       this.designerUtils.preview.show();
     },
     /** 测试打印 */
