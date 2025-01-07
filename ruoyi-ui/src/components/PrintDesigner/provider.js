@@ -266,18 +266,32 @@ export default function (options) {
               },
             ],
           ],
-          footerFormatter: function (
-            options,
-            rows,
-            data,
-            currentPageGridRowsData
-          ) {
-            if (data && data["totalCap"]) {
-              return `<td style="padding:0 10px" colspan="100">${
-                "小计: " + data["totalCap"]
-              }</td>`;
+          gridColumnsFooterFormatter(options, rows, data, pageData) {
+            if (data) {
+              const customEle = document.getElementById("custom-grid-footer");
+              // 已执行替换逻辑则提前返回
+              if (customEle) {
+                console.log("customEle", customEle);
+                return;
+              }
+              // 设置自定义内容，id 为 custom-grid-footer
+              const textContent = `
+                    <div id="custom-grid-footer"; style="display: flex; justify-content: space-between; padding-top: 8px; font-size: 11pt; font-weight: bold; font-family: 'SimSun'">
+                        <sapn>收货单位：${data.receiverName}</sapn>
+                        <sapn>送货单位：${data.deliveryName}</sapn>
+                    </div>
+                `;
+              // 遍历 elements 并替换内容
+              const elements = document.getElementsByClassName(
+                "hiprint-gridColumnsFooter"
+              );
+              for (let i = 0; i < elements.length; i++) {
+                const element = elements[i];
+                element.innerHTML = textContent;
+              }
+              return textContent;
             }
-            return '<td style="padding:0 10px" colspan="100">小计: </td>';
+            return "自定义表尾内容";
           },
         },
         {
