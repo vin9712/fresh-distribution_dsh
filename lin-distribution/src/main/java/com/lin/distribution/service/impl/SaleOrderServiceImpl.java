@@ -259,12 +259,12 @@ public class SaleOrderServiceImpl implements SaleOrderService {
         }
 
         // if status is approved, create delivery order
-        if (newStatus == SaleOrderStatus.APPROVED) {
-            deliveryOrderService.createDeliveryOrder(orders);
-        // if status is new, clear delivery order & detail
-        } else if (newStatus == SaleOrderStatus.NEW) {
-            deliveryOrderService.clearDeliveryOrder(orders);
-        }
+//        if (newStatus == SaleOrderStatus.APPROVED) {
+//            deliveryOrderService.createDeliveryOrder(orders);
+//        // if status is new, clear delivery order & detail
+//        } else if (newStatus == SaleOrderStatus.NEW) {
+//            deliveryOrderService.clearDeliveryOrder(orders);
+//        }
     }
 
     private void checkCreateOrUpdateOrderRequest(SaleOrderCreateDTO request) {

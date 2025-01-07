@@ -245,6 +245,18 @@
             >修改</el-button
           >
           <el-button
+            v-if="
+              scope.row.status === 1 ||
+              scope.row.status === 2 ||
+              scope.row.status === 3
+            "
+            size="mini"
+            type="text"
+            icon="el-icon-printer"
+            @click="handlePrint(scope.row)"
+            >打印</el-button
+          >
+          <el-button
             size="mini"
             type="text"
             icon="el-icon-delete"
@@ -329,6 +341,9 @@
         <el-button @click="cancel">取 消</el-button>
       </div>
     </el-dialog>
+
+    <!-- 打印预览窗口 -->
+    <Preview ref="printPreiew" />
   </div>
 </template>
 
@@ -343,9 +358,16 @@ import {
   updateOrderStatus,
 } from "@/api/order/sale";
 import { listCustomerDept } from "@/api/partner/customerDept";
+import { getTemplate } from "@/api/print/template";
+import { listTask } from "@/api/print/task";
+
+import Preview from "@/components/PrintDesigner/preview.vue";
+import { disAutoConnect, hiprint } from "@sv-print/hiprint";
+import "sv-print/dist/style.css"; // sv-print 样式
 
 export default {
   name: "Sale",
+  components: { Preview },
   dicts: ["t_sale_order_status", "t_sale_order_type", "t_sale_order_source"],
   data() {
     return {
@@ -427,6 +449,10 @@ export default {
       // 送货单位树列表
       customerDeptOptions: [],
     };
+  },
+  mounted() {
+    // 取消自动连接
+    disAutoConnect();
   },
   created() {
     this.getTreeselect();
@@ -510,6 +536,26 @@ export default {
         path: "/order/sale-detail/index/",
         query: { orderId: orderId },
       });
+    },
+    /** 打印按钮操作 */
+    handlePrint(row) {
+      console.log("handlePrint row", row);
+      // todo 创建打印任务
+      const templateId = 2;
+      let panel;
+
+      // 获取打印模板
+      getTemplate(templateId)
+        .then((response) => {
+          panel = JSON.parse(response.data.content);
+        })
+        .then(() => {
+          let hiprintTemplate = new hiprint.PrintTemplate({
+            template: panel,
+          });
+          // 打开预览窗口
+          this.$refs.printPreiew.show(hiprintTemplate, this.printData);
+        });
     },
     /** 批量审核订单 */
     handleOrderApproval() {
