@@ -356,9 +356,10 @@ import {
   addSale,
   updateSale,
   updateOrderStatus,
+  deliveryPrintTemplate,
+  deliveryPrintData,
 } from "@/api/order/sale";
 import { listCustomerDept } from "@/api/partner/customerDept";
-import { getTemplate } from "@/api/print/template";
 import { listTask } from "@/api/print/task";
 
 import Preview from "@/components/PrintDesigner/preview.vue";
@@ -538,24 +539,45 @@ export default {
       });
     },
     /** 打印按钮操作 */
-    handlePrint(row) {
+    async handlePrint(row) {
       console.log("handlePrint row", row);
-      // todo 创建打印任务
-      const templateId = 2;
-      let panel;
 
-      // 获取打印模板
-      getTemplate(templateId)
-        .then((response) => {
-          panel = JSON.parse(response.data.content);
-        })
-        .then(() => {
-          let hiprintTemplate = new hiprint.PrintTemplate({
-            template: panel,
-          });
-          // 打开预览窗口
-          this.$refs.printPreiew.show(hiprintTemplate, this.printData);
+      try {
+        // 获取打印模板
+        const deliveryTemplateResponse = await deliveryPrintTemplate({
+          orderId: row.id,
         });
+        const template = deliveryTemplateResponse.data || {};
+        if (!template) {
+          this.$modal.msgError("获取打印模板失败");
+          return;
+        }
+
+        const deliveryPrintDataResponse = await deliveryPrintData({
+          orderId: row.id,
+          templateId: template.id,
+        });
+        const printObject = deliveryPrintDataResponse.data || {};
+        if (!printObject) {
+          this.$modal.msgError("获取打印数据失败");
+        }
+
+        let panel = JSON.parse(printObject.template);
+        let printData = printObject.data || {};
+        console.log("printData", printData);
+
+        // 构造打印模板
+        let hiprintTemplate = new hiprint.PrintTemplate({
+          template: panel,
+        });
+
+        // 打开预览窗口
+        this.$refs.printPreiew.show(hiprintTemplate, printData);
+
+        // todo 点击打印时，创建打印任务
+      } catch (error) {
+        console.error("handlePrint Error: ", error);
+      }
     },
     /** 批量审核订单 */
     handleOrderApproval() {

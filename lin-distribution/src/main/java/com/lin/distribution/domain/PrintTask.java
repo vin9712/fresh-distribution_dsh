@@ -43,6 +43,16 @@ public class PrintTask extends BaseEntity {
     private String requestId;
 
     /**
+     * 模板内容
+     */
+    private String templateContent;
+
+    /**
+     * 模板数据
+     */
+    private String templateData;
+
+    /**
      * 任务状态: 0-新增, 1-完成, 2-取消, 3-失败
      */
     @Excel(name = "任务状态: 0-新增, 1-完成, 2-取消, 3-失败")

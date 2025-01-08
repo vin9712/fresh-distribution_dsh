@@ -281,6 +281,13 @@ export default function (options) {
                 checked: false,
               },
               {
+                title: "备注",
+                align: "center",
+                field: "remark",
+                width: 20,
+                checked: false,
+              },
+              {
                 title: "条码",
                 align: "center",
                 field: "TM",
@@ -294,8 +301,8 @@ export default function (options) {
               // 设置自定义内容，id 为 custom-grid-footer
               const textContent = `
                     <div id="custom-grid-footer"; style="display: flex; justify-content: space-between; padding-top: 8px; font-size: 11pt; font-weight: bold; font-family: 'SimSun'">
-                        <sapn>收货单位：${data.receiverName}</sapn>
-                        <sapn>送货单位：${data.deliveryName}</sapn>
+                        <sapn>收货单位：</sapn>
+                        <sapn>送货单位：${data.deliveryName || ""}</sapn>
                     </div>
                 `;
               // 遍历 elements 并替换内容

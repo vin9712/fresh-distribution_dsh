@@ -150,7 +150,7 @@ public class SaleOrderController extends BaseController {
         return success(saleOrderService.selectRecentOrderList(customerId, keyword, recentDays));
     }
 
-     /**
+    /**
      * 更新销售订单状态
      *
      * @param request
@@ -161,4 +161,28 @@ public class SaleOrderController extends BaseController {
         saleOrderService.updateSaleOrderStatus(request);
         return success();
     }
+
+    /**
+     * 根据订单ID获取送货单打印模板
+     *
+     * @param orderId
+     * @return
+     */
+    @GetMapping("/deliveryPrintTemplate")
+    public AjaxResult getDeliveryPrintTemplate(@RequestParam(name = "orderId") Long orderId) {
+        return success(saleOrderService.getDeliveryPrintTemplate(orderId));
+    }
+
+    /**
+     * 构造送货单打印数据
+     *
+     * @param orderId
+     * @return
+     */
+    @GetMapping("/deliveryPrintData")
+    public AjaxResult buildDeliveryOrderPrintData(@RequestParam(name = "orderId") Long orderId,
+                                                  @RequestParam(name = "templateId") Long templateId) {
+        return success(saleOrderService.buildDeliveryOrderPrintData(orderId, templateId));
+    }
+
 }

@@ -2,15 +2,24 @@ package com.lin.distribution.service.impl;
 
 import com.lin.common.exception.ServiceException;
 import com.lin.common.utils.DateUtils;
+import com.lin.distribution.constant.PrintTemplateType;
 import com.lin.distribution.constant.SaleOrderStatus;
+import com.lin.distribution.domain.PrintTask;
+import com.lin.distribution.domain.PrintTemplate;
 import com.lin.distribution.domain.SaleOrder;
 import com.lin.distribution.domain.SaleOrderDetail;
 import com.lin.distribution.dto.SaleOrderCreateDTO;
 import com.lin.distribution.dto.SaleOrderUpdateStatusDTO;
+import com.lin.distribution.dto.print.DeliveryOrderPrintDTO;
+import com.lin.distribution.dto.print.PrintObject;
+import com.lin.distribution.mapper.PrintTaskMapper;
+import com.lin.distribution.mapper.PrintTemplateMapper;
 import com.lin.distribution.mapper.SaleOrderDetailMapper;
 import com.lin.distribution.mapper.SaleOrderMapper;
 import com.lin.distribution.service.DeliveryOrderService;
 import com.lin.distribution.service.SaleOrderService;
+import com.lin.distribution.vo.SaleOrderDetailVo;
+import lombok.Builder;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
@@ -27,6 +36,7 @@ import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
 
@@ -42,7 +52,8 @@ import java.util.Optional;
 public class SaleOrderServiceImpl implements SaleOrderService {
     private final SaleOrderMapper saleOrderMapper;
     private final SaleOrderDetailMapper saleOrderDetailMapper;
-    private final DeliveryOrderService deliveryOrderService;
+    private final PrintTaskMapper printTaskMapper;
+    private final PrintTemplateMapper printTemplateMapper;
     private final RedissonClient redissonClient;
 
     /**
@@ -265,6 +276,50 @@ public class SaleOrderServiceImpl implements SaleOrderService {
 //        } else if (newStatus == SaleOrderStatus.NEW) {
 //            deliveryOrderService.clearDeliveryOrder(orders);
 //        }
+    }
+
+    @Override
+    public PrintTemplate getDeliveryPrintTemplate(Long orderId) {
+        SaleOrder saleOrder = saleOrderMapper.selectSaleOrderById(orderId);
+        if (saleOrder == null) {
+            throw new ServiceException("sale order is null");
+        }
+        Long customerId = saleOrder.getCustomerId();
+
+        PrintTemplate printTemplate = null;
+        PrintTask printTask = printTaskMapper.selectLatestOneByOrderId(orderId);
+        if (printTask != null) {
+            printTemplate = printTemplateMapper.selectPrintTemplateById(printTask.getTemplateId());
+        } else {
+            printTemplate = printTemplateMapper.selectOneByCustomerIdAndType(customerId, PrintTemplateType.DELIVERY.getCode());
+        }
+        return printTemplate;
+    }
+
+    @Override
+    public PrintObject<DeliveryOrderPrintDTO> buildDeliveryOrderPrintData(Long orderId, Long templateId) {
+        PrintTemplate printTemplate = printTemplateMapper.selectPrintTemplateById(templateId);
+        if (printTemplate == null) {
+            throw new ServiceException("delivery template is null");
+        }
+
+        // 获取打印数据
+        SaleOrderDetail od = new SaleOrderDetail();
+        od.setOrderId(orderId);
+        List<SaleOrderDetail> saleOrderDetails = saleOrderDetailMapper.selectSaleOrderDetailList(od);
+        if (CollectionUtils.isEmpty(saleOrderDetails)) {
+            throw new ServiceException("saleOrderDetails is null");
+        }
+
+        DeliveryOrderPrintDTO dto = DeliveryOrderPrintDTO.builder()
+                .deliveryName("A company")
+                .table(SaleOrderDetailVo.from(saleOrderDetails))
+                .build();
+
+        return PrintObject.<DeliveryOrderPrintDTO>builder()
+                .template(printTemplate.getContent())
+                .data(dto)
+                .build();
     }
 
     private void checkCreateOrUpdateOrderRequest(SaleOrderCreateDTO request) {

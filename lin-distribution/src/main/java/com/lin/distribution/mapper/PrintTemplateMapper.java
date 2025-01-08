@@ -3,6 +3,7 @@ package com.lin.distribution.mapper;
 import java.util.List;
 
 import com.lin.distribution.domain.PrintTemplate;
+import org.apache.ibatis.annotations.Param;
 
 /**
  * 打印模板Mapper接口
@@ -58,4 +59,12 @@ public interface PrintTemplateMapper {
      * @return 结果
      */
     int deletePrintTemplateByIds(Long[] ids);
+
+    /**
+     * 根据客户ID和类型获取单个打印模板
+     * @param customerId
+     * @param type
+     * @return
+     */
+    PrintTemplate selectOneByCustomerIdAndType(@Param("customerId") Long customerId, @Param("type") Integer type);
 }

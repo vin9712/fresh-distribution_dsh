@@ -28,6 +28,13 @@ public interface PrintTaskMapper
     List<PrintTask> selectPrintTaskList(PrintTask printTask);
 
     /**
+     * 获取上一次打印任务
+     * @param orderId
+     * @return
+     */
+    PrintTask selectLatestOneByOrderId(Long orderId);
+
+    /**
      * 新增打印任务
      *
      * @param printTask 打印任务

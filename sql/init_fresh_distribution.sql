@@ -348,6 +348,8 @@ CREATE TABLE `t_print_task`
     `template_id` bigint(10) unsigned NOT NULL COMMENT '模板ID',
     `order_id`    bigint(10) unsigned NOT NULL COMMENT '订单ID',
     `request_id`  varchar(64) NOT NULL COMMENT '请求ID',
+    `template_content`     JSON         NOT NULL COMMENT '打印模板内容',
+    `template_data`        JSON         NOT NULL COMMENT '打印数据',
     `status`      int(4) NOT NULL DEFAULT '0' COMMENT '任务状态: 0-新增, 1-完成, 2-取消, 3-失败',
     `version`     int(10) unsigned NOT NULL DEFAULT '0' COMMENT '版本号',
     `create_by`   varchar(64)           DEFAULT '' COMMENT '创建者',

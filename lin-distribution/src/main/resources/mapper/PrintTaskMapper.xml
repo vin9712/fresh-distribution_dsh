@@ -9,6 +9,8 @@
         <result property="templateId"    column="template_id"    />
         <result property="orderId"    column="order_id"    />
         <result property="requestId"    column="request_id"    />
+        <result property="templateContent"    column="template_content"    />
+        <result property="templateData"    column="template_data"    />
         <result property="status"    column="status"    />
         <result property="version"    column="version"    />
         <result property="createBy"    column="create_by"    />
@@ -19,7 +21,7 @@
     </resultMap>
 
     <sql id="selectPrintTaskVo">
-        select id, template_id, order_id, request_id, status, version, create_by, create_time, update_by, update_time, remark from t_print_task
+        select id, template_id, order_id, request_id, template_content, template_data, status, version, create_by, create_time, update_by, update_time, remark from t_print_task
     </sql>
 
     <select id="selectPrintTaskList" parameterType="com.lin.distribution.domain.PrintTask" resultMap="PrintTaskResult">
@@ -38,12 +40,21 @@
         where id = #{id}
     </select>
 
+    <select id="selectLatestOneByOrderId" resultMap="PrintTaskResult">
+        <include refid="selectPrintTaskVo"/>
+        where order_id = #{orderId}
+        order by create_time desc
+        limit 1
+    </select>
+
     <insert id="insertPrintTask" parameterType="com.lin.distribution.domain.PrintTask" useGeneratedKeys="true" keyProperty="id">
         insert into t_print_task
         <trim prefix="(" suffix=")" suffixOverrides=",">
             <if test="templateId != null">template_id,</if>
             <if test="orderId != null">order_id,</if>
             <if test="requestId != null and requestId != ''">request_id,</if>
+            <if test="templateContent != null and templateContent != ''">template_content,</if>
+            <if test="templateData != null and templateData != ''">template_data,</if>
             <if test="status != null">status,</if>
             <if test="version != null">version,</if>
             <if test="createBy != null">create_by,</if>
@@ -56,6 +67,8 @@
             <if test="templateId != null">#{templateId},</if>
             <if test="orderId != null">#{orderId},</if>
             <if test="requestId != null and requestId != ''">#{requestId},</if>
+            <if test="templateContent != null and templateContent != ''">#{templateContent},</if>
+            <if test="templateData != null and templateData != ''">#{templateData},</if>
             <if test="status != null">#{status},</if>
             <if test="version != null">#{version},</if>
             <if test="createBy != null">#{createBy},</if>
@@ -72,6 +85,8 @@
             <if test="templateId != null">template_id = #{templateId},</if>
             <if test="orderId != null">order_id = #{orderId},</if>
             <if test="requestId != null and requestId != ''">request_id = #{requestId},</if>
+            <if test="templateContent != null and templateContent != ''">template_content = #{templateContent},</if>
+            <if test="templateData != null and templateData != ''">template_data = #{templateData},</if>
             <if test="status != null">status = #{status},</if>
             <if test="version != null">version = #{version},</if>
             <if test="createBy != null">create_by = #{createBy},</if>

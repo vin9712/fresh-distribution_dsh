@@ -104,4 +104,15 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
             #{id}
         </foreach>
     </delete>
+
+    <select id="selectOneByCustomerIdAndType" resultMap="PrintTemplateResult">
+        <include refid="selectPrintTemplateVo"/>
+        <where>
+            <if test="customerId == null ">and customer_id = '0'</if>
+            <if test="customerId != null ">and customer_id in ('0', #{customerId})</if>
+            <if test="type != null ">and type = #{type}</if>
+        </where>
+        order by customer_id desc, create_time desc
+        limit 1
+    </select>
 </mapper>

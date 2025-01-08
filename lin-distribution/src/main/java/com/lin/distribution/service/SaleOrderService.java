@@ -1,9 +1,11 @@
 package com.lin.distribution.service;
 
+import com.lin.distribution.domain.PrintTemplate;
 import com.lin.distribution.domain.SaleOrder;
+import com.lin.distribution.dto.print.DeliveryOrderPrintDTO;
+import com.lin.distribution.dto.print.PrintObject;
 import com.lin.distribution.dto.SaleOrderCreateDTO;
 import com.lin.distribution.dto.SaleOrderUpdateStatusDTO;
-import jakarta.validation.constraints.Max;
 
 import java.util.List;
 
@@ -95,4 +97,19 @@ public interface SaleOrderService {
      * @param request
      */
     void updateSaleOrderStatus(SaleOrderUpdateStatusDTO request);
+
+    /**
+     * 根据订单ID获取送货单打印模板
+     * 尝试从上一次打印任务中获取 template，否则取最近更新的送货单模板
+     * @param orderId
+     * @return
+     */
+    PrintTemplate getDeliveryPrintTemplate(Long orderId);
+
+    /**
+     * 构造送货单打印数据
+     * @param orderId
+     * @return
+     */
+    PrintObject<DeliveryOrderPrintDTO> buildDeliveryOrderPrintData(Long orderId, Long templateId);
 }
