@@ -8,6 +8,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.io.Serializable;
+import java.time.LocalDate;
 import java.util.List;
 
 @Data
@@ -16,7 +17,9 @@ import java.util.List;
 @NoArgsConstructor
 public class DeliveryOrderPrintDTO implements Serializable {
     private String deliveryName;
-    private List<SaleOrderDetailVo> table;
+    private LocalDate deliveryDate;
+    private String customerDeptName;
+    private List<SaleOrderDetail> table;
 
 
 }

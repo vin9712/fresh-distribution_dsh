@@ -9,7 +9,25 @@
     <template slot="title">
       <div style="margin-right: 20px">打印预览</div>
       <el-row :gutter="20">
-        <el-col :span="12" :offset="6" style="text-align: center">
+        <el-col :span="17" :offset="3" style="text-align: center">
+          <!-- 打印模板 -->
+          <el-select
+            v-model="selectPrintTemplate"
+            placeholder="请选择打印模板"
+            @change="changePrintTemplate"
+            filterable
+            style="width: 15%"
+          >
+            <el-option
+              v-for="template in printTemplateList"
+              :key="template.id"
+              :label="template.name"
+              :value="template.id"
+            />
+          </el-select>
+
+          <!-- PDF/浏览器打印 -->
+          <el-divider direction="vertical"></el-divider>
           <el-button
             type="primary"
             icon="el-icon-notebook-2"
@@ -24,11 +42,13 @@
             >打印</el-button
           >
 
+          <!-- 直接打印 -->
           <el-divider direction="vertical"></el-divider>
           <el-select
             v-model="selectPrinter"
             placeholder="请选择打印机"
             @change="changePrinter"
+            style="width: 15%"
           >
             <el-option
               v-for="printer in printerList"
@@ -47,7 +67,6 @@
             @click="refreshPrinters"
           ></el-button>
           <el-divider direction="vertical"></el-divider>
-
           <el-button
             :loading="waitShowDirectlyPrinter"
             type="primary"
@@ -67,7 +86,9 @@
 </template>
 
 <script>
-import { autoConnect, disAutoConnect, hiprint } from "@sv-print/hiprint";
+import { hiprint } from "@sv-print/hiprint";
+import { listTemplate } from "@/api/print/template";
+import { deliveryPrintData } from "@/api/order/sale";
 
 export default {
   name: "printPreview",
@@ -88,6 +109,12 @@ export default {
       selectPrinter: null,
       // 打印机列表
       printerList: [],
+      // 选择的打印模板
+      selectPrintTemplate: null,
+      // 打印模板列表
+      printTemplateList: [],
+      // 默认订单ID
+      defaultOrderId: null,
     };
   },
   computed: {
@@ -97,6 +124,7 @@ export default {
       const mmToPx = Math.round(this.width * 3.78);
       return `${mmToPx}px`;
     },
+    // 显示直接打印模块
   },
   watch: {
     /** 显示预览时才发起连接 */
@@ -126,18 +154,27 @@ export default {
       }
     },
   },
-  created() {},
+  created() {
+    this.getTemplateList();
+  },
   mounted() {},
   methods: {
+    getTemplateList() {
+      listTemplate().then((res) => {
+        this.printTemplateList = res.data;
+      });
+    },
     hideModal() {
       this.visible = false;
     },
-    show(hiprintTemplate, printData, width = "400") {
+    /** 显示预览窗口 */
+    show(hiprintTemplate, printData, orderId = null, templateId = null) {
       this.visible = true;
       this.spinning = true;
-      this.width = width;
       this.hiprintTemplate = hiprintTemplate;
       this.printData = printData;
+      this.defaultOrderId = orderId;
+      this.selectPrintTemplate = templateId;
       setTimeout(() => {
         // 更新打印机列表
         this.printerList = this.hiprintTemplate.getPrinterList();
@@ -190,6 +227,37 @@ export default {
     },
     changePrinter(item) {
       this.selectPrinter = item;
+    },
+    changePrintTemplate(item) {
+      this.selectPrintTemplate = item;
+      // 刷新当前打印模板+数据
+      this.refreshPrintTemplate();
+    },
+    refreshPrintTemplate() {
+      const orderId = this.defaultOrderId;
+      const templateId = this.selectPrintTemplate;
+      if (!orderId) return;
+
+      // 获取打印模板数据
+      deliveryPrintData({
+        orderId: orderId,
+        templateId: templateId,
+      }).then((res) => {
+        const printObject = res.data || {};
+        if (!printObject) {
+          console.error("[refreshPrintTemplate] print object is null");
+          return;
+        }
+
+        let panel = JSON.parse(printObject.template);
+        const hiprintTemplate = new hiprint.PrintTemplate({
+          template: panel,
+        });
+        const printData = printObject.data || {};
+
+        // 重新加载当前预览窗口
+        this.show(hiprintTemplate, printData, orderId, templateId);
+      });
     },
     toPdf() {
       this.hiprintTemplate.toPdf({}, "打印预览");

@@ -213,6 +213,7 @@ export default function (options) {
                 align: "center",
                 field: "index",
                 width: 10,
+                tableTextType: "sequence",
                 tableSummaryTitle: true,
                 tableSummaryText: "小计",
                 tableSummaryColspan: "6",
@@ -245,6 +246,14 @@ export default function (options) {
                 tableSummaryTitle: true,
                 tableSummaryColspan: "0",
                 tableSummary: "",
+                formatter2: function (value, row, index, options) {
+                  const numericValue = parseFloat(value);
+                  if (!isNaN(numericValue)) {
+                    return numericValue.toFixed(2);
+                  } else {
+                    return value;
+                  }
+                },
               },
               {
                 title: "实收数量",
@@ -254,6 +263,9 @@ export default function (options) {
                 tableSummaryTitle: true,
                 tableSummaryColspan: "0",
                 tableSummary: "",
+                formatter2: function (value, row, index, options) {
+                  return "";
+                },
               },
               {
                 title: "单价",
@@ -263,6 +275,14 @@ export default function (options) {
                 tableSummaryTitle: true,
                 tableSummaryColspan: "0",
                 tableSummary: "",
+                formatter2: function (value, row, index, options) {
+                  const numericValue = parseFloat(value);
+                  if (!isNaN(numericValue)) {
+                    return numericValue.toFixed(2);
+                  } else {
+                    return value;
+                  }
+                },
               },
               {
                 title: "金额",
@@ -272,6 +292,14 @@ export default function (options) {
                 tableSummaryTitle: false,
                 tableSummaryColspan: "0",
                 tableSummary: "sum",
+                formatter2: function (value, row, index, options) {
+                  const numericValue = parseFloat(value);
+                  if (!isNaN(numericValue)) {
+                    return numericValue.toFixed(2);
+                  } else {
+                    return value;
+                  }
+                },
               },
               {
                 title: "规格",

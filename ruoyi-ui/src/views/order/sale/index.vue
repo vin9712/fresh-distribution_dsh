@@ -542,10 +542,11 @@ export default {
     async handlePrint(row) {
       console.log("handlePrint row", row);
 
+      const orderId = row.id;
       try {
         // 获取打印模板
         const deliveryTemplateResponse = await deliveryPrintTemplate({
-          orderId: row.id,
+          orderId: orderId,
         });
         const template = deliveryTemplateResponse.data || {};
         if (!template) {
@@ -554,7 +555,7 @@ export default {
         }
 
         const deliveryPrintDataResponse = await deliveryPrintData({
-          orderId: row.id,
+          orderId: orderId,
           templateId: template.id,
         });
         const printObject = deliveryPrintDataResponse.data || {};
@@ -572,7 +573,12 @@ export default {
         });
 
         // 打开预览窗口
-        this.$refs.printPreiew.show(hiprintTemplate, printData);
+        this.$refs.printPreiew.show(
+          hiprintTemplate,
+          printData,
+          orderId,
+          template.id
+        );
 
         // todo 点击打印时，创建打印任务
       } catch (error) {

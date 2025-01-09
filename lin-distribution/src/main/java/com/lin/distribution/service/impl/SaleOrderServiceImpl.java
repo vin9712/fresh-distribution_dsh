@@ -298,6 +298,11 @@ public class SaleOrderServiceImpl implements SaleOrderService {
 
     @Override
     public PrintObject<DeliveryOrderPrintDTO> buildDeliveryOrderPrintData(Long orderId, Long templateId) {
+        SaleOrder saleOrder = saleOrderMapper.selectSaleOrderById(orderId);
+        if (saleOrder == null) {
+            throw new ServiceException("buildDeliveryOrderPrintData error, sale order is null");
+        }
+
         PrintTemplate printTemplate = printTemplateMapper.selectPrintTemplateById(templateId);
         if (printTemplate == null) {
             throw new ServiceException("delivery template is null");
@@ -313,7 +318,9 @@ public class SaleOrderServiceImpl implements SaleOrderService {
 
         DeliveryOrderPrintDTO dto = DeliveryOrderPrintDTO.builder()
                 .deliveryName("A company")
-                .table(SaleOrderDetailVo.from(saleOrderDetails))
+                .deliveryDate(saleOrder.getDeliveryDate())
+                .customerDeptName(saleOrder.getCustomerName() + "-" + saleOrder.getCustomerDeptName())
+                .table(saleOrderDetails)
                 .build();
 
         return PrintObject.<DeliveryOrderPrintDTO>builder()
