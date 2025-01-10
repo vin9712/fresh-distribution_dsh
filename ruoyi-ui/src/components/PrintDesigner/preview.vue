@@ -162,7 +162,6 @@ export default {
     },
   },
   created() {
-    // todo remove temporary logic
     this.getTemplateList();
   },
   mounted() {},
@@ -315,24 +314,26 @@ export default {
             return a.offsetTop - b.offsetTop;
           });
         console.log("textEles", textEles);
-        textEles.each(function (index, textEle) {
-          console.log("textEle", textEle.innerText);
-          console.log("textEle.offsetTop", textEle.offsetTop);
-        });
+        // textEles.each(function (index, textEle) {
+        //     console.log('textEle', textEle.innerText);
+        //     console.log('textEle.offsetTop', textEle.offsetTop);
+        // })
 
         // 页码元素
         const paperNumberEle = $(paper).find(".hiprint-paperNumber");
-        console.log(
-          "paperNumberEle",
-          paperNumberEle,
-          paperNumberEle[0].offsetTop
-        );
+        // console.log('paperNumberEle', paperNumberEle, paperNumberEle[0].offsetTop);
 
         // 表格元素
         const tableEle = $(paper).find(".hiprint-printElement-table-content");
-        console.log("tableEle", tableEle);
+        // console.log('tableEle', tableEle);
 
+        // 遍历表头
         const tableHeaderEle = $(paper).find("thead");
+        console.log("tableHeaderEle", tableHeaderEle);
+        tableHeaderEle.each(function (index, tableHeader) {
+          console.log("tableHeader", tableHeader);
+        });
+
         const tableFooterEle = $(paper).find("tfoot");
         const tableGridFooterEle = $(paper).find(".hiprint-gridColumnsFooter");
 
@@ -349,11 +350,19 @@ export default {
           tableFooterHeight
         );
 
-        // 获取表格中的表身元素
-        const tableBodyEle = $(tableEle).find(
-          ".hiprint-printElement-tableTarget"
-        );
-        console.log("tableBodyEle", tableBodyEle);
+        // 获取表格中的表身，遍历元素
+        const bodyEle = $(paper).find("tbody");
+        console.log("bodyEle", bodyEle);
+        bodyEle.each(function (index, body) {
+          console.log("body", body);
+          const rows = $(body).find("tr");
+          console.log("rows", rows);
+          rows.each(function (index, row) {
+            console.log("row", row);
+            const cells = $(row).find("td");
+            console.log("cells", cells);
+          });
+        });
       });
     },
   },
