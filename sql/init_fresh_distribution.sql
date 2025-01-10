@@ -326,6 +326,7 @@ CREATE TABLE `t_print_template`
     `code`        varchar(200) NOT NULL COMMENT '打印模板编号',
     `name`        varchar(200) NOT NULL COMMENT '打印模板名称',
     `content`     JSON         NOT NULL COMMENT '打印模板内容',
+    `data`        JSON         NOT NULL COMMENT '打印测试数据',
     `type`        tinyint(1) NOT NULL DEFAULT '0' COMMENT '打印模板类型，0-送货单，1-汇总表',
     `is_deleted`  tinyint(1) NOT NULL DEFAULT '0' COMMENT '逻辑删除',
     `version`     int(10) unsigned NOT NULL DEFAULT '0' COMMENT '版本号',
@@ -339,3 +340,25 @@ CREATE TABLE `t_print_template`
     KEY           `idx_name` (`name`) USING BTREE,
     KEY           `idx_customer_id` (`customer_id`) USING BTREE
 )ENGINE=InnoDB AUTO_INCREMENT=1 DEFAULT CHARSET=utf8 ROW_FORMAT=DYNAMIC COMMENT='打印模板表';
+
+-- 打印任务表
+CREATE TABLE `t_print_task`
+(
+    `id`          bigint(10) unsigned NOT NULL AUTO_INCREMENT COMMENT '主键',
+    `template_id` bigint(10) unsigned NOT NULL COMMENT '模板ID',
+    `order_id`    bigint(10) unsigned NOT NULL COMMENT '订单ID',
+    `request_id`  varchar(64) NOT NULL COMMENT '请求ID',
+    `template_content`     JSON         NOT NULL COMMENT '打印模板内容',
+    `template_data`        JSON         NOT NULL COMMENT '打印数据',
+    `status`      int(4) NOT NULL DEFAULT '0' COMMENT '任务状态: 0-新增, 1-完成, 2-取消, 3-失败',
+    `version`     int(10) unsigned NOT NULL DEFAULT '0' COMMENT '版本号',
+    `create_by`   varchar(64)           DEFAULT '' COMMENT '创建者',
+    `create_time` timestamp    NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    `update_by`   varchar(64)           DEFAULT '' COMMENT '更新者',
+    `update_time` datetime              DEFAULT NULL COMMENT '更新时间',
+    `remark`      varchar(500)          DEFAULT NULL COMMENT '备注',
+    PRIMARY KEY (`id`) USING BTREE,
+    KEY           `idx_template_id` (`template_id`) USING BTREE,
+    KEY           `idx_order_id` (`order_id`) USING BTREE,
+    KEY           `idx_request_id` (`request_id`) USING BTREE
+)ENGINE=InnoDB AUTO_INCREMENT=1 DEFAULT CHARSET=utf8 ROW_FORMAT=DYNAMIC COMMENT='打印任务表';

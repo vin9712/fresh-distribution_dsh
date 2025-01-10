@@ -245,6 +245,18 @@
             >修改</el-button
           >
           <el-button
+            v-if="
+              scope.row.status === 1 ||
+              scope.row.status === 2 ||
+              scope.row.status === 3
+            "
+            size="mini"
+            type="text"
+            icon="el-icon-printer"
+            @click="handlePrint(scope.row)"
+            >打印</el-button
+          >
+          <el-button
             size="mini"
             type="text"
             icon="el-icon-delete"
@@ -329,6 +341,9 @@
         <el-button @click="cancel">取 消</el-button>
       </div>
     </el-dialog>
+
+    <!-- 打印预览窗口 -->
+    <Preview ref="printPreiew" />
   </div>
 </template>
 
@@ -341,11 +356,19 @@ import {
   addSale,
   updateSale,
   updateOrderStatus,
+  deliveryPrintTemplate,
+  deliveryPrintData,
 } from "@/api/order/sale";
 import { listCustomerDept } from "@/api/partner/customerDept";
+import { listTask } from "@/api/print/task";
+
+import Preview from "@/components/PrintDesigner/preview.vue";
+import { disAutoConnect, hiprint } from "@sv-print/hiprint";
+import "sv-print/dist/style.css"; // sv-print 样式
 
 export default {
   name: "Sale",
+  components: { Preview },
   dicts: ["t_sale_order_status", "t_sale_order_type", "t_sale_order_source"],
   data() {
     return {
@@ -427,6 +450,10 @@ export default {
       // 送货单位树列表
       customerDeptOptions: [],
     };
+  },
+  mounted() {
+    // 取消自动连接
+    disAutoConnect();
   },
   created() {
     this.getTreeselect();
@@ -510,6 +537,53 @@ export default {
         path: "/order/sale-detail/index/",
         query: { orderId: orderId },
       });
+    },
+    /** 打印按钮操作 */
+    async handlePrint(row) {
+      console.log("handlePrint row", row);
+
+      const orderId = row.id;
+      try {
+        // 获取打印模板
+        const deliveryTemplateResponse = await deliveryPrintTemplate({
+          orderId: orderId,
+        });
+        const template = deliveryTemplateResponse.data || {};
+        if (!template) {
+          this.$modal.msgError("获取打印模板失败");
+          return;
+        }
+
+        const deliveryPrintDataResponse = await deliveryPrintData({
+          orderId: orderId,
+          templateId: template.id,
+        });
+        const printObject = deliveryPrintDataResponse.data || {};
+        if (!printObject) {
+          this.$modal.msgError("获取打印数据失败");
+        }
+
+        let panel = JSON.parse(printObject.template);
+        let printData = printObject.data || {};
+        console.log("printData", printData);
+
+        // 构造打印模板
+        let hiprintTemplate = new hiprint.PrintTemplate({
+          template: panel,
+        });
+
+        // 打开预览窗口
+        this.$refs.printPreiew.show(
+          hiprintTemplate,
+          printData,
+          orderId,
+          template.id
+        );
+
+        // todo 点击打印时，创建打印任务
+      } catch (error) {
+        console.error("handlePrint Error: ", error);
+      }
     },
     /** 批量审核订单 */
     handleOrderApproval() {

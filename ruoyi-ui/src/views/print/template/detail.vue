@@ -97,6 +97,7 @@ export default {
         name: null,
         // 模板 json
         content: null,
+        data: null,
         remark: null,
       },
     };
@@ -129,6 +130,11 @@ export default {
           // 更新获取模板样式
           const templateContent = JSON.parse(this.templateForm.content);
           this.$refs.printDesigner.printTemplate.update(templateContent);
+          // 更新测试数据
+          const testData = JSON.parse(this.templateForm.data);
+          if (testData) {
+            this.$refs.printDesigner.printData = testData;
+          }
         });
       }
     },
@@ -148,6 +154,7 @@ export default {
     /** 保存打印模板设计器 */
     saveTemplate() {
       const printTemplate = this.$refs.printDesigner.printTemplate;
+      const printData = this.$refs.printDesigner.printData;
       const templateId = this.templateForm.id;
 
       this.$refs["templateForm"].validate((valid) => {
@@ -158,6 +165,7 @@ export default {
             return;
           }
           this.templateForm.content = JSON.stringify(printTemplate.getJson());
+          this.templateForm.data = JSON.stringify(printData);
 
           if (templateId) {
             updateTemplate(this.templateForm).then((response) => {
@@ -194,18 +202,20 @@ export default {
     changeTemplate() {
       const printTemplate = this.$refs.printDesigner.printTemplate;
       const templateId = this.templateForm.id;
-      const lastJson = printTemplate.lastJson;
+      const currentJson = printTemplate.getJson();
       // 修改模式
       if (templateId) {
         const templateContent = JSON.parse(this.templateForm.content);
-        const currentTemplate = JSON.parse(
-          JSON.stringify(printTemplate.getJson())
-        );
+        const currentTemplate = JSON.parse(JSON.stringify(currentJson));
         return !deepEqual(templateContent, currentTemplate);
       }
 
       // 新增模式
-      return lastJson && lastJson?.panels ? true : false;
+      return currentJson &&
+        currentJson?.panels &&
+        currentJson.panels[0].printElements.length > 0
+        ? true
+        : false;
     },
   },
 };

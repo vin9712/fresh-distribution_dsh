@@ -48,6 +48,11 @@ public class PrintTemplate extends BaseEntity {
     private String content;
 
     /**
+     * 打印测试数据(json字符串)
+     */
+    private String data;
+
+    /**
      * 打印模板类型，0-送货单，1-汇总表
      */
     @Excel(name = "打印模板类型，0-送货单，1-汇总表")

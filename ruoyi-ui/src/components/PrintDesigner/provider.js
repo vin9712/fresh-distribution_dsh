@@ -213,47 +213,105 @@ export default function (options) {
                 align: "center",
                 field: "index",
                 width: 10,
+                tableTextType: "sequence",
+                tableSummaryTitle: true,
+                tableSummaryText: "小计",
+                tableSummaryColspan: "6",
+                tableSummaryAlign: "left",
+                tableSummary: "",
               },
               {
                 title: "商品名称",
                 align: "center",
                 field: "productName",
                 width: 40,
+                tableSummaryTitle: true,
+                tableSummaryColspan: "0",
+                tableSummary: "",
               },
               {
                 title: "单位",
                 align: "center",
                 field: "productUnit",
                 width: 10,
+                tableSummaryTitle: true,
+                tableSummaryColspan: "0",
+                tableSummary: "",
               },
               {
                 title: "计划数量",
                 align: "center",
                 field: "num",
                 width: 20,
+                tableSummaryTitle: true,
+                tableSummaryColspan: "0",
+                tableSummary: "",
+                formatter2: function (value, row, index, options) {
+                  const numericValue = parseFloat(value);
+                  if (!isNaN(numericValue)) {
+                    return numericValue.toFixed(2);
+                  } else {
+                    return value;
+                  }
+                },
               },
               {
                 title: "实收数量",
                 align: "center",
                 field: "actualNum",
                 width: 20,
+                tableSummaryTitle: true,
+                tableSummaryColspan: "0",
+                tableSummary: "",
+                formatter2: function (value, row, index, options) {
+                  return "";
+                },
               },
               {
                 title: "单价",
                 align: "center",
                 field: "productPrice",
                 width: 20,
+                tableSummaryTitle: true,
+                tableSummaryColspan: "0",
+                tableSummary: "",
+                formatter2: function (value, row, index, options) {
+                  const numericValue = parseFloat(value);
+                  if (!isNaN(numericValue)) {
+                    return numericValue.toFixed(2);
+                  } else {
+                    return value;
+                  }
+                },
               },
               {
                 title: "金额",
                 align: "center",
                 field: "expectAmount",
                 width: 20,
+                tableSummaryTitle: false,
+                tableSummaryColspan: "0",
+                tableSummary: "sum",
+                formatter2: function (value, row, index, options) {
+                  const numericValue = parseFloat(value);
+                  if (!isNaN(numericValue)) {
+                    return numericValue.toFixed(2);
+                  } else {
+                    return value;
+                  }
+                },
               },
               {
                 title: "规格",
                 align: "center",
                 field: "productSpec",
+                width: 20,
+                checked: false,
+              },
+              {
+                title: "备注",
+                align: "center",
+                field: "remark",
                 width: 20,
                 checked: false,
               },
@@ -266,18 +324,26 @@ export default function (options) {
               },
             ],
           ],
-          footerFormatter: function (
-            options,
-            rows,
-            data,
-            currentPageGridRowsData
-          ) {
-            if (data && data["totalCap"]) {
-              return `<td style="padding:0 10px" colspan="100">${
-                "小计: " + data["totalCap"]
-              }</td>`;
+          gridColumnsFooterFormatter: function (options, rows, data, pageData) {
+            if (data) {
+              // 设置自定义内容，id 为 custom-grid-footer
+              const textContent = `
+                    <div id="custom-grid-footer"; style="display: flex; justify-content: space-between; padding-top: 8px; font-size: 11pt; font-weight: bold; font-family: 'SimSun'">
+                        <sapn>收货单位：</sapn>
+                        <sapn>送货单位：${data.deliveryName || ""}</sapn>
+                    </div>
+                `;
+              // 遍历 elements 并替换内容
+              const elements = document.getElementsByClassName(
+                "hiprint-gridColumnsFooter"
+              );
+              for (let i = 0; i < elements.length; i++) {
+                const element = elements[i];
+                element.innerHTML = textContent;
+              }
+              return textContent;
             }
-            return '<td style="padding:0 10px" colspan="100">小计: </td>';
+            return "自定义表尾内容";
           },
         },
         {
