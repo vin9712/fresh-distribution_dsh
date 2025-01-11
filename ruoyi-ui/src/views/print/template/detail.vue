@@ -14,7 +14,7 @@
           <el-select
             v-model="templateForm.customerId"
             placeholder="请选择适用客户"
-            :disabled="templateForm.id"
+            :disabled="templateForm.id != null"
           >
             <el-option
               v-for="item in customerOptions"
