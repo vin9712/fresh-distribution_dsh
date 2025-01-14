@@ -36,6 +36,7 @@
         <springdoc.version>2.5.0</springdoc.version>
         <redisson.version>3.38.1</redisson.version>
         <pinyin4j.version>2.5.1</pinyin4j.version>
+        <jsoup.version>1.18.3</jsoup.version>
     </properties>
 
     <!-- 依赖声明 -->
@@ -184,6 +185,13 @@
                 <groupId>com.belerweb</groupId>
                 <artifactId>pinyin4j</artifactId>
                 <version>${pinyin4j.version}</version>
+            </dependency>
+
+            <!-- Jsoup -->
+            <dependency>
+                <groupId>org.jsoup</groupId>
+                <artifactId>jsoup</artifactId>
+                <version>${jsoup.version}</version>
             </dependency>
 
             <!-- 定时任务-->
