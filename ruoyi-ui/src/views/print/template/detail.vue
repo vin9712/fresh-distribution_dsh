@@ -10,15 +10,11 @@
         inline
         label-width="100px"
       >
-        <el-form-item
-          label="适用客户"
-          prop="customerId"
-          v-if="templateForm.customerId"
-        >
+        <el-form-item label="适用客户" prop="customerId">
           <el-select
             v-model="templateForm.customerId"
             placeholder="请选择适用客户"
-            disabled
+            :disabled="templateForm.id != null"
           >
             <el-option
               v-for="item in customerOptions"
@@ -33,6 +29,7 @@
             模板编号
             <i
               class="el-icon-refresh"
+              v-if="!templateForm.id"
               @click="refreshTemplateCode"
               style="cursor: pointer"
             ></i>
@@ -121,7 +118,7 @@ export default {
     getCustomerList() {
       listCustomer().then((response) => {
         this.customerOptions = response.data;
-        this.customerOptions.unshift({ id: 0, name: "默认客户" });
+        this.customerOptions.unshift({ id: 0, name: "所有客户" });
       });
     },
     /** 打印模板数据 */

@@ -8,6 +8,21 @@
       v-show="showSearch"
       label-width="68px"
     >
+      <el-form-item label="适用客户" prop="customerId">
+        <el-select
+          v-model="queryParams.customerId"
+          placeholder="请选择适用客户"
+          filterable
+          @change="handleQuery"
+        >
+          <el-option
+            v-for="item in customerOptions"
+            :key="item.id"
+            :label="item.alias ? item.alias : item.name"
+            :value="item.id"
+          />
+        </el-select>
+      </el-form-item>
       <el-form-item label="模板编号" prop="code">
         <el-input
           v-model="queryParams.code"
@@ -97,7 +112,12 @@
       @selection-change="handleSelectionChange"
     >
       <el-table-column type="selection" width="55" align="center" />
-      <el-table-column label="客户" align="center" prop="customerId" />
+      <el-table-column
+        label="适用客户"
+        align="center"
+        prop="customerId"
+        :formatter="formatCustomerName"
+      />
       <el-table-column label="打印模板编号" align="center" prop="code" />
       <el-table-column label="打印模板名称" align="center" prop="name" />
       <el-table-column label="备注" align="center" prop="remark" />
@@ -164,6 +184,7 @@
 </template>
 
 <script>
+import { listCustomer } from "@/api/partner/customer";
 import {
   pageTemplate,
   listTemplate,
@@ -199,7 +220,7 @@ export default {
       queryParams: {
         pageNum: 1,
         pageSize: 10,
-        customerId: null,
+        customerId: 0,
         code: null,
         name: null,
         content: null,
@@ -240,12 +261,22 @@ export default {
           { required: true, message: "创建时间不能为空", trigger: "blur" },
         ],
       },
+      // 客户列表数据
+      customerOptions: [],
     };
   },
   created() {
+    this.getCustomerList();
     this.getPageList();
   },
   methods: {
+    /** 查询客户列表 */
+    getCustomerList() {
+      listCustomer().then((response) => {
+        this.customerOptions = response.data;
+        this.customerOptions.unshift({ id: 0, name: "所有客户" });
+      });
+    },
     /** 查询打印模板列表 */
     getList() {
       this.loading = true;
@@ -361,6 +392,13 @@ export default {
         },
         `template_${new Date().getTime()}.xlsx`
       );
+    },
+    /** 格式化表格客户名称 */
+    formatCustomerName(row) {
+      const customer = this.customerOptions.find(
+        (customer) => customer.id === row.customerId
+      );
+      return customer ? (customer.alias ? customer.alias : customer.name) : "";
     },
   },
 };

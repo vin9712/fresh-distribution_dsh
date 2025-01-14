@@ -94,13 +94,13 @@ export default {
       plugins: [],
       // 重设回调事件
       events: {
-        onSave: function (templateKey, templateLayoutData) {
+        onSave: (templateKey, templateLayoutData) => {
           this.template = JSON.parse(JSON.stringify(templateLayoutData));
         },
-        onEdit: function (templateLayoutData) {
+        onEdit: (templateLayoutData) => {
           this.template = JSON.parse(JSON.stringify(templateLayoutData));
         },
-        onEditData: function (templatePrintData) {
+        onEditData: (templatePrintData) => {
           this.printData = JSON.parse(JSON.stringify(templatePrintData));
         },
         onKeyDownEvent: function (events, self) {
