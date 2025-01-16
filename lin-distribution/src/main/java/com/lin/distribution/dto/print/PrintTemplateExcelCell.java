@@ -4,13 +4,11 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import org.apache.commons.collections4.CollectionUtils;
-import org.jsoup.Jsoup;
-import org.jsoup.nodes.Document;
+import org.apache.commons.lang3.StringUtils;
 import org.jsoup.nodes.Element;
 import org.jsoup.select.Elements;
 
-import java.util.ArrayList;
-import java.util.List;
+import java.util.*;
 
 @Data
 @Builder
@@ -94,11 +92,70 @@ public class PrintTemplateExcelCell {
         }
 
         return elements.stream()
-                .map(it ->{
-                    return  PrintTemplateExcelCell.builder()
+                .map(it -> {
+                    return PrintTemplateExcelCell.builder()
                             .text(it.text())
                             .build();
                 })
                 .toList();
+    }
+
+    public static List<PrintTemplateExcelCell> fromText(Elements elements) {
+        if (CollectionUtils.isEmpty(elements)) {
+            return new ArrayList<>();
+        }
+        // todo text elements
+        Map<Integer, String> map = new HashMap<>();
+
+        return new ArrayList<>();
+    }
+
+    public static List<List<PrintTemplateExcelCell>> buildTableItem(Elements elements) {
+        if (CollectionUtils.isEmpty(elements)) {
+            return new ArrayList<>();
+        }
+        List<List<PrintTemplateExcelCell>> result = new ArrayList<>();
+        for (Element element : elements) {
+            List<PrintTemplateExcelCell> list = element.children().stream().map(it -> {
+                Integer colspan1 = Optional.ofNullable(it.attr("colspan")).filter(StringUtils::isNotEmpty).map(Integer::parseInt).orElse(1);
+                Integer rowspan1 = Optional.ofNullable(it.attr("rowspan")).filter(StringUtils::isNotEmpty).map(Integer::parseInt).orElse(1);
+                return PrintTemplateExcelCell.builder()
+                        .text(it.text().trim())
+                        .colspan(colspan1)
+                        .rowspan(rowspan1)
+                        .build();
+            }).toList();
+            result.add(list);
+        }
+        return result;
+    }
+
+    public static void fromTable(Element tableEle, Element gridFooter, PrintTemplateExportExcelDTO dto) {
+        if (tableEle == null) {
+            return;
+        }
+        if (dto == null) {
+            dto = new PrintTemplateExportExcelDTO();
+        }
+
+        Elements tableChildren = tableEle.children();
+        for (Element tableItem : tableChildren) {
+            String tagName = tableItem.tag().getName();
+            Elements tableItemChildren = tableItem.children();
+            if ("thead".equals(tagName)) {
+                dto.setTableHeadList(buildTableItem(tableItemChildren));
+                dto.setMultiTable(dto.getTableHeadList().size() > 1);
+            } else if ("tbody".equals(tagName)) {
+                dto.setTableBodyList(buildTableItem(tableItemChildren));
+            } else if ("tfoot".equals(tagName)) {
+                dto.setTableFootList(buildTableItem(tableItemChildren));
+            }
+
+            // grid footer
+            if (gridFooter != null) {
+                dto.setTableGridFooter(gridFooter.text());
+            }
+        }
+
     }
 }

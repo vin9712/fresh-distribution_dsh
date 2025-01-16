@@ -19,7 +19,7 @@ public class PrintTemplateExportExcelDTO implements Serializable {
      * 第二个为副标题
      * 往后的都是普通文本
      */
-    private List<PrintTemplateExcelCell> textElements;
+    private List<String> textElements;
     /**
      * 是否为多级表头
      */
@@ -31,14 +31,14 @@ public class PrintTemplateExportExcelDTO implements Serializable {
     /**
      * 表身数据
      */
-    private List<PrintTemplateExcelCell> tableBodyList;
+    private List<List<PrintTemplateExcelCell>> tableBodyList;
     /**
      * 表尾数据
      */
-    private List<PrintTemplateExcelCell> tableFootList;
+    private List<List<PrintTemplateExcelCell>> tableFootList;
     /**
-     * 分组表尾数据
+     * 分组表尾行
      */
-    private List<PrintTemplateExcelCell> tableGroupFootList;
+    private String tableGridFooter;
 
 }
