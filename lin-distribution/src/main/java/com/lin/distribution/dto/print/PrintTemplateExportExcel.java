@@ -28,9 +28,7 @@ public class PrintTemplateExportExcel {
             Element tableEle = paper.select("table").first();
             Elements textEleList = paper.select(".hiprint-printElement-text");
             Element gridFooter = paper.select(".hiprint-gridColumnsFooter").first();
-
-            List<PrintTemplateExcelCell> textList = PrintTemplateExcelCell.from(textEleList);
-            PrintTemplateExcelCell.fromTable(tableEle, gridFooter, dto);
+            PrintTemplateExcelCell.fromTable(textEleList, tableEle, gridFooter, dto);
             System.out.println("a");
         }
 

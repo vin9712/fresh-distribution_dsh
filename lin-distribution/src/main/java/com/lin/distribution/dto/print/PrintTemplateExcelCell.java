@@ -100,14 +100,22 @@ public class PrintTemplateExcelCell {
                 .toList();
     }
 
-    public static List<PrintTemplateExcelCell> fromText(Elements elements) {
+    public static List<String> fromText(Elements elements) {
         if (CollectionUtils.isEmpty(elements)) {
             return new ArrayList<>();
         }
-        // todo text elements
-        Map<Integer, String> map = new HashMap<>();
-
-        return new ArrayList<>();
+        // text elements
+        Map<String, String> map = new TreeMap<>();
+        for (Element element : elements) {
+            String style = element.attr("style");
+            String topValue = style.replaceAll(".*top:([^;]+);.*", "$1").trim();
+            String text = element.text();
+            if (map.containsKey(topValue)) {
+                text = map.get(topValue) + "\t" + text;
+            }
+            map.put(topValue, text);
+        }
+        return map.values().stream().toList();
     }
 
     public static List<List<PrintTemplateExcelCell>> buildTableItem(Elements elements) {
@@ -130,7 +138,7 @@ public class PrintTemplateExcelCell {
         return result;
     }
 
-    public static void fromTable(Element tableEle, Element gridFooter, PrintTemplateExportExcelDTO dto) {
+    public static void fromTable(Elements textEleList, Element tableEle, Element gridFooter, PrintTemplateExportExcelDTO dto) {
         if (tableEle == null) {
             return;
         }
@@ -138,6 +146,11 @@ public class PrintTemplateExcelCell {
             dto = new PrintTemplateExportExcelDTO();
         }
 
+        // table text element
+        List<String> textList = PrintTemplateExcelCell.fromText(textEleList);
+        dto.setTextElements(textList);
+
+        // table
         Elements tableChildren = tableEle.children();
         for (Element tableItem : tableChildren) {
             String tagName = tableItem.tag().getName();
