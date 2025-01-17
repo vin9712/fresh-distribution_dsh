@@ -1,8 +1,10 @@
 package com.lin.distribution.dto.print;
 
+import com.lin.common.utils.StringUtils;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.poi.ss.usermodel.Cell;
 import org.apache.poi.ss.usermodel.Row;
@@ -19,11 +21,13 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 @Data
 @Builder
 @AllArgsConstructor
+@Slf4j
 public class PrintTemplateExportExcel {
 
 
@@ -71,16 +75,32 @@ public class PrintTemplateExportExcel {
 
                 // 合并单元格
                 if (multiTable) {
+                    List<String> mergeCellList = new ArrayList<>();
                     for (int i = 0; i < tableHeadSize - 1; i++) {
                         Row multiHeaderRow = sheet.createRow(rowNo++);
                         List<PrintTemplateExcelCell> multiHeadList = tableHeadList.get(i);
+                        int lastColSpan = 1;
                         for (int j = 0; j < multiHeadList.size(); j++) {
                             PrintTemplateExcelCell multiHeadCell = multiHeadList.get(j);
-                            int cellIdx = multiHeadCell.getColspan() > 1 ? j + multiHeadCell.getColspan() : j;
+                            int cellIdx = lastColSpan > 1 ? j + lastColSpan - 1 : j;
                             multiHeaderRow.createCell(cellIdx).setCellValue(multiHeadCell.getText());
+                            if (multiHeadCell.getColspan() > 1) {
+                                String mergeRule = (rowNo - 1) + "_" + (rowNo - 1) + "_" + cellIdx + "_" + (cellIdx + multiHeadCell.getColspan() - 1);
+                                mergeCellList.add(mergeRule);
+                            }
+                            lastColSpan = multiHeadCell.getColspan();
                         }
                     }
-//                    sheet.addMergedRegion(new CellRangeAddress(0, 0, 1, 2));
+                    if (CollectionUtils.isNotEmpty(mergeCellList)) {
+                        for (String mergeRule : mergeCellList) {
+                            String[] ruleArr = mergeRule.split("_");
+                            int startRow = Integer.parseInt(ruleArr[0]);
+                            int endRow = Integer.parseInt(ruleArr[1]);
+                            int startCol = Integer.parseInt(ruleArr[2]);
+                            int endCol = Integer.parseInt(ruleArr[3]);
+                            sheet.addMergedRegion(new CellRangeAddress(startRow, endRow, startCol, endCol));
+                        }
+                    }
                 }
                 Row headerRow = sheet.createRow(rowNo++);
                 for (int i = 0; i < headerCellList.size(); i++) {
