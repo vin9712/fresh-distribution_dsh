@@ -14,12 +14,9 @@ import java.util.List;
 @AllArgsConstructor
 public class PrintTemplateExportExcelDTO implements Serializable {
     /**
-     * 文本元素
-     * 第一个为主标题
-     * 第二个为副标题
-     * 往后的都是普通文本
+     * 表格头文本元素
      */
-    private List<String> textElements;
+    private List<String> tableHeadTextList;
     /**
      * 是否为多级表头
      */
@@ -40,5 +37,9 @@ public class PrintTemplateExportExcelDTO implements Serializable {
      * 分组表尾行
      */
     private String tableGridFooter;
+    /**
+     * 表格尾文本元素
+     */
+    private List<String> tableFootTextList;
 
 }

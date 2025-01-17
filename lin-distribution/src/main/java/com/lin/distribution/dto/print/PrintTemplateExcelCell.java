@@ -8,6 +8,7 @@ import org.apache.commons.lang3.StringUtils;
 import org.jsoup.nodes.Element;
 import org.jsoup.select.Elements;
 
+import java.math.BigDecimal;
 import java.util.*;
 
 @Data
@@ -86,36 +87,21 @@ public class PrintTemplateExcelCell {
         this.border = true;
     }
 
-    public static List<PrintTemplateExcelCell> from(Elements elements){
+    public static Map<Integer, String> fromText(Elements elements) {
+        Map<Integer, String> map = new TreeMap<>();
         if (CollectionUtils.isEmpty(elements)) {
-            return new ArrayList<>();
-        }
-
-        return elements.stream()
-                .map(it -> {
-                    return PrintTemplateExcelCell.builder()
-                            .text(it.text())
-                            .build();
-                })
-                .toList();
-    }
-
-    public static List<String> fromText(Elements elements) {
-        if (CollectionUtils.isEmpty(elements)) {
-            return new ArrayList<>();
+            return map;
         }
         // text elements
-        Map<String, String> map = new TreeMap<>();
         for (Element element : elements) {
-            String style = element.attr("style");
-            String topValue = style.replaceAll(".*top:([^;]+);.*", "$1").trim();
+            Integer top = getElementTop(element);
             String text = element.text();
-            if (map.containsKey(topValue)) {
-                text = map.get(topValue) + "\t" + text;
+            if (map.containsKey(top)) {
+                text = map.get(top) + "\t" + text;
             }
-            map.put(topValue, text);
+            map.put(top, text);
         }
-        return map.values().stream().toList();
+        return map;
     }
 
     public static List<List<PrintTemplateExcelCell>> buildTableItem(Elements elements) {
@@ -125,30 +111,39 @@ public class PrintTemplateExcelCell {
         List<List<PrintTemplateExcelCell>> result = new ArrayList<>();
         for (Element element : elements) {
             List<PrintTemplateExcelCell> list = element.children().stream().map(it -> {
+                PrintTemplateExcelCell cell = new PrintTemplateExcelCell(it.text().trim());
                 Integer colspan1 = Optional.ofNullable(it.attr("colspan")).filter(StringUtils::isNotEmpty).map(Integer::parseInt).orElse(1);
                 Integer rowspan1 = Optional.ofNullable(it.attr("rowspan")).filter(StringUtils::isNotEmpty).map(Integer::parseInt).orElse(1);
-                return PrintTemplateExcelCell.builder()
-                        .text(it.text().trim())
-                        .colspan(colspan1)
-                        .rowspan(rowspan1)
-                        .build();
+                cell.setColspan(colspan1);
+                cell.setRowspan(rowspan1);
+                return cell;
             }).toList();
             result.add(list);
         }
         return result;
     }
 
-    public static void fromTable(Elements textEleList, Element tableEle, Element gridFooter, PrintTemplateExportExcelDTO dto) {
+    public static PrintTemplateExportExcelDTO fromTable(Elements textEleList, Element tableEle, Integer tableTop, Element gridFooter) {
+        PrintTemplateExportExcelDTO dto = new PrintTemplateExportExcelDTO();
         if (tableEle == null) {
-            return;
-        }
-        if (dto == null) {
-            dto = new PrintTemplateExportExcelDTO();
+            return dto;
         }
 
         // table text element
-        List<String> textList = PrintTemplateExcelCell.fromText(textEleList);
-        dto.setTextElements(textList);
+        List<String> tableHeadTextList = new ArrayList<>();
+        List<String> tableFootTextList = new ArrayList<>();
+        Map<Integer, String> textElementMap = PrintTemplateExcelCell.fromText(textEleList);
+        for (Map.Entry<Integer, String> entry : textElementMap.entrySet()) {
+            Integer topVal = entry.getKey();
+            String text = entry.getValue();
+            if (topVal <= tableTop) {
+                tableHeadTextList.add(text);
+            } else {
+                tableFootTextList.add(text);
+            }
+        }
+        dto.setTableHeadTextList(tableHeadTextList);
+        dto.setTableFootTextList(tableFootTextList);
 
         // table
         Elements tableChildren = tableEle.children();
@@ -169,6 +164,15 @@ public class PrintTemplateExcelCell {
                 dto.setTableGridFooter(gridFooter.text());
             }
         }
+        return dto;
+    }
 
+    public static Integer getElementTop(Element element) {
+        return Optional.ofNullable(element)
+                .map(ele -> ele.attr("style"))
+                .map(style -> style.replaceAll(".*top:([^;]+)pt;.*", "$1").trim())
+                .filter(StringUtils::isNotEmpty).map(BigDecimal::new)
+                .map(BigDecimal::intValue)
+                .orElse(0);
     }
 }
