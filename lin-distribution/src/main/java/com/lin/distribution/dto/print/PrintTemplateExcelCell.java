@@ -151,8 +151,12 @@ public class PrintTemplateExcelCell {
             String tagName = tableItem.tag().getName();
             Elements tableItemChildren = tableItem.children();
             if ("thead".equals(tagName)) {
-                dto.setTableHeadList(buildTableItem(tableItemChildren));
-                dto.setMultiTable(dto.getTableHeadList().size() > 1);
+                List<List<PrintTemplateExcelCell>> tableHeadList = buildTableItem(tableItemChildren);
+                int headerListSize = tableHeadList.size();
+                int headerSize = headerListSize > 0 ? tableHeadList.get(headerListSize - 1).size() : 1;
+                dto.setTableHeadList(tableHeadList);
+                dto.setMultiTable(headerListSize > 1);
+                dto.setTableHeadColNum(headerSize);
             } else if ("tbody".equals(tagName)) {
                 dto.setTableBodyList(buildTableItem(tableItemChildren));
             } else if ("tfoot".equals(tagName)) {

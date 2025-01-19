@@ -8,6 +8,7 @@ import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.ss.util.CellRangeAddress;
+import org.apache.poi.ss.util.RegionUtil;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
@@ -70,11 +71,19 @@ public class PrintTemplateExportExcel {
 
             // 填充表格前标题
             List<String> tableHeadTextList = dto.getTableHeadTextList();
-            for (String text : tableHeadTextList) {
+            for (int i = 0; i < tableHeadTextList.size(); i++) {
+                String text = tableHeadTextList.get(i);
                 Row row = sheet.createRow(rowNo++);
                 String[] textArr = text.split("\t");
-                for (int i = 0; i < textArr.length; i++) {
-                    row.createCell(i).setCellValue(textArr[i]);
+                for (int j = 0; j < textArr.length; j++) {
+                    row.createCell(j).setCellValue(textArr[j]);
+                }
+
+                // 设置标题行样式
+                if (i == 0) {
+                    String mergeRule = (rowNo - 1) + "_" + (rowNo - 1) + "_0_" + (dto.getTableHeadColNum() - 1);
+                    mergeCellList.add(mergeRule);
+                    row.getCell(0).setCellStyle(cellStyle);
                 }
             }
 
@@ -167,12 +176,14 @@ public class PrintTemplateExportExcel {
                     int endRow = Integer.parseInt(ruleArr[1]);
                     int startCol = Integer.parseInt(ruleArr[2]);
                     int endCol = Integer.parseInt(ruleArr[3]);
-                    sheet.addMergedRegion(new CellRangeAddress(startRow, endRow, startCol, endCol));
-                    log.info("合并单元格：{}", mergeRule);
-                    Cell leftTopCell = sheet.getRow(startRow).getCell(startCol);
-                    String stringCellValue = leftTopCell.getStringCellValue();
-                    leftTopCell.setCellValue(stringCellValue);
-                    leftTopCell.setCellStyle(cellStyle);
+                    CellRangeAddress region = new CellRangeAddress(startRow, endRow, startCol, endCol);
+                    sheet.addMergedRegion(region);
+
+                    // 设置合并区域的边框
+                    RegionUtil.setBorderTop(BorderStyle.THIN, region, sheet);
+                    RegionUtil.setBorderBottom(BorderStyle.THIN, region, sheet);
+                    RegionUtil.setBorderLeft(BorderStyle.THIN, region, sheet);
+                    RegionUtil.setBorderRight(BorderStyle.THIN, region, sheet);
                 }
             }
 

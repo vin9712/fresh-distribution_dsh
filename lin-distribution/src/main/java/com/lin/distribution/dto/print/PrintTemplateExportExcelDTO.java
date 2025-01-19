@@ -22,6 +22,10 @@ public class PrintTemplateExportExcelDTO implements Serializable {
      */
     private Boolean multiTable;
     /**
+     * 表头列数
+     */
+    private Integer tableHeadColNum;
+    /**
      * 表头数据
      */
     private List<List<PrintTemplateExcelCell>> tableHeadList;
