@@ -1,15 +1,12 @@
 package com.lin.distribution.dto.print;
 
-import com.lin.common.utils.StringUtils;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
-import org.apache.poi.ss.usermodel.Cell;
-import org.apache.poi.ss.usermodel.Row;
-import org.apache.poi.ss.usermodel.Sheet;
-import org.apache.poi.ss.usermodel.Workbook;
+import org.apache.commons.lang3.StringUtils;
+import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.ss.util.CellRangeAddress;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.jsoup.Jsoup;
@@ -21,7 +18,6 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 
 @Data
@@ -43,7 +39,7 @@ public class PrintTemplateExportExcel {
             Integer tableTop = PrintTemplateExcelCell.getElementTop(tableHeaderEle);
             Element tableEle = paper.select("table").first();
             Elements textEleList = paper.select(".hiprint-printElement-text");
-            Element gridFooter = paper.select(".hiprint-gridColumnsFooter").first();
+            Elements gridFooter = paper.select("#custom-grid-footer").first().children();
             PrintTemplateExportExcelDTO dto = PrintTemplateExcelCell.fromTable(textEleList, tableEle, tableTop, gridFooter);
             list.add(dto);
         }
@@ -53,9 +49,25 @@ public class PrintTemplateExportExcel {
         Workbook workbook = new XSSFWorkbook();
         // 2. 创建工作表
         Sheet sheet = workbook.createSheet("Sheet1");
+
+        // 设置单元格样式
+        CellStyle cellStyle = workbook.createCellStyle();
+        cellStyle.setAlignment(HorizontalAlignment.CENTER);
+        cellStyle.setVerticalAlignment(VerticalAlignment.CENTER);
+        cellStyle.setBorderTop(BorderStyle.THIN);
+        cellStyle.setTopBorderColor(IndexedColors.BLACK.getIndex());
+        cellStyle.setBorderBottom(BorderStyle.THIN);
+        cellStyle.setBottomBorderColor(IndexedColors.BLACK.getIndex());
+        cellStyle.setBorderLeft(BorderStyle.THIN);
+        cellStyle.setLeftBorderColor(IndexedColors.BLACK.getIndex());
+        cellStyle.setBorderRight(BorderStyle.THIN);
+        cellStyle.setRightBorderColor(IndexedColors.BLACK.getIndex());
+
         int rowNo = 0;
         // 3. 创建行
         for (PrintTemplateExportExcelDTO dto : list) {
+            List<String> mergeCellList = new ArrayList<>();
+
             // 填充表格前标题
             List<String> tableHeadTextList = dto.getTableHeadTextList();
             for (String text : tableHeadTextList) {
@@ -66,7 +78,7 @@ public class PrintTemplateExportExcel {
                 }
             }
 
-            // 填充表格内容
+            // 填充表格表头
             boolean multiTable = Optional.ofNullable(dto.getMultiTable()).orElse(false);
             List<List<PrintTemplateExcelCell>> tableHeadList = dto.getTableHeadList();
             if (CollectionUtils.isNotEmpty(tableHeadList)) {
@@ -75,7 +87,6 @@ public class PrintTemplateExportExcel {
 
                 // 合并单元格
                 if (multiTable) {
-                    List<String> mergeCellList = new ArrayList<>();
                     for (int i = 0; i < tableHeadSize - 1; i++) {
                         Row multiHeaderRow = sheet.createRow(rowNo++);
                         List<PrintTemplateExcelCell> multiHeadList = tableHeadList.get(i);
@@ -83,7 +94,9 @@ public class PrintTemplateExportExcel {
                         for (int j = 0; j < multiHeadList.size(); j++) {
                             PrintTemplateExcelCell multiHeadCell = multiHeadList.get(j);
                             int cellIdx = lastColSpan > 1 ? j + lastColSpan - 1 : j;
-                            multiHeaderRow.createCell(cellIdx).setCellValue(multiHeadCell.getText());
+                            Cell cell = multiHeaderRow.createCell(cellIdx);
+                            cell.setCellValue(multiHeadCell.getText());
+                            cell.setCellStyle(cellStyle);
                             if (multiHeadCell.getColspan() > 1) {
                                 String mergeRule = (rowNo - 1) + "_" + (rowNo - 1) + "_" + cellIdx + "_" + (cellIdx + multiHeadCell.getColspan() - 1);
                                 mergeCellList.add(mergeRule);
@@ -91,33 +104,77 @@ public class PrintTemplateExportExcel {
                             lastColSpan = multiHeadCell.getColspan();
                         }
                     }
-                    if (CollectionUtils.isNotEmpty(mergeCellList)) {
-                        for (String mergeRule : mergeCellList) {
-                            String[] ruleArr = mergeRule.split("_");
-                            int startRow = Integer.parseInt(ruleArr[0]);
-                            int endRow = Integer.parseInt(ruleArr[1]);
-                            int startCol = Integer.parseInt(ruleArr[2]);
-                            int endCol = Integer.parseInt(ruleArr[3]);
-                            sheet.addMergedRegion(new CellRangeAddress(startRow, endRow, startCol, endCol));
-                        }
-                    }
+
                 }
                 Row headerRow = sheet.createRow(rowNo++);
                 for (int i = 0; i < headerCellList.size(); i++) {
                     PrintTemplateExcelCell headerCell = headerCellList.get(i);
-                    headerRow.createCell(i).setCellValue(headerCell.getText());
+                    Cell cell = headerRow.createCell(i);
+                    cell.setCellValue(headerCell.getText());
+                    cell.setCellStyle(cellStyle);
                 }
             }
 
-
-            for (List<PrintTemplateExcelCell> cell : tableHeadList) {
-
+            // 填充表格内容
+            List<List<PrintTemplateExcelCell>> tableBodyList = dto.getTableBodyList();
+            if (CollectionUtils.isNotEmpty(tableBodyList)) {
+                for (List<PrintTemplateExcelCell> bodyCellList : tableBodyList) {
+                    Row row = sheet.createRow(rowNo++);
+                    for (int i = 0; i < bodyCellList.size(); i++) {
+                        PrintTemplateExcelCell bodyCell = bodyCellList.get(i);
+                        Cell cell = row.createCell(i);
+                        cell.setCellValue(bodyCell.getText());
+                        cell.setCellStyle(cellStyle);
+                    }
+                }
             }
 
-            List<List<PrintTemplateExcelCell>> tableBodyList = dto.getTableBodyList();
+            // 填充表格尾部
             List<List<PrintTemplateExcelCell>> tableFootList = dto.getTableFootList();
-            String tableGridFooter = dto.getTableGridFooter();
+            if (CollectionUtils.isNotEmpty(tableFootList)) {
+                for (List<PrintTemplateExcelCell> footCellList : tableFootList) {
+                    Row row = sheet.createRow(rowNo++);
+                    int lastFootColSpan = 1;
+                    for (int i = 0; i < footCellList.size(); i++) {
+                        PrintTemplateExcelCell bodyCell = footCellList.get(i);
+                        int footCellIdx = lastFootColSpan > 1 ? i + lastFootColSpan - 1 : i;
+                        row.createCell(footCellIdx).setCellValue(bodyCell.getText());
+                        if (bodyCell.getColspan() > 1) {
+                            String mergeRule = (rowNo - 1) + "_" + (rowNo - 1) + "_" + footCellIdx + "_" + (footCellIdx + bodyCell.getColspan() - 1);
+                            mergeCellList.add(mergeRule);
+                        }
+                        lastFootColSpan = bodyCell.getColspan();
+                    }
+                }
+            }
 
+            // 填充表格分组尾部
+            String tableGridFooter = dto.getTableGridFooter();
+            if (StringUtils.isNotEmpty(tableGridFooter)) {
+                Row gridFootRow = sheet.createRow(rowNo++);
+                String[] tableGridTextArr = tableGridFooter.split("\t");
+                for (int i = 0; i < tableGridTextArr.length; i++) {
+                    String tableGridText = tableGridTextArr[i];
+                    gridFootRow.createCell(i).setCellValue(tableGridText);
+                }
+            }
+
+            // 合并单元格
+            if (CollectionUtils.isNotEmpty(mergeCellList)) {
+                for (String mergeRule : mergeCellList) {
+                    String[] ruleArr = mergeRule.split("_");
+                    int startRow = Integer.parseInt(ruleArr[0]);
+                    int endRow = Integer.parseInt(ruleArr[1]);
+                    int startCol = Integer.parseInt(ruleArr[2]);
+                    int endCol = Integer.parseInt(ruleArr[3]);
+                    sheet.addMergedRegion(new CellRangeAddress(startRow, endRow, startCol, endCol));
+                    log.info("合并单元格：{}", mergeRule);
+                    Cell leftTopCell = sheet.getRow(startRow).getCell(startCol);
+                    String stringCellValue = leftTopCell.getStringCellValue();
+                    leftTopCell.setCellValue(stringCellValue);
+                    leftTopCell.setCellStyle(cellStyle);
+                }
+            }
 
             // 创建空行
             sheet.createRow(rowNo++);

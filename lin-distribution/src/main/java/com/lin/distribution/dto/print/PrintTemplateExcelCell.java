@@ -123,7 +123,7 @@ public class PrintTemplateExcelCell {
         return result;
     }
 
-    public static PrintTemplateExportExcelDTO fromTable(Elements textEleList, Element tableEle, Integer tableTop, Element gridFooter) {
+    public static PrintTemplateExportExcelDTO fromTable(Elements textEleList, Element tableEle, Integer tableTop, Elements gridFooter) {
         PrintTemplateExportExcelDTO dto = new PrintTemplateExportExcelDTO();
         if (tableEle == null) {
             return dto;
@@ -160,8 +160,12 @@ public class PrintTemplateExcelCell {
             }
 
             // grid footer
-            if (gridFooter != null) {
-                dto.setTableGridFooter(gridFooter.text());
+            if (CollectionUtils.isNotEmpty(gridFooter)) {
+                StringBuilder gridFooterText = new StringBuilder(16);
+                for (Element gridFootItem : gridFooter) {
+                    gridFooterText.append(gridFootItem.text()).append("\t");
+                }
+                dto.setTableGridFooter(gridFooterText.toString());
             }
         }
         return dto;
