@@ -1,6 +1,8 @@
 package com.lin.distribution.service;
 
 import com.lin.distribution.domain.PrintTemplate;
+import com.lin.distribution.dto.print.PrintTemplateExcelRequestDTO;
+import jakarta.servlet.http.HttpServletResponse;
 
 import java.util.List;
 
@@ -67,4 +69,11 @@ public interface PrintTemplateService {
      * @return 打印模板编号
      */
     String generatePrintTemplateNo(Boolean refresh, String currentCode);
+
+    /**
+     * 导出打印的excel
+     * @param request
+     * @param response
+     */
+    void downloadPrintTemplateExcel(PrintTemplateExcelRequestDTO request, HttpServletResponse response);
 }

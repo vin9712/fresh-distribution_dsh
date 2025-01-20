@@ -7,6 +7,7 @@ import com.lin.common.core.page.TableDataInfo;
 import com.lin.common.enums.BusinessType;
 import com.lin.common.utils.poi.ExcelUtil;
 import com.lin.distribution.domain.PrintTemplate;
+import com.lin.distribution.dto.print.PrintTemplateExcelRequestDTO;
 import com.lin.distribution.service.PrintTemplateService;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletResponse;
@@ -69,6 +70,16 @@ public class PrintTemplateController extends BaseController {
         List<PrintTemplate> list = printTemplateService.selectPrintTemplateList(printTemplate);
         ExcelUtil<PrintTemplate> util = new ExcelUtil<PrintTemplate>(PrintTemplate.class);
         util.exportExcel(response, list, "打印模板数据");
+    }
+
+    /**
+     * 导出 Excel
+     * @param request
+     * @param response
+     */
+    @PostMapping("/download")
+    public void downloadPrintTemplateExcel(PrintTemplateExcelRequestDTO request, HttpServletResponse response) {
+        printTemplateService.downloadPrintTemplateExcel(request, response);
     }
 
     /**

@@ -270,100 +270,22 @@ export default {
       this.hiprintTemplate.toPdf({}, "打印预览");
     },
     toExcel() {
-      let html = this.hiprintTemplate.getHtml(this.printData);
-      console.log("html", html);
+      const table = $(".hiprint-printPaper").find("table");
+      console.log("table", table);
+      if (!table || table.length <= 0) {
+        this.$message.error("当前模板没有表格数据，无法导出Excel");
+        return;
+      }
 
-      // 创建一个新的ExcelJs工作簿
-      const workbook = new ExcelJs.Workbook();
-      const worksheet = workbook.addWorksheet("Sheet1");
-
-      // 将HTML内容转换为Excel表格
-      const table = new DOMParser().parseFromString(html, "text/html");
-      const rows = table.querySelectorAll("tr");
-      rows.forEach((row, rowIndex) => {
-        const cells = row.querySelectorAll("td");
-        cells.forEach((cell, cellIndex) => {
-          worksheet.getCell(rowIndex + 1, cellIndex + 1).value =
-            cell.textContent;
-        });
-      });
-
-      // 保存Excel文件
-      workbook.xlsx.writeBuffer().then((buffer) => {
-        const blob = new Blob([buffer], {
-          type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        });
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement("a");
-        link.href = url;
-        link.download = "print_preview.xlsx";
-        link.click();
-        URL.revokeObjectURL(url);
-      });
-    },
-    parseHtmlDemo() {
-      const papers = $(".hiprint-printPaper");
-      papers.each(function (index, paper) {
-        console.log("paper", paper);
-        var orignalHeight = paper.offsetHeight;
-
-        // 文本元素，并按照元素offsetTop高度升序
-        const textEles = $(paper)
-          .find(".hiprint-printElement-text")
-          .sort(function (a, b) {
-            return a.offsetTop - b.offsetTop;
-          });
-        console.log("textEles", textEles);
-        // textEles.each(function (index, textEle) {
-        //     console.log('textEle', textEle.innerText);
-        //     console.log('textEle.offsetTop', textEle.offsetTop);
-        // })
-
-        // 页码元素
-        const paperNumberEle = $(paper).find(".hiprint-paperNumber");
-        // console.log('paperNumberEle', paperNumberEle, paperNumberEle[0].offsetTop);
-
-        // 表格元素
-        const tableEle = $(paper).find(".hiprint-printElement-table-content");
-        // console.log('tableEle', tableEle);
-
-        // 遍历表头
-        const tableHeaderEle = $(paper).find("thead");
-        console.log("tableHeaderEle", tableHeaderEle);
-        tableHeaderEle.each(function (index, tableHeader) {
-          console.log("tableHeader", tableHeader);
-        });
-
-        const tableFooterEle = $(paper).find("tfoot");
-        const tableGridFooterEle = $(paper).find(".hiprint-gridColumnsFooter");
-
-        // 获取表头<thead>和表尾<tfoot>元素或的高度
-        const tableHeaderHeight = tableHeaderEle.offset().top;
-        const tableFooterHeight =
-          tableFooterEle.length > 0
-            ? tableFooterEle.offset().top
-            : tableGridFooterEle.offset().top;
-        console.log(
-          "tableHeaderHeight",
-          tableHeaderHeight,
-          "tableFooterHeight",
-          tableFooterHeight
-        );
-
-        // 获取表格中的表身，遍历元素
-        const bodyEle = $(paper).find("tbody");
-        console.log("bodyEle", bodyEle);
-        bodyEle.each(function (index, body) {
-          console.log("body", body);
-          const rows = $(body).find("tr");
-          console.log("rows", rows);
-          rows.each(function (index, row) {
-            console.log("row", row);
-            const cells = $(row).find("td");
-            console.log("cells", cells);
-          });
-        });
-      });
+      // 交由后端解析并生成 excel
+      let html = this.hiprintTemplate.getHtml(this.printData).html();
+      this.download(
+        "/print/template/download",
+        {
+          html: html,
+        },
+        `print_template_${new Date().getTime()}.xlsx`
+      );
     },
   },
 };
