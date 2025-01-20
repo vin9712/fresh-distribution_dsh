@@ -244,18 +244,54 @@
             v-hasPermi="['order:sale:edit']"
             >修改</el-button
           >
-          <el-button
-            v-if="
-              scope.row.status === 1 ||
-              scope.row.status === 2 ||
-              scope.row.status === 3
-            "
-            size="mini"
-            type="text"
-            icon="el-icon-printer"
-            @click="handlePrint(scope.row)"
-            >打印</el-button
+          <el-popover
+            placement="top"
+            width="250"
+            v-model="printTemplateVisible"
           >
+            <span>打印模板</span>
+            <el-select
+              v-model="selectPrintTemplate"
+              placeholder="请选择"
+              @change="changePrintTemplate"
+              size="mini"
+              style="margin-left: 10px; width: 60%"
+            >
+              <el-option
+                v-for="template in printTemplateList"
+                :key="template.id"
+                :label="template.name"
+                :value="template.id"
+              >
+              </el-option>
+            </el-select>
+            <div style="text-align: right; margin-top: 10px">
+              <el-button
+                size="mini"
+                type="text"
+                @click="printTemplateVisible = false"
+                >取消</el-button
+              >
+              <el-button
+                type="primary"
+                size="mini"
+                @click="handlePrint(scope.row)"
+                >确定</el-button
+              >
+            </div>
+            <el-button
+              v-if="
+                scope.row.status === 1 ||
+                scope.row.status === 2 ||
+                scope.row.status === 3
+              "
+              slot="reference"
+              size="mini"
+              type="text"
+              icon="el-icon-printer"
+              >打印</el-button
+            >
+          </el-popover>
           <el-button
             size="mini"
             type="text"
@@ -361,6 +397,7 @@ import {
 } from "@/api/order/sale";
 import { listCustomerDept } from "@/api/partner/customerDept";
 import { listTask } from "@/api/print/task";
+import { listTemplate } from "@/api/print/template";
 
 import Preview from "@/components/PrintDesigner/preview.vue";
 import { disAutoConnect, hiprint } from "@sv-print/hiprint";
@@ -449,6 +486,12 @@ export default {
       customerDeptMap: {},
       // 送货单位树列表
       customerDeptOptions: [],
+      // 打印模板选择窗口
+      printTemplateVisible: false,
+      // 选择的打印模板
+      selectPrintTemplate: null,
+      // 打印模板列表
+      printTemplateList: [],
     };
   },
   mounted() {
@@ -456,6 +499,7 @@ export default {
     disAutoConnect();
   },
   created() {
+    this.getTemplateList();
     this.getTreeselect();
     this.getPageList();
   },
@@ -475,6 +519,12 @@ export default {
         this.saleList = response.rows;
         this.total = response.total;
         this.loading = false;
+      });
+    },
+    /** 打印模板列表 */
+    getTemplateList() {
+      listTemplate().then((res) => {
+        this.printTemplateList = res.data;
       });
     },
     // 取消按钮
@@ -538,8 +588,13 @@ export default {
         query: { orderId: orderId },
       });
     },
+    /** 更换打印模板 */
+    changePrintTemplate(item) {
+      this.selectPrintTemplate = item;
+    },
     /** 打印按钮操作 */
     async handlePrint(row) {
+      this.printTemplateVisible = false;
       console.log("handlePrint row", row);
 
       const orderId = row.id;
