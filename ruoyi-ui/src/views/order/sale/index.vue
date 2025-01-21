@@ -301,6 +301,52 @@
               >预览</el-button
             >
           </el-popover>
+          <!-- 打印弹框 -->
+          <el-popover
+            inline
+            placement="top-start"
+            title="直接打印"
+            width="250"
+            v-model="printForm.visible"
+          >
+            <el-form
+              ref="printForm"
+              size="mini"
+              label-position="right"
+              :model="printForm"
+              :rules="printRules"
+            >
+              <el-form-item label="模板" prop="templateId">
+                <el-select
+                  v-model="printForm.templateId"
+                  placeholder="请选择打印模板"
+                  style="width: 65%"
+                >
+                  <el-option
+                    v-for="template in printTemplateList"
+                    :key="template.id"
+                    :label="template.name"
+                    :value="template.id"
+                  >
+                  </el-option>
+                </el-select>
+              </el-form-item>
+              <el-form-item label="打印机" prop="printer"> </el-form-item>
+            </el-form>
+            <el-button
+              v-if="
+                scope.row.status === 1 ||
+                scope.row.status === 2 ||
+                scope.row.status === 3
+              "
+              slot="reference"
+              size="mini"
+              type="text"
+              icon="el-icon-printer"
+              @click="handlePrint(scope.row)"
+              >打印</el-button
+            >
+          </el-popover>
           <el-button
             size="mini"
             type="text"
@@ -508,6 +554,17 @@ export default {
           { required: true, message: "请选择打印模板", trigger: "change" },
         ],
       },
+      // 直接打印表单
+      printForm: {
+        visible: false,
+        templateId: null,
+      },
+      // 直接打印表单校验
+      printRules: {
+        templateId: [
+          { required: true, message: "请选择打印模板", trigger: "change" },
+        ],
+      },
     };
   },
   mounted() {
@@ -605,7 +662,10 @@ export default {
       });
     },
     /** 打印按钮操作 */
-    handlePrint(row) {},
+    handlePrint(row) {
+      this.printForm.visible = false;
+      console.log("handlePrint row", row);
+    },
     /** 预览按钮操作 */
     async handlePreview(row) {
       let viewValid = false;
