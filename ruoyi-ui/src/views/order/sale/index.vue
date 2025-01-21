@@ -244,38 +244,47 @@
             v-hasPermi="['order:sale:edit']"
             >修改</el-button
           >
+          <!-- 预览弹框 -->
           <el-popover
+            inline
             placement="top"
-            width="250"
-            v-model="printTemplateVisible"
+            title="打印模板"
+            v-model="viewForm.visible"
           >
-            <span>打印模板</span>
-            <el-select
-              v-model="selectPrintTemplate"
-              placeholder="请选择"
-              @change="changePrintTemplate"
+            <el-form
+              ref="viewForm"
               size="mini"
-              style="margin-left: 10px; width: 60%"
+              label-position="right"
+              :model="viewForm"
+              :rules="viewRules"
             >
-              <el-option
-                v-for="template in printTemplateList"
-                :key="template.id"
-                :label="template.name"
-                :value="template.id"
-              >
-              </el-option>
-            </el-select>
+              <el-form-item label-width="0px" label=" " prop="templateId">
+                <el-select
+                  v-model="viewForm.templateId"
+                  placeholder="请选择打印模板"
+                  style="width: 90%"
+                >
+                  <el-option
+                    v-for="template in printTemplateList"
+                    :key="template.id"
+                    :label="template.name"
+                    :value="template.id"
+                  >
+                  </el-option>
+                </el-select>
+              </el-form-item>
+            </el-form>
             <div style="text-align: right; margin-top: 10px">
               <el-button
                 size="mini"
                 type="text"
-                @click="printTemplateVisible = false"
+                @click="viewForm.visible = false"
                 >取消</el-button
               >
               <el-button
                 type="primary"
                 size="mini"
-                @click="handlePrint(scope.row)"
+                @click="handlePreview(scope.row)"
                 >确定</el-button
               >
             </div>
@@ -288,8 +297,8 @@
               slot="reference"
               size="mini"
               type="text"
-              icon="el-icon-printer"
-              >打印</el-button
+              icon="el-icon-view"
+              >预览</el-button
             >
           </el-popover>
           <el-button
@@ -486,12 +495,19 @@ export default {
       customerDeptMap: {},
       // 送货单位树列表
       customerDeptOptions: [],
-      // 打印模板选择窗口
-      printTemplateVisible: false,
-      // 选择的打印模板
-      selectPrintTemplate: null,
       // 打印模板列表
       printTemplateList: [],
+      // 打印预览表单
+      viewForm: {
+        visible: false,
+        templateId: null,
+      },
+      // 打印预览表单校验
+      viewRules: {
+        templateId: [
+          { required: true, message: "请选择打印模板", trigger: "change" },
+        ],
+      },
     };
   },
   mounted() {
@@ -588,30 +604,33 @@ export default {
         query: { orderId: orderId },
       });
     },
-    /** 更换打印模板 */
-    changePrintTemplate(item) {
-      this.selectPrintTemplate = item;
-    },
     /** 打印按钮操作 */
-    async handlePrint(row) {
-      this.printTemplateVisible = false;
-      console.log("handlePrint row", row);
+    handlePrint(row) {},
+    /** 预览按钮操作 */
+    async handlePreview(row) {
+      let viewValid = false;
+      this.$refs["viewForm"].validate((valid) => {
+        viewValid = valid;
+      });
+      if (!viewValid) {
+        this.$modal.msgError("请先选择打印模板");
+        return;
+      }
+
+      this.viewForm.visible = false;
+      console.log("handlePreview row", row);
 
       const orderId = row.id;
+      const templateId = this.viewForm.templateId;
+      if (!templateId) {
+        this.$modal.msgError("请选择打印模板");
+        return;
+      }
       try {
-        // 获取打印模板
-        const deliveryTemplateResponse = await deliveryPrintTemplate({
-          orderId: orderId,
-        });
-        const template = deliveryTemplateResponse.data || {};
-        if (!template) {
-          this.$modal.msgError("获取打印模板失败");
-          return;
-        }
-
+        // 获取打印数据
         const deliveryPrintDataResponse = await deliveryPrintData({
           orderId: orderId,
-          templateId: template.id,
+          templateId: templateId,
         });
         const printObject = deliveryPrintDataResponse.data || {};
         if (!printObject) {
@@ -632,8 +651,11 @@ export default {
           hiprintTemplate,
           printData,
           orderId,
-          template.id
+          templateId
         );
+
+        // 清空 viewForm 的 templateId
+        this.viewForm.templateId = null;
 
         // todo 点击打印时，创建打印任务
       } catch (error) {
