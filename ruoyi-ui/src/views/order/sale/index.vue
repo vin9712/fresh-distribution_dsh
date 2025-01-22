@@ -245,13 +245,7 @@
             >修改</el-button
           >
           <!-- 打印弹框 -->
-          <el-popover
-            inline
-            placement="top-start"
-            title="打印单据"
-            width="250"
-            v-model="viewForm.visible"
-          >
+          <el-popover inline placement="top-start" title="打印单据" width="250">
             <el-form
               ref="viewForm"
               size="mini"
@@ -617,9 +611,12 @@ export default {
         });
       });
 
-      let hiprintTemplate = new hiprint.PrintTemplate({});
-      this.printerList = hiprintTemplate.getPrinterList();
-      console.log("init printerList", this.printerList);
+      // 更新打印机列表
+      setTimeout(() => {
+        let hiprintTemplate = new hiprint.PrintTemplate();
+        this.printerList = hiprintTemplate.getPrinterList();
+        console.log("init printerList", this.printerList);
+      }, 500);
     },
     /** 搜索按钮操作 */
     handleQuery() {
