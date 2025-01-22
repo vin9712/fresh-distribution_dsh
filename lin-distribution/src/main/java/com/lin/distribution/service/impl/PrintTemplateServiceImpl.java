@@ -138,7 +138,7 @@ public class PrintTemplateServiceImpl implements PrintTemplateService {
             Integer tableTop = PrintTemplateExcelCell.getElementTop(tableHeaderEle);
             Element tableEle = paper.select("table").first();
             Elements textEleList = paper.select(".hiprint-printElement-text");
-            Elements gridFooter = paper.select("#custom-grid-footer").first().children();
+            Elements gridFooter = Optional.ofNullable(paper.select("#custom-grid-footer").first()).map(Element::children).orElse(null);
             PrintTemplateExportExcelDTO dto = PrintTemplateExcelCell.fromTable(textEleList, tableEle, tableTop, gridFooter);
             list.add(dto);
         }

@@ -49,8 +49,12 @@
           >
 
           <!-- 直接打印 -->
-          <el-divider direction="vertical"></el-divider>
+          <el-divider
+            v-if="printerList.length > 0"
+            direction="vertical"
+          ></el-divider>
           <el-select
+            v-if="printerList.length > 0"
             v-model="selectPrinter"
             placeholder="请选择打印机"
             @change="changePrinter"
@@ -64,6 +68,7 @@
             />
           </el-select>
           <el-button
+            v-if="printerList.length > 0"
             size="small"
             type="success"
             icon="el-icon-refresh"
@@ -74,6 +79,7 @@
           ></el-button>
           <el-divider direction="vertical"></el-divider>
           <el-button
+            v-if="printerList.length > 0"
             :loading="waitShowDirectlyPrinter"
             type="primary"
             icon="el-icon-download"
@@ -95,7 +101,6 @@
 import { hiprint } from "@sv-print/hiprint";
 import { listTemplate } from "@/api/print/template";
 import { deliveryPrintData } from "@/api/order/sale";
-import ExcelJs from "exceljs";
 
 export default {
   name: "printPreview",
@@ -142,7 +147,6 @@ export default {
           const socket = hiprint.hiwebSocket.socket;
           // 处理 socket 连接异常的情况
           socket.on("connect_error", (e) => {
-            console.log("connect_error, e: ", e);
             hiprint.hiwebSocket.stop();
             this.$message.error(
               "WebSocket 连接失败，请检查是否安装打印客户端或联系管理员。"
@@ -150,7 +154,6 @@ export default {
             return;
           });
           socket.on("connect_timeout", (e) => {
-            console.log("connect_timeout, e: ", e);
             hiprint.hiwebSocket.stop();
             this.$message.error(
               "WebSocket 启动超时，请检查是否安装打印客户端或联系管理员。"
@@ -201,13 +204,21 @@ export default {
         {},
         {
           callback: () => {
-            console.log("callback");
+            console.log("print callback");
             this.waitShowPrinter = false;
           },
         }
       );
     },
     printDirectly() {
+      if (this.printerList.length <= 0) {
+        this.$modal.msgError({
+          title: "提示",
+          content: "请先安装打印客户端",
+        });
+        return;
+      }
+
       this.waitShowDirectlyPrinter = true;
       this.hiprintTemplate.print2(this.printData, {});
       this.hiprintTemplate.on("printSuccess", function (data) {
