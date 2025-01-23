@@ -316,10 +316,11 @@ public class SaleOrderServiceImpl implements SaleOrderService {
             throw new ServiceException("saleOrderDetails is null");
         }
 
+        String customerName = StringUtils.equals(saleOrder.getCustomerName(), saleOrder.getCustomerDeptName()) ? saleOrder.getCustomerName() : saleOrder.getCustomerName() + "-" + saleOrder.getCustomerDeptName();
         DeliveryOrderPrintDTO dto = DeliveryOrderPrintDTO.builder()
                 .deliveryName("A company")
                 .deliveryDate(saleOrder.getDeliveryDate())
-                .customerDeptName(saleOrder.getCustomerName() + "-" + saleOrder.getCustomerDeptName())
+                .customerDeptName(customerName)
                 .table(saleOrderDetails)
                 .build();
 

@@ -205,6 +205,12 @@ export default {
         {
           callback: () => {
             console.log("print callback");
+            const printRequest = {
+              orderId: this.defaultOrderId,
+              templateId: this.selectPrintTemplate,
+              printer: this.selectPrinter,
+            };
+            this.$emit("printCallback", printRequest);
             this.waitShowPrinter = false;
           },
         }
@@ -223,6 +229,12 @@ export default {
       this.hiprintTemplate.print2(this.printData, {});
       this.hiprintTemplate.on("printSuccess", function (data) {
         console.log("直接打印完成");
+        const printRequest = {
+          orderId: this.defaultOrderId,
+          templateId: this.selectPrintTemplate,
+          printer: this.selectPrinter,
+        };
+        this.$emit("printDirectlyCallback", printRequest);
       });
       this.hiprintTemplate.on("printError", function (data) {
         console.log("直接打印失败");

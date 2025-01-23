@@ -244,84 +244,18 @@
             v-hasPermi="['order:sale:edit']"
             >修改</el-button
           >
-          <!-- 打印弹框 -->
-          <el-popover
-            inline
-            placement="top-start"
-            title="打印单据"
-            width="250"
-            v-model="viewForm.visible"
+          <el-button
+            v-if="
+              scope.row.status === 1 ||
+              scope.row.status === 2 ||
+              scope.row.status === 3
+            "
+            size="mini"
+            type="text"
+            icon="el-icon-printer"
+            @click="handlePrint(scope.row)"
+            >打印</el-button
           >
-            <el-form
-              ref="viewForm"
-              size="mini"
-              label-position="right"
-              :model="viewForm"
-              :rules="viewRules"
-            >
-              <el-form-item label="模板" prop="templateId">
-                <el-select
-                  v-model="viewForm.templateId"
-                  placeholder="请选择打印模板"
-                  :popper-append-to-body="false"
-                  style="width: 70%"
-                >
-                  <el-option
-                    v-for="template in printTemplateList"
-                    :key="template.id"
-                    :label="template.name"
-                    :value="template.id"
-                  >
-                  </el-option>
-                </el-select>
-              </el-form-item>
-              <el-form-item
-                v-if="printerList.length > 0"
-                label="打印机"
-                prop="printer"
-              >
-                <el-select
-                  v-model="viewForm.printer"
-                  placeholder="请选择打印机"
-                  :popper-append-to-body="false"
-                  style="width: 70%"
-                >
-                  <el-option
-                    v-for="printer in printerList"
-                    :key="printer.name"
-                    :label="printer.displayName"
-                    :value="printer.name"
-                  />
-                </el-select>
-              </el-form-item>
-            </el-form>
-            <div style="text-align: right; margin-top: 10px">
-              <el-button
-                size="mini"
-                type="text"
-                @click="viewForm.visible = false"
-                >取消</el-button
-              >
-              <el-button
-                type="primary"
-                size="mini"
-                @click="handlePrint(scope.row)"
-                >确定</el-button
-              >
-            </div>
-            <el-button
-              v-if="
-                scope.row.status === 1 ||
-                scope.row.status === 2 ||
-                scope.row.status === 3
-              "
-              slot="reference"
-              size="mini"
-              type="text"
-              icon="el-icon-printer"
-              >打印</el-button
-            >
-          </el-popover>
           <el-button
             size="mini"
             type="text"
@@ -409,7 +343,11 @@
     </el-dialog>
 
     <!-- 打印预览窗口 -->
-    <Preview ref="printPreiew" />
+    <Preview
+      ref="printPreiew"
+      @printCallback="handleWindowPrintCb"
+      @printDirectlyCallback="handleWindowPrintDirectlyCb"
+    />
   </div>
 </template>
 
@@ -520,18 +458,6 @@ export default {
       printerList: [],
       // 打印模板列表
       printTemplateList: [],
-      // 打印预览表单
-      viewForm: {
-        visible: false,
-        templateId: null,
-        printer: null,
-      },
-      // 打印预览表单校验
-      viewRules: {
-        templateId: [
-          { required: true, message: "请选择打印模板", trigger: "change" },
-        ],
-      },
     };
   },
   mounted() {
@@ -593,14 +519,6 @@ export default {
       };
       this.resetForm("form");
     },
-    /** 重设打印弹窗 */
-    resetPrintPopover() {
-      this.viewForm = {
-        visible: false,
-        templateId: null,
-        printer: null,
-      };
-    },
     /** 获取打印机列表 */
     getPrinterList() {
       hiprint.hiwebSocket.stop();
@@ -657,29 +575,23 @@ export default {
     },
     /** 打印按钮操作 */
     async handlePrint(row) {
-      let viewValid = false;
-      this.$refs["viewForm"].validate((valid) => {
-        viewValid = valid;
-      });
-      if (!viewValid) {
-        this.$modal.msgError("请先选择打印模板");
-        return;
-      }
-
-      this.viewForm.visible = false;
-      console.log("handlePreview row", row);
+      console.log("handlePrint row", row);
 
       const orderId = row.id;
-      const templateId = this.viewForm.templateId;
-      if (!templateId) {
-        this.$modal.msgError("请选择打印模板");
-        return;
-      }
       try {
-        // 获取打印数据
+        // 获取打印模板
+        const deliveryTemplateResponse = await deliveryPrintTemplate({
+          orderId: orderId,
+        });
+        const template = deliveryTemplateResponse.data || {};
+        if (!template) {
+          this.$modal.msgError("获取打印模板失败");
+          return;
+        }
+
         const deliveryPrintDataResponse = await deliveryPrintData({
           orderId: orderId,
-          templateId: templateId,
+          templateId: template.id,
         });
         const printObject = deliveryPrintDataResponse.data || {};
         if (!printObject) {
@@ -700,12 +612,8 @@ export default {
           hiprintTemplate,
           printData,
           orderId,
-          templateId
+          template.id
         );
-
-        // 重设 viewForm
-        this.resetPrintPopover();
-
         // todo 点击打印时，创建打印任务
       } catch (error) {
         console.error("handlePrint Error: ", error);
@@ -886,6 +794,14 @@ export default {
         }
         return newItem;
       });
+    },
+    /** 浏览器打印回调 */
+    handleWindowPrintCb(request) {
+      console.log("handleWindowPrintCb req", request);
+    },
+    /** 直接打印回调 */
+    handleWindowPrintDirectlyCb(request) {
+      console.log("handleWindowPrintDirectlyCb req", request);
     },
   },
 };
