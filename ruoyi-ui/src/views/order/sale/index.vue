@@ -535,9 +535,12 @@ export default {
         });
       });
 
-      let hiprintTemplate = new hiprint.PrintTemplate({});
-      this.printerList = hiprintTemplate.getPrinterList();
-      console.log("init printerList", this.printerList);
+      // 更新打印机列表
+      setTimeout(() => {
+        let hiprintTemplate = new hiprint.PrintTemplate();
+        this.printerList = hiprintTemplate.getPrinterList();
+        console.log("init printerList", this.printerList);
+      }, 500);
     },
     /** 搜索按钮操作 */
     handleQuery() {
