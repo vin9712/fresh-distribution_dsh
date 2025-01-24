@@ -81,6 +81,11 @@ public class SaleOrder extends BaseEntity {
     private LocalDate deliveryDate;
 
     /**
+     * 打印状态
+     */
+    private Boolean isPrint;
+
+    /**
      * 逻辑删除
      */
     private Boolean isDeleted;

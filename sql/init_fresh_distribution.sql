@@ -219,6 +219,7 @@ CREATE TABLE `t_sale_order`
     `amount`           decimal(10, 2) unsigned NOT NULL COMMENT '总金额',
     `status`           tinyint(3) unsigned NOT NULL COMMENT '状态：0制单,1审核,2送货,3验收,4完成',
     `delivery_date`    date         NOT NULL COMMENT '预计配送日期',
+    `is_print`         tinyint(1) NOT NULL DEFAULT '0' COMMENT '打印状态',
     `is_deleted`       tinyint(1) NOT NULL DEFAULT '0' COMMENT '逻辑删除',
     `version`          int(10) unsigned NOT NULL DEFAULT '0' COMMENT '版本号',
     `create_by`        varchar(64)           DEFAULT '' COMMENT '创建者',

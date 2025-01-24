@@ -161,6 +161,16 @@
       </el-col>
       <el-col :span="1.5">
         <el-button
+          type="primary"
+          plain
+          icon="el-icon-tickets"
+          size="mini"
+          @click="handlePrintOrder"
+          >打印送货单</el-button
+        >
+      </el-col>
+      <el-col :span="1.5">
+        <el-button
           type="warning"
           plain
           icon="el-icon-shopping-bag-2"
@@ -276,68 +286,146 @@
       @pagination="getPageList"
     />
 
-    <!-- 添加或修改销售订单对话框 -->
-    <el-dialog :title="title" :visible.sync="open" width="500px" append-to-body>
-      <el-form ref="form" :model="form" :rules="rules" label-width="80px">
-        <el-form-item label="订单编号" prop="code">
-          <el-input v-model="form.code" placeholder="请输入订单编号" />
-        </el-form-item>
-        <el-form-item label="订单来源" prop="source">
-          <el-select v-model="form.source" placeholder="请选择订单来源">
-            <el-option
-              v-for="dict in dict.type.t_sale_order_source"
-              :key="dict.value"
-              :label="dict.label"
-              :value="parseInt(dict.value)"
-            ></el-option>
-          </el-select>
-        </el-form-item>
-        <el-form-item label="订单类型" prop="type">
-          <el-select v-model="form.type" placeholder="请选择订单类型">
-            <el-option
-              v-for="dict in dict.type.t_sale_order_type"
-              :key="dict.value"
-              :label="dict.label"
-              :value="parseInt(dict.value)"
-            ></el-option>
-          </el-select>
-        </el-form-item>
-        <el-form-item label="总金额" prop="amount">
-          <el-input v-model="form.amount" placeholder="请输入总金额" />
-        </el-form-item>
-        <el-form-item label="状态" prop="status">
-          <el-select v-model="form.status" placeholder="请选择状态">
-            <el-option
-              v-for="dict in dict.type.t_sale_order_status"
-              :key="dict.value"
-              :label="dict.label"
-              :value="parseInt(dict.value)"
-            ></el-option>
-          </el-select>
-        </el-form-item>
-        <el-form-item label="配送日期" prop="deliveryDate">
-          <el-date-picker
-            clearable
-            v-model="form.deliveryDate"
-            type="date"
-            value-format="yyyy-MM-dd"
-            placeholder="请选择配送日期"
+    <!-- 批量打印对话框 -->
+    <el-dialog :visible.sync="multiPrintOpen" append-to-body>
+      <!-- 打印表单 -->
+      <div slot="title">
+        <span class="print-dialog-title">批量打印</span>
+        <el-form
+          inline
+          ref="multiPrintForm"
+          :model="multiPrintForm"
+          :rules="multiPrintRules"
+          label-width="80px"
+        >
+          <el-form-item label="打印模板" prop="templateId">
+            <el-select
+              v-model="multiPrintForm.templateId"
+              placeholder="请选择打印模板"
+              style="width: 90%"
+            >
+              <el-option
+                v-for="template in printTemplateList"
+                :key="template.id"
+                :label="template.name"
+                :value="template.id"
+              >
+              </el-option>
+            </el-select>
+          </el-form-item>
+          <el-form-item
+            v-if="printerList.length > 0"
+            label="打印机"
+            prop="printer"
           >
-          </el-date-picker>
-        </el-form-item>
-        <el-form-item label="逻辑删除" prop="isDeleted">
-          <el-input v-model="form.isDeleted" placeholder="请输入逻辑删除" />
-        </el-form-item>
-        <el-form-item label="备注" prop="remark">
-          <el-input
-            v-model="form.remark"
-            type="textarea"
-            placeholder="请输入内容"
+            <el-select
+              v-model="multiPrintForm.printer"
+              placeholder="请选择打印机"
+              style="width: 90%"
+            >
+              <el-option
+                v-for="printer in printerList"
+                :key="printer.name"
+                :label="printer.displayName"
+                :value="printer.name"
+              />
+            </el-select>
+          </el-form-item>
+        </el-form>
+        <el-divider class="print-dialog-divider"></el-divider>
+      </div>
+      <!-- 可打印送货单表单+列表 -->
+      <div>
+        <el-form
+          inline
+          ref="printQueryForm"
+          :model="printQueryParams"
+          label-width="80px"
+        >
+          <el-form-item label="送货单位" prop="customerDeptId">
+            <el-cascader
+              placeholder="请选择送货单位"
+              :options="customerDeptOptions"
+              :props="{ expandTrigger: 'hover' }"
+              @change="handlePrintCustomerDeptChange"
+              filterable
+              clearable
+            />
+          </el-form-item>
+          <el-form-item label="配送日期" prop="deliveryDate">
+            <el-date-picker
+              v-model="printQueryParams.deliveryDate"
+              type="date"
+              value-format="yyyy-MM-dd"
+              placeholder="请选择配送日期"
+              clearable
+            >
+            </el-date-picker>
+          </el-form-item>
+          <el-button
+            icon="el-icon-search"
+            type="primary"
+            @click="getPrintOrderList"
+            circle
+            title="搜索"
+          ></el-button>
+        </el-form>
+        <el-table
+          :data="printOrderList"
+          @selection-change="handlePrintSelectionChange"
+        >
+          <el-table-column type="selection" width="55" align="center" />
+          <el-table-column
+            label="送货单位"
+            align="center"
+            prop="deliveryName"
           />
-        </el-form-item>
-      </el-form>
-      <div slot="footer" class="dialog-footer">
-        <el-button type="primary" @click="submitForm">确 定</el-button>
+          <el-table-column label="订单编号" align="center" prop="code" />
+          <el-table-column
+            label="配送日期"
+            align="center"
+            prop="deliveryDate"
+            width="180"
+          >
+            <template slot-scope="scope">
+              <span>{{
+                parseTime(scope.row.deliveryDate, "{y}-{m}-{d}")
+              }}</span>
+            </template>
+          </el-table-column>
+          <el-table-column label="打印状态" align="center" prop="isPrint">
+            <template slot-scope="scope">
+              <el-tag :type="scope.row.isPrint ? 'success' : 'info'">{{
+                scope.row.isPrint ? "已打印" : "未打印"
+              }}</el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column label="备注" align="center" prop="remark" />
+          <el-table-column
+            label="操作"
+            align="center"
+            class-name="small-padding fixed-width"
+          >
+            <template slot-scope="scope">
+              <el-button
+                size="mini"
+                type="text"
+                icon="el-icon-printer"
+                @click="handlePrint(scope.row)"
+                >{{ scope.row.isPrint ? "重打" : "打印" }}</el-button
+              >
+            </template>
+          </el-table-column>
+        </el-table>
+      </div>
+      <!-- 打印提交 -->
+      <div slot="footer">
+        <el-button
+          :disabled="!printOrderList.length"
+          type="primary"
+          @click="submitForm"
+          >确 定</el-button
+        >
         <el-button @click="cancel">取 消</el-button>
       </div>
     </el-dialog>
@@ -391,10 +479,23 @@ export default {
       total: 0,
       // 销售订单表格数据
       saleList: [],
-      // 弹出层标题
-      title: "",
-      // 是否显示弹出层
-      open: false,
+      // 是否显示批量打印弹出层
+      multiPrintOpen: false,
+      // 批量打印表单
+      multiPrintForm: { templateId: null, printer: null, orderIds: [] },
+      // 批量打印表单校验
+      multiPrintRules: {
+        templateId: [
+          { required: true, message: "请选择打印模板", trigger: "change" },
+        ],
+      },
+      // 送货单查询参数
+      printQueryParams: {
+        customerDeptId: null,
+        deliveryDate: new Date().toISOString().split("T")[0],
+      },
+      // 送货单订单列表
+      printOrderList: [],
       // 查询参数
       queryParams: {
         pageNum: 1,
@@ -407,44 +508,6 @@ export default {
         amount: null,
         status: null,
         deliveryDate: null,
-      },
-      // 表单参数
-      form: {},
-      // 表单校验
-      rules: {
-        code: [
-          { required: true, message: "订单编号不能为空", trigger: "blur" },
-        ],
-        source: [
-          {
-            required: true,
-            message: "订单来源：1后台下单,2线上下单不能为空",
-            trigger: "change",
-          },
-        ],
-        type: [
-          {
-            required: true,
-            message: "订单类型不能为空",
-            trigger: "change",
-          },
-        ],
-        amount: [
-          { required: true, message: "总金额不能为空", trigger: "blur" },
-        ],
-        status: [
-          {
-            required: true,
-            message: "订单状态不能为空",
-            trigger: "change",
-          },
-        ],
-        deliveryDate: [
-          { required: true, message: "配送日期不能为空", trigger: "blur" },
-        ],
-        createTime: [
-          { required: true, message: "创建时间不能为空", trigger: "blur" },
-        ],
       },
       // 已选择的列表
       formSelectedOptions: [],
@@ -494,7 +557,7 @@ export default {
     },
     // 取消按钮
     cancel() {
-      this.open = false;
+      this.multiPrintOpen = false;
       this.reset();
     },
     // 表单重置
@@ -542,6 +605,25 @@ export default {
         console.log("init printerList", this.printerList);
       }, 500);
     },
+    /** 获取可打印订单列表 */
+    getPrintOrderList() {
+      console.log("getPrintOrderList printQueryParams", this.printQueryParams);
+      listSale(this.printQueryParams).then((response) => {
+        this.printOrderList = response.data || [];
+      });
+    },
+    /** 获取已勾选的订单列表 */
+    handlePrintSelectionChange(selection) {
+      if (selection.length <= 0) {
+        this.multiPrintForm.orderIds = [];
+        return;
+      }
+      this.multiPrintForm.orderIds = selection.map((item) => item.id);
+    },
+    /** 更改打印送货单位 */
+    handlePrintCustomerDeptChange(value) {
+      this.printQueryParams.customerDeptId = value[value.length - 1];
+    },
     /** 搜索按钮操作 */
     handleQuery() {
       this.queryParams.pageNum = 1;
@@ -581,20 +663,25 @@ export default {
       console.log("handlePrint row", row);
 
       const orderId = row.id;
+      let templateId = this.multiPrintForm.templateId;
       try {
-        // 获取打印模板
-        const deliveryTemplateResponse = await deliveryPrintTemplate({
-          orderId: orderId,
-        });
-        const template = deliveryTemplateResponse.data || {};
-        if (!template) {
-          this.$modal.msgError("获取打印模板失败");
-          return;
+        // 若没有选择模板，则获取默认模板
+        if (!templateId) {
+          // 获取打印模板
+          const deliveryTemplateResponse = await deliveryPrintTemplate({
+            orderId: orderId,
+          });
+          const template = deliveryTemplateResponse.data || {};
+          if (!template) {
+            this.$modal.msgError("获取打印模板失败");
+            return;
+          }
+          templateId = template.id;
         }
 
         const deliveryPrintDataResponse = await deliveryPrintData({
           orderId: orderId,
-          templateId: template.id,
+          templateId: templateId,
         });
         const printObject = deliveryPrintDataResponse.data || {};
         if (!printObject) {
@@ -615,7 +702,7 @@ export default {
           hiprintTemplate,
           printData,
           orderId,
-          template.id
+          templateId
         );
         // todo 点击打印时，创建打印任务
       } catch (error) {
@@ -707,23 +794,18 @@ export default {
         query: { orderId: row.id },
       });
     },
-    /** 提交按钮 */
+    /** 提交打印送货单表单 */
     submitForm() {
-      this.$refs["form"].validate((valid) => {
+      this.$refs["multiPrintForm"].validate((valid) => {
         if (valid) {
-          if (this.form.id != null) {
-            updateSale(this.form).then((response) => {
-              this.$modal.msgSuccess("修改成功");
-              this.open = false;
-              this.getPageList();
-            });
-          } else {
-            addSale(this.form).then((response) => {
-              this.$modal.msgSuccess("新增成功");
-              this.open = false;
-              this.getPageList();
-            });
+          const orderIds = this.multiPrintForm.orderIds || [];
+          if (orderIds.length <= 0) {
+            this.$modal.msgError("请选择待打印的订单");
+            return;
           }
+          console.log("multiPrintForm", this.multiPrintForm);
+          this.resetForm("multiPrintForm");
+          this.multiPrintOpen = false;
         }
       });
     },
@@ -752,6 +834,11 @@ export default {
         return;
       }
       const orderIds = this.formSelectedOptions.map((item) => item.id);
+    },
+    /** 打印送货单 */
+    handlePrintOrder() {
+      this.getPrintOrderList();
+      this.multiPrintOpen = true;
     },
     /** 生成送货单 */
     handleBuildDelivery() {},
@@ -836,5 +923,15 @@ export default {
   cursor: not-allowed; /* 改变鼠标指针形状 */
   opacity: 0.65; /* 降低透明度以显示禁用状态 */
   pointer-events: none; /* 禁止所有鼠标事件 */
+}
+
+.print-dialog-title {
+  line-height: 24px;
+  font-size: 18px;
+  color: #303133;
+}
+
+.print-dialog-divider {
+  margin: 0;
 }
 </style>
