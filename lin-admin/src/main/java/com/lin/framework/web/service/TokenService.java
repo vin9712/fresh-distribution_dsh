@@ -13,6 +13,7 @@ import eu.bitwalker.useragentutils.UserAgent;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.SignatureAlgorithm;
+import io.jsonwebtoken.security.Keys;
 import jakarta.servlet.http.HttpServletRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -20,6 +21,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
+import javax.crypto.SecretKey;
+import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
@@ -45,6 +48,8 @@ public class TokenService
     // 令牌有效期（默认30分钟）
     @Value("${token.expireTime}")
     private int expireTime;
+
+    private SecretKey signingKey;
 
     protected static final long MILLIS_SECOND = 1000;
 
@@ -177,9 +182,14 @@ public class TokenService
      */
     private String createToken(Map<String, Object> claims)
     {
+        if (signingKey == null)
+        {
+            signingKey = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
+        }
         String token = Jwts.builder()
                 .setClaims(claims)
-                .signWith(SignatureAlgorithm.HS512, secret).compact();
+                .signWith(signingKey, SignatureAlgorithm.HS512)
+                .compact();
         return token;
     }
 
@@ -191,8 +201,13 @@ public class TokenService
      */
     private Claims parseToken(String token)
     {
+        if (signingKey == null)
+        {
+            signingKey = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
+        }
         return Jwts.parser()
-                .setSigningKey(secret)
+                .verifyWith(signingKey)
+                .build()
                 .parseClaimsJws(token)
                 .getBody();
     }

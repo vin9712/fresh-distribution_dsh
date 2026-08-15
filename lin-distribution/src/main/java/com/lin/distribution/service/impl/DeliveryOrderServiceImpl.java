@@ -119,49 +119,57 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
         }
 
         // 按 客户+配送日期 分组, 按需新增送货单+详情
-        Map<String, List<SaleOrder>> orderMap = orders.stream().collect(Collectors.groupingBy(it -> it.getCustomerId() + "_" + it.getDeliveryDate()));
-        for (String key : orderMap.keySet()) {
-            String[] keyArr = key.split("_");
-            Long customerId = Long.valueOf(keyArr[0]);
-            LocalDate deliveryDate = LocalDate.parse(keyArr[1]);
+        Map<Long, Map<LocalDate, List<SaleOrder>>> orderMap = orders.stream()
+                .filter(order -> order.getCustomerId() != null && order.getDeliveryDate() != null)
+                .collect(Collectors.groupingBy(SaleOrder::getCustomerId,
+                        Collectors.groupingBy(SaleOrder::getDeliveryDate)));
 
-            // 根据客户ID和配送日期查询送货单
-            DeliveryOrder d = new DeliveryOrder();
-            d.setCustomerId(customerId);
-            d.setDeliveryDate(deliveryDate);
-            DeliveryOrder deliveryOrder = deliveryOrderMapper.selectDeliveryOrderList(d).stream().findFirst().orElse(null);
+        for (Map.Entry<Long, Map<LocalDate, List<SaleOrder>>> entry : orderMap.entrySet()) {
+            Long customerId = entry.getKey();
+            for (Map.Entry<LocalDate, List<SaleOrder>> dateEntry : entry.getValue().entrySet()) {
+                LocalDate deliveryDate = dateEntry.getKey();
+                List<SaleOrder> saleOrders = dateEntry.getValue();
 
-            if (deliveryOrder == null) {
-                deliveryOrder = DeliveryOrder.builder()
-                        .customerId(customerId)
-                        .deliveryDate(deliveryDate)
-                        .code(generateDeliveryOrderNo(true))
-                        .status(DeliveryOrderStatus.PENDING.getCode())
-                        .isDeleted(Boolean.FALSE)
-                        .version(0)
-                        .build();
-                deliveryOrderMapper.insertDeliveryOrder(deliveryOrder);
-            }
-            Long deliveryId = deliveryOrder.getId();
+                // 根据客户ID和配送日期查询送货单
+                DeliveryOrder query = new DeliveryOrder();
+                query.setCustomerId(customerId);
+                query.setDeliveryDate(deliveryDate);
+                DeliveryOrder deliveryOrder = deliveryOrderMapper.selectDeliveryOrderList(query).stream().findFirst().orElse(null);
 
-            // 查询并新增送货单详情
-            Set<Long> deliveryOrderIdList = deliveryOrderDetailMapper.selectListByDeliveryId(deliveryId).stream().map(DeliveryOrderDetail::getOrderId).collect(Collectors.toSet());
-            List<SaleOrder> saleOrders = orderMap.get(key).stream().filter(it -> !deliveryOrderIdList.contains(it.getId())).toList();
-            // batch add delivery order
-            if (CollectionUtils.isNotEmpty(saleOrders)) {
-                for (SaleOrder saleOrder : saleOrders) {
-                    DeliveryOrderDetail deliveryOrderDetail = DeliveryOrderDetail.builder()
-                            .deliveryId(deliveryId)
-                            .customerId(saleOrder.getCustomerId())
-                            .orderId(saleOrder.getId())
-                            .orderCode(saleOrder.getCode())
-                            .customerId(saleOrder.getCustomerId())
-                            .customerDeptId(saleOrder.getCustomerDeptId())
-                            .isPrint(Boolean.FALSE)
+                if (deliveryOrder == null) {
+                    deliveryOrder = DeliveryOrder.builder()
+                            .customerId(customerId)
+                            .deliveryDate(deliveryDate)
+                            .code(generateDeliveryOrderNo(true))
+                            .status(DeliveryOrderStatus.PENDING.getCode())
                             .isDeleted(Boolean.FALSE)
                             .version(0)
                             .build();
-                    deliveryOrderDetailMapper.insertDeliveryOrderDetail(deliveryOrderDetail);
+                    deliveryOrderMapper.insertDeliveryOrder(deliveryOrder);
+                }
+                Long deliveryId = deliveryOrder.getId();
+
+                // 查询并新增送货单详情
+                Set<Long> deliveryOrderIdList = deliveryOrderDetailMapper.selectListByDeliveryId(deliveryId)
+                        .stream().map(DeliveryOrderDetail::getOrderId).collect(Collectors.toSet());
+                List<SaleOrder> ordersToAdd = saleOrders.stream()
+                        .filter(it -> !deliveryOrderIdList.contains(it.getId())).toList();
+
+                // batch add delivery order detail
+                if (CollectionUtils.isNotEmpty(ordersToAdd)) {
+                    for (SaleOrder saleOrder : ordersToAdd) {
+                        DeliveryOrderDetail deliveryOrderDetail = DeliveryOrderDetail.builder()
+                                .deliveryId(deliveryId)
+                                .customerId(saleOrder.getCustomerId())
+                                .customerDeptId(saleOrder.getCustomerDeptId())
+                                .orderId(saleOrder.getId())
+                                .orderCode(saleOrder.getCode())
+                                .isPrint(Boolean.FALSE)
+                                .isDeleted(Boolean.FALSE)
+                                .version(0)
+                                .build();
+                        deliveryOrderDetailMapper.insertDeliveryOrderDetail(deliveryOrderDetail);
+                    }
                 }
             }
         }

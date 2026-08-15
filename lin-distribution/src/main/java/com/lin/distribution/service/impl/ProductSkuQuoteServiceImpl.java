@@ -204,26 +204,27 @@ public class ProductSkuQuoteServiceImpl implements ProductSkuQuoteService {
         Long quoteId = request.getQuoteId();
         ProductSkuQuoteStatus status = request.getStatus();
         ProductSkuQuote quote = productSkuQuoteMapper.selectProductSkuQuoteById(quoteId);
+        if (quote == null) {
+            throw new ServiceException("product sku quote not found");
+        }
         switch (status) {
             case PUBLISHED -> {
                 LocalDate now = LocalDate.now();
-                if (now.isAfter(quote.getEffectiveStartDate()) && now.isBefore(quote.getEffectiveEndDate())) {
-                    // set current quote is valid
+                if (!now.isBefore(quote.getEffectiveStartDate()) && !now.isAfter(quote.getEffectiveEndDate())) {
                     quote.setValid(CommonConstants.YES);
-
-                    // set active one is invalid
                     ProductSkuQuote activeQuote = productSkuQuoteMapper.selectCustomerActiveQuote(quote.getCustomerId());
                     if (activeQuote != null && !Objects.equals(activeQuote.getId(), quoteId)) {
                         activeQuote.setValid(CommonConstants.NO);
                         activeQuote.setUpdateTime(DateUtils.getNowDate());
                         productSkuQuoteMapper.updateProductSkuQuote(activeQuote);
                     }
+                } else {
+                    quote.setValid(CommonConstants.NO);
                 }
             }
             case NEW, INVALID -> quote.setValid(CommonConstants.NO);
             default -> throw new ServiceException("invalid status");
         }
-        // save to db
         quote.setStatus(status.getCode());
         quote.setUpdateTime(DateUtils.getNowDate());
         productSkuQuoteMapper.updateProductSkuQuote(quote);
@@ -278,7 +279,7 @@ public class ProductSkuQuoteServiceImpl implements ProductSkuQuoteService {
         ProductSkuQuote activeQuote = productSkuQuoteMapper.selectCustomerActiveQuote(request.getCustomerId());
         LocalDate activeEffectiveEndDate = activeQuote != null ? activeQuote.getEffectiveEndDate() : null;
         if (activeEffectiveEndDate != null && !from.isAfter(activeEffectiveEndDate)) {
-            throw new ServiceException("effective start date must not be after than active effective end date");
+            throw new ServiceException("effective start date must be after active effective end date");
         }
 
         if (request.getQuoteId() == null) {
@@ -286,7 +287,7 @@ public class ProductSkuQuoteServiceImpl implements ProductSkuQuoteService {
             String quoteCode = request.getQuoteCode();
             ProductSkuQuote quote = productSkuQuoteMapper.selectProductSkuQuoteByCode(quoteCode);
             if (quote != null) {
-                throw new ServiceException("product sku no existed");
+                throw new ServiceException("product sku quote no existed");
             }
         } else {
             // check quote status
@@ -301,10 +302,11 @@ public class ProductSkuQuoteServiceImpl implements ProductSkuQuoteService {
         }
 
         List<ProductSkuQuoteDetail> quoteDetailList = request.getQuoteDetails();
-        boolean isValidQuoteDetailList = quoteDetailList.stream().anyMatch(it -> BigDecimal.ZERO.compareTo(it.getPrice()) < 0)
-                && quoteDetailList.stream().noneMatch(it -> BigDecimal.ZERO.compareTo(it.getPrice()) > 0);
-        if (!isValidQuoteDetailList) {
-            throw new ServiceException("quote detail list contains invalid item");
+        // reject null or zero-or-negative prices; require at least one positive price
+        boolean hasPositivePrice = quoteDetailList.stream().anyMatch(it -> it.getPrice() != null && BigDecimal.ZERO.compareTo(it.getPrice()) < 0);
+        boolean hasNoNegativeOrZero = quoteDetailList.stream().allMatch(it -> it.getPrice() != null && BigDecimal.ZERO.compareTo(it.getPrice()) < 0);
+        if (!hasPositivePrice || !hasNoNegativeOrZero) {
+            throw new ServiceException("quote detail list must contain only positive prices");
         }
 
     }
@@ -316,7 +318,7 @@ public class ProductSkuQuoteServiceImpl implements ProductSkuQuoteService {
 
         ProductSkuQuote skuQuote = productSkuQuoteMapper.selectProductSkuQuoteByCode(productSkuQuote.getCode());
         if (skuQuote != null) {
-            throw new ServiceException("product sku no existed");
+            throw new ServiceException("product sku quote no existed");
         }
     }
 

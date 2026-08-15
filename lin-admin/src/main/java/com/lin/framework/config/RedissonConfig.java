@@ -11,6 +11,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.data.redis.serializer.StringRedisSerializer;
+import org.apache.commons.lang3.StringUtils;
 
 /**
  * @author Lin
@@ -32,7 +33,10 @@ public class RedissonConfig {
     public RedissonClient redissonClient() {
         Config config = new Config();
         config.setCodec(new JsonJacksonCodec());
-        config.useSingleServer().setAddress("redis://" + host + ":" + port);
+        var server = config.useSingleServer().setAddress("redis://" + host + ":" + port);
+        if (StringUtils.isNotBlank(password)) {
+            server.setPassword(password);
+        }
         return Redisson.create(config);
     }
 

@@ -167,8 +167,8 @@ public class SaleOrderServiceImpl implements SaleOrderService {
             saleOrderDetailMapper.insertSaleOrderDetail(detail);
         });
 
-        // increase orderCode
-        generateOrderNo(true);
+        // increase orderCode (pass currentCode to prevent double-allocation)
+        generateOrderNo(true, orderCode);
 
         return order;
     }
@@ -233,8 +233,14 @@ public class SaleOrderServiceImpl implements SaleOrderService {
     @Transactional
     public void updateSaleOrderStatus(SaleOrderUpdateStatusDTO request) {
         List<Long> orderIds = request.getOrderIds();
+        if (CollectionUtils.isEmpty(orderIds)) {
+            throw new ServiceException("order ids is empty");
+        }
         SaleOrderStatus newStatus = SaleOrderStatus.fromCode(request.getStatus());
         List<SaleOrder> orders = saleOrderMapper.selectSaleOrderByIdIn(orderIds);
+        if (CollectionUtils.isEmpty(orders)) {
+            throw new ServiceException("no sale orders found for the given ids");
+        }
 
         // check new order status
         boolean checkNewStatus = false;

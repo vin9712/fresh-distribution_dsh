@@ -323,7 +323,7 @@ public class ProductServiceImpl implements ProductService {
                 if (categoryId == null) {
                     throw new ServiceException("商品分类为空");
                 }
-                Long customerId = skuList.get(0).getCustomerId();
+                Long customerId = sku.getCustomerId();
                 if (customerId == null) {
                     throw new ServiceException("客户编号为空");
                 }

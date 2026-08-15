@@ -95,8 +95,8 @@ spring:
 token:
   # 令牌自定义标识
   header: Authorization
-  # 令牌密钥
-  secret: 76bbb3410f24a9bd1843654f20654052
+  # 令牌密钥（64字节/512位，满足 HS512 要求 ≥512 bits）
+  secret: 5abafca0f195858d79ac3a1590cfb8fb1edff82635bdd3cb644a3b7558a66a6122f51360e38077df7754c5f45191fd5ee764b7628b6f3a29ec66a159056f5430
   # 令牌有效期（默认30分钟）
   expireTime: 300
 
