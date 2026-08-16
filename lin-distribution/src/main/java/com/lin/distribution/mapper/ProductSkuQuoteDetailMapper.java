@@ -1,8 +1,10 @@
 package com.lin.distribution.mapper;
 
+import java.time.LocalDate;
 import java.util.List;
 
 import com.lin.distribution.domain.ProductSkuQuoteDetail;
+import org.apache.ibatis.annotations.Param;
 
 /**
  * 商品报价明细Mapper接口
@@ -29,6 +31,13 @@ public interface ProductSkuQuoteDetailMapper {
 
 
     List<ProductSkuQuoteDetail> selectProductSkuQuoteDetailListByQuoteId(Long quoteId);
+
+    /**
+     * 取价：客户已发布且在有效期区间内的最新报价明细
+     */
+    ProductSkuQuoteDetail selectActivePriceByCustomerAndSku(@Param("customerId") Long customerId,
+                                                            @Param("skuId") Long skuId,
+                                                            @Param("priceDate") LocalDate priceDate);
 
     /**
      * 新增商品报价明细

@@ -1,0 +1,95 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.lin.distribution.mapper.PriceTemplateSkuMapper">
+
+    <resultMap type="com.lin.distribution.domain.PriceTemplateSku" id="PriceTemplateSkuResult">
+        <id     property="id"            column="id"           />
+        <result property="templateId"    column="template_id"  />
+        <result property="skuId"         column="sku_id"       />
+        <result property="skuName"       column="sku_name"     />
+        <result property="unitPrice"     column="unit_price"   />
+        <result property="effectiveDate" column="effective_date" />
+        <result property="expireDate"    column="expire_date"  />
+        <result property="createBy"      column="create_by"    />
+        <result property="createTime"    column="create_time"  />
+        <result property="updateBy"      column="update_by"    />
+        <result property="updateTime"    column="update_time"  />
+    </resultMap>
+
+    <sql id="selectPriceTemplateSkuVo">
+        select s.id, s.template_id, s.sku_id, k.name as sku_name, s.unit_price, s.effective_date, s.expire_date,
+               s.create_by, s.create_time, s.update_by, s.update_time
+        from price_template_sku s
+        left join t_product_sku k on k.id = s.sku_id
+    </sql>
+
+    <select id="selectPriceTemplateSkuById" parameterType="Long" resultMap="PriceTemplateSkuResult">
+        <include refid="selectPriceTemplateSkuVo"/>
+        where s.id = #{id}
+    </select>
+
+    <select id="selectPriceTemplateSkuList" resultMap="PriceTemplateSkuResult">
+        <include refid="selectPriceTemplateSkuVo"/>
+        <if test="templateId != null">
+            where s.template_id = #{templateId}
+        </if>
+        order by s.id asc
+    </select>
+
+    <select id="selectActivePriceByTemplateAndSku" resultMap="PriceTemplateSkuResult">
+        <include refid="selectPriceTemplateSkuVo"/>
+        where s.template_id = #{templateId}
+          and s.sku_id = #{skuId}
+          and (s.effective_date is null or s.effective_date &lt;= #{priceDate})
+          and (s.expire_date is null or s.expire_date &gt;= #{priceDate})
+        order by s.effective_date desc, s.id desc
+        limit 1
+    </select>
+
+    <insert id="insertPriceTemplateSku" parameterType="com.lin.distribution.domain.PriceTemplateSku" useGeneratedKeys="true" keyProperty="id">
+        insert into price_template_sku
+        <trim prefix="(" suffix=")" suffixOverrides=",">
+            <if test="templateId != null">template_id,</if>
+            <if test="skuId != null">sku_id,</if>
+            <if test="unitPrice != null">unit_price,</if>
+            <if test="effectiveDate != null">effective_date,</if>
+            <if test="expireDate != null">expire_date,</if>
+            <if test="createBy != null">create_by,</if>
+            <if test="createTime != null">create_time,</if>
+        </trim>
+        <trim prefix="values (" suffix=")" suffixOverrides=",">
+            <if test="templateId != null">#{templateId},</if>
+            <if test="skuId != null">#{skuId},</if>
+            <if test="unitPrice != null">#{unitPrice},</if>
+            <if test="effectiveDate != null">#{effectiveDate},</if>
+            <if test="expireDate != null">#{expireDate},</if>
+            <if test="createBy != null">#{createBy},</if>
+            <if test="createTime != null">#{createTime},</if>
+        </trim>
+    </insert>
+
+    <update id="updatePriceTemplateSku" parameterType="com.lin.distribution.domain.PriceTemplateSku">
+        update price_template_sku
+        <trim prefix="SET" suffixOverrides=",">
+            <if test="skuId != null">sku_id = #{skuId},</if>
+            <if test="unitPrice != null">unit_price = #{unitPrice},</if>
+            <if test="effectiveDate != null">effective_date = #{effectiveDate},</if>
+            <if test="expireDate != null">expire_date = #{expireDate},</if>
+            <if test="updateBy != null">update_by = #{updateBy},</if>
+            <if test="updateTime != null">update_time = #{updateTime},</if>
+        </trim>
+        where id = #{id}
+    </update>
+
+    <delete id="deletePriceTemplateSkuByIds" parameterType="Long">
+        delete from price_template_sku where id in
+        <foreach collection="array" item="id" open="(" separator="," close=")">#{id}</foreach>
+    </delete>
+
+    <delete id="deletePriceTemplateSkuByTemplateId" parameterType="Long">
+        delete from price_template_sku where template_id = #{templateId}
+    </delete>
+
+</mapper>

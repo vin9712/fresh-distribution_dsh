@@ -67,6 +67,37 @@
         </where>
     </select>
 
+    <!-- 取价：客户已发布且在有效期区间内的最新报价明细 -->
+    <select id="selectActivePriceByCustomerAndSku" resultMap="ProductSkuQuoteDetailResult">
+        select sqd.id,
+               sqd.customer_id,
+               sqd.quote_id,
+               sqd.sku_id,
+               sqd.product_name,
+               sqd.product_unit,
+               sqd.product_spec,
+               sqd.price,
+               sqd.valid,
+               sqd.is_deleted,
+               sqd.version,
+               sqd.create_by,
+               sqd.create_time,
+               sqd.update_by,
+               sqd.update_time,
+               sqd.remark
+        from t_product_sku_quote_detail sqd
+        inner join t_product_sku_quote sq on sq.id = sqd.quote_id
+        where sq.customer_id = #{customerId}
+          and sq.status = 1
+          and sq.valid = 0
+          and sqd.sku_id = #{skuId}
+          and sqd.is_deleted = 0
+          and sq.effective_start_date &lt;= #{priceDate}
+          and sq.effective_end_date &gt;= #{priceDate}
+        order by sq.effective_start_date desc, sqd.id desc
+        limit 1
+    </select>
+
     <select id="selectProductSkuQuoteDetailById" parameterType="Long" resultMap="ProductSkuQuoteDetailResult">
         <include refid="selectProductSkuQuoteDetailVo"/>
         where id = #{id}

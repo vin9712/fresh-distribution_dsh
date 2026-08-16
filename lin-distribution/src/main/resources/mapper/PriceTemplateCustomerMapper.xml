@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.lin.distribution.mapper.PriceTemplateCustomerMapper">
+
+    <resultMap type="com.lin.distribution.domain.PriceTemplateCustomer" id="PriceTemplateCustomerResult">
+        <id     property="id"           column="id"          />
+        <result property="templateId"   column="template_id" />
+        <result property="customerId"   column="customer_id" />
+        <result property="customerName" column="customer_name" />
+        <result property="createBy"     column="create_by"   />
+        <result property="createTime"   column="create_time" />
+    </resultMap>
+
+    <select id="selectByTemplateId" parameterType="Long" resultMap="PriceTemplateCustomerResult">
+        select c.id, c.template_id, c.customer_id, k.name as customer_name, c.create_by, c.create_time
+        from price_template_customer c
+        left join t_customer k on k.id = c.customer_id
+        where c.template_id = #{templateId}
+        order by c.id asc
+    </select>
+
+    <select id="selectByCustomerId" parameterType="Long" resultMap="PriceTemplateCustomerResult">
+        select c.id, c.template_id, c.customer_id, k.name as customer_name, c.create_by, c.create_time
+        from price_template_customer c
+        left join t_customer k on k.id = c.customer_id
+        where c.customer_id = #{customerId}
+        limit 1
+    </select>
+
+    <insert id="insert" parameterType="com.lin.distribution.domain.PriceTemplateCustomer" useGeneratedKeys="true" keyProperty="id">
+        insert into price_template_customer (template_id, customer_id, create_by, create_time)
+        values (#{templateId}, #{customerId}, #{createBy}, now())
+    </insert>
+
+    <delete id="deleteByTemplateIdAndCustomerId">
+        delete from price_template_customer
+        where template_id = #{templateId} and customer_id = #{customerId}
+    </delete>
+
+    <delete id="deleteByTemplateId" parameterType="Long">
+        delete from price_template_customer where template_id = #{templateId}
+    </delete>
+
+</mapper>

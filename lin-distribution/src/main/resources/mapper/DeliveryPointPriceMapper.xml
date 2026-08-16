@@ -1,0 +1,99 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.lin.distribution.mapper.DeliveryPointPriceMapper">
+
+    <resultMap type="com.lin.distribution.domain.DeliveryPointPrice" id="DeliveryPointPriceResult">
+        <id     property="id"               column="id"                />
+        <result property="deliveryPointId"  column="delivery_point_id" />
+        <result property="deliveryPointName" column="delivery_point_name" />
+        <result property="skuId"            column="sku_id"            />
+        <result property="skuName"          column="sku_name"          />
+        <result property="unitPrice"        column="unit_price"        />
+        <result property="effectiveDate"    column="effective_date"    />
+        <result property="expireDate"       column="expire_date"       />
+        <result property="createBy"         column="create_by"         />
+        <result property="createTime"       column="create_time"       />
+        <result property="updateBy"         column="update_by"         />
+        <result property="updateTime"       column="update_time"       />
+        <result property="remark"           column="remark"            />
+    </resultMap>
+
+    <sql id="selectDeliveryPointPriceVo">
+        select p.id, p.delivery_point_id, d.name as delivery_point_name, p.sku_id, k.name as sku_name,
+               p.unit_price, p.effective_date, p.expire_date, p.create_by, p.create_time, p.update_by, p.update_time, p.remark
+        from delivery_point_price p
+        left join t_customer_dept d on d.id = p.delivery_point_id
+        left join t_product_sku k on k.id = p.sku_id
+    </sql>
+
+    <select id="selectDeliveryPointPriceById" parameterType="Long" resultMap="DeliveryPointPriceResult">
+        <include refid="selectDeliveryPointPriceVo"/>
+        where p.id = #{id}
+    </select>
+
+    <select id="selectDeliveryPointPriceList" parameterType="com.lin.distribution.domain.DeliveryPointPrice" resultMap="DeliveryPointPriceResult">
+        <include refid="selectDeliveryPointPriceVo"/>
+        <where>
+            <if test="deliveryPointId != null"> and p.delivery_point_id = #{deliveryPointId}</if>
+            <if test="skuId != null"> and p.sku_id = #{skuId}</if>
+        </where>
+        order by p.id desc
+    </select>
+
+    <select id="selectActivePriceByPointAndSku" resultMap="DeliveryPointPriceResult">
+        <include refid="selectDeliveryPointPriceVo"/>
+        where p.delivery_point_id = #{deliveryPointId}
+          and p.sku_id = #{skuId}
+          and (p.effective_date is null or p.effective_date &lt;= #{priceDate})
+          and (p.expire_date is null or p.expire_date &gt;= #{priceDate})
+        order by p.effective_date desc, p.id desc
+        limit 1
+    </select>
+
+    <insert id="insertDeliveryPointPrice" parameterType="com.lin.distribution.domain.DeliveryPointPrice" useGeneratedKeys="true" keyProperty="id">
+        insert into delivery_point_price
+        <trim prefix="(" suffix=")" suffixOverrides=",">
+            <if test="deliveryPointId != null">delivery_point_id,</if>
+            <if test="skuId != null">sku_id,</if>
+            <if test="unitPrice != null">unit_price,</if>
+            <if test="effectiveDate != null">effective_date,</if>
+            <if test="expireDate != null">expire_date,</if>
+            <if test="createBy != null">create_by,</if>
+            <if test="createTime != null">create_time,</if>
+            <if test="remark != null">remark,</if>
+        </trim>
+        <trim prefix="values (" suffix=")" suffixOverrides=",">
+            <if test="deliveryPointId != null">#{deliveryPointId},</if>
+            <if test="skuId != null">#{skuId},</if>
+            <if test="unitPrice != null">#{unitPrice},</if>
+            <if test="effectiveDate != null">#{effectiveDate},</if>
+            <if test="expireDate != null">#{expireDate},</if>
+            <if test="createBy != null">#{createBy},</if>
+            <if test="createTime != null">#{createTime},</if>
+            <if test="remark != null">#{remark},</if>
+        </trim>
+    </insert>
+
+    <update id="updateDeliveryPointPrice" parameterType="com.lin.distribution.domain.DeliveryPointPrice">
+        update delivery_point_price
+        <trim prefix="SET" suffixOverrides=",">
+            <if test="deliveryPointId != null">delivery_point_id = #{deliveryPointId},</if>
+            <if test="skuId != null">sku_id = #{skuId},</if>
+            <if test="unitPrice != null">unit_price = #{unitPrice},</if>
+            <if test="effectiveDate != null">effective_date = #{effectiveDate},</if>
+            <if test="expireDate != null">expire_date = #{expireDate},</if>
+            <if test="updateBy != null">update_by = #{updateBy},</if>
+            <if test="updateTime != null">update_time = #{updateTime},</if>
+            <if test="remark != null">remark = #{remark},</if>
+        </trim>
+        where id = #{id}
+    </update>
+
+    <delete id="deleteDeliveryPointPriceByIds" parameterType="Long">
+        delete from delivery_point_price where id in
+        <foreach collection="array" item="id" open="(" separator="," close=")">#{id}</foreach>
+    </delete>
+
+</mapper>

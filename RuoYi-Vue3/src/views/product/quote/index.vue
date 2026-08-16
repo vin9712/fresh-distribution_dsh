@@ -177,12 +177,19 @@
         label="报价结束时间"
         align="center"
         prop="effectiveEndDate"
-        width="140"
+        width="160"
       >
         <template #default="scope">
           <span>{{
             parseTime(scope.row.effectiveEndDate, "{y}-{m}-{d}")
           }}</span>
+          <el-tag
+            v-if="isQuoteExpired(scope.row)"
+            type="danger"
+            size="small"
+            style="margin-left: 6px"
+            >已过期</el-tag
+          >
         </template>
       </el-table-column>
       <el-table-column label="状态" align="center" prop="status">
@@ -709,6 +716,16 @@ export default {
         (customer) => customer.id === row.customerId
       );
       return customer ? (customer.alias ? customer.alias : customer.name) : "";
+    },
+    /** 报价是否已过期（失效日早于今天） */
+    isQuoteExpired(row) {
+      if (!row.effectiveEndDate) {
+        return false;
+      }
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const end = new Date(row.effectiveEndDate);
+      return end < today;
     },
     /** 导入按钮操作 */
     handleImport() {
