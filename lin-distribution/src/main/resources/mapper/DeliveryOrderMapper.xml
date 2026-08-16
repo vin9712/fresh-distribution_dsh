@@ -7,8 +7,10 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
     <resultMap type="com.lin.distribution.domain.DeliveryOrder" id="DeliveryOrderResult">
         <result property="id"    column="id"    />
         <result property="customerId"    column="customer_id"    />
+        <result property="deliveryPointId"    column="delivery_point_id"    />
         <result property="code"    column="code"    />
         <result property="status"    column="status"    />
+        <result property="printCount"    column="print_count"    />
         <result property="deliveryDate"    column="delivery_date"    />
         <result property="isDeleted"    column="is_deleted"    />
         <result property="version"    column="version"    />
@@ -17,30 +19,39 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         <result property="updateBy"    column="update_by"    />
         <result property="updateTime"    column="update_time"    />
         <result property="remark"    column="remark"    />
+        <result property="customerName"    column="customerName"    />
+        <result property="customerDeptName"    column="customerDeptName"    />
     </resultMap>
 
     <sql id="selectDeliveryOrderVo">
-        select id, customer_id, code, status, delivery_date, is_deleted, version, create_by, create_time, update_by, update_time, remark from t_delivery_order
+        select o.id, o.customer_id, o.delivery_point_id, o.code, o.status, o.print_count, o.delivery_date,
+               o.is_deleted, o.version, o.create_by, o.create_time, o.update_by, o.update_time, o.remark,
+               coalesce(customer.alias, customer.name) as customerName,
+               cd.name as customerDeptName
+        from t_delivery_order o
+        left join t_customer_dept cd on cd.id = o.delivery_point_id
+        left join t_customer customer on customer.id = o.customer_id
     </sql>
 
     <select id="selectDeliveryOrderList" parameterType="com.lin.distribution.domain.DeliveryOrder" resultMap="DeliveryOrderResult">
         <include refid="selectDeliveryOrderVo"/>
         <where>
-            <if test="customerId != null "> and customer_id = #{customerId}</if>
-            <if test="code != null  and code != ''"> and code = #{code}</if>
-            <if test="status != null "> and status = #{status}</if>
-            <if test="deliveryDate != null "> and delivery_date = #{deliveryDate}</if>
+            <if test="customerId != null "> and o.customer_id = #{customerId}</if>
+            <if test="deliveryPointId != null "> and o.delivery_point_id = #{deliveryPointId}</if>
+            <if test="code != null  and code != ''"> and o.code = #{code}</if>
+            <if test="status != null "> and o.status = #{status}</if>
+            <if test="deliveryDate != null "> and o.delivery_date = #{deliveryDate}</if>
         </where>
     </select>
 
     <select id="selectDeliveryOrderById" parameterType="Long" resultMap="DeliveryOrderResult">
         <include refid="selectDeliveryOrderVo"/>
-        where id = #{id}
+        where o.id = #{id}
     </select>
 
     <select id="selectListByIds" resultMap="DeliveryOrderResult">
         <include refid="selectDeliveryOrderVo"/>
-        where id in
+        where o.id in
         <foreach item="id" collection="ids" open="(" separator="," close=")">
             #{id}
         </foreach>
@@ -50,8 +61,10 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         insert into t_delivery_order
         <trim prefix="(" suffix=")" suffixOverrides=",">
             <if test="customerId != null">customer_id,</if>
+            <if test="deliveryPointId != null">delivery_point_id,</if>
             <if test="code != null and code != ''">code,</if>
             <if test="status != null">status,</if>
+            <if test="printCount != null">print_count,</if>
             <if test="deliveryDate != null">delivery_date,</if>
             <if test="isDeleted != null">is_deleted,</if>
             <if test="version != null">version,</if>
@@ -63,8 +76,10 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
          </trim>
         <trim prefix="values (" suffix=")" suffixOverrides=",">
             <if test="customerId != null">#{customerId},</if>
+            <if test="deliveryPointId != null">#{deliveryPointId},</if>
             <if test="code != null and code != ''">#{code},</if>
             <if test="status != null">#{status},</if>
+            <if test="printCount != null">#{printCount},</if>
             <if test="deliveryDate != null">#{deliveryDate},</if>
             <if test="isDeleted != null">#{isDeleted},</if>
             <if test="version != null">#{version},</if>
@@ -80,8 +95,10 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         update t_delivery_order
         <trim prefix="SET" suffixOverrides=",">
             <if test="customerId != null">customer_id = #{customerId},</if>
+            <if test="deliveryPointId != null">delivery_point_id = #{deliveryPointId},</if>
             <if test="code != null and code != ''">code = #{code},</if>
             <if test="status != null">status = #{status},</if>
+            <if test="printCount != null">print_count = #{printCount},</if>
             <if test="deliveryDate != null">delivery_date = #{deliveryDate},</if>
             <if test="isDeleted != null">is_deleted = #{isDeleted},</if>
             <if test="version != null">version = #{version},</if>
@@ -104,4 +121,9 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
             #{id}
         </foreach>
     </delete>
+
+    <select id="countByCustomerIdAndDeliveryDate" resultType="int">
+        select count(1) from t_delivery_order
+        where customer_id = #{customerId} and delivery_date = #{deliveryDate} and is_deleted = 0
+    </select>
 </mapper>

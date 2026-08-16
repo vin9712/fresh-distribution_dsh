@@ -55,6 +55,45 @@ public class DeliveryOrderDetail extends BaseEntity {
     private String orderCode;
 
     /**
+     * SKU（临时商品可空）
+     */
+    private Long skuId;
+
+    /**
+     * 商品名称快照
+     */
+    @Excel(name = "商品名称")
+    private String productName;
+
+    /**
+     * 单位快照
+     */
+    private String productUnit;
+
+    /**
+     * 规格快照
+     */
+    private String productSpec;
+
+    /**
+     * 送货数量
+     */
+    @Excel(name = "送货数量")
+    private java.math.BigDecimal num;
+
+    /**
+     * 单价快照
+     */
+    @Excel(name = "单价")
+    private java.math.BigDecimal price;
+
+    /**
+     * 小计（num*price）
+     */
+    @Excel(name = "小计")
+    private java.math.BigDecimal amount;
+
+    /**
      * 打印状态
      */
     @Excel(name = "打印状态")

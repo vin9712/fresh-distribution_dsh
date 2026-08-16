@@ -16,6 +16,16 @@
           @keyup.enter="handleQuery"
         />
       </el-form-item>
+      <el-form-item label="状态" prop="status">
+        <el-select v-model="queryParams.status" placeholder="请选择状态" clearable>
+          <el-option
+            v-for="dict in dict.type.t_delivery_order_status"
+            :key="dict.value"
+            :label="dict.label"
+            :value="dict.value"
+          />
+        </el-select>
+      </el-form-item>
       <el-form-item label="配送日期" prop="deliveryDate">
         <el-date-picker
           clearable
@@ -42,38 +52,24 @@
 
     <el-row :gutter="10" class="mb8">
       <el-col :span="1.5">
+        <el-date-picker
+          v-model="generateDate"
+          type="date"
+          value-format="yyyy-MM-dd"
+          placeholder="选择配送日期"
+          size="small"
+          style="width: 150px"
+        />
+      </el-col>
+      <el-col :span="1.5">
         <el-button
           type="primary"
           plain
           :icon="Plus"
           size="small"
-          @click="handleAdd"
+          @click="handleGenerate"
           v-hasPermi="['order:delivery:add']"
-          >新增</el-button
-        >
-      </el-col>
-      <el-col :span="1.5">
-        <el-button
-          type="success"
-          plain
-          :icon="Edit"
-          size="small"
-          :disabled="single"
-          @click="handleUpdate"
-          v-hasPermi="['order:delivery:edit']"
-          >修改</el-button
-        >
-      </el-col>
-      <el-col :span="1.5">
-        <el-button
-          type="danger"
-          plain
-          :icon="Delete"
-          size="small"
-          :disabled="multiple"
-          @click="handleDelete"
-          v-hasPermi="['order:delivery:remove']"
-          >删除</el-button
+          >生成送货单</el-button
         >
       </el-col>
       <el-col :span="1.5">
@@ -96,41 +92,62 @@
     <el-table
       v-loading="loading"
       :data="deliveryList"
-      @selection-change="handleSelectionChange"
     >
-      <el-table-column type="selection" width="55" align="center" />
-      <el-table-column label="主键" align="center" prop="id" />
-      <el-table-column label="客户ID" align="center" prop="customerId" />
-      <el-table-column label="送货单编号" align="center" prop="code" />
-      <el-table-column
-        label="送货单状态：0待打印,1送货,2完成"
-        align="center"
-        prop="status"
-      />
+      <el-table-column label="送货单编号" align="center" prop="code" width="200" />
+      <el-table-column label="客户" align="center" prop="customerName" />
+      <el-table-column label="配送点" align="center" prop="customerDeptName" />
       <el-table-column
         label="配送日期"
         align="center"
         prop="deliveryDate"
-        width="180"
+        width="120"
       >
         <template #default="scope">
           <span>{{ parseTime(scope.row.deliveryDate, "{y}-{m}-{d}") }}</span>
         </template>
       </el-table-column>
+      <el-table-column label="状态" align="center" prop="status" width="100">
+        <template #default="scope">
+          <dict-tag
+            :options="dict.type.t_delivery_order_status"
+            :value="scope.row.status"
+          />
+        </template>
+      </el-table-column>
+      <el-table-column label="打印次数" align="center" prop="printCount" width="90" />
       <el-table-column label="备注" align="center" prop="remark" />
       <el-table-column
         label="操作"
         align="center"
         class-name="small-padding fixed-width"
+        width="260"
       >
         <template #default="scope">
           <el-button
             size="small"
             link
-            :icon="Edit"
-            @click="handleUpdate(scope.row)"
-            v-hasPermi="['order:delivery:edit']"
-            >修改</el-button
+            :icon="View"
+            @click="handleDetail(scope.row)"
+            v-hasPermi="['order:delivery:query']"
+            >明细</el-button
+          >
+          <el-button
+            size="small"
+            link
+            :icon="Printer"
+            :disabled="scope.row.status === 2"
+            @click="handlePrint(scope.row)"
+            v-hasPermi="['order:delivery:print']"
+            >打印</el-button
+          >
+          <el-button
+            size="small"
+            link
+            :icon="Van"
+            :disabled="scope.row.status === 2"
+            @click="handleDeliver(scope.row)"
+            v-hasPermi="['order:delivery:deliver']"
+            >送达</el-button
           >
           <el-button
             size="small"
@@ -152,37 +169,20 @@
       @pagination="getPageList"
     />
 
-    <!-- 添加或修改送货单对话框 -->
-    <el-dialog :title="title" v-model="open" width="500px" append-to-body>
-      <el-form ref="form" :model="form" :rules="rules" label-width="80px">
-        <el-form-item label="送货单编号" prop="code">
-          <el-input v-model="form.code" placeholder="请输入送货单编号" />
-        </el-form-item>
-        <el-form-item label="配送日期" prop="deliveryDate">
-          <el-date-picker
-            clearable
-            v-model="form.deliveryDate"
-            type="date"
-            value-format="yyyy-MM-dd"
-            placeholder="请选择配送日期"
-          >
-          </el-date-picker>
-        </el-form-item>
-        <el-form-item label="逻辑删除" prop="isDeleted">
-          <el-input v-model="form.isDeleted" placeholder="请输入逻辑删除" />
-        </el-form-item>
-        <el-form-item label="备注" prop="remark">
-          <el-input
-            v-model="form.remark"
-            type="textarea"
-            placeholder="请输入内容"
-          />
-        </el-form-item>
-      </el-form>
+    <!-- 送货单明细对话框（按商品合并行） -->
+    <el-dialog :title="detailTitle" v-model="detailOpen" width="760px" append-to-body>
+      <el-table :data="detailList" size="small" border>
+        <el-table-column label="商品名称" align="center" prop="productName" />
+        <el-table-column label="单位" align="center" prop="productUnit" width="80" />
+        <el-table-column label="规格" align="center" prop="productSpec" width="140" />
+        <el-table-column label="送货数量" align="center" prop="num" width="100" />
+        <el-table-column label="单价" align="center" prop="price" width="100" />
+        <el-table-column label="小计" align="center" prop="amount" width="120" />
+      </el-table>
+      <div class="detail-total">合计：{{ detailTotal }}</div>
       <template #footer>
         <div class="dialog-footer">
-          <el-button type="primary" @click="submitForm">确 定</el-button>
-          <el-button @click="cancel">取 消</el-button>
+          <el-button type="primary" @click="detailOpen = false">关 闭</el-button>
         </div>
       </template>
     </el-dialog>
@@ -192,74 +192,44 @@
 <script>
 import {
   pageDelivery,
-  listDelivery,
-  getDelivery,
+  listDeliveryDetail,
+  generateDelivery,
+  printDelivery,
+  deliverDelivery,
   delDelivery,
-  addDelivery,
-  updateDelivery,
 } from "@/api/order/delivery";
-import { Search, Refresh, Plus, Delete, Download, Edit } from "@element-plus/icons-vue";
+import { Search, Refresh, Plus, Delete, Download, Printer, Van, View } from "@element-plus/icons-vue";
 
 export default {
   name: "Delivery",
+  dicts: ["t_delivery_order_status"],
   setup() {
-    return { Search, Refresh, Plus, Delete, Download, Edit };
+    return { Search, Refresh, Plus, Delete, Download, Printer, Van, View };
   },
   data() {
     return {
       // 遮罩层
       loading: true,
-      // 选中数组
-      ids: [],
-      // 非单个禁用
-      single: true,
-      // 非多个禁用
-      multiple: true,
       // 显示搜索条件
       showSearch: true,
       // 总条数
       total: 0,
       // 送货单表格数据
       deliveryList: [],
-      // 弹出层标题
-      title: "",
-      // 是否显示弹出层
-      open: false,
+      // 生成送货单的配送日期
+      generateDate: null,
+      // 明细对话框
+      detailOpen: false,
+      detailTitle: "",
+      detailList: [],
+      detailTotal: "0.00",
       // 查询参数
       queryParams: {
         pageNum: 1,
         pageSize: 10,
-        customerId: null,
         code: null,
         status: null,
         deliveryDate: null,
-      },
-      // 表单参数
-      form: {},
-      // 表单校验
-      rules: {
-        code: [
-          { required: true, message: "送货单编号不能为空", trigger: "blur" },
-        ],
-        status: [
-          {
-            required: true,
-            message: "送货单状态：0待打印,1送货,2完成不能为空",
-            trigger: "change",
-          },
-        ],
-        deliveryDate: [
-          { required: true, message: "配送日期不能为空", trigger: "blur" },
-        ],
-        isDeleted: [
-          { required: true, message: "逻辑删除不能为空", trigger: "blur" },
-        ],
-        version: [
-          { required: true, message: "版本号不能为空", trigger: "blur" },
-        ],
-        createTime: [
-          { required: true, message: "创建时间不能为空", trigger: "blur" },
-        ],
       },
     };
   },
@@ -267,14 +237,6 @@ export default {
     this.getPageList();
   },
   methods: {
-    /** 查询送货单列表 */
-    getList() {
-      this.loading = true;
-      listDelivery(this.queryParams).then((response) => {
-        this.deliveryList = response.data;
-        this.loading = false;
-      });
-    },
     /** 分页查询送货单列表 */
     getPageList() {
       this.loading = true;
@@ -283,29 +245,6 @@ export default {
         this.total = response.total;
         this.loading = false;
       });
-    },
-    // 取消按钮
-    cancel() {
-      this.open = false;
-      this.reset();
-    },
-    // 表单重置
-    reset() {
-      this.form = {
-        id: null,
-        customerId: null,
-        code: null,
-        status: null,
-        deliveryDate: null,
-        isDeleted: null,
-        version: null,
-        createBy: null,
-        createTime: null,
-        updateBy: null,
-        updateTime: null,
-        remark: null,
-      };
-      this.resetForm("form");
     },
     /** 搜索按钮操作 */
     handleQuery() {
@@ -317,55 +256,69 @@ export default {
       this.resetForm("queryForm");
       this.handleQuery();
     },
-    // 多选框选中数据
-    handleSelectionChange(selection) {
-      this.ids = selection.map((item) => item.id);
-      this.single = selection.length !== 1;
-      this.multiple = !selection.length;
+    /** 生成送货单 */
+    handleGenerate() {
+      const deliveryDate = this.generateDate;
+      if (!deliveryDate) {
+        this.$modal.msgWarning("请先选择配送日期");
+        return;
+      }
+      this.$modal
+        .confirm("将为配送日期 " + deliveryDate + " 生成送货单（仅汇总已确认订单，按客户+配送点分组、明细按商品合并）？")
+        .then(() => {
+          return generateDelivery(deliveryDate);
+        })
+        .then((response) => {
+          const created = response.data || [];
+          this.$modal.msgSuccess("已生成 " + created.length + " 张送货单");
+          this.getPageList();
+        })
+        .catch(() => {});
     },
-    /** 新增按钮操作 */
-    handleAdd() {
-      this.reset();
-      this.open = true;
-      this.title = "添加送货单";
-    },
-    /** 修改按钮操作 */
-    handleUpdate(row) {
-      this.reset();
-      const id = row.id || this.ids;
-      getDelivery(id).then((response) => {
-        this.form = response.data;
-        this.open = true;
-        this.title = "修改送货单";
+    /** 查看明细 */
+    handleDetail(row) {
+      listDeliveryDetail(row.id).then((response) => {
+        this.detailList = response.data || [];
+        this.detailTitle = "送货单明细 - " + row.code;
+        this.detailOpen = true;
+        const total = this.detailList.reduce((sum, item) => {
+          return sum + (Number(item.amount) || 0);
+        }, 0);
+        this.detailTotal = total.toFixed(2);
       });
     },
-    /** 提交按钮 */
-    submitForm() {
-      this.$refs["form"].validate((valid) => {
-        if (valid) {
-          if (this.form.id != null) {
-            updateDelivery(this.form).then((response) => {
-              this.$modal.msgSuccess("修改成功");
-              this.open = false;
-              this.getPageList();
-            });
-          } else {
-            addDelivery(this.form).then((response) => {
-              this.$modal.msgSuccess("新增成功");
-              this.open = false;
-              this.getPageList();
-            });
-          }
-        }
-      });
+    /** 标记打印 */
+    handlePrint(row) {
+      this.$modal
+        .confirm("确认打印送货单编号为 " + row.code + " 的送货单？（打印次数 +1）")
+        .then(() => {
+          return printDelivery(row.id);
+        })
+        .then((response) => {
+          this.$modal.msgSuccess("已标记打印，当前打印次数 " + response.data.printCount);
+          this.getPageList();
+        })
+        .catch(() => {});
+    },
+    /** 标记送达 */
+    handleDeliver(row) {
+      this.$modal
+        .confirm("确认送货单编号为 " + row.code + " 已送达？（同组已确认订单将进入已配送状态）")
+        .then(() => {
+          return deliverDelivery(row.id);
+        })
+        .then(() => {
+          this.$modal.msgSuccess("已标记送达");
+          this.getPageList();
+        })
+        .catch(() => {});
     },
     /** 删除按钮操作 */
     handleDelete(row) {
-      const ids = row.id || this.ids;
       this.$modal
-        .confirm('是否确认删除送货单编号为"' + ids + '"的数据项？')
+        .confirm('是否确认删除送货单编号为"' + row.code + '"的数据项？')
         .then(function () {
-          return delDelivery(ids);
+          return delDelivery(row.id);
         })
         .then(() => {
           this.getPageList();
@@ -386,3 +339,11 @@ export default {
   },
 };
 </script>
+
+<style scoped>
+.detail-total {
+  margin-top: 12px;
+  text-align: right;
+  font-weight: bold;
+}
+</style>

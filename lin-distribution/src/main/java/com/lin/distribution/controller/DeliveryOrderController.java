@@ -1,11 +1,13 @@
 package com.lin.distribution.controller;
 
+import java.time.LocalDate;
 import java.util.List;
 
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -79,6 +81,15 @@ public class DeliveryOrderController extends BaseController {
     }
 
     /**
+     * 获取送货单明细列表（按商品合并行）
+     */
+    @PreAuthorize("@ss.hasPermi('order:delivery:query')")
+    @GetMapping(value = "/{id}/detail")
+    public AjaxResult detail(@PathVariable("id") Long id) {
+        return success(deliveryOrderService.selectDetailListByDeliveryId(id));
+    }
+
+    /**
      * 新增送货单据
      */
     @PreAuthorize("@ss.hasPermi('order:delivery:add')")
@@ -106,5 +117,35 @@ public class DeliveryOrderController extends BaseController {
     @DeleteMapping("/{ids}")
     public AjaxResult remove(@PathVariable Long[] ids) {
         return toAjax(deliveryOrderService.deleteDeliveryOrderByIds(ids));
+    }
+
+    /**
+     * 按配送日期生成送货单（DESIGN.md §7.2，仅汇总已确认订单，按客户+配送点分组、明细按商品合并）
+     */
+    @PreAuthorize("@ss.hasPermi('order:delivery:add')")
+    @Log(title = "送货单生成", businessType = BusinessType.INSERT)
+    @PostMapping("/generate/{deliveryDate}")
+    public AjaxResult generate(@PathVariable("deliveryDate") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate deliveryDate) {
+        return success(deliveryOrderService.generateByDeliveryDate(deliveryDate));
+    }
+
+    /**
+     * 标记打印：print_count + 1，状态 → 已打印
+     */
+    @PreAuthorize("@ss.hasPermi('order:delivery:print')")
+    @Log(title = "送货单打印", businessType = BusinessType.UPDATE)
+    @PutMapping("/{id}/print")
+    public AjaxResult print(@PathVariable("id") Long id) {
+        return success(deliveryOrderService.markPrinted(id));
+    }
+
+    /**
+     * 标记送达：状态 → 已送达，同组已确认订单 → DELIVERED
+     */
+    @PreAuthorize("@ss.hasPermi('order:delivery:deliver')")
+    @Log(title = "送货单送达", businessType = BusinessType.UPDATE)
+    @PutMapping("/{id}/deliver")
+    public AjaxResult deliver(@PathVariable("id") Long id) {
+        return success(deliveryOrderService.markDelivered(id));
     }
 }

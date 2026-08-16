@@ -146,4 +146,24 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
     <delete id="deleteSaleOrderDetailByOrderId">
         delete from t_sale_order_detail where order_id = #{orderId}
     </delete>
+
+    <select id="selectAggregatedByDeliveryDate" parameterType="java.time.LocalDate" resultMap="SaleOrderDetailResult">
+        select d.customer_id,
+               d.customer_dept_id,
+               d.sku_id,
+               d.product_name,
+               d.product_unit,
+               d.product_spec,
+               d.product_price,
+               sum(d.num) as num,
+               sum(d.num * d.product_price) as expect_amount
+        from t_sale_order_detail d
+        inner join t_sale_order o on o.id = d.order_id
+        where o.delivery_date = #{deliveryDate}
+          and o.status = 1
+          and o.is_deleted = 0
+          and d.is_deleted = 0
+        group by d.customer_id, d.customer_dept_id, d.sku_id, d.product_name, d.product_unit, d.product_spec, d.product_price
+        order by d.customer_id, d.customer_dept_id, d.product_name
+    </select>
 </mapper>

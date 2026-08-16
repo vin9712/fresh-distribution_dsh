@@ -1,25 +1,27 @@
 package com.lin.distribution.service.impl;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.*;
 import java.util.stream.Collectors;
 
+import com.lin.common.exception.ServiceException;
 import com.lin.common.utils.DateUtils;
 import com.lin.distribution.constant.DeliveryOrderStatus;
 import com.lin.distribution.constant.SaleOrderStatus;
+import com.lin.distribution.domain.DeliveryOrder;
 import com.lin.distribution.domain.DeliveryOrderDetail;
-import com.lin.distribution.domain.SaleOrder;
+import com.lin.distribution.domain.SaleOrderDetail;
 import com.lin.distribution.mapper.DeliveryOrderDetailMapper;
+import com.lin.distribution.mapper.DeliveryOrderMapper;
+import com.lin.distribution.mapper.SaleOrderDetailMapper;
+import com.lin.distribution.mapper.SaleOrderMapper;
+import com.lin.distribution.service.BizCodeService;
+import com.lin.distribution.service.DeliveryOrderService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
-import org.apache.commons.lang3.BooleanUtils;
-import org.apache.commons.lang3.StringUtils;
-import com.lin.distribution.service.BizCodeService;
 import org.springframework.stereotype.Service;
-import com.lin.distribution.mapper.DeliveryOrderMapper;
-import com.lin.distribution.domain.DeliveryOrder;
-import com.lin.distribution.service.DeliveryOrderService;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
@@ -34,6 +36,8 @@ import org.springframework.transaction.annotation.Transactional;
 public class DeliveryOrderServiceImpl implements DeliveryOrderService {
     private final DeliveryOrderMapper deliveryOrderMapper;
     private final DeliveryOrderDetailMapper deliveryOrderDetailMapper;
+    private final SaleOrderDetailMapper saleOrderDetailMapper;
+    private final SaleOrderMapper saleOrderMapper;
     private final BizCodeService bizCodeService;
 
     /**
@@ -45,6 +49,17 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
     @Override
     public DeliveryOrder selectDeliveryOrderById(Long id) {
         return deliveryOrderMapper.selectDeliveryOrderById(id);
+    }
+
+    /**
+     * 查询送货单明细列表（按商品合并行）
+     *
+     * @param deliveryId 送货单主键
+     * @return 送货单明细集合
+     */
+    @Override
+    public List<DeliveryOrderDetail> selectDetailListByDeliveryId(Long deliveryId) {
+        return deliveryOrderDetailMapper.selectListByDeliveryId(deliveryId);
     }
 
     /**
@@ -105,124 +120,123 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
     }
 
     /**
-     * 创建送货单
-     *
-     * @param orders
+     * 按配送日期生成送货单（DESIGN.md §7.2）
+     * 粒度：客户 + 配送点 + 配送日期；明细按商品合并（不含订单号）。
      */
     @Override
     @Transactional
-    public void createDeliveryOrder(List<SaleOrder> orders) {
-        if (CollectionUtils.isEmpty(orders) ||
-                orders.stream().anyMatch(order -> !Objects.equals(order.getStatus(), SaleOrderStatus.CONFIRMED.getCode()))) {
-            return;
+    public List<DeliveryOrder> generateByDeliveryDate(LocalDate deliveryDate) {
+        if (deliveryDate == null) {
+            throw new ServiceException("配送日期不能为空");
         }
 
-        // 按 客户+配送日期 分组, 按需新增送货单+详情
-        Map<Long, Map<LocalDate, List<SaleOrder>>> orderMap = orders.stream()
-                .filter(order -> order.getCustomerId() != null && order.getDeliveryDate() != null)
-                .collect(Collectors.groupingBy(SaleOrder::getCustomerId,
-                        Collectors.groupingBy(SaleOrder::getDeliveryDate)));
+        // 幂等守卫：该日期已存在有效送货单则拒绝重复生成
+        DeliveryOrder query = new DeliveryOrder();
+        query.setDeliveryDate(deliveryDate);
+        if (CollectionUtils.isNotEmpty(deliveryOrderMapper.selectDeliveryOrderList(query))) {
+            throw new ServiceException("该配送日期已生成送货单，请勿重复生成");
+        }
 
-        for (Map.Entry<Long, Map<LocalDate, List<SaleOrder>>> entry : orderMap.entrySet()) {
-            Long customerId = entry.getKey();
-            for (Map.Entry<LocalDate, List<SaleOrder>> dateEntry : entry.getValue().entrySet()) {
-                LocalDate deliveryDate = dateEntry.getKey();
-                List<SaleOrder> saleOrders = dateEntry.getValue();
+        // 仅汇总已确认（CONFIRMED）订单明细
+        List<SaleOrderDetail> aggregated = saleOrderDetailMapper.selectAggregatedByDeliveryDate(deliveryDate);
+        if (CollectionUtils.isEmpty(aggregated)) {
+            throw new ServiceException("该配送日期没有已确认的订单，无法生成送货单");
+        }
 
-                // 根据客户ID和配送日期查询送货单
-                DeliveryOrder query = new DeliveryOrder();
-                query.setCustomerId(customerId);
-                query.setDeliveryDate(deliveryDate);
-                DeliveryOrder deliveryOrder = deliveryOrderMapper.selectDeliveryOrderList(query).stream().findFirst().orElse(null);
+        // 按 客户+配送点 分组生成送货单
+        Map<String, List<SaleOrderDetail>> groupMap = aggregated.stream().collect(Collectors.groupingBy(
+                it -> String.valueOf(it.getCustomerId()) + ":" + String.valueOf(it.getCustomerDeptId()),
+                LinkedHashMap::new, Collectors.toList()));
 
-                if (deliveryOrder == null) {
-                    deliveryOrder = DeliveryOrder.builder()
-                            .customerId(customerId)
-                            .deliveryDate(deliveryDate)
-                            .code(generateDeliveryOrderNo(true))
-                            .status(DeliveryOrderStatus.PENDING.getCode())
-                            .isDeleted(Boolean.FALSE)
-                            .version(0)
-                            .build();
-                    deliveryOrderMapper.insertDeliveryOrder(deliveryOrder);
-                }
-                Long deliveryId = deliveryOrder.getId();
+        List<DeliveryOrder> created = new ArrayList<>();
+        for (Map.Entry<String, List<SaleOrderDetail>> entry : groupMap.entrySet()) {
+            List<SaleOrderDetail> rows = entry.getValue();
+            SaleOrderDetail first = rows.get(0);
 
-                // 查询并新增送货单详情
-                Set<Long> deliveryOrderIdList = deliveryOrderDetailMapper.selectListByDeliveryId(deliveryId)
-                        .stream().map(DeliveryOrderDetail::getOrderId).collect(Collectors.toSet());
-                List<SaleOrder> ordersToAdd = saleOrders.stream()
-                        .filter(it -> !deliveryOrderIdList.contains(it.getId())).toList();
+            DeliveryOrder deliveryOrder = DeliveryOrder.builder()
+                    .customerId(first.getCustomerId())
+                    .deliveryPointId(first.getCustomerDeptId())
+                    .code(bizCodeService.nextDailyCode("deliveryOrder", "HS", 3))
+                    .status(DeliveryOrderStatus.PENDING.getCode())
+                    .printCount(0)
+                    .deliveryDate(deliveryDate)
+                    .isDeleted(Boolean.FALSE)
+                    .version(0)
+                    .build();
+            deliveryOrder.setCreateTime(DateUtils.getNowDate());
+            deliveryOrderMapper.insertDeliveryOrder(deliveryOrder);
 
-                // batch add delivery order detail
-                if (CollectionUtils.isNotEmpty(ordersToAdd)) {
-                    for (SaleOrder saleOrder : ordersToAdd) {
-                        DeliveryOrderDetail deliveryOrderDetail = DeliveryOrderDetail.builder()
-                                .deliveryId(deliveryId)
-                                .customerId(saleOrder.getCustomerId())
-                                .customerDeptId(saleOrder.getCustomerDeptId())
-                                .orderId(saleOrder.getId())
-                                .orderCode(saleOrder.getCode())
-                                .isPrint(Boolean.FALSE)
-                                .isDeleted(Boolean.FALSE)
-                                .version(0)
-                                .build();
-                        deliveryOrderDetailMapper.insertDeliveryOrderDetail(deliveryOrderDetail);
-                    }
-                }
+            for (SaleOrderDetail row : rows) {
+                BigDecimal price = row.getProductPrice() == null ? BigDecimal.ZERO : row.getProductPrice();
+                BigDecimal num = row.getNum() == null ? BigDecimal.ZERO : row.getNum();
+                DeliveryOrderDetail detail = DeliveryOrderDetail.builder()
+                        .deliveryId(deliveryOrder.getId())
+                        .customerId(row.getCustomerId())
+                        .customerDeptId(row.getCustomerDeptId())
+                        .orderCode("")
+                        .skuId(row.getSkuId())
+                        .productName(row.getProductName())
+                        .productUnit(row.getProductUnit())
+                        .productSpec(row.getProductSpec())
+                        .num(num)
+                        .price(price)
+                        .amount(price.multiply(num))
+                        .isPrint(Boolean.FALSE)
+                        .isDeleted(Boolean.FALSE)
+                        .version(0)
+                        .build();
+                detail.setCreateTime(DateUtils.getNowDate());
+                deliveryOrderDetailMapper.insertDeliveryOrderDetail(detail);
             }
+            created.add(deliveryOrder);
         }
+        return created;
     }
 
+    /**
+     * 标记打印：print_count + 1，状态 → 已打印
+     */
     @Override
     @Transactional
-    public void clearDeliveryOrder(List<SaleOrder> orders) {
-        if (CollectionUtils.isEmpty(orders) ||
-                orders.stream().anyMatch(order -> !Objects.equals(order.getStatus(), SaleOrderStatus.DRAFT.getCode()))) {
-            return;
+    public DeliveryOrder markPrinted(Long id) {
+        DeliveryOrder deliveryOrder = deliveryOrderMapper.selectDeliveryOrderById(id);
+        if (deliveryOrder == null) {
+            throw new ServiceException("送货单不存在");
         }
-
-        // skip if no delivery detail list
-        Set<Long> orderIds = orders.stream().map(SaleOrder::getId).collect(Collectors.toSet());
-        List<DeliveryOrderDetail> clearDeliveryOrderDetails = deliveryOrderDetailMapper.selectListByOrderIdIn(orderIds);
-        Set<Long> clearDeliveryDetailIds = clearDeliveryOrderDetails.stream().map(DeliveryOrderDetail::getId).collect(Collectors.toSet());
-        if (CollectionUtils.isEmpty(clearDeliveryOrderDetails)) {
-            return;
+        if (Objects.equals(deliveryOrder.getStatus(), DeliveryOrderStatus.DELIVERED.getCode())) {
+            throw new ServiceException("送货单已送达，不可再打印");
         }
-
-        // get all delivery detail with delivery id list
-        List<Long> clearDeliveryOrderIds = new ArrayList<>();
-        Set<Long> deliveryIds = clearDeliveryOrderDetails.stream().map(DeliveryOrderDetail::getDeliveryId).collect(Collectors.toSet());
-        List<DeliveryOrder> deliveryOrders = deliveryOrderMapper.selectListByIds(deliveryIds);
-        for (DeliveryOrder deliveryOrder : deliveryOrders) {
-            Long deliveryId = deliveryOrder.getId();
-            Set<Long> deliveryOrderDetailIds = deliveryOrderDetailMapper.selectListByDeliveryId(deliveryId).stream().map(DeliveryOrderDetail::getId).collect(Collectors.toSet());
-            boolean clearDeliveryOrder = clearDeliveryDetailIds.containsAll(deliveryOrderDetailIds);
-            if (clearDeliveryOrder) {
-                clearDeliveryOrderIds.add(deliveryId);
-            }
-        }
-
-        // batch clear delivery & details
-        if (CollectionUtils.isNotEmpty(clearDeliveryOrderIds)) {
-            deliveryOrderMapper.deleteDeliveryOrderByIds(clearDeliveryOrderIds.stream().distinct().toList().toArray(new Long[0]));
-        }
-        deliveryOrderDetailMapper.deleteDeliveryOrderDetailByIds(clearDeliveryDetailIds.stream().distinct().toList().toArray(new Long[0]));
+        deliveryOrder.setPrintCount(deliveryOrder.getPrintCount() == null ? 1 : deliveryOrder.getPrintCount() + 1);
+        deliveryOrder.setStatus(DeliveryOrderStatus.PRINTED.getCode());
+        deliveryOrder.setUpdateTime(DateUtils.getNowDate());
+        deliveryOrderMapper.updateDeliveryOrder(deliveryOrder);
+        return deliveryOrder;
     }
 
-    private String generateDeliveryOrderNo(Boolean refresh) {
-        return generateDeliveryOrderNo(refresh, null);
-    }
+    /**
+     * 标记送达：状态 → 已送达，同组已确认订单 → DELIVERED
+     */
+    @Override
+    @Transactional
+    public DeliveryOrder markDelivered(Long id) {
+        DeliveryOrder deliveryOrder = deliveryOrderMapper.selectDeliveryOrderById(id);
+        if (deliveryOrder == null) {
+            throw new ServiceException("送货单不存在");
+        }
+        if (Objects.equals(deliveryOrder.getStatus(), DeliveryOrderStatus.DELIVERED.getCode())) {
+            throw new ServiceException("送货单已送达，请勿重复操作");
+        }
+        deliveryOrder.setStatus(DeliveryOrderStatus.DELIVERED.getCode());
+        deliveryOrder.setUpdateTime(DateUtils.getNowDate());
+        deliveryOrderMapper.updateDeliveryOrder(deliveryOrder);
 
-    private String generateDeliveryOrderNo(Boolean refresh, String currentCode) {
-        // HSyyyyMMdd + 每日重置序号（DB 序列，Redis 非硬依赖）
-        String peekCode = bizCodeService.peekDailyCode("deliveryOrder", "HS", 3);
-        if (StringUtils.equals(peekCode, currentCode)) {
-            return peekCode;
-        }
-        if (BooleanUtils.isTrue(refresh)) {
-            return bizCodeService.nextDailyCode("deliveryOrder", "HS", 3);
-        }
-        return peekCode;
+        // 送货单标记送达 → 同组订单进入 DELIVERED（DESIGN.md §7.1）
+        saleOrderMapper.markDeliveredByDeliveryGroup(
+                deliveryOrder.getCustomerId(),
+                deliveryOrder.getDeliveryPointId(),
+                deliveryOrder.getDeliveryDate(),
+                SaleOrderStatus.CONFIRMED.getCode(),
+                SaleOrderStatus.DELIVERED.getCode());
+        return deliveryOrder;
     }
 }

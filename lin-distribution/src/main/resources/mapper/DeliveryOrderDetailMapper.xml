@@ -11,6 +11,13 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         <result property="customerId"    column="customer_id"    />
         <result property="customerDeptId"    column="customer_dept_id"    />
         <result property="orderCode"    column="order_code"    />
+        <result property="skuId"    column="sku_id"    />
+        <result property="productName"    column="product_name"    />
+        <result property="productUnit"    column="product_unit"    />
+        <result property="productSpec"    column="product_spec"    />
+        <result property="num"    column="num"    />
+        <result property="price"    column="price"    />
+        <result property="amount"    column="amount"    />
         <result property="isPrint"    column="is_print"    />
         <result property="isDeleted"    column="is_deleted"    />
         <result property="version"    column="version"    />
@@ -22,7 +29,7 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
     </resultMap>
 
     <sql id="selectDeliveryOrderDetailVo">
-        select id, delivery_id, order_id, customer_id, customer_dept_id, order_code, is_print, is_deleted, version, create_by, create_time, update_by, update_time, remark from t_delivery_order_detail
+        select id, delivery_id, order_id, customer_id, customer_dept_id, order_code, sku_id, product_name, product_unit, product_spec, num, price, amount, is_print, is_deleted, version, create_by, create_time, update_by, update_time, remark from t_delivery_order_detail
     </sql>
 
     <select id="selectDeliveryOrderDetailList" parameterType="com.lin.distribution.domain.DeliveryOrderDetail" resultMap="DeliveryOrderDetailResult">
@@ -33,6 +40,8 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
             <if test="customerId != null "> and customer_id = #{customerId}</if>
             <if test="customerDeptId != null "> and customer_dept_id = #{customerDeptId}</if>
             <if test="orderCode != null  and orderCode != ''"> and order_code = #{orderCode}</if>
+            <if test="skuId != null "> and sku_id = #{skuId}</if>
+            <if test="productName != null  and productName != ''"> and product_name like concat('%', #{productName}, '%')</if>
             <if test="isPrint != null "> and is_print = #{isPrint}</if>
         </where>
     </select>
@@ -61,7 +70,14 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
             <if test="orderId != null">order_id,</if>
             <if test="customerId != null">customer_id,</if>
             <if test="customerDeptId != null">customer_dept_id,</if>
-            <if test="orderCode != null and orderCode != ''">order_code,</if>
+            <if test="orderCode != null">order_code,</if>
+            <if test="skuId != null">sku_id,</if>
+            <if test="productName != null">product_name,</if>
+            <if test="productUnit != null">product_unit,</if>
+            <if test="productSpec != null">product_spec,</if>
+            <if test="num != null">num,</if>
+            <if test="price != null">price,</if>
+            <if test="amount != null">amount,</if>
             <if test="isPrint != null">is_print,</if>
             <if test="isDeleted != null">is_deleted,</if>
             <if test="version != null">version,</if>
@@ -76,7 +92,14 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
             <if test="orderId != null">#{orderId},</if>
             <if test="customerId != null">#{customerId},</if>
             <if test="customerDeptId != null">#{customerDeptId},</if>
-            <if test="orderCode != null and orderCode != ''">#{orderCode},</if>
+            <if test="orderCode != null">#{orderCode},</if>
+            <if test="skuId != null">#{skuId},</if>
+            <if test="productName != null">#{productName},</if>
+            <if test="productUnit != null">#{productUnit},</if>
+            <if test="productSpec != null">#{productSpec},</if>
+            <if test="num != null">#{num},</if>
+            <if test="price != null">#{price},</if>
+            <if test="amount != null">#{amount},</if>
             <if test="isPrint != null">#{isPrint},</if>
             <if test="isDeleted != null">#{isDeleted},</if>
             <if test="version != null">#{version},</if>
@@ -95,7 +118,14 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
             <if test="orderId != null">order_id = #{orderId},</if>
             <if test="customerId != null">customer_id = #{customerId},</if>
             <if test="customerDeptId != null">customer_dept_id = #{customerDeptId},</if>
-            <if test="orderCode != null and orderCode != ''">order_code = #{orderCode},</if>
+            <if test="orderCode != null">order_code = #{orderCode},</if>
+            <if test="skuId != null">sku_id = #{skuId},</if>
+            <if test="productName != null">product_name = #{productName},</if>
+            <if test="productUnit != null">product_unit = #{productUnit},</if>
+            <if test="productSpec != null">product_spec = #{productSpec},</if>
+            <if test="num != null">num = #{num},</if>
+            <if test="price != null">price = #{price},</if>
+            <if test="amount != null">amount = #{amount},</if>
             <if test="isPrint != null">is_print = #{isPrint},</if>
             <if test="isDeleted != null">is_deleted = #{isDeleted},</if>
             <if test="version != null">version = #{version},</if>

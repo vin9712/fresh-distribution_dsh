@@ -68,4 +68,13 @@ public interface SaleOrderDetailMapper {
      * @return 结果
      */
     int deleteSaleOrderDetailByIds(Long[] ids);
+
+    /**
+     * 按配送日期聚合已确认订单明细（送货单生成口径）
+     * 分组：客户 + 配送点 + SKU/品名/单位/规格/单价；数量求和。
+     *
+     * @param deliveryDate 配送日期
+     * @return 聚合后的订单明细
+     */
+    List<SaleOrderDetail> selectAggregatedByDeliveryDate(java.time.LocalDate deliveryDate);
 }

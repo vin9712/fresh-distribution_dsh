@@ -35,16 +35,26 @@ public class DeliveryOrder extends BaseEntity {
     private Long customerId;
 
     /**
+     * 配送点ID（t_customer_dept.id）
+     */
+    private Long deliveryPointId;
+
+    /**
      * 送货单编号
      */
     @Excel(name = "送货单编号")
     private String code;
 
     /**
-     * 送货单状态：0待打印,1送货,2完成
+     * 送货单状态：0待打印,1已打印,2已送达
      */
-    @Excel(name = "送货单状态：0待打印,1送货,2完成")
+    @Excel(name = "送货单状态：0待打印,1已打印,2已送达")
     private Integer status;
+
+    /**
+     * 打印次数
+     */
+    private Integer printCount;
 
     /**
      * 配送日期
@@ -63,5 +73,15 @@ public class DeliveryOrder extends BaseEntity {
      */
     @Version
     private Integer version;
+
+    /**
+     * 客户名称（列表展示用，查询时关联填充）
+     */
+    private String customerName;
+
+    /**
+     * 配送点名称（列表展示用，查询时关联填充）
+     */
+    private String customerDeptName;
 
 }

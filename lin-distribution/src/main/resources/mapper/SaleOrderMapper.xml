@@ -168,4 +168,14 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
             #{id}
         </foreach>
     </select>
+
+    <update id="markDeliveredByDeliveryGroup">
+        update t_sale_order
+        set status = #{toStatus}, update_time = now()
+        where status = #{fromStatus}
+          and customer_id = #{customerId}
+          and delivery_date = #{deliveryDate}
+          and is_deleted = 0
+        <if test="customerDeptId != null">and customer_dept_id = #{customerDeptId}</if>
+    </update>
 </mapper>

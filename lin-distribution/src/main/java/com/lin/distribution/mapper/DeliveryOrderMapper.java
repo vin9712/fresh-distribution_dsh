@@ -1,5 +1,6 @@
 package com.lin.distribution.mapper;
 
+import java.time.LocalDate;
 import java.util.Collection;
 import java.util.List;
 
@@ -67,4 +68,13 @@ public interface DeliveryOrderMapper {
      * @return 结果
      */
     int deleteDeliveryOrderByIds(Long[] ids);
+
+    /**
+     * 统计指定客户+配送日期的有效送货单数量（用于"已生成送货单的订单不可撤回"守卫）
+     *
+     * @param customerId   客户ID
+     * @param deliveryDate 配送日期
+     * @return 数量
+     */
+    int countByCustomerIdAndDeliveryDate(@Param("customerId") Long customerId, @Param("deliveryDate") LocalDate deliveryDate);
 }
