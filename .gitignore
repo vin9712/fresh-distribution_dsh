@@ -37,6 +37,11 @@ nbdist/
 .nb-gradle/
 
 ######################################################################
+# Frontend (sandbox-scoped npm cache used by DSH agent)
+.npm-cache/
+.dsh-e2e/
+
+######################################################################
 # Others
 *.log
 *.xml.versionsBackup
