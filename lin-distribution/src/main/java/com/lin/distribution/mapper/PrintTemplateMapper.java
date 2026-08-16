@@ -3,6 +3,7 @@ package com.lin.distribution.mapper;
 import java.util.List;
 
 import com.lin.distribution.domain.PrintTemplate;
+import org.apache.ibatis.annotations.Param;
 
 /**
  * 打印模板Mapper接口
@@ -26,6 +27,15 @@ public interface PrintTemplateMapper {
      * @return 打印模板集合
      */
     List<PrintTemplate> selectPrintTemplateList(PrintTemplate printTemplate);
+
+    /**
+     * 三级绑定解析（DESIGN.md：客户+配送点组合 > 客户 > 全局默认；停用不参与）
+     *
+     * @param customerId      客户ID
+     * @param deliveryPointId 配送点ID
+     * @return 命中的模板（无则 null）
+     */
+    PrintTemplate selectBindTemplate(@Param("customerId") Long customerId, @Param("deliveryPointId") Long deliveryPointId);
 
     /**
      * 新增打印模板

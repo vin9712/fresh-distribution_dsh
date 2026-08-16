@@ -11,6 +11,11 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         <result property="name"    column="name"    />
         <result property="content"    column="content"    />
         <result property="type"    column="type"    />
+        <result property="renderEngine"    column="render_engine"    />
+        <result property="bindType"    column="bind_type"    />
+        <result property="deliveryPointId"    column="delivery_point_id"    />
+        <result property="copies"    column="copies"    />
+        <result property="isDefault"    column="is_default"    />
         <result property="isDeleted"    column="is_deleted"    />
         <result property="version"    column="version"    />
         <result property="createBy"    column="create_by"    />
@@ -21,7 +26,7 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
     </resultMap>
 
     <sql id="selectPrintTemplateVo">
-        select id, customer_id, code, name, content, type, is_deleted, version, create_by, create_time, update_by, update_time, remark from t_print_template
+        select id, customer_id, code, name, content, type, render_engine, bind_type, delivery_point_id, copies, is_default, is_deleted, version, create_by, create_time, update_by, update_time, remark from t_print_template
     </sql>
 
     <select id="selectPrintTemplateList" parameterType="com.lin.distribution.domain.PrintTemplate" resultMap="PrintTemplateResult">
@@ -31,12 +36,29 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
             <if test="code != null  and code != ''"> and code = #{code}</if>
             <if test="name != null  and name != ''"> and name like concat('%', #{name}, '%')</if>
             <if test="type != null "> and type = #{type}</if>
+            <if test="bindType != null "> and bind_type = #{bindType}</if>
+            <if test="deliveryPointId != null "> and delivery_point_id = #{deliveryPointId}</if>
+            <if test="isDefault != null and isDefault != ''"> and is_default = #{isDefault}</if>
         </where>
+        order by id desc
     </select>
 
     <select id="selectPrintTemplateById" parameterType="Long" resultMap="PrintTemplateResult">
         <include refid="selectPrintTemplateVo"/>
         where id = #{id}
+    </select>
+
+    <!-- 三级绑定解析：1客户+配送点组合 > 2客户 > 3全局默认（停用 is_deleted=1 不参与） -->
+    <select id="selectBindTemplate" resultMap="PrintTemplateResult">
+        <include refid="selectPrintTemplateVo"/>
+        where is_deleted = 0
+          and (
+               (bind_type = 1 and customer_id = #{customerId} and delivery_point_id = #{deliveryPointId})
+            or (bind_type = 2 and customer_id = #{customerId})
+            or (bind_type = 3 and is_default = '1')
+          )
+        order by bind_type asc, id desc
+        limit 1
     </select>
 
     <insert id="insertPrintTemplate" parameterType="com.lin.distribution.domain.PrintTemplate" useGeneratedKeys="true" keyProperty="id">
@@ -46,7 +68,13 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
             <if test="code != null and code != ''">code,</if>
             <if test="name != null and name != ''">name,</if>
             <if test="content != null and content != ''">content,</if>
+            data,
             <if test="type != null">type,</if>
+            <if test="renderEngine != null">render_engine,</if>
+            <if test="bindType != null">bind_type,</if>
+            <if test="deliveryPointId != null">delivery_point_id,</if>
+            <if test="copies != null">copies,</if>
+            <if test="isDefault != null">is_default,</if>
             <if test="isDeleted != null">is_deleted,</if>
             <if test="version != null">version,</if>
             <if test="createBy != null">create_by,</if>
@@ -60,7 +88,13 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
             <if test="code != null and code != ''">#{code},</if>
             <if test="name != null and name != ''">#{name},</if>
             <if test="content != null and content != ''">#{content},</if>
+            '{}',
             <if test="type != null">#{type},</if>
+            <if test="renderEngine != null">#{renderEngine},</if>
+            <if test="bindType != null">#{bindType},</if>
+            <if test="deliveryPointId != null">#{deliveryPointId},</if>
+            <if test="copies != null">#{copies},</if>
+            <if test="isDefault != null">#{isDefault},</if>
             <if test="isDeleted != null">#{isDeleted},</if>
             <if test="version != null">#{version},</if>
             <if test="createBy != null">#{createBy},</if>
@@ -79,6 +113,11 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
             <if test="name != null and name != ''">name = #{name},</if>
             <if test="content != null and content != ''">content = #{content},</if>
             <if test="type != null">type = #{type},</if>
+            <if test="renderEngine != null">render_engine = #{renderEngine},</if>
+            <if test="bindType != null">bind_type = #{bindType},</if>
+            <if test="deliveryPointId != null">delivery_point_id = #{deliveryPointId},</if>
+            <if test="copies != null">copies = #{copies},</if>
+            <if test="isDefault != null">is_default = #{isDefault},</if>
             <if test="isDeleted != null">is_deleted = #{isDeleted},</if>
             <if test="version != null">version = #{version},</if>
             <if test="createBy != null">create_by = #{createBy},</if>

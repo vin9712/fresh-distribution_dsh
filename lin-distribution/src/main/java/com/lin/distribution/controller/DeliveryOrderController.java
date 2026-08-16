@@ -2,6 +2,7 @@ package com.lin.distribution.controller;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
 
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletResponse;
@@ -22,6 +23,7 @@ import com.lin.common.core.domain.AjaxResult;
 import com.lin.common.enums.BusinessType;
 import com.lin.distribution.domain.DeliveryOrder;
 import com.lin.distribution.service.DeliveryOrderService;
+import com.lin.distribution.service.PrintTemplateService;
 import com.lin.common.utils.poi.ExcelUtil;
 import com.lin.common.core.page.TableDataInfo;
 
@@ -37,6 +39,8 @@ import com.lin.common.core.page.TableDataInfo;
 public class DeliveryOrderController extends BaseController {
     @Autowired
     private DeliveryOrderService deliveryOrderService;
+    @Autowired
+    private PrintTemplateService printTemplateService;
 
     /**
      * 分页查询送货单据列表
@@ -87,6 +91,26 @@ public class DeliveryOrderController extends BaseController {
     @GetMapping(value = "/{id}/detail")
     public AjaxResult detail(@PathVariable("id") Long id) {
         return success(deliveryOrderService.selectDetailListByDeliveryId(id));
+    }
+
+    /**
+     * 打印信息：三级绑定解析模板 + 联数（打印计数由 /{id}/print 记录）
+     */
+    @PreAuthorize("@ss.hasPermi('order:delivery:print')")
+    @GetMapping(value = "/{id}/printInfo")
+    public AjaxResult printInfo(@PathVariable("id") Long id) {
+        DeliveryOrder deliveryOrder = deliveryOrderService.selectDeliveryOrderById(id);
+        if (deliveryOrder == null) {
+            return error("送货单不存在");
+        }
+        com.lin.distribution.domain.PrintTemplate template = printTemplateService.resolveForDeliveryOrder(deliveryOrder);
+        Map<String, Object> info = new java.util.LinkedHashMap<>();
+        info.put("deliveryOrderId", id);
+        info.put("code", deliveryOrder.getCode());
+        info.put("templateId", template.getContent());
+        info.put("templateName", template.getName());
+        info.put("copies", template.getCopies() == null ? 1 : template.getCopies());
+        return success(info);
     }
 
     /**

@@ -52,6 +52,11 @@ export default defineConfig(({ mode, command }) => {
           changeOrigin: true,
           rewrite: (p) => p.replace(/^\/dev-api/, '')
         },
+        // JimuReport 设计器/打印视图（后端已放行 /jmreport/**，生产由 Nginx 同路径反代）
+        '/jmreport': {
+          target: baseUrl,
+          changeOrigin: true
+        },
          // springdoc proxy
          '^/v3/api-docs/(.*)': {
           target: baseUrl,

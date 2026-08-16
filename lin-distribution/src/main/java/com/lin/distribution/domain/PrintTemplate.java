@@ -54,6 +54,33 @@ public class PrintTemplate extends BaseEntity {
     private Integer type;
 
     /**
+     * 渲染引擎（jimureport/hiprint，首版固定 jimureport）
+     */
+    private String renderEngine;
+
+    /**
+     * 绑定类型：1客户+配送点组合 2客户 3全局默认
+     */
+    @Excel(name = "绑定类型", readConverterExp = "1=客户+配送点组合,2=客户,3=全局默认")
+    private Integer bindType;
+
+    /**
+     * 绑定配送点ID（bind_type=1 时使用）
+     */
+    private Long deliveryPointId;
+
+    /**
+     * 联数（打印份数）
+     */
+    @Excel(name = "联数")
+    private Integer copies;
+
+    /**
+     * 是否全局默认模板（0否 1是）
+     */
+    private String isDefault;
+
+    /**
      * 逻辑删除
      */
     private Boolean isDeleted;

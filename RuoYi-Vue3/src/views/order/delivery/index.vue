@@ -195,9 +195,11 @@ import {
   listDeliveryDetail,
   generateDelivery,
   printDelivery,
+  printInfoDelivery,
   deliverDelivery,
   delDelivery,
 } from "@/api/order/delivery";
+import { getToken } from "@/utils/auth";
 import { Search, Refresh, Plus, Delete, Download, Printer, Van, View } from "@element-plus/icons-vue";
 
 export default {
@@ -287,16 +289,26 @@ export default {
         this.detailTotal = total.toFixed(2);
       });
     },
-    /** 标记打印 */
+    /** 打印：解析三级绑定模板 → 记录打印次数 → 打开 JimuReport 打印视图 */
     handlePrint(row) {
-      this.$modal
-        .confirm("确认打印送货单编号为 " + row.code + " 的送货单？（打印次数 +1）")
-        .then(() => {
-          return printDelivery(row.id);
-        })
+      printInfoDelivery(row.id)
         .then((response) => {
-          this.$modal.msgSuccess("已标记打印，当前打印次数 " + response.data.printCount);
-          this.getPageList();
+          const info = response.data;
+          this.$modal
+            .confirm(
+              "按模板【" + info.templateName + "】打印（联数 " + info.copies + " 份），确认后记录打印次数并打开打印视图？"
+            )
+            .then(() => printDelivery(row.id))
+            .then((printResp) => {
+              this.$modal.msgSuccess("已记录打印，当前打印次数 " + printResp.data.printCount);
+              const token = getToken();
+              window.open(
+                "/jmreport/view/" + info.templateId + "?token=" + token + "&deliveryOrderId=" + row.id,
+                "_blank"
+              );
+              this.getPageList();
+            })
+            .catch(() => {});
         })
         .catch(() => {});
     },

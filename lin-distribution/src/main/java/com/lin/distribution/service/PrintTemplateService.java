@@ -2,6 +2,7 @@ package com.lin.distribution.service;
 
 import java.util.List;
 
+import com.lin.distribution.domain.DeliveryOrder;
 import com.lin.distribution.domain.PrintTemplate;
 
 /**
@@ -26,6 +27,14 @@ public interface PrintTemplateService {
      * @return 打印模板集合
      */
     List<PrintTemplate> selectPrintTemplateList(PrintTemplate printTemplate);
+
+    /**
+     * 按送货单解析打印模板（三级绑定：客户+配送点组合 > 客户 > 全局默认；停用回退全局默认）
+     *
+     * @param deliveryOrder 送货单
+     * @return 命中的模板（未配置任何模板则抛异常）
+     */
+    PrintTemplate resolveForDeliveryOrder(DeliveryOrder deliveryOrder);
 
     /**
      * 新增打印模板

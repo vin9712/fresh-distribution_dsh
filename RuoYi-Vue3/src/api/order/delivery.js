@@ -50,6 +50,14 @@ export function printDelivery(id) {
   })
 }
 
+// 打印信息：三级绑定解析模板 + 联数
+export function printInfoDelivery(id) {
+  return request({
+    url: '/order/delivery/' + id + '/printInfo',
+    method: 'get'
+  })
+}
+
 // 标记送达（同组已确认订单 → DELIVERED）
 export function deliverDelivery(id) {
   return request({

@@ -2,7 +2,9 @@ package com.lin.distribution.service.impl;
 
 import java.util.List;
 
+import com.lin.common.exception.ServiceException;
 import com.lin.common.utils.DateUtils;
+import com.lin.distribution.domain.DeliveryOrder;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -42,6 +44,21 @@ public class PrintTemplateServiceImpl implements PrintTemplateService {
     @Override
     public List<PrintTemplate> selectPrintTemplateList(PrintTemplate printTemplate) {
         return printTemplateMapper.selectPrintTemplateList(printTemplate);
+    }
+
+    /**
+     * 三级绑定解析（客户+配送点组合 > 客户 > 全局默认；停用模板不参与，自动回退）
+     */
+    @Override
+    public PrintTemplate resolveForDeliveryOrder(DeliveryOrder deliveryOrder) {
+        if (deliveryOrder == null) {
+            throw new ServiceException("送货单不存在");
+        }
+        PrintTemplate template = printTemplateMapper.selectBindTemplate(deliveryOrder.getCustomerId(), deliveryOrder.getDeliveryPointId());
+        if (template == null) {
+            throw new ServiceException("未配置打印模板，请先在打印模板页面配置全局默认模板");
+        }
+        return template;
     }
 
     /**
