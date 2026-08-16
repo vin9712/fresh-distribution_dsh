@@ -1,12 +1,15 @@
 package com.lin.distribution.controller;
 
 import com.lin.common.core.controller.BaseController;
+import com.lin.distribution.domain.CustomerSkuMapping;
 import com.lin.distribution.domain.DeliveryOrder;
 import com.lin.distribution.domain.DeliveryOrderDetail;
+import com.lin.distribution.mapper.CustomerSkuMappingMapper;
 import com.lin.distribution.mapper.DeliveryOrderDetailMapper;
 import com.lin.distribution.mapper.DeliveryOrderMapper;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -18,11 +21,12 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  * 打印数据接口（供 JimuReport API 数据集调用）
- * /print/deliveryData 由 SecurityConfig 放行（JimuReport 服务端调用不带 JWT），
- * 返回扁平化送货单打印数据（表头字段随行冗余，供简单模板直接渲染）。
+ * /print/deliveryData、/print/deliveryHead 由 SecurityConfig 放行（JimuReport 服务端调用不带 JWT）。
+ * 打印品名客户映射叫法优先（DESIGN 不变量 8：无映射用我方品名快照）。
  *
  * @author dsh
  */
@@ -34,6 +38,8 @@ public class PrintController extends BaseController {
     private DeliveryOrderMapper deliveryOrderMapper;
     @Autowired
     private DeliveryOrderDetailMapper deliveryOrderDetailMapper;
+    @Autowired
+    private CustomerSkuMappingMapper customerSkuMappingMapper;
 
     /**
      * 送货单表头打印数据（JimuReport 单值数据集 hd）
@@ -87,9 +93,16 @@ public class PrintController extends BaseController {
             return resp;
         }
         List<DeliveryOrderDetail> details = deliveryOrderDetailMapper.selectListByDeliveryId(deliveryOrderId);
+        // 客户 SKU 映射：品名客户叫法优先（无映射用我方品名快照）
+        CustomerSkuMapping query = new CustomerSkuMapping();
+        query.setCustomerId(order.getCustomerId());
+        Map<Long, String> aliasBySku = customerSkuMappingMapper.selectCustomerSkuMappingList(query).stream()
+                .filter(m -> m.getSkuId() != null && StringUtils.isNotBlank(m.getCustomerAlias()))
+                .collect(Collectors.toMap(CustomerSkuMapping::getSkuId, CustomerSkuMapping::getCustomerAlias, (a, b) -> a));
         for (DeliveryOrderDetail detail : details) {
             Map<String, Object> row = new LinkedHashMap<>();
-            row.put("productName", detail.getProductName());
+            String productName = detail.getSkuId() != null ? aliasBySku.get(detail.getSkuId()) : null;
+            row.put("productName", StringUtils.isBlank(productName) ? detail.getProductName() : productName);
             row.put("productSpec", detail.getProductSpec());
             row.put("productUnit", detail.getProductUnit());
             row.put("num", detail.getNum());
