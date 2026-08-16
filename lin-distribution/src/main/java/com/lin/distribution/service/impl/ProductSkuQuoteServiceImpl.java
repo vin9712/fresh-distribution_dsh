@@ -20,8 +20,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.BooleanUtils;
 import org.apache.commons.lang3.StringUtils;
-import org.redisson.api.RMap;
-import org.redisson.api.RedissonClient;
+import com.lin.distribution.service.BizCodeService;
 import org.springframework.stereotype.Service;
 import com.lin.distribution.mapper.ProductSkuQuoteMapper;
 import com.lin.distribution.domain.ProductSkuQuote;
@@ -41,7 +40,7 @@ public class ProductSkuQuoteServiceImpl implements ProductSkuQuoteService {
     private final CustomerMapper customerMapper;
     private final ProductSkuQuoteMapper productSkuQuoteMapper;
     private final ProductSkuQuoteDetailMapper productSkuQuoteDetailMapper;
-    private final RedissonClient redissonClient;
+    private final BizCodeService bizCodeService;
 
     /**
      * 查询商品报价
@@ -327,19 +326,14 @@ public class ProductSkuQuoteServiceImpl implements ProductSkuQuoteService {
     }
 
     private String genSkuQuoteNo(Boolean refresh, String currentCode) {
-        String date = DateUtils.dateTime();
-        String prefix = "BJ" + date;
-        RMap<String, Integer> rMap = redissonClient.getMap("skuQuoteNo");
-        // get current redis seq
-        int redisSeq = rMap.getOrDefault(date, 0);
-        String redisQuoteCode = prefix + String.format("%05d", redisSeq);
-        // if current code = redis code, return
-        if (StringUtils.equals(redisQuoteCode, currentCode)) {
-            return redisQuoteCode;
+        // BJyyyyMMdd + 每日重置序号（DB 序列，Redis 非硬依赖）
+        String peekCode = bizCodeService.peekDailyCode("skuQuote", "BJ", 5);
+        if (StringUtils.equals(peekCode, currentCode)) {
+            return peekCode;
         }
-
-        int seqNbr = BooleanUtils.isTrue(refresh) ? rMap.addAndGet(date, 1) : redisSeq;
-        String seqNbrStr = String.format("%05d", seqNbr);
-        return prefix + seqNbrStr;
+        if (BooleanUtils.isTrue(refresh)) {
+            return bizCodeService.nextDailyCode("skuQuote", "BJ", 5);
+        }
+        return peekCode;
     }
 }

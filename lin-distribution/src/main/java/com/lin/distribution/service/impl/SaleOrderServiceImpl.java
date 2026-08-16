@@ -17,8 +17,7 @@ import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.BooleanUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.math.NumberUtils;
-import org.redisson.api.RMap;
-import org.redisson.api.RedissonClient;
+import com.lin.distribution.service.BizCodeService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -43,7 +42,7 @@ public class SaleOrderServiceImpl implements SaleOrderService {
     private final SaleOrderMapper saleOrderMapper;
     private final SaleOrderDetailMapper saleOrderDetailMapper;
     private final DeliveryOrderService deliveryOrderService;
-    private final RedissonClient redissonClient;
+    private final BizCodeService bizCodeService;
 
     /**
      * 查询销售订单
@@ -146,7 +145,7 @@ public class SaleOrderServiceImpl implements SaleOrderService {
                 .code(orderCode)
                 .deliveryDate(request.getDeliveryDate())
                 .amount(amount)
-                .status(SaleOrderStatus.NEW.getCode())
+                .status(SaleOrderStatus.DRAFT.getCode())
                 .source(1)
                 .type(1)
                 .version(0)
@@ -245,14 +244,14 @@ public class SaleOrderServiceImpl implements SaleOrderService {
         // check new order status
         boolean checkNewStatus = false;
         switch (newStatus) {
-            case NEW, DELIVERED ->
-                    checkNewStatus = orders.stream().allMatch(it -> SaleOrderStatus.APPROVED.getCode().equals(it.getStatus()));
-            case APPROVED ->
-                    checkNewStatus = orders.stream().allMatch(it -> SaleOrderStatus.NEW.getCode().equals(it.getStatus()));
-            case CHECKED ->
+            case DRAFT, DELIVERED ->
+                    checkNewStatus = orders.stream().allMatch(it -> SaleOrderStatus.CONFIRMED.getCode().equals(it.getStatus()));
+            case CONFIRMED ->
+                    checkNewStatus = orders.stream().allMatch(it -> SaleOrderStatus.DRAFT.getCode().equals(it.getStatus()));
+            case ACCEPTED ->
                     checkNewStatus = orders.stream().allMatch(it -> SaleOrderStatus.DELIVERED.getCode().equals(it.getStatus()));
-            case FINISHED ->
-                    checkNewStatus = orders.stream().allMatch(it -> SaleOrderStatus.CHECKED.getCode().equals(it.getStatus()));
+            case SETTLED ->
+                    checkNewStatus = orders.stream().allMatch(it -> SaleOrderStatus.ACCEPTED.getCode().equals(it.getStatus()));
         }
         if (!checkNewStatus) {
             throw new ServiceException("check new order status error");
@@ -265,10 +264,10 @@ public class SaleOrderServiceImpl implements SaleOrderService {
         }
 
         // if status is approved, create delivery order
-        if (newStatus == SaleOrderStatus.APPROVED) {
+        if (newStatus == SaleOrderStatus.CONFIRMED) {
             deliveryOrderService.createDeliveryOrder(orders);
         // if status is new, clear delivery order & detail
-        } else if (newStatus == SaleOrderStatus.NEW) {
+        } else if (newStatus == SaleOrderStatus.DRAFT) {
             deliveryOrderService.clearDeliveryOrder(orders);
         }
     }
@@ -288,7 +287,7 @@ public class SaleOrderServiceImpl implements SaleOrderService {
             }
         } else {
             SaleOrder saleOrder = saleOrderMapper.selectSaleOrderById(orderId);
-            if (!SaleOrderStatus.NEW.getCode().equals(saleOrder.getStatus())) {
+            if (!SaleOrderStatus.DRAFT.getCode().equals(saleOrder.getStatus())) {
                 throw new ServiceException("order status must be NEW");
             }
         }
@@ -299,19 +298,14 @@ public class SaleOrderServiceImpl implements SaleOrderService {
     }
 
     private String generateOrderNo(Boolean refresh, String currentCode) {
-        String date = DateUtils.dateTime();
-        String prefix = "XD" + date;
-        RMap<String, Integer> rMap = redissonClient.getMap("saleOrderNo");
-        // get current redis seq
-        int redisSeq = rMap.getOrDefault(date, 0);
-        String redisQuoteCode = prefix + String.format("%05d", redisSeq);
-        // if current code = redis code, return
-        if (StringUtils.equals(redisQuoteCode, currentCode)) {
-            return redisQuoteCode;
+        // XDyyyyMMdd + 每日重置序号（DB 序列，Redis 非硬依赖）
+        String peekCode = bizCodeService.peekDailyCode("saleOrder", "XD", 4);
+        if (StringUtils.equals(peekCode, currentCode)) {
+            return peekCode;
         }
-
-        int seqNbr = BooleanUtils.isTrue(refresh) ? rMap.addAndGet(date, 1) : redisSeq;
-        String seqNbrStr = String.format("%05d", seqNbr);
-        return prefix + seqNbrStr;
+        if (BooleanUtils.isTrue(refresh)) {
+            return bizCodeService.nextDailyCode("saleOrder", "XD", 4);
+        }
+        return peekCode;
     }
 }

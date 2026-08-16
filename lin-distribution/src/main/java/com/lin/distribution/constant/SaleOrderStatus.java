@@ -7,17 +7,19 @@ import lombok.Getter;
 import java.util.Objects;
 
 /**
- * @author vinga
- * @date 2024/12/03
+ * 销售订单状态（DESIGN.md §7.1：DRAFT → CONFIRMED → DELIVERED → ACCEPTED → SETTLED）
+ * 枚举码 0-4 与现有库表数据保持一致，仅升级语义与文案。
+ *
+ * @author dsh
  */
 @Getter
 @AllArgsConstructor
 public enum SaleOrderStatus {
-    NEW(0, "制单"),
-    APPROVED(1, "审核"),
-    DELIVERED(2, "送货"),
-    CHECKED(3, "验收"),
-    FINISHED(4, "完成"),
+    DRAFT(0, "草稿"),
+    CONFIRMED(1, "已确认"),
+    DELIVERED(2, "已配送"),
+    ACCEPTED(3, "已验收"),
+    SETTLED(4, "已结算"),
 
     ;
 

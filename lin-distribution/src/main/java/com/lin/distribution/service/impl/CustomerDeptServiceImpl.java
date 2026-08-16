@@ -4,11 +4,10 @@ import com.lin.common.exception.ServiceException;
 import com.lin.common.utils.DateUtils;
 import com.lin.distribution.domain.CustomerDept;
 import com.lin.distribution.mapper.CustomerDeptMapper;
+import com.lin.distribution.service.BizCodeService;
 import com.lin.distribution.service.CustomerDeptService;
 import lombok.RequiredArgsConstructor;
 import org.apache.commons.lang3.BooleanUtils;
-import org.redisson.api.RMap;
-import org.redisson.api.RedissonClient;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -24,7 +23,7 @@ import java.util.List;
 public class CustomerDeptServiceImpl implements CustomerDeptService {
 
     private final CustomerDeptMapper customerDeptMapper;
-    private final RedissonClient redissonClient;
+    private final BizCodeService bizCodeService;
 
     /**
      * 查询客户部门
@@ -129,8 +128,7 @@ public class CustomerDeptServiceImpl implements CustomerDeptService {
         if (BooleanUtils.isTrue(isParent)) {
             return mnemonicCode + customerId + "00000";
         }
-        RMap<Long, Integer> rMap = redissonClient.getMap("customerDeptNo");
-        int seqNbr = rMap.addAndGet(customerId, 1);
+        long seqNbr = bizCodeService.nextSeq("customerDeptNo:" + customerId);
         String seqNbrStr = String.format("%05d", seqNbr);
         return mnemonicCode + customerId + seqNbrStr;
     }

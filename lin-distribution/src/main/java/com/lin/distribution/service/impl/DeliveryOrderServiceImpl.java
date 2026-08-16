@@ -15,8 +15,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.BooleanUtils;
 import org.apache.commons.lang3.StringUtils;
-import org.redisson.api.RMap;
-import org.redisson.api.RedissonClient;
+import com.lin.distribution.service.BizCodeService;
 import org.springframework.stereotype.Service;
 import com.lin.distribution.mapper.DeliveryOrderMapper;
 import com.lin.distribution.domain.DeliveryOrder;
@@ -35,7 +34,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class DeliveryOrderServiceImpl implements DeliveryOrderService {
     private final DeliveryOrderMapper deliveryOrderMapper;
     private final DeliveryOrderDetailMapper deliveryOrderDetailMapper;
-    private final RedissonClient redissonClient;
+    private final BizCodeService bizCodeService;
 
     /**
      * 查询送货单据
@@ -114,7 +113,7 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
     @Transactional
     public void createDeliveryOrder(List<SaleOrder> orders) {
         if (CollectionUtils.isEmpty(orders) ||
-                orders.stream().anyMatch(order -> !Objects.equals(order.getStatus(), SaleOrderStatus.APPROVED.getCode()))) {
+                orders.stream().anyMatch(order -> !Objects.equals(order.getStatus(), SaleOrderStatus.CONFIRMED.getCode()))) {
             return;
         }
 
@@ -179,7 +178,7 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
     @Transactional
     public void clearDeliveryOrder(List<SaleOrder> orders) {
         if (CollectionUtils.isEmpty(orders) ||
-                orders.stream().anyMatch(order -> !Objects.equals(order.getStatus(), SaleOrderStatus.NEW.getCode()))) {
+                orders.stream().anyMatch(order -> !Objects.equals(order.getStatus(), SaleOrderStatus.DRAFT.getCode()))) {
             return;
         }
 
@@ -216,19 +215,14 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
     }
 
     private String generateDeliveryOrderNo(Boolean refresh, String currentCode) {
-        String date = DateUtils.dateTime();
-        String prefix = "SH" + date;
-        RMap<String, Integer> rMap = redissonClient.getMap("deliveryOrderNo");
-        // get current redis seq
-        int redisSeq = rMap.getOrDefault(date, 0);
-        String redisQuoteCode = prefix + String.format("%05d", redisSeq);
-        // if current code = redis code, return
-        if (StringUtils.equals(redisQuoteCode, currentCode)) {
-            return redisQuoteCode;
+        // HSyyyyMMdd + 每日重置序号（DB 序列，Redis 非硬依赖）
+        String peekCode = bizCodeService.peekDailyCode("deliveryOrder", "HS", 3);
+        if (StringUtils.equals(peekCode, currentCode)) {
+            return peekCode;
         }
-
-        int seqNbr = BooleanUtils.isTrue(refresh) ? rMap.addAndGet(date, 1) : redisSeq;
-        String seqNbrStr = String.format("%05d", seqNbr);
-        return prefix + seqNbrStr;
+        if (BooleanUtils.isTrue(refresh)) {
+            return bizCodeService.nextDailyCode("deliveryOrder", "HS", 3);
+        }
+        return peekCode;
     }
 }

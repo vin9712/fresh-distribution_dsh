@@ -12,14 +12,13 @@ import com.lin.distribution.mapper.CustomerMapper;
 import com.lin.distribution.mapper.ProductCategoryMapper;
 import com.lin.distribution.mapper.ProductSkuMapper;
 import com.lin.distribution.mapper.ProductSpuMapper;
+import com.lin.distribution.service.BizCodeService;
 import com.lin.distribution.service.ProductService;
 import jakarta.validation.Validator;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
-import org.redisson.api.RMap;
-import org.redisson.api.RedissonClient;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -45,7 +44,7 @@ public class ProductServiceImpl implements ProductService {
     private final CustomerMapper customerMapper;
     private final ProductSkuMapper productSkuMapper;
     private final ProductSpuMapper productSpuMapper;
-    private final RedissonClient redissonClient;
+    private final BizCodeService bizCodeService;
     protected final Validator validator;
 
     /** *************************** sku *************************** **/
@@ -178,8 +177,7 @@ public class ProductServiceImpl implements ProductService {
     @Override
     public String generateSkuNo(Long customerId, String customerCode) {
         String prefix = customerCode + customerId;
-        RMap<Long, Integer> rMap = redissonClient.getMap("skuNo");
-        int seqNbr = rMap.addAndGet(customerId, 1);
+        long seqNbr = bizCodeService.nextSeq("skuNo:" + customerId);
         String seqNbrStr = String.format("%05d", seqNbr);
         return prefix + seqNbrStr;
     }
