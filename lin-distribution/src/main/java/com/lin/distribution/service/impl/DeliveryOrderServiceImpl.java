@@ -231,7 +231,7 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
         deliveryOrderMapper.updateDeliveryOrder(deliveryOrder);
 
         // 送货单标记送达 → 同组订单进入 DELIVERED（DESIGN.md §7.1）
-        saleOrderMapper.markDeliveredByDeliveryGroup(
+        saleOrderMapper.updateStatusByDeliveryGroup(
                 deliveryOrder.getCustomerId(),
                 deliveryOrder.getDeliveryPointId(),
                 deliveryOrder.getDeliveryDate(),

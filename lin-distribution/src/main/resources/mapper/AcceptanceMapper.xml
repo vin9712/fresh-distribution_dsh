@@ -1,0 +1,119 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+"http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.lin.distribution.mapper.AcceptanceMapper">
+
+    <resultMap type="com.lin.distribution.domain.Acceptance" id="AcceptanceResult">
+        <result property="id"    column="id"    />
+        <result property="code"    column="code"    />
+        <result property="deliveryOrderId"    column="delivery_order_id"    />
+        <result property="customerId"    column="customer_id"    />
+        <result property="deliveryPointId"    column="delivery_point_id"    />
+        <result property="acceptDate"    column="accept_date"    />
+        <result property="totalAmount"    column="total_amount"    />
+        <result property="status"    column="status"    />
+        <result property="createBy"    column="create_by"    />
+        <result property="createTime"    column="create_time"    />
+        <result property="updateBy"    column="update_by"    />
+        <result property="updateTime"    column="update_time"    />
+        <result property="remark"    column="remark"    />
+        <result property="deliveryCode"    column="deliveryCode"    />
+        <result property="customerName"    column="customerName"    />
+        <result property="customerDeptName"    column="customerDeptName"    />
+    </resultMap>
+
+    <sql id="selectAcceptanceVo">
+        select a.id, a.code, a.delivery_order_id, a.customer_id, a.delivery_point_id, a.accept_date,
+               a.total_amount, a.status, a.create_by, a.create_time, a.update_by, a.update_time, a.remark,
+               do.code as deliveryCode,
+               coalesce(customer.alias, customer.name) as customerName,
+               cd.name as customerDeptName
+        from acceptance a
+        left join t_delivery_order do on do.id = a.delivery_order_id
+        left join t_customer_dept cd on cd.id = a.delivery_point_id
+        left join t_customer customer on customer.id = a.customer_id
+    </sql>
+
+    <select id="selectAcceptanceList" parameterType="com.lin.distribution.domain.Acceptance" resultMap="AcceptanceResult">
+        <include refid="selectAcceptanceVo"/>
+        <where>
+            <if test="code != null  and code != ''"> and a.code = #{code}</if>
+            <if test="deliveryOrderId != null "> and a.delivery_order_id = #{deliveryOrderId}</if>
+            <if test="customerId != null "> and a.customer_id = #{customerId}</if>
+            <if test="deliveryPointId != null "> and a.delivery_point_id = #{deliveryPointId}</if>
+            <if test="acceptDate != null "> and a.accept_date = #{acceptDate}</if>
+            <if test="status != null "> and a.status = #{status}</if>
+        </where>
+        order by a.id desc
+    </select>
+
+    <select id="selectAcceptanceById" parameterType="Long" resultMap="AcceptanceResult">
+        <include refid="selectAcceptanceVo"/>
+        where a.id = #{id}
+    </select>
+
+    <select id="countByDeliveryOrderId" parameterType="Long" resultType="int">
+        select count(1) from acceptance where delivery_order_id = #{deliveryOrderId}
+    </select>
+
+    <insert id="insertAcceptance" parameterType="com.lin.distribution.domain.Acceptance" useGeneratedKeys="true" keyProperty="id">
+        insert into acceptance
+        <trim prefix="(" suffix=")" suffixOverrides=",">
+            <if test="code != null and code != ''">code,</if>
+            <if test="deliveryOrderId != null">delivery_order_id,</if>
+            <if test="customerId != null">customer_id,</if>
+            <if test="deliveryPointId != null">delivery_point_id,</if>
+            <if test="acceptDate != null">accept_date,</if>
+            <if test="totalAmount != null">total_amount,</if>
+            <if test="status != null">status,</if>
+            <if test="createBy != null">create_by,</if>
+            <if test="createTime != null">create_time,</if>
+            <if test="updateBy != null">update_by,</if>
+            <if test="updateTime != null">update_time,</if>
+            <if test="remark != null">remark,</if>
+         </trim>
+        <trim prefix="values (" suffix=")" suffixOverrides=",">
+            <if test="code != null and code != ''">#{code},</if>
+            <if test="deliveryOrderId != null">#{deliveryOrderId},</if>
+            <if test="customerId != null">#{customerId},</if>
+            <if test="deliveryPointId != null">#{deliveryPointId},</if>
+            <if test="acceptDate != null">#{acceptDate},</if>
+            <if test="totalAmount != null">#{totalAmount},</if>
+            <if test="status != null">#{status},</if>
+            <if test="createBy != null">#{createBy},</if>
+            <if test="createTime != null">#{createTime},</if>
+            <if test="updateBy != null">#{updateBy},</if>
+            <if test="updateTime != null">#{updateTime},</if>
+            <if test="remark != null">#{remark},</if>
+         </trim>
+    </insert>
+
+    <update id="updateAcceptance" parameterType="com.lin.distribution.domain.Acceptance">
+        update acceptance
+        <trim prefix="SET" suffixOverrides=",">
+            <if test="code != null and code != ''">code = #{code},</if>
+            <if test="deliveryOrderId != null">delivery_order_id = #{deliveryOrderId},</if>
+            <if test="customerId != null">customer_id = #{customerId},</if>
+            <if test="deliveryPointId != null">delivery_point_id = #{deliveryPointId},</if>
+            <if test="acceptDate != null">accept_date = #{acceptDate},</if>
+            <if test="totalAmount != null">total_amount = #{totalAmount},</if>
+            <if test="status != null">status = #{status},</if>
+            <if test="updateBy != null">update_by = #{updateBy},</if>
+            <if test="updateTime != null">update_time = #{updateTime},</if>
+            <if test="remark != null">remark = #{remark},</if>
+        </trim>
+        where id = #{id}
+    </update>
+
+    <delete id="deleteAcceptanceById" parameterType="Long">
+        delete from acceptance where id = #{id}
+    </delete>
+
+    <delete id="deleteAcceptanceByIds" parameterType="String">
+        delete from acceptance where id in
+        <foreach item="id" collection="array" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+    </delete>
+</mapper>

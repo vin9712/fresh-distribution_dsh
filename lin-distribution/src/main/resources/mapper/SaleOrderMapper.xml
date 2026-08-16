@@ -169,7 +169,7 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         </foreach>
     </select>
 
-    <update id="markDeliveredByDeliveryGroup">
+    <update id="updateStatusByDeliveryGroup">
         update t_sale_order
         set status = #{toStatus}, update_time = now()
         where status = #{fromStatus}

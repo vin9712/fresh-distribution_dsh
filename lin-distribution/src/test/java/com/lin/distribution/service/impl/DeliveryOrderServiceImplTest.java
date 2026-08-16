@@ -186,7 +186,7 @@ class DeliveryOrderServiceImplTest {
         DeliveryOrder result = deliveryOrderService.markDelivered(9L);
 
         assertEquals(DeliveryOrderStatus.DELIVERED.getCode(), result.getStatus());
-        verify(saleOrderMapper).markDeliveredByDeliveryGroup(
+        verify(saleOrderMapper).updateStatusByDeliveryGroup(
                 eq(CUSTOMER_A), eq(POINT_A1), eq(DATE),
                 eq(SaleOrderStatus.CONFIRMED.getCode()), eq(SaleOrderStatus.DELIVERED.getCode()));
     }
@@ -199,6 +199,6 @@ class DeliveryOrderServiceImplTest {
         when(deliveryOrderMapper.selectDeliveryOrderById(9L)).thenReturn(order);
 
         assertThrows(ServiceException.class, () -> deliveryOrderService.markDelivered(9L));
-        verify(saleOrderMapper, never()).markDeliveredByDeliveryGroup(any(), any(), any(), any(), any());
+        verify(saleOrderMapper, never()).updateStatusByDeliveryGroup(any(), any(), any(), any(), any());
     }
 }

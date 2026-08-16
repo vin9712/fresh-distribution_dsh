@@ -1,0 +1,106 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+"http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.lin.distribution.mapper.AcceptanceItemMapper">
+
+    <resultMap type="com.lin.distribution.domain.AcceptanceItem" id="AcceptanceItemResult">
+        <result property="id"    column="id"    />
+        <result property="acceptanceId"    column="acceptance_id"    />
+        <result property="deliveryItemId"    column="delivery_item_id"    />
+        <result property="skuId"    column="sku_id"    />
+        <result property="productName"    column="product_name"    />
+        <result property="productSpec"    column="product_spec"    />
+        <result property="productUnit"    column="product_unit"    />
+        <result property="deliveredQuantity"    column="delivered_quantity"    />
+        <result property="actualQuantity"    column="actual_quantity"    />
+        <result property="unitPrice"    column="unit_price"    />
+        <result property="lossQuantity"    column="loss_quantity"    />
+        <result property="lossReason"    column="loss_reason"    />
+        <result property="actualAmount"    column="actual_amount"    />
+        <result property="sort"    column="sort"    />
+    </resultMap>
+
+    <sql id="selectAcceptanceItemVo">
+        select id, acceptance_id, delivery_item_id, sku_id, product_name, product_spec, product_unit, delivered_quantity, actual_quantity, unit_price, loss_quantity, loss_reason, actual_amount, sort from acceptance_item
+    </sql>
+
+    <select id="selectAcceptanceItemList" parameterType="com.lin.distribution.domain.AcceptanceItem" resultMap="AcceptanceItemResult">
+        <include refid="selectAcceptanceItemVo"/>
+        <where>
+            <if test="acceptanceId != null "> and acceptance_id = #{acceptanceId}</if>
+            <if test="skuId != null "> and sku_id = #{skuId}</if>
+            <if test="productName != null  and productName != ''"> and product_name like concat('%', #{productName}, '%')</if>
+        </where>
+        order by sort
+    </select>
+
+    <select id="selectListByAcceptanceId" parameterType="Long" resultMap="AcceptanceItemResult">
+        <include refid="selectAcceptanceItemVo"/>
+        where acceptance_id = #{acceptanceId}
+        order by sort
+    </select>
+
+    <select id="selectAcceptanceItemById" parameterType="Long" resultMap="AcceptanceItemResult">
+        <include refid="selectAcceptanceItemVo"/>
+        where id = #{id}
+    </select>
+
+    <insert id="insertAcceptanceItem" parameterType="com.lin.distribution.domain.AcceptanceItem" useGeneratedKeys="true" keyProperty="id">
+        insert into acceptance_item
+        <trim prefix="(" suffix=")" suffixOverrides=",">
+            <if test="acceptanceId != null">acceptance_id,</if>
+            <if test="deliveryItemId != null">delivery_item_id,</if>
+            <if test="skuId != null">sku_id,</if>
+            <if test="productName != null">product_name,</if>
+            <if test="productSpec != null">product_spec,</if>
+            <if test="productUnit != null">product_unit,</if>
+            <if test="deliveredQuantity != null">delivered_quantity,</if>
+            <if test="actualQuantity != null">actual_quantity,</if>
+            <if test="unitPrice != null">unit_price,</if>
+            <if test="lossQuantity != null">loss_quantity,</if>
+            <if test="lossReason != null">loss_reason,</if>
+            <if test="actualAmount != null">actual_amount,</if>
+            <if test="sort != null">sort,</if>
+         </trim>
+        <trim prefix="values (" suffix=")" suffixOverrides=",">
+            <if test="acceptanceId != null">#{acceptanceId},</if>
+            <if test="deliveryItemId != null">#{deliveryItemId},</if>
+            <if test="skuId != null">#{skuId},</if>
+            <if test="productName != null">#{productName},</if>
+            <if test="productSpec != null">#{productSpec},</if>
+            <if test="productUnit != null">#{productUnit},</if>
+            <if test="deliveredQuantity != null">#{deliveredQuantity},</if>
+            <if test="actualQuantity != null">#{actualQuantity},</if>
+            <if test="unitPrice != null">#{unitPrice},</if>
+            <if test="lossQuantity != null">#{lossQuantity},</if>
+            <if test="lossReason != null">#{lossReason},</if>
+            <if test="actualAmount != null">#{actualAmount},</if>
+            <if test="sort != null">#{sort},</if>
+         </trim>
+    </insert>
+
+    <insert id="insertAcceptanceItemBatch" parameterType="java.util.List">
+        insert into acceptance_item
+        (acceptance_id, delivery_item_id, sku_id, product_name, product_spec, product_unit, delivered_quantity, actual_quantity, unit_price, loss_quantity, loss_reason, actual_amount, sort)
+        values
+        <foreach collection="list" item="item" separator=",">
+            (#{item.acceptanceId}, #{item.deliveryItemId}, #{item.skuId}, #{item.productName}, #{item.productSpec}, #{item.productUnit}, #{item.deliveredQuantity}, #{item.actualQuantity}, #{item.unitPrice}, #{item.lossQuantity}, #{item.lossReason}, #{item.actualAmount}, #{item.sort})
+        </foreach>
+    </insert>
+
+    <update id="updateAcceptanceItem" parameterType="com.lin.distribution.domain.AcceptanceItem">
+        update acceptance_item
+        <trim prefix="SET" suffixOverrides=",">
+            <if test="actualQuantity != null">actual_quantity = #{actualQuantity},</if>
+            <if test="lossQuantity != null">loss_quantity = #{lossQuantity},</if>
+            <if test="lossReason != null">loss_reason = #{lossReason},</if>
+            <if test="actualAmount != null">actual_amount = #{actualAmount},</if>
+        </trim>
+        where id = #{id}
+    </update>
+
+    <delete id="deleteAcceptanceItemByAcceptanceId" parameterType="Long">
+        delete from acceptance_item where acceptance_id = #{acceptanceId}
+    </delete>
+</mapper>

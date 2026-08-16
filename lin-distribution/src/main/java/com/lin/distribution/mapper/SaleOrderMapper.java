@@ -91,7 +91,7 @@ public interface SaleOrderMapper {
                                           @Param("createEndTime") LocalDateTime createEndTime);
 
     /**
-     * 送货单标记送达：同组（客户+配送点+配送日）已确认订单批量进入 DELIVERED
+     * 同组（客户+配送点+配送日）订单批量改状态：送货送达 CONFIRMED→DELIVERED、验收提交 DELIVERED→ACCEPTED
      *
      * @param customerId    客户ID
      * @param customerDeptId 配送点ID（可为空）
@@ -100,9 +100,9 @@ public interface SaleOrderMapper {
      * @param toStatus      目标状态
      * @return 更新行数
      */
-    int markDeliveredByDeliveryGroup(@Param("customerId") Long customerId,
-                                     @Param("customerDeptId") Long customerDeptId,
-                                     @Param("deliveryDate") java.time.LocalDate deliveryDate,
-                                     @Param("fromStatus") Integer fromStatus,
-                                     @Param("toStatus") Integer toStatus);
+    int updateStatusByDeliveryGroup(@Param("customerId") Long customerId,
+                                    @Param("customerDeptId") Long customerDeptId,
+                                    @Param("deliveryDate") java.time.LocalDate deliveryDate,
+                                    @Param("fromStatus") Integer fromStatus,
+                                    @Param("toStatus") Integer toStatus);
 }
