@@ -1,0 +1,100 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+"http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.lin.distribution.mapper.ProductAliasMapper">
+    
+    <resultMap type="com.lin.distribution.domain.ProductAlias" id="ProductAliasResult">
+        <result property="id"    column="id"    />
+        <result property="aliasType"    column="alias_type"    />
+        <result property="alias"    column="alias"    />
+        <result property="skuId"    column="sku_id"    />
+        <result property="skuName"    column="sku_name"    />
+        <result property="createBy"    column="create_by"    />
+        <result property="createTime"    column="create_time"    />
+        <result property="updateBy"    column="update_by"    />
+        <result property="updateTime"    column="update_time"    />
+    </resultMap>
+
+    <sql id="selectProductAliasVo">
+        select pa.id, pa.alias_type, pa.alias, pa.sku_id, sku.name as sku_name,
+               pa.create_by, pa.create_time, pa.update_by, pa.update_time
+        from product_alias pa
+        left join t_product_sku sku on pa.sku_id = sku.id
+    </sql>
+
+    <select id="selectProductAliasList" parameterType="com.lin.distribution.domain.ProductAlias" resultMap="ProductAliasResult">
+        <include refid="selectProductAliasVo"/>
+        <where>  
+            <if test="alias != null  and alias != ''"> and pa.alias like concat('%', #{alias}, '%')</if>
+            <if test="aliasType != null "> and pa.alias_type = #{aliasType}</if>
+            <if test="skuId != null "> and pa.sku_id = #{skuId}</if>
+        </where>
+        order by pa.id desc
+    </select>
+    
+    <select id="selectProductAliasById" parameterType="Long" resultMap="ProductAliasResult">
+        <include refid="selectProductAliasVo"/>
+        where pa.id = #{id}
+    </select>
+
+    <select id="selectProductAliasByAlias" parameterType="String" resultMap="ProductAliasResult">
+        <include refid="selectProductAliasVo"/>
+        where pa.alias = #{alias}
+    </select>
+
+    <select id="selectProductAliasByKeyword" parameterType="String" resultMap="ProductAliasResult">
+        <include refid="selectProductAliasVo"/>
+        <where>
+            <if test="keyword != null and keyword != ''">
+                and (pa.alias like concat('%', #{keyword}, '%')
+                     or pa.alias_type = #{keyword})
+            </if>
+        </where>
+        order by pa.id desc
+    </select>
+
+    <insert id="insertProductAlias" parameterType="com.lin.distribution.domain.ProductAlias" useGeneratedKeys="true" keyProperty="id">
+        insert into product_alias
+        <trim prefix="(" suffix=")" suffixOverrides=",">
+            <if test="aliasType != null">alias_type,</if>
+            <if test="alias != null and alias != ''">alias,</if>
+            <if test="skuId != null">sku_id,</if>
+            <if test="createBy != null">create_by,</if>
+            <if test="createTime != null">create_time,</if>
+            <if test="updateBy != null">update_by,</if>
+            <if test="updateTime != null">update_time,</if>
+         </trim>
+        <trim prefix="values (" suffix=")" suffixOverrides=",">
+            <if test="aliasType != null">#{aliasType},</if>
+            <if test="alias != null and alias != ''">#{alias},</if>
+            <if test="skuId != null">#{skuId},</if>
+            <if test="createBy != null">#{createBy},</if>
+            <if test="createTime != null">#{createTime},</if>
+            <if test="updateBy != null">#{updateBy},</if>
+            <if test="updateTime != null">#{updateTime},</if>
+         </trim>
+    </insert>
+
+    <update id="updateProductAlias" parameterType="com.lin.distribution.domain.ProductAlias">
+        update product_alias
+        <trim prefix="SET" suffixOverrides=",">
+            <if test="aliasType != null">alias_type = #{aliasType},</if>
+            <if test="alias != null and alias != ''">alias = #{alias},</if>
+            <if test="skuId != null">sku_id = #{skuId},</if>
+            <if test="createBy != null">create_by = #{createBy},</if>
+            <if test="createTime != null">create_time = #{createTime},</if>
+            <if test="updateBy != null">update_by = #{updateBy},</if>
+            <if test="updateTime != null">update_time = #{updateTime},</if>
+        </trim>
+        where id = #{id}
+    </update>
+
+    <delete id="deleteProductAliasByIds" parameterType="String">
+        delete from product_alias where id in 
+        <foreach item="id" collection="array" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+    </delete>
+
+</mapper>

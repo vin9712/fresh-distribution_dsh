@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+"http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.lin.distribution.mapper.CustomerSkuMappingMapper">
+    
+    <resultMap type="com.lin.distribution.domain.CustomerSkuMapping" id="CustomerSkuMappingResult">
+        <result property="id"    column="id"    />
+        <result property="customerId"    column="customer_id"    />
+        <result property="customerAlias"    column="customer_alias"    />
+        <result property="skuId"    column="sku_id"    />
+        <result property="customerName"    column="customer_name"    />
+        <result property="skuName"    column="sku_name"    />
+        <result property="createBy"    column="create_by"    />
+        <result property="createTime"    column="create_time"    />
+        <result property="updateBy"    column="update_by"    />
+        <result property="updateTime"    column="update_time"    />
+    </resultMap>
+
+    <sql id="selectCustomerSkuMappingVo">
+        select m.id, m.customer_id, m.customer_alias, m.sku_id,
+               c.name as customer_name, sku.name as sku_name,
+               m.create_by, m.create_time, m.update_by, m.update_time
+        from customer_sku_mapping m
+        left join t_customer c on m.customer_id = c.id
+        left join t_product_sku sku on m.sku_id = sku.id
+    </sql>
+
+    <select id="selectCustomerSkuMappingList" parameterType="com.lin.distribution.domain.CustomerSkuMapping" resultMap="CustomerSkuMappingResult">
+        <include refid="selectCustomerSkuMappingVo"/>
+        <where>  
+            <if test="customerId != null "> and m.customer_id = #{customerId}</if>
+            <if test="customerAlias != null  and customerAlias != ''"> and m.customer_alias like concat('%', #{customerAlias}, '%')</if>
+            <if test="skuId != null "> and m.sku_id = #{skuId}</if>
+        </where>
+        order by m.id desc
+    </select>
+    
+    <select id="selectCustomerSkuMappingById" parameterType="Long" resultMap="CustomerSkuMappingResult">
+        <include refid="selectCustomerSkuMappingVo"/>
+        where m.id = #{id}
+    </select>
+
+    <select id="selectCustomerSkuMappingByCustomerIdAndAlias" resultMap="CustomerSkuMappingResult">
+        <include refid="selectCustomerSkuMappingVo"/>
+        where m.customer_id = #{customerId} and m.customer_alias = #{customerAlias}
+    </select>
+
+    <insert id="insertCustomerSkuMapping" parameterType="com.lin.distribution.domain.CustomerSkuMapping" useGeneratedKeys="true" keyProperty="id">
+        insert into customer_sku_mapping
+        <trim prefix="(" suffix=")" suffixOverrides=",">
+            <if test="customerId != null">customer_id,</if>
+            <if test="customerAlias != null and customerAlias != ''">customer_alias,</if>
+            <if test="skuId != null">sku_id,</if>
+            <if test="createBy != null">create_by,</if>
+            <if test="createTime != null">create_time,</if>
+            <if test="updateBy != null">update_by,</if>
+            <if test="updateTime != null">update_time,</if>
+         </trim>
+        <trim prefix="values (" suffix=")" suffixOverrides=",">
+            <if test="customerId != null">#{customerId},</if>
+            <if test="customerAlias != null and customerAlias != ''">#{customerAlias},</if>
+            <if test="skuId != null">#{skuId},</if>
+            <if test="createBy != null">#{createBy},</if>
+            <if test="createTime != null">#{createTime},</if>
+            <if test="updateBy != null">#{updateBy},</if>
+            <if test="updateTime != null">#{updateTime},</if>
+         </trim>
+    </insert>
+
+    <update id="updateCustomerSkuMapping" parameterType="com.lin.distribution.domain.CustomerSkuMapping">
+        update customer_sku_mapping
+        <trim prefix="SET" suffixOverrides=",">
+            <if test="customerId != null">customer_id = #{customerId},</if>
+            <if test="customerAlias != null and customerAlias != ''">customer_alias = #{customerAlias},</if>
+            <if test="skuId != null">sku_id = #{skuId},</if>
+            <if test="createBy != null">create_by = #{createBy},</if>
+            <if test="createTime != null">create_time = #{createTime},</if>
+            <if test="updateBy != null">update_by = #{updateBy},</if>
+            <if test="updateTime != null">update_time = #{updateTime},</if>
+        </trim>
+        where id = #{id}
+    </update>
+
+    <delete id="deleteCustomerSkuMappingByIds" parameterType="String">
+        delete from customer_sku_mapping where id in 
+        <foreach item="id" collection="array" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+    </delete>
+
+</mapper>

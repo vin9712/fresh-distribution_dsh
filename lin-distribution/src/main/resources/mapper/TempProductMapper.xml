@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+"http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.lin.distribution.mapper.TempProductMapper">
+    
+    <resultMap type="com.lin.distribution.domain.TempProduct" id="TempProductResult">
+        <result property="id"    column="id"    />
+        <result property="name"    column="name"    />
+        <result property="spec"    column="spec"    />
+        <result property="unit"    column="unit"    />
+        <result property="defaultPrice"    column="default_price"    />
+        <result property="createBy"    column="create_by"    />
+        <result property="createTime"    column="create_time"    />
+        <result property="updateBy"    column="update_by"    />
+        <result property="updateTime"    column="update_time"    />
+        <result property="remark"    column="remark"    />
+    </resultMap>
+
+    <sql id="selectTempProductVo">
+        select id, name, spec, unit, default_price, create_by, create_time, update_by, update_time, remark from temp_product
+    </sql>
+
+    <select id="selectTempProductList" parameterType="com.lin.distribution.domain.TempProduct" resultMap="TempProductResult">
+        <include refid="selectTempProductVo"/>
+        <where>  
+            <if test="name != null  and name != ''"> and name like concat('%', #{name}, '%')</if>
+            <if test="spec != null  and spec != ''"> and spec like concat('%', #{spec}, '%')</if>
+            <if test="unit != null  and unit != ''"> and unit = #{unit}</if>
+        </where>
+        order by id desc
+    </select>
+    
+    <select id="selectTempProductById" parameterType="Long" resultMap="TempProductResult">
+        <include refid="selectTempProductVo"/>
+        where id = #{id}
+    </select>
+
+    <insert id="insertTempProduct" parameterType="com.lin.distribution.domain.TempProduct" useGeneratedKeys="true" keyProperty="id">
+        insert into temp_product
+        <trim prefix="(" suffix=")" suffixOverrides=",">
+            <if test="name != null and name != ''">name,</if>
+            <if test="spec != null">spec,</if>
+            <if test="unit != null">unit,</if>
+            <if test="defaultPrice != null">default_price,</if>
+            <if test="createBy != null">create_by,</if>
+            <if test="createTime != null">create_time,</if>
+            <if test="updateBy != null">update_by,</if>
+            <if test="updateTime != null">update_time,</if>
+            <if test="remark != null">remark,</if>
+         </trim>
+        <trim prefix="values (" suffix=")" suffixOverrides=",">
+            <if test="name != null and name != ''">#{name},</if>
+            <if test="spec != null">#{spec},</if>
+            <if test="unit != null">#{unit},</if>
+            <if test="defaultPrice != null">#{defaultPrice},</if>
+            <if test="createBy != null">#{createBy},</if>
+            <if test="createTime != null">#{createTime},</if>
+            <if test="updateBy != null">#{updateBy},</if>
+            <if test="updateTime != null">#{updateTime},</if>
+            <if test="remark != null">#{remark},</if>
+         </trim>
+    </insert>
+
+    <update id="updateTempProduct" parameterType="com.lin.distribution.domain.TempProduct">
+        update temp_product
+        <trim prefix="SET" suffixOverrides=",">
+            <if test="name != null and name != ''">name = #{name},</if>
+            <if test="spec != null">spec = #{spec},</if>
+            <if test="unit != null">unit = #{unit},</if>
+            <if test="defaultPrice != null">default_price = #{defaultPrice},</if>
+            <if test="createBy != null">create_by = #{createBy},</if>
+            <if test="createTime != null">create_time = #{createTime},</if>
+            <if test="updateBy != null">update_by = #{updateBy},</if>
+            <if test="updateTime != null">update_time = #{updateTime},</if>
+            <if test="remark != null">remark = #{remark},</if>
+        </trim>
+        where id = #{id}
+    </update>
+
+    <delete id="deleteTempProductByIds" parameterType="String">
+        delete from temp_product where id in 
+        <foreach item="id" collection="array" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+    </delete>
+
+</mapper>

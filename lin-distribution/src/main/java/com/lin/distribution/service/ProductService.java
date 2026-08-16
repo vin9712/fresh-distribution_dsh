@@ -129,6 +129,13 @@ public interface ProductService {
      */
     String importProductSku(List<ProductSku> skuList);
 
+    /**
+     * 导入商品库（SPU）：同分类+名称重复跳过
+     * @param spuList
+     * @return
+     */
+    String importProductSpu(List<ProductSpu> spuList);
+
     int matchProductSku(ProductSkuMatchDTO request);
 
     int undoMatchProductSku(ProductSkuMatchDTO request);

@@ -2,6 +2,7 @@ package com.lin.distribution.service.impl;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -10,10 +11,13 @@ import com.lin.common.utils.DateUtils;
 import com.lin.distribution.constant.CommonConstants;
 import com.lin.distribution.constant.ProductSkuQuoteStatus;
 import com.lin.distribution.domain.Customer;
+import com.lin.distribution.domain.ProductSku;
 import com.lin.distribution.domain.ProductSkuQuoteDetail;
 import com.lin.distribution.dto.ProductSkuQuoteCreateDTO;
+import com.lin.distribution.dto.ProductSkuQuoteImportDTO;
 import com.lin.distribution.dto.ProductSkuQuoteUpdateStatusDTO;
 import com.lin.distribution.mapper.CustomerMapper;
+import com.lin.distribution.mapper.ProductSkuMapper;
 import com.lin.distribution.mapper.ProductSkuQuoteDetailMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -38,6 +42,7 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class ProductSkuQuoteServiceImpl implements ProductSkuQuoteService {
     private final CustomerMapper customerMapper;
+    private final ProductSkuMapper productSkuMapper;
     private final ProductSkuQuoteMapper productSkuQuoteMapper;
     private final ProductSkuQuoteDetailMapper productSkuQuoteDetailMapper;
     private final BizCodeService bizCodeService;
@@ -335,5 +340,103 @@ public class ProductSkuQuoteServiceImpl implements ProductSkuQuoteService {
             return bizCodeService.nextDailyCode("skuQuote", "BJ", 5);
         }
         return peekCode;
+    }
+
+    @Override
+    @Transactional
+    public String importQuoteData(List<ProductSkuQuoteImportDTO> rows) {
+        if (CollectionUtils.isEmpty(rows)) {
+            throw new ServiceException("导入报价数据不能为空！");
+        }
+
+        int successQuoteNum = 0;
+        int successRowNum = 0;
+        int failureNum = 0;
+        StringBuilder successMsg = new StringBuilder();
+        StringBuilder failureMsg = new StringBuilder();
+
+        // 按客户聚合（保持行序）
+        Map<Long, List<ProductSkuQuoteImportDTO>> grouped = rows.stream()
+                .filter(r -> r.getCustomerId() != null)
+                .collect(Collectors.groupingBy(ProductSkuQuoteImportDTO::getCustomerId, LinkedHashMap::new, Collectors.toList()));
+
+        for (Map.Entry<Long, List<ProductSkuQuoteImportDTO>> entry : grouped.entrySet()) {
+            Long customerId = entry.getKey();
+            List<ProductSkuQuoteImportDTO> customerRows = entry.getValue();
+            try {
+                Customer customer = customerMapper.selectCustomerById(customerId);
+                if (customer == null) {
+                    throw new ServiceException("客户不存在(ID=" + customerId + ")");
+                }
+                // 日期区间：min(生效, 默认今天) ~ max(失效, 默认 9999-12-31)
+                LocalDate start = customerRows.stream()
+                        .map(r -> toLocalDate(r.getEffectiveStartDate()))
+                        .filter(Objects::nonNull)
+                        .min(LocalDate::compareTo)
+                        .orElse(LocalDate.now());
+                LocalDate end = customerRows.stream()
+                        .map(r -> toLocalDate(r.getEffectiveEndDate()))
+                        .filter(Objects::nonNull)
+                        .max(LocalDate::compareTo)
+                        .orElse(LocalDate.of(9999, 12, 31));
+
+                List<ProductSkuQuoteDetail> details = new ArrayList<>();
+                for (ProductSkuQuoteImportDTO row : customerRows) {
+                    if (row.getSkuId() == null) {
+                        throw new ServiceException("SKU ID为空");
+                    }
+                    ProductSku sku = productSkuMapper.selectProductSkuById(row.getSkuId());
+                    if (sku == null) {
+                        throw new ServiceException("SKU不存在(ID=" + row.getSkuId() + ")");
+                    }
+                    ProductSkuQuoteDetail detail = new ProductSkuQuoteDetail();
+                    detail.setCustomerId(customerId);
+                    detail.setSkuId(sku.getId());
+                    detail.setPrice(row.getPrice());
+                    detail.setProductName(sku.getName());
+                    detail.setProductUnit(sku.getUnit());
+                    detail.setProductSpec(sku.getSpec());
+                    detail.setProductCode(sku.getCode());
+                    detail.setProductMnemonicCode(sku.getMnemonicCode());
+                    detail.setCategoryId(sku.getCategoryId());
+                    detail.setCategoryName(sku.getCategoryName());
+                    details.add(detail);
+                }
+
+                String quoteCode = genSkuQuoteNo(true);
+                createSkuQuote(ProductSkuQuoteCreateDTO.builder()
+                        .customerId(customerId)
+                        .quoteCode(quoteCode)
+                        .effectiveStartDate(start)
+                        .effectiveEndDate(end)
+                        .remark("导入生成")
+                        .quoteDetails(details)
+                        .build());
+                successQuoteNum++;
+                successRowNum += details.size();
+                successMsg.append("<br/>").append(successQuoteNum)
+                        .append("、客户 ").append(customer.getName())
+                        .append(" 报价单导入成功（").append(details.size()).append(" 行）");
+            } catch (Exception e) {
+                failureNum++;
+                String msg = "<br/>" + failureNum + "、客户ID " + customerId + " 导入失败：";
+                failureMsg.append(msg).append(e.getMessage());
+                log.error(msg, e);
+            }
+        }
+        if (failureNum > 0) {
+            failureMsg.insert(0, "很抱歉，导入失败！共 " + failureNum + " 组数据格式不正确，错误如下：");
+            throw new ServiceException(failureMsg.toString());
+        } else {
+            successMsg.insert(0, "恭喜您，报价已全部导入成功！共 " + successQuoteNum + " 张报价单、" + successRowNum + " 行：");
+        }
+        return successMsg.toString();
+    }
+
+    private LocalDate toLocalDate(java.util.Date date) {
+        if (date == null) {
+            return null;
+        }
+        return date.toInstant().atZone(ZoneId.systemDefault()).toLocalDate();
     }
 }

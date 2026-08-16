@@ -117,6 +117,17 @@
           >导出</el-button
         >
       </el-col>
+      <el-col :span="1.5">
+        <el-button
+          type="info"
+          plain
+          :icon="Upload"
+          size="small"
+          @click="handleImport"
+          v-hasPermi="['product:spu:import']"
+          >导入</el-button
+        >
+      </el-col>
       <right-toolbar
         v-model:showSearch="showSearch"
         @queryTable="getPageList"
@@ -265,6 +276,37 @@
         </div>
       </template>
     </el-dialog>
+
+    <!-- 商品库导入对话框 -->
+    <el-dialog :title="upload.title" v-model="upload.open" width="400px" append-to-body>
+      <el-upload
+        ref="upload"
+        :limit="1"
+        accept=".xlsx, .xls"
+        :headers="upload.headers"
+        :action="upload.url"
+        :disabled="upload.isUploading"
+        :on-progress="handleFileUploadProgress"
+        :on-success="handleFileSuccess"
+        :auto-upload="false"
+        drag
+      >
+        <el-icon><Upload /></el-icon>
+        <div class="el-upload__text">将文件拖到此处，或<em>点击上传</em></div>
+        <template #tip>
+          <div class="el-upload__tip text-center">
+            <span>仅允许导入xls、xlsx格式文件。</span>
+            <el-link type="primary" :underline="false" style="font-size: 12px; vertical-align: baseline" @click="importTemplate">下载模板</el-link>
+          </div>
+        </template>
+      </el-upload>
+      <template #footer>
+        <div class="dialog-footer">
+          <el-button type="primary" @click="submitFileForm">确 定</el-button>
+          <el-button @click="upload.open = false">取 消</el-button>
+        </div>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -279,13 +321,14 @@ import {
 } from "@/api/product/spu";
 import { listCategory } from "@/api/product/category";
 import { pinyin } from "pinyin-pro";
-import { Search, Refresh, Plus, Edit, Delete, Download } from "@element-plus/icons-vue";
+import { getToken } from "@/utils/auth";
+import { Search, Refresh, Plus, Edit, Delete, Download, Upload } from "@element-plus/icons-vue";
 
 export default {
   name: "Spu",
   dicts: ["biz_yes_no"],
   setup() {
-    return { Search, Refresh, Plus, Edit, Delete, Download };
+    return { Search, Refresh, Plus, Edit, Delete, Download, Upload };
   },
   data() {
     return {
@@ -314,6 +357,19 @@ export default {
       title: "",
       // 是否显示弹出层
       open: false,
+      // 商品库导入参数
+      upload: {
+        // 是否显示弹出层（商品库导入）
+        open: false,
+        // 弹出层标题（商品库导入）
+        title: "",
+        // 是否禁用上传
+        isUploading: false,
+        // 设置上传的请求头部
+        headers: { Authorization: "Bearer " + getToken() },
+        // 上传的地址
+        url: import.meta.env.VITE_APP_BASE_API + "/product/spu/importData",
+      },
       // 查询参数
       queryParams: {
         pageNum: 1,
@@ -479,6 +535,41 @@ export default {
         },
         `spu_${new Date().getTime()}.xlsx`
       );
+    },
+    /** 导入按钮操作 */
+    handleImport() {
+      this.upload.title = "商品库导入";
+      this.upload.open = true;
+    },
+    /** 下载模板操作 */
+    importTemplate() {
+      this.download(
+        "product/spu/importTemplate",
+        {},
+        `spu_template_${new Date().getTime()}.xlsx`
+      );
+    },
+    // 文件上传中处理
+    handleFileUploadProgress(event, file, fileList) {
+      this.upload.isUploading = true;
+    },
+    // 文件上传成功处理
+    handleFileSuccess(response, file, fileList) {
+      this.upload.open = false;
+      this.upload.isUploading = false;
+      this.$refs.upload.clearFiles();
+      this.$alert(
+        "<div style='overflow: auto;overflow-x: hidden;max-height: 70vh;padding: 10px 20px 0;'>" +
+          response.msg +
+          "</div>",
+        "导入结果",
+        { dangerouslyUseHTMLString: true }
+      );
+      this.getPageList();
+    },
+    // 提交上传文件
+    submitFileForm() {
+      this.$refs.upload.submit();
     },
     /** 查询商品分类下拉树结构 */
     getTreeselect() {

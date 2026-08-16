@@ -78,3 +78,12 @@ git log | ForEach-Object { $_ }   # 管道捕获也正常
 - `[ElOnlyChild] no valid child node found`：product/quote/index.vue 遗留的空 `<el-popover>`（vue2 死代码，element-ui 不校验、element-plus 会告警）→ 删除。
 - vxe-table v4 `resizable` 表属性已弃用 → sale/detail 改为 `:column-config="{ resizable: true }"`。
 - element-plus 的 debugWarn 走 console.warn 且参数是 Error 对象；Puppeteer 抓取时需 `msg.args()[i].executionContext().evaluate(o => o instanceof Error ? o.message : String(o))` 才能拿到文本。
+
+## 7. 重设计实施记录（切片进度）
+
+- S0-1 单号服务：`biz_code_seq` 表 + `BizCodeService`（UPDATE seq=LAST_INSERT_ID(seq+1) 自增、INSERT IGNORE 竞争重试）；订单 XD+日4位、送货 HS+日3位、报价 BJ+日5位（每日重置）；状态枚举语义升级码值不变。**教训**：INSERT...ON DUPLICATE KEY UPDATE 的首插分支 LAST_INSERT_ID() 会残留同连接旧值，必须用 UPDATE 先行 + INSERT IGNORE 模式。
+- S0-2 表结构：11 张新表 + 3 处复用表 ALTER（sql/s0_2_table_baseline.sql；一次性脚本，重复执行会报 Duplicate column）。
+- S0-3 JimuReport：依赖 `org.jeecgframework.jimureport:jimureport-spring-boot3-starter-fastjson2:2.0.0`（Boot3.4/JDK17 系）；schema=`sql/s0_3_jimureport_init.sql`（17 张 jimu_* 表，导入需先 `SET GLOBAL max_allowed_packet=67108864`）；鉴权桥接：SecurityConfig 放行 `/jmreport/**` + `lin-entry/.../jmreport/JimuReportTokenServiceImpl`（实现 `JmReportTokenServiceI`，用 `TokenService.getLoginUserByToken` 校验 token 参数）。**教训**：本项目 createToken 不放 subject，getUsernameFromToken 恒 null，必须走 LOGIN_USER_KEY→Redis 校验。设计器入口 `/jmreport/list?token=<JWT>`。
+- 后端验证套路：`mvn -q -T 1C install -DskipTests`；临时实例 `mvn -q -pl lin-entry spring-boot:run "-Dspring-boot.run.main-class=com.lin.FreshDistributionApplication" "-Dspring-boot.run.arguments=--server.port=8091"`（必须先 install 兄弟模块；`-am` 会让插件在 root 聚合器上跑而报无主类）。
+- DB 直连（.dsh-e2e 有 mysql2）：localhost:3306 root/ljw123 fresh-distribution-dsh。
+- E2E 菜单点击：侧边栏子菜单默认收起，需先 mouse.click 父菜单标题展开，再点可见的 .el-menu-item；图标型入口（如配送点=客户名称上的 a.link-type）按选择器而非文字找。

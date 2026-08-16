@@ -22,6 +22,7 @@ import com.lin.common.enums.BusinessType;
 import com.lin.distribution.domain.ProductSpu;
 import com.lin.common.utils.poi.ExcelUtil;
 import com.lin.common.core.page.TableDataInfo;
+import org.springframework.web.multipart.MultipartFile;
 
 /**
  * 商品spuController
@@ -67,6 +68,28 @@ public class ProductSpuController extends BaseController {
         List<ProductSpu> list = productSpuService.selectProductSpuList(productSpu);
         ExcelUtil<ProductSpu> util = new ExcelUtil<ProductSpu>(ProductSpu.class);
         util.exportExcel(response, list, "商品spu数据");
+    }
+
+    /**
+     * 导入商品库（模板=导出模板；同分类+名称重复跳过）
+     */
+    @PreAuthorize("@ss.hasPermi('product:spu:import')")
+    @Log(title = "商品spu", businessType = BusinessType.IMPORT)
+    @PostMapping("/importData")
+    public AjaxResult importData(MultipartFile file) throws Exception {
+        ExcelUtil<ProductSpu> util = new ExcelUtil<ProductSpu>(ProductSpu.class);
+        List<ProductSpu> spuList = util.importExcel(file.getInputStream());
+        String message = productSpuService.importProductSpu(spuList);
+        return AjaxResult.success(message);
+    }
+
+    /**
+     * 下载商品库导入模板
+     */
+    @PostMapping("/importTemplate")
+    public void importTemplate(HttpServletResponse response) {
+        ExcelUtil<ProductSpu> util = new ExcelUtil<ProductSpu>(ProductSpu.class);
+        util.importTemplateExcel(response, "商品库");
     }
 
     /**

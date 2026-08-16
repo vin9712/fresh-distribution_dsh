@@ -5,6 +5,7 @@ import java.util.List;
 import com.lin.distribution.constant.ProductSkuQuoteStatus;
 import com.lin.distribution.domain.ProductSkuQuote;
 import com.lin.distribution.dto.ProductSkuQuoteCreateDTO;
+import com.lin.distribution.dto.ProductSkuQuoteImportDTO;
 import com.lin.distribution.dto.ProductSkuQuoteUpdateStatusDTO;
 
 /**
@@ -98,4 +99,11 @@ public interface ProductSkuQuoteService {
      * @return
      */
     ProductSkuQuote getCustomerActiveQuote(Long customerId);
+
+    /**
+     * 导入客户报价：多客户多行，按客户聚合生成报价单（同客户+SKU 已存在则新建，不覆盖）
+     * @param rows 导入行
+     * @return 结果消息
+     */
+    String importQuoteData(List<ProductSkuQuoteImportDTO> rows);
 }

@@ -4,6 +4,7 @@ import java.util.List;
 
 import com.lin.distribution.constant.ProductSkuQuoteStatus;
 import com.lin.distribution.dto.ProductSkuQuoteCreateDTO;
+import com.lin.distribution.dto.ProductSkuQuoteImportDTO;
 import com.lin.distribution.dto.ProductSkuQuoteUpdateStatusDTO;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletResponse;
@@ -11,6 +12,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 import com.lin.common.annotation.Log;
 import com.lin.common.core.controller.BaseController;
 import com.lin.common.core.domain.AjaxResult;
@@ -148,5 +150,27 @@ public class ProductSkuQuoteController extends BaseController {
     @GetMapping("/active/{customerId}")
     public AjaxResult getCustomerActiveQuote(@PathVariable("customerId") Long customerId) {
         return success(productSkuQuoteService.getCustomerActiveQuote(customerId));
+    }
+
+    /**
+     * 导入客户报价：多客户多行，按客户聚合生成报价单
+     */
+    @PreAuthorize("@ss.hasPermi('product:quote:import')")
+    @Log(title = "商品报价", businessType = BusinessType.IMPORT)
+    @PostMapping("/importData")
+    public AjaxResult importData(MultipartFile file) throws Exception {
+        ExcelUtil<ProductSkuQuoteImportDTO> util = new ExcelUtil<>(ProductSkuQuoteImportDTO.class);
+        List<ProductSkuQuoteImportDTO> rows = util.importExcel(file.getInputStream());
+        String message = productSkuQuoteService.importQuoteData(rows);
+        return AjaxResult.success(message);
+    }
+
+    /**
+     * 下载客户报价导入模板
+     */
+    @PostMapping("/importTemplate")
+    public void importTemplate(HttpServletResponse response) {
+        ExcelUtil<ProductSkuQuoteImportDTO> util = new ExcelUtil<>(ProductSkuQuoteImportDTO.class);
+        util.importTemplateExcel(response, "客户报价");
     }
 }
