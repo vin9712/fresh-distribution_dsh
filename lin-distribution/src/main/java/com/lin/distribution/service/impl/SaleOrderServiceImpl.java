@@ -3,10 +3,12 @@ package com.lin.distribution.service.impl;
 import com.lin.common.exception.ServiceException;
 import com.lin.common.utils.DateUtils;
 import com.lin.distribution.constant.SaleOrderStatus;
+import com.lin.distribution.domain.DeliveryOrderDetail;
 import com.lin.distribution.domain.SaleOrder;
 import com.lin.distribution.domain.SaleOrderDetail;
 import com.lin.distribution.dto.SaleOrderCreateDTO;
 import com.lin.distribution.dto.SaleOrderUpdateStatusDTO;
+import com.lin.distribution.mapper.DeliveryOrderDetailMapper;
 import com.lin.distribution.mapper.SaleOrderDetailMapper;
 import com.lin.distribution.mapper.SaleOrderMapper;
 import com.lin.distribution.service.DeliveryOrderService;
@@ -41,6 +43,7 @@ import java.util.Optional;
 public class SaleOrderServiceImpl implements SaleOrderService {
     private final SaleOrderMapper saleOrderMapper;
     private final SaleOrderDetailMapper saleOrderDetailMapper;
+    private final DeliveryOrderDetailMapper deliveryOrderDetailMapper;
     private final DeliveryOrderService deliveryOrderService;
     private final BizCodeService bizCodeService;
 
@@ -257,18 +260,18 @@ public class SaleOrderServiceImpl implements SaleOrderService {
             throw new ServiceException("check new order status error");
         }
 
+        // 撤回（DRAFT）：已生成送货单的订单不可撤回（DESIGN.md §7.1）
+        if (newStatus == SaleOrderStatus.DRAFT) {
+            List<DeliveryOrderDetail> deliveryDetails = deliveryOrderDetailMapper.selectListByOrderIdIn(orderIds);
+            if (CollectionUtils.isNotEmpty(deliveryDetails)) {
+                throw new ServiceException("已生成送货单的订单不可撤回");
+            }
+        }
+
         // update order list
         for (SaleOrder order : orders) {
             order.setStatus(newStatus.getCode());
             saleOrderMapper.updateSaleOrder(order);
-        }
-
-        // if status is approved, create delivery order
-        if (newStatus == SaleOrderStatus.CONFIRMED) {
-            deliveryOrderService.createDeliveryOrder(orders);
-        // if status is new, clear delivery order & detail
-        } else if (newStatus == SaleOrderStatus.DRAFT) {
-            deliveryOrderService.clearDeliveryOrder(orders);
         }
     }
 

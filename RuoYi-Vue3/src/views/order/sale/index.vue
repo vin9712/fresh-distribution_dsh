@@ -121,7 +121,7 @@
               status="success"
               icon="vxe-icon-check"
               :disabled="multiple"
-              content="批量审核"
+              content="批量确认"
               @click="handleOrderApproval"
             ></vxe-button>
             <vxe-button
@@ -137,8 +137,9 @@
               status="primary"
               icon="vxe-icon-check"
               :disabled="multiple"
-              content="批量完成"
-              @click="handleOrderFinish"
+              content="批量月结"
+              v-hasPermi="['order:sale:settle']"
+              @click="handleOrderSettle"
             ></vxe-button>
             <vxe-button
               mode="button"
@@ -236,6 +237,15 @@
         class-name="small-padding fixed-width"
       >
         <template #default="scope">
+          <el-button
+            v-if="scope.row.status == 1"
+            size="small"
+            link
+            :icon="RefreshLeft"
+            @click="handleRecall(scope.row)"
+            v-hasPermi="['order:sale:recall']"
+            >撤回</el-button
+          >
           <el-button
             size="small"
             link
@@ -594,6 +604,43 @@ export default {
         return;
       }
       const orderIds = orderList.map((item) => item.id);
+    },
+    /** 批量月结订单（SETTLED，管理员） */
+    handleOrderSettle() {
+      const orderList = this.formSelectedOptions;
+      const valid = orderList.some((item) => item.status !== 3);
+      if (valid) {
+        this.$modal.msgError("请选择验收状态的订单进行月结");
+        return;
+      }
+      const orderIds = orderList.map((item) => item.id);
+      this.$modal
+        .confirm("是否确认对选中的" + orderIds.length + "条订单执行月结？")
+        .then(function () {
+          const params = {
+            orderIds: orderIds,
+            status: 4,
+          };
+          return updateOrderStatus(params);
+        })
+        .then(() => {
+          this.handleQuery();
+        });
+    },
+    /** 行内撤回订单（CONFIRMED→DRAFT，已生成送货单不可撤回由后端校验） */
+    handleRecall(row) {
+      this.$modal
+        .confirm("是否确认撤回订单【" + row.code + "】？")
+        .then(function () {
+          const params = {
+            orderIds: [row.id],
+            status: 0,
+          };
+          return updateOrderStatus(params);
+        })
+        .then(() => {
+          this.handleQuery();
+        });
     },
     /** 双击行处理详情 */
     handleRowDblClick(row) {
