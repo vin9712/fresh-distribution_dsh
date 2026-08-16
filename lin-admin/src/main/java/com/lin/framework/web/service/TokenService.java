@@ -89,6 +89,36 @@ public class TokenService
     }
 
     /**
+     * 按裸令牌获取登录用户（供 JimuReport 等第三方桥接使用）
+     * 校验：JWT 签名 + Redis 会话有效性（支持吊销）
+     *
+     * @param token JWT 令牌
+     * @return 登录用户，校验失败返回 null
+     */
+    public LoginUser getLoginUserByToken(String token)
+    {
+        if (StringUtils.isEmpty(token))
+        {
+            return null;
+        }
+        try
+        {
+            Claims claims = parseToken(token);
+            String uuid = (String) claims.get(Constants.LOGIN_USER_KEY);
+            if (StringUtils.isEmpty(uuid))
+            {
+                return null;
+            }
+            return redisCache.getCacheObject(getTokenKey(uuid));
+        }
+        catch (Exception e)
+        {
+            log.error("按令牌获取用户信息异常'{}'", e.getMessage());
+            return null;
+        }
+    }
+
+    /**
      * 设置用户身份信息
      */
     public void setLoginUser(LoginUser loginUser)

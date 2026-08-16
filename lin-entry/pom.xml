@@ -41,6 +41,13 @@
             <artifactId>lin-generator</artifactId>
         </dependency>
 
+        <!-- 积木报表 JimuReport（Spring Boot 3 + fastjson2 版） -->
+        <dependency>
+            <groupId>org.jeecgframework.jimureport</groupId>
+            <artifactId>jimureport-spring-boot3-starter-fastjson2</artifactId>
+            <version>2.0.0</version>
+        </dependency>
+
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-test</artifactId>
