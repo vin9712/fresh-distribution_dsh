@@ -1,0 +1,23 @@
+# 生鲜配送系统 systemd 服务单元示例（deploy/fresh-distribution.service.example）
+# 安装：
+#   sudo cp fresh-distribution.service.example /etc/systemd/system/fresh-distribution.service
+#   sudo systemctl daemon-reload && sudo systemctl enable --now fresh-distribution
+# 日志：journalctl -u fresh-distribution -f
+
+[Unit]
+Description=Fresh Distribution Backend (Spring Boot)
+After=network.target mysqld.service redis.service
+
+[Service]
+Type=simple
+User=fresh
+WorkingDirectory=/opt/fresh-distribution
+ExecStart=/usr/bin/java -Xms512m -Xmx1024m -Dfile.encoding=UTF-8 -jar /opt/fresh-distribution/lin-entry.jar --spring.profiles.active=prod --server.port=8080
+SuccessExitStatus=143
+Restart=on-failure
+RestartSec=10
+StandardOutput=append:/var/log/fresh-distribution/app.log
+StandardError=append:/var/log/fresh-distribution/app.log
+
+[Install]
+WantedBy=multi-user.target

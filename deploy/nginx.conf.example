@@ -1,0 +1,81 @@
+# 生产环境 Nginx 配置示例（deploy/nginx.conf.example）
+# 用途：HTTPS 站点 + 前端 dist 静态托管 + /prod-api 与 /jmreport 反代后端 8080
+# 说明：把 <域名> 替换为实际域名，证书路径按 certbot 实际输出调整
+#       RuoYi-Vue3 前端 BASE_API=/prod-api（.env.production 已默认）
+
+# HTTP -> HTTPS 跳转
+server {
+    listen 80;
+    server_name <域名>;
+    return 301 https://$host$request_uri;
+}
+
+server {
+    listen 443 ssl;
+    http2 on;
+    server_name <域名>;
+
+    # 证书（certbot --nginx 自动生成；如需国内云证书把证书放到 /etc/nginx/ssl/）
+    ssl_certificate     /etc/letsencrypt/live/<域名>/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/<域名>/privkey.pem;
+    ssl_protocols       TLSv1.2 TLSv1.3;
+    ssl_ciphers         HIGH:!aNULL:!MD5;
+    ssl_session_cache   shared:SSL:10m;
+    ssl_session_timeout 10m;
+
+    # 安全响应头
+    add_header X-Frame-Options SAMEORIGIN always;
+    add_header X-Content-Type-Options nosniff always;
+    add_header Referrer-Policy strict-origin-when-cross-origin always;
+
+    client_max_body_size 20m;
+
+    gzip on;
+    gzip_types text/plain text/css application/javascript application/json image/svg+xml;
+    gzip_min_length 1k;
+
+    # 前端静态资源（RuoYi-Vue3 构建产物 dist）
+    root /opt/fresh-distribution/dist;
+    index index.html;
+
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+
+    # 静态资源缓存
+    location ~* \.(js|css|png|jpg|jpeg|gif|svg|ico|woff2?|ttf)$ {
+        expires 30d;
+        add_header Cache-Control "public, max-age=2592000";
+    }
+
+    # 后端 API 反代（RuoYi-Vue3 .env.production VITE_APP_BASE_API=/prod-api）
+    location /prod-api/ {
+        proxy_pass http://127.0.0.1:8080/;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_read_timeout 300s;
+    }
+
+    # JimuReport 设计器/打印视图（后端已放行 /jmreport/**，需与后端同源反代）
+    location /jmreport/ {
+        proxy_pass http://127.0.0.1:8080/jmreport/;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    # 打印数据接口（JimuReport 数据集服务端调用，同机反代）
+    location /print/ {
+        proxy_pass http://127.0.0.1:8080/print/;
+        proxy_set_header Host $host;
+    }
+
+    # 上传文件目录
+    location /profile/ {
+        alias /home/fresh/uploadPath/;
+        expires 7d;
+    }
+}

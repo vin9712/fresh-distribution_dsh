@@ -1,0 +1,115 @@
+# ============================================================
+# 生产环境配置模板（复制为 application-prod.yml 后填写，勿提交仓库）
+# 启动：java -jar lin-entry.jar --spring.profiles.active=prod
+# ============================================================
+
+project:
+  name: Fresh Distribution
+  version: 1.0.0
+  copyrightYear: 2026
+  profile: /home/fresh/uploadPath
+  addressEnabled: false
+  captchaType: char
+
+server:
+  # 生产固定 8080（Nginx 反代对外 80/443）
+  port: 8080
+  servlet:
+    context-path: /
+  tomcat:
+    uri-encoding: UTF-8
+    accept-count: 1000
+    threads:
+      max: 200
+      min-spare: 30
+
+logging:
+  level:
+    com.lin: info
+    org.springframework: warn
+
+user:
+  password:
+    # 登录失败锁定（DESIGN §11：5 次锁定 30 分钟）
+    maxRetryCount: 5
+    lockTime: 30
+
+spring:
+  profiles:
+    active: prod
+  pid:
+    file: ./fresh-distribution.pid
+  devtools:
+    restart:
+      # 生产禁用热部署
+      enabled: false
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 20MB
+  data:
+    redis:
+      host: 127.0.0.1
+      port: 6379
+      database: 0
+      password: "请填写Redis密码或留空"
+      timeout: 10s
+      lettuce:
+        pool:
+          min-idle: 0
+          max-idle: 8
+          max-active: 8
+          max-wait: -1ms
+  datasource:
+    type: com.alibaba.druid.pool.DruidDataSource
+    driverClassName: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://127.0.0.1:3306/fresh-distribution-dsh?useUnicode=true&characterEncoding=utf8&zeroDateTimeBehavior=convertToNull&useSSL=true&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
+    username: "请填写数据库用户名"
+    password: "请填写数据库密码"
+    druid:
+      initialSize: 5
+      minIdle: 10
+      maxActive: 20
+      maxWait: 60000
+      connectTimeout: 30000
+      socketTimeout: 60000
+      timeBetweenEvictionRunsMillis: 60000
+      minEvictableIdleTimeMillis: 300000
+      maxEvictableIdleTimeMillis: 900000
+      validationQuery: SELECT 1
+      testWhileIdle: true
+      testOnBorrow: false
+      testOnReturn: false
+
+token:
+  header: Authorization
+  # 生产密钥必须更换（64 位十六进制，≥512bit）
+  secret: "请更换为随机生成的64位十六进制密钥"
+  expireTime: 720
+
+mybatis-plus:
+  typeAliasesPackage: com.lin.**.domain
+  mapperLocations: classpath*:mapper/**/*Mapper.xml
+  configLocation: classpath:mybatis/mybatis-config.xml
+
+pagehelper:
+  helperDialect: mysql
+  supportMethodsArguments: true
+  params: count=countSql
+
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    enabled: false
+
+# 防止XSS攻击
+xss:
+  enabled: true
+  excludes: /system/notice
+  urlPatterns: /system/*,/monitor/*,/tool/*
+
+security:
+  apiKey: "请填写接口调用密钥"
+  whitelist:
+    - /test/*
