@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+"http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.lin.distribution.mapper.ReportMapper">
+
+    <resultMap type="com.lin.distribution.domain.ReportRow" id="ReportRowResult">
+        <result property="acceptanceId"    column="acceptance_id"    />
+        <result property="acceptanceCode"    column="acceptance_code"    />
+        <result property="acceptDate"    column="accept_date"    />
+        <result property="acceptanceTotalAmount"    column="acceptance_total_amount"    />
+        <result property="deliveryCode"    column="delivery_code"    />
+        <result property="deliveryDate"    column="delivery_date"    />
+        <result property="customerId"    column="customer_id"    />
+        <result property="customerName"    column="customer_name"    />
+        <result property="deliveryPointId"    column="delivery_point_id"    />
+        <result property="deliveryPointName"    column="delivery_point_name"    />
+        <result property="productName"    column="product_name"    />
+        <result property="productSpec"    column="product_spec"    />
+        <result property="productUnit"    column="product_unit"    />
+        <result property="actualQuantity"    column="actual_quantity"    />
+        <result property="lossQuantity"    column="loss_quantity"    />
+        <result property="unitPrice"    column="unit_price"    />
+        <result property="actualAmount"    column="actual_amount"    />
+        <result property="sort"    column="sort"    />
+    </resultMap>
+
+    <sql id="selectReportRowVo">
+        select a.id as acceptance_id,
+               a.code as acceptance_code,
+               a.accept_date,
+               a.total_amount as acceptance_total_amount,
+               do.code as delivery_code,
+               do.delivery_date,
+               a.customer_id,
+               coalesce(customer.alias, customer.name) as customer_name,
+               a.delivery_point_id,
+               cd.name as delivery_point_name,
+               ai.product_name,
+               ai.product_spec,
+               ai.product_unit,
+               ai.actual_quantity,
+               ai.loss_quantity,
+               ai.unit_price,
+               ai.actual_amount,
+               ai.sort
+        from acceptance a
+        inner join acceptance_item ai on ai.acceptance_id = a.id
+        inner join t_delivery_order do on do.id = a.delivery_order_id
+        left join t_customer customer on customer.id = a.customer_id
+        left join t_customer_dept cd on cd.id = a.delivery_point_id
+    </sql>
+
+    <select id="selectDailySaleRows" resultMap="ReportRowResult">
+        <include refid="selectReportRowVo"/>
+        where a.status = 1
+          and do.delivery_date = #{deliveryDate}
+        order by a.customer_id, a.delivery_point_id, a.id, ai.sort
+    </select>
+
+    <select id="selectStatementRows" resultMap="ReportRowResult">
+        <include refid="selectReportRowVo"/>
+        where a.status = 1
+          and a.customer_id = #{customerId}
+          and a.accept_date between #{beginDate} and #{endDate}
+        order by a.accept_date, a.id, ai.sort
+    </select>
+</mapper>
