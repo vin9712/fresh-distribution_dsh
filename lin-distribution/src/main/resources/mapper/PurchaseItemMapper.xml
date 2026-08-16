@@ -1,0 +1,125 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+"http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.lin.distribution.mapper.PurchaseItemMapper">
+
+    <resultMap type="com.lin.distribution.domain.PurchaseItem" id="PurchaseItemResult">
+        <result property="id"    column="id"    />
+        <result property="purchaseId"    column="purchase_id"    />
+        <result property="skuId"    column="sku_id"    />
+        <result property="productName"    column="product_name"    />
+        <result property="productSpec"    column="product_spec"    />
+        <result property="productUnit"    column="product_unit"    />
+        <result property="quantity"    column="quantity"    />
+        <result property="unitPrice"    column="unit_price"    />
+        <result property="subtotal"    column="subtotal"    />
+        <result property="sort"    column="sort"    />
+    </resultMap>
+
+    <sql id="selectPurchaseItemVo">
+        select id, purchase_id, sku_id, product_name, product_spec, product_unit, quantity, unit_price, subtotal, sort from purchase_item
+    </sql>
+
+    <select id="selectPurchaseItemList" parameterType="com.lin.distribution.domain.PurchaseItem" resultMap="PurchaseItemResult">
+        <include refid="selectPurchaseItemVo"/>
+        <where>
+            <if test="purchaseId != null "> and purchase_id = #{purchaseId}</if>
+            <if test="skuId != null "> and sku_id = #{skuId}</if>
+            <if test="productName != null  and productName != ''"> and product_name like concat('%', #{productName}, '%')</if>
+        </where>
+        order by sort
+    </select>
+
+    <select id="selectPurchaseItemById" parameterType="Long" resultMap="PurchaseItemResult">
+        <include refid="selectPurchaseItemVo"/>
+        where id = #{id}
+    </select>
+
+    <select id="selectPurchaseItemListByPurchaseId" parameterType="Long" resultMap="PurchaseItemResult">
+        <include refid="selectPurchaseItemVo"/>
+        where purchase_id = #{purchaseId}
+        order by sort
+    </select>
+
+    <insert id="insertPurchaseItem" parameterType="com.lin.distribution.domain.PurchaseItem" useGeneratedKeys="true" keyProperty="id">
+        insert into purchase_item
+        <trim prefix="(" suffix=")" suffixOverrides=",">
+            <if test="purchaseId != null">purchase_id,</if>
+            <if test="skuId != null">sku_id,</if>
+            <if test="productName != null and productName != ''">product_name,</if>
+            <if test="productSpec != null">product_spec,</if>
+            <if test="productUnit != null">product_unit,</if>
+            <if test="quantity != null">quantity,</if>
+            <if test="unitPrice != null">unit_price,</if>
+            <if test="subtotal != null">subtotal,</if>
+            <if test="sort != null">sort,</if>
+         </trim>
+        <trim prefix="values (" suffix=")" suffixOverrides=",">
+            <if test="purchaseId != null">#{purchaseId},</if>
+            <if test="skuId != null">#{skuId},</if>
+            <if test="productName != null and productName != ''">#{productName},</if>
+            <if test="productSpec != null">#{productSpec},</if>
+            <if test="productUnit != null">#{productUnit},</if>
+            <if test="quantity != null">#{quantity},</if>
+            <if test="unitPrice != null">#{unitPrice},</if>
+            <if test="subtotal != null">#{subtotal},</if>
+            <if test="sort != null">#{sort},</if>
+         </trim>
+    </insert>
+
+    <insert id="insertPurchaseItemBatch" parameterType="java.util.List">
+        insert into purchase_item
+        (purchase_id, sku_id, product_name, product_spec, product_unit, quantity, unit_price, subtotal, sort)
+        values
+        <foreach collection="list" item="item" separator=",">
+            (#{item.purchaseId}, #{item.skuId}, #{item.productName}, #{item.productSpec}, #{item.productUnit}, #{item.quantity}, #{item.unitPrice}, #{item.subtotal}, #{item.sort})
+        </foreach>
+    </insert>
+
+    <update id="updatePurchaseItem" parameterType="com.lin.distribution.domain.PurchaseItem">
+        update purchase_item
+        <trim prefix="SET" suffixOverrides=",">
+            <if test="purchaseId != null">purchase_id = #{purchaseId},</if>
+            <if test="skuId != null">sku_id = #{skuId},</if>
+            <if test="productName != null and productName != ''">product_name = #{productName},</if>
+            <if test="productSpec != null">product_spec = #{productSpec},</if>
+            <if test="productUnit != null">product_unit = #{productUnit},</if>
+            <if test="quantity != null">quantity = #{quantity},</if>
+            <if test="unitPrice != null">unit_price = #{unitPrice},</if>
+            <if test="subtotal != null">subtotal = #{subtotal},</if>
+            <if test="sort != null">sort = #{sort},</if>
+        </trim>
+        where id = #{id}
+    </update>
+
+    <delete id="deletePurchaseItemByIds" parameterType="String">
+        delete from purchase_item where id in
+        <foreach item="id" collection="array" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+    </delete>
+
+    <delete id="deletePurchaseItemByPurchaseId" parameterType="Long">
+        delete from purchase_item where purchase_id = #{purchaseId}
+    </delete>
+
+    <select id="selectSummaryByDeliveryDate" parameterType="java.time.LocalDate" resultMap="PurchaseItemResult">
+        select
+            d.sku_id,
+            d.product_name,
+            d.product_spec,
+            d.product_unit,
+            sum(d.num) as quantity,
+            min(d.product_price) as unit_price
+        from t_sale_order_detail d
+        join t_sale_order o on o.id = d.order_id
+        where o.status = 1
+          and o.delivery_date = #{deliveryDate}
+          and o.is_deleted = 0
+          and d.is_deleted = 0
+        group by d.sku_id, d.product_name, d.product_spec, d.product_unit
+        order by d.sku_id, d.product_name
+    </select>
+
+</mapper>
