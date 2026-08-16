@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.lin.distribution.mapper.WorkbenchMapper">
+
+    <select id="selectSummary" resultType="com.lin.distribution.domain.WorkbenchSummary">
+        select
+            (select count(1) from t_sale_order where status = 0 and is_deleted = 0) as draftOrders,
+            (select count(1) from t_sale_order where status = 1 and is_deleted = 0 and delivery_date = #{tomorrow}) as pendingPurchase,
+            (select count(1) from t_delivery_order where status = 0 and is_deleted = 0) as pendingPrint,
+            (select count(1) from t_delivery_order d
+              where d.status = 2 and d.is_deleted = 0
+                and not exists (select 1 from acceptance a where a.delivery_order_id = d.id)) as pendingAcceptance,
+            (select count(1) from order_adjustment) as pendingAdjust
+    </select>
+
+</mapper>
