@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.lin.distribution.mapper.OrderAdjustmentMapper">
+
+    <resultMap type="com.lin.distribution.domain.OrderAdjustment" id="OrderAdjustmentResult">
+        <id     property="id"          column="id"          />
+        <result property="orderId"     column="order_id"    />
+        <result property="orderItemId" column="order_item_id" />
+        <result property="type"        column="type"        />
+        <result property="reason"      column="reason"      />
+        <result property="adjustDate"  column="adjust_date" />
+        <result property="detailJson"  column="detail_json" />
+        <result property="createBy"    column="create_by"   />
+        <result property="createTime"  column="create_time" />
+        <result property="updateBy"    column="update_by"   />
+        <result property="updateTime"  column="update_time" />
+    </resultMap>
+
+    <sql id="selectOrderAdjustmentVo">
+        select id, order_id, order_item_id, type, reason, adjust_date, detail_json, create_by, create_time, update_by, update_time
+        from order_adjustment
+    </sql>
+
+    <select id="selectOrderAdjustmentByOrderId" parameterType="Long" resultMap="OrderAdjustmentResult">
+        <include refid="selectOrderAdjustmentVo"/>
+        where order_id = #{orderId}
+        order by id desc
+    </select>
+
+    <select id="selectOrderAdjustmentById" parameterType="Long" resultMap="OrderAdjustmentResult">
+        <include refid="selectOrderAdjustmentVo"/>
+        where id = #{id}
+    </select>
+
+    <insert id="insertOrderAdjustment" parameterType="com.lin.distribution.domain.OrderAdjustment" useGeneratedKeys="true" keyProperty="id">
+        insert into order_adjustment
+        <trim prefix="(" suffix=")" suffixOverrides=",">
+            <if test="orderId != null">order_id,</if>
+            <if test="orderItemId != null">order_item_id,</if>
+            <if test="type != null">type,</if>
+            <if test="reason != null">reason,</if>
+            <if test="adjustDate != null">adjust_date,</if>
+            <if test="detailJson != null">detail_json,</if>
+            <if test="createBy != null">create_by,</if>
+            <if test="createTime != null">create_time,</if>
+            <if test="updateBy != null">update_by,</if>
+            <if test="updateTime != null">update_time,</if>
+        </trim>
+        <trim prefix="values (" suffix=")" suffixOverrides=",">
+            <if test="orderId != null">#{orderId},</if>
+            <if test="orderItemId != null">#{orderItemId},</if>
+            <if test="type != null">#{type},</if>
+            <if test="reason != null">#{reason},</if>
+            <if test="adjustDate != null">#{adjustDate},</if>
+            <if test="detailJson != null">#{detailJson},</if>
+            <if test="createBy != null">#{createBy},</if>
+            <if test="createTime != null">#{createTime},</if>
+            <if test="updateBy != null">#{updateBy},</if>
+            <if test="updateTime != null">#{updateTime},</if>
+        </trim>
+    </insert>
+
+    <update id="updateOrderAdjustFlagAndAmount">
+        update t_sale_order
+        set adjust_flag = '1', amount = #{amount}
+        where id = #{orderId}
+    </update>
+
+</mapper>

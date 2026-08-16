@@ -247,6 +247,15 @@
             >撤回</el-button
           >
           <el-button
+            v-if="scope.row.status == 2 || scope.row.status == 3"
+            size="small"
+            link
+            :icon="Operation"
+            @click="handleAdjust(scope.row)"
+            v-hasPermi="['order:sale:adjust']"
+            >调整</el-button
+          >
+          <el-button
             size="small"
             link
             :icon="Edit"
@@ -341,6 +350,99 @@
         </div>
       </template>
     </el-dialog>
+
+    <!-- 订单调整对话框（配送后加退换） -->
+    <el-dialog :title="adjustTitle" v-model="adjustOpen" width="860px" append-to-body>
+      <el-form label-width="90px">
+        <el-row>
+          <el-col :span="12">
+            <el-form-item label="订单编号">
+              <span>{{ adjustForm.orderCode }}</span>
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="调整类型">
+              <el-radio-group v-model="adjustForm.type">
+                <el-radio :value="1">加单</el-radio>
+                <el-radio :value="2">退单</el-radio>
+                <el-radio :value="3">换货</el-radio>
+              </el-radio-group>
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="调整日期">
+              <el-date-picker
+                clearable
+                v-model="adjustForm.adjustDate"
+                type="date"
+                value-format="yyyy-MM-dd"
+                placeholder="请选择调整日期"
+                style="width: 100%"
+              />
+            </el-form-item>
+          </el-col>
+          <el-col :span="24">
+            <el-form-item label="调整原因">
+              <el-input v-model="adjustForm.reason" type="textarea" placeholder="请输入调整原因" />
+            </el-form-item>
+          </el-col>
+        </el-row>
+      </el-form>
+
+      <el-divider content-position="left">现有明细调整（调整数量：正加负退）</el-divider>
+      <el-table :data="adjustDetailRows" border>
+        <el-table-column label="商品名称" align="center" prop="productName" :show-overflow-tooltip="true" />
+        <el-table-column label="规格" align="center" prop="productSpec" :show-overflow-tooltip="true" />
+        <el-table-column label="当前数量" align="center" prop="num" width="100" />
+        <el-table-column label="调整数量" align="center" width="180">
+          <template #default="scope">
+            <el-input-number v-model="scope.row.deltaQuantity" :precision="2" controls-position="right" style="width: 100%" />
+          </template>
+        </el-table-column>
+      </el-table>
+
+      <el-divider content-position="left">新增商品行</el-divider>
+      <el-button size="small" link :icon="Plus" @click="adjustAddNewRow" class="mb8">新增商品行</el-button>
+      <el-table :data="adjustNewRows" border>
+        <el-table-column label="商品名称" align="center" min-width="160">
+          <template #default="scope">
+            <el-input v-model="scope.row.productName" placeholder="商品名称" />
+          </template>
+        </el-table-column>
+        <el-table-column label="单位" align="center" width="90">
+          <template #default="scope">
+            <el-input v-model="scope.row.productUnit" placeholder="单位" />
+          </template>
+        </el-table-column>
+        <el-table-column label="规格" align="center" min-width="120">
+          <template #default="scope">
+            <el-input v-model="scope.row.productSpec" placeholder="规格" />
+          </template>
+        </el-table-column>
+        <el-table-column label="单价" align="center" width="130">
+          <template #default="scope">
+            <el-input-number v-model="scope.row.productPrice" :min="0" :precision="2" controls-position="right" style="width: 100%" />
+          </template>
+        </el-table-column>
+        <el-table-column label="数量" align="center" width="130">
+          <template #default="scope">
+            <el-input-number v-model="scope.row.num" :min="0" :precision="2" controls-position="right" style="width: 100%" />
+          </template>
+        </el-table-column>
+        <el-table-column label="操作" align="center" width="70">
+          <template #default="scope">
+            <el-button size="small" link :icon="Delete" @click="adjustRemoveNewRow(scope.$index)">删除</el-button>
+          </template>
+        </el-table-column>
+      </el-table>
+
+      <template #footer>
+        <div class="dialog-footer">
+          <el-button type="primary" @click="adjustSubmitForm">确 定</el-button>
+          <el-button @click="adjustOpen = false">取 消</el-button>
+        </div>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -355,6 +457,8 @@ import {
   updateOrderStatus,
 } from "@/api/order/sale";
 import { listCustomerDept } from "@/api/partner/customerDept";
+import { listSaleDetail } from "@/api/order/saleDetail";
+import { createAdjustment } from "@/api/order/adjustment";
 import {
   Search,
   Refresh,
@@ -363,13 +467,14 @@ import {
   Van,
   Edit,
   Delete,
+  Operation,
 } from "@element-plus/icons-vue";
 
 export default {
   name: "Sale",
   dicts: ["t_sale_order_status", "t_sale_order_type", "t_sale_order_source"],
   setup() {
-    return { Search, Refresh, Plus, ShoppingBag, Van, Edit, Delete };
+    return { Search, Refresh, Plus, ShoppingBag, Van, Edit, Delete, Operation };
   },
   data() {
     return {
@@ -450,6 +555,18 @@ export default {
       customerDeptMap: {},
       // 送货单位树列表
       customerDeptOptions: [],
+      // 订单调整对话框
+      adjustOpen: false,
+      adjustTitle: "",
+      adjustForm: {
+        orderId: null,
+        orderCode: null,
+        type: 1,
+        reason: null,
+        adjustDate: null,
+      },
+      adjustDetailRows: [],
+      adjustNewRows: [],
     };
   },
   created() {
@@ -747,6 +864,84 @@ export default {
         }
         return newItem;
       });
+    },
+    /** 行内调整（配送后加退换） */
+    handleAdjust(row) {
+      this.adjustForm = {
+        orderId: row.id,
+        orderCode: row.code,
+        type: 1,
+        reason: null,
+        adjustDate: this.parseTime(new Date(), "{y}-{m}-{d}"),
+      };
+      this.adjustDetailRows = [];
+      this.adjustNewRows = [];
+      this.adjustTitle = "订单调整 - " + row.code;
+      listSaleDetail({ orderId: row.id }).then((response) => {
+        this.adjustDetailRows = (response.data || []).map((item) => ({
+          ...item,
+          deltaQuantity: null,
+        }));
+        this.adjustOpen = true;
+      });
+    },
+    /** 新增商品行 */
+    adjustAddNewRow() {
+      this.adjustNewRows.push({
+        productName: null,
+        productUnit: null,
+        productSpec: null,
+        productPrice: null,
+        num: null,
+      });
+    },
+    /** 删除新增商品行 */
+    adjustRemoveNewRow(index) {
+      this.adjustNewRows.splice(index, 1);
+    },
+    /** 提交订单调整 */
+    adjustSubmitForm() {
+      if (!this.adjustForm.adjustDate) {
+        this.$modal.msgWarning("请选择调整日期");
+        return;
+      }
+      const items = [];
+      this.adjustDetailRows.forEach((row) => {
+        if (row.deltaQuantity != null && row.deltaQuantity !== 0) {
+          items.push({
+            orderItemId: row.id,
+            deltaQuantity: row.deltaQuantity,
+          });
+        }
+      });
+      this.adjustNewRows.forEach((row) => {
+        if (row.productName && row.num != null && row.num > 0) {
+          items.push({
+            orderItemId: null,
+            deltaQuantity: row.num,
+            skuId: null,
+            productName: row.productName,
+            productUnit: row.productUnit,
+            productSpec: row.productSpec,
+            productPrice: row.productPrice,
+          });
+        }
+      });
+      if (items.length === 0) {
+        this.$modal.msgWarning("请填写调整明细");
+        return;
+      }
+      createAdjustment({
+        orderId: this.adjustForm.orderId,
+        type: this.adjustForm.type,
+        reason: this.adjustForm.reason,
+        adjustDate: this.adjustForm.adjustDate,
+        items: items,
+      }).then(() => {
+        this.$modal.msgSuccess("调整成功");
+        this.adjustOpen = false;
+        this.getPageList();
+      }).catch(() => {});
     },
   },
 };
