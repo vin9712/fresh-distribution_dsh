@@ -87,3 +87,6 @@ git log | ForEach-Object { $_ }   # 管道捕获也正常
 - 后端验证套路：`mvn -q -T 1C install -DskipTests`；临时实例 `mvn -q -pl lin-entry spring-boot:run "-Dspring-boot.run.main-class=com.lin.FreshDistributionApplication" "-Dspring-boot.run.arguments=--server.port=8091"`（必须先 install 兄弟模块；`-am` 会让插件在 root 聚合器上跑而报无主类）。
 - DB 直连（.dsh-e2e 有 mysql2）：localhost:3306 root/ljw123 fresh-distribution-dsh。
 - E2E 菜单点击：侧边栏子菜单默认收起，需先 mouse.click 父菜单标题展开，再点可见的 .el-menu-item；图标型入口（如配送点=客户名称上的 a.link-type）按选择器而非文字找。
+- S1-1 配送点：客户部门→配送点纯文案/日志更名（表/字段/API 不变），提交 d161c9d。
+- S1-2 别名与映射：product_alias/customer_sku_mapping/temp_product 全栈 + 前端 aliasMapping 三 Tab 页 + 临时商品转正式 SKU；菜单 2050-2060 段。**教训**：ProductSku.builder() 不含 BaseEntity 继承字段（createTime 要 build 后 set）。
+- S1-3 导入：SPU 导入（模板=导出模板，同分类+名称查重用 selectProductSkuByCategoryIdAndName 模式）；报价导入（ProductSkuQuoteImportDTO 模板列=客户ID/SKUID/单价/生效/失效；按客户聚合、日期取行集合并集；走 createSkuQuote 自带"生效日须晚于当前有效报价失效日"校验）；菜单 2061-2062。前端导入对话框模式照抄 sku/index.vue。
