@@ -62,14 +62,29 @@
             <if test="customerId != null">and sku.customer_id = #{customerId}</if>
             <if test="categoryId != null">and sku.category_id = #{categoryId}</if>
             <if test="spuId != null">and sku.spu_id = #{spuId}</if>
-            <if test="name != null  and name != ''">and sku.name like concat('%', #{name}, '%')</if>
+            <if test="name != null  and name != ''">
+                and ( sku.name like concat('%', #{name}, '%')
+                      or sku.mnemonic_code like concat('%', #{name}, '%')
+                      or sku.id in (select sku_id from product_alias where alias like concat('%', #{name}, '%'))
+                      or sku.id in (select sku_id from customer_sku_mapping where customer_id = #{customerId} and customer_alias like concat('%', #{name}, '%'))
+                    )
+            </if>
             <if test="salePrice != null ">and sku.sale_price = #{salePrice}</if>
             <if test="saleable != null ">and sku.saleable = #{saleable}</if>
             <if test="valid != null ">and sku.valid = #{valid}</if>
             <if test="matchedSpu != null and matchedSpu == 0">and sku.spu_id is null</if>
             <if test="matchedSpu != null and matchedSpu == 1">and sku.spu_id is not null</if>
         </where>
-        order by sku.create_time
+        <choose>
+            <when test="name != null and name != ''">
+                order by (sku.id in (select sku_id from customer_sku_mapping where customer_id = #{customerId} and customer_alias like concat('%', #{name}, '%'))) desc,
+                         (sku.id in (select sku_id from product_alias where alias like concat('%', #{name}, '%'))) desc,
+                         sku.create_time
+            </when>
+            <otherwise>
+                order by sku.create_time
+            </otherwise>
+        </choose>
     </select>
 
     <select id="selectProductSkuById" parameterType="Long" resultMap="ProductSkuResult">

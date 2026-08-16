@@ -371,6 +371,7 @@ import {
 } from "@/api/order/sale";
 import { listSaleDetail } from "@/api/order/saleDetail";
 import { customerListQuoteDetail } from "@/api/product/quoteDetail";
+import { queryPrice } from "@/api/price/query";
 import { listCustomer } from "@/api/partner/customer";
 import { listCustomerDept } from "@/api/partner/customerDept";
 import { QuestionFilled, Refresh, Rank, Plus, Minus, Search } from "@element-plus/icons-vue";
@@ -1078,6 +1079,9 @@ export default {
         parentRow.productPrice = row.price;
         parentRow.skuId = row.skuId;
 
+        // S3-3：三层取价覆盖（配送点报价 > 客户报价 > 客户模板），未命中提示人工填写
+        this.applyPriceQuery(parentRow);
+
         // 聚焦到数量单元格
         $table.setEditCell(parentRow, "num");
 
@@ -1089,6 +1093,35 @@ export default {
           this.throttledAddRow(-1);
         }
       }
+    },
+    /** 三层取价：选中商品后按 配送点>客户>模板 覆盖价格；未命中清空价格并提示人工填写 */
+    applyPriceQuery(parentRow) {
+      const params = {
+        customerId: this.orderForm.customerId,
+        deliveryPointId: this.orderForm.customerDeptId,
+        skuId: parentRow.skuId,
+        deliveryDate: this.orderForm.deliveryDate,
+      };
+      if (!params.customerId || !params.skuId || !params.deliveryDate) {
+        return;
+      }
+      queryPrice(params)
+        .then((response) => {
+          const result = response.data || {};
+          if (result.price != null) {
+            parentRow.productPrice = result.price;
+            this.calcAmount(parentRow);
+          } else {
+            parentRow.productPrice = "";
+            parentRow.amount = "0.00";
+            this.$modal.msgWarning(
+              "商品【" + parentRow.productName + "】无有效报价，请人工填写价格"
+            );
+          }
+        })
+        .catch(() => {
+          // 取价失败不阻塞录单，保留报价明细默认价
+        });
     },
     /** 商品名称下拉容器-初始化数据 */
     initPulldownData(value) {
