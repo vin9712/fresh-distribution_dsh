@@ -5,10 +5,10 @@
 	<modelVersion>4.0.0</modelVersion>
 	
     <groupId>com.lin</groupId>
-    <artifactId>fresh-distribution_dsh</artifactId>
+    <artifactId>fresh-distribution-dsh</artifactId>
     <version>1.0.0</version>
 
-    <name>fresh-distribution_dsh</name>
+    <name>fresh-distribution-dsh</name>
     <description>生鲜配送系统 DSH ver</description>
     
     <properties>
