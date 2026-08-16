@@ -19,12 +19,12 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * 客户部门Controller
+ * 配送点Controller
  *
  * @author lin
  * @date 2024-11-09
  */
-@Tag(name = "客户部门管理")
+@Tag(name = "配送点管理")
 @RestController
 @RequestMapping("/partner/customerDept")
 public class CustomerDeptController extends BaseController {
@@ -66,7 +66,7 @@ public class CustomerDeptController extends BaseController {
     public void export(HttpServletResponse response, CustomerDept customerDept) {
         List<CustomerDept> list = customerDeptService.selectCustomerDeptList(customerDept);
         ExcelUtil<CustomerDept> util = new ExcelUtil<CustomerDept>(CustomerDept.class);
-        util.exportExcel(response, list, "客户部门数据");
+        util.exportExcel(response, list, "配送点数据");
     }
 
     /**

@@ -13,7 +13,7 @@ import org.springframework.stereotype.Service;
 import java.util.List;
 
 /**
- * 客户部门Service业务层处理
+ * 配送点Service业务层处理
  *
  * @author lin
  * @date 2024-11-09
@@ -28,7 +28,7 @@ public class CustomerDeptServiceImpl implements CustomerDeptService {
     /**
      * 查询客户部门
      *
-     * @param id 客户部门主键
+     * @param id 配送点主键
      * @return 客户部门
      */
     @Override
@@ -97,7 +97,7 @@ public class CustomerDeptServiceImpl implements CustomerDeptService {
     /**
      * 批量删除客户部门
      *
-     * @param ids 需要删除的客户部门主键
+     * @param ids 需要删除的配送点主键
      * @return 结果
      */
     @Override
@@ -106,9 +106,9 @@ public class CustomerDeptServiceImpl implements CustomerDeptService {
     }
 
     /**
-     * 删除客户部门信息
+     * 删除配送点信息
      *
-     * @param id 客户部门主键
+     * @param id 配送点主键
      * @return 结果
      */
     @Override
@@ -117,7 +117,7 @@ public class CustomerDeptServiceImpl implements CustomerDeptService {
     }
 
     /**
-     * 生成客户部门编号
+     * 生成配送点编号
      * rule: 助记码 + customerId + 5位数自增序号
      *
      * @param mnemonicCode 客户助记码

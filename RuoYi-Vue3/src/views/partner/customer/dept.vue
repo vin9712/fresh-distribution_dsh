@@ -8,8 +8,8 @@
             :value="item.id" />
         </el-select>
       </el-form-item>
-      <el-form-item label="部门名称" prop="name">
-        <el-input v-model="queryParams.name" placeholder="请输入部门名称" clearable @keyup.enter="handleQuery" />
+      <el-form-item label="配送点名称" prop="name">
+        <el-input v-model="queryParams.name" placeholder="请输入配送点名称" clearable @keyup.enter="handleQuery" />
       </el-form-item>
       <el-form-item label="是否有效" prop="valid">
         <el-select v-model="queryParams.valid" placeholder="请选择是否有效" clearable>
@@ -45,7 +45,7 @@
     <el-table v-loading="loading" :data="customerDeptList" @selection-change="handleSelectionChange">
       <el-table-column type="selection" width="55" align="center" />
       <el-table-column label="编号" align="center" prop="code" />
-      <el-table-column label="客户部门" align="center" prop="name" />
+      <el-table-column label="配送点" align="center" prop="name" />
       <el-table-column label="是否有效" align="center" prop="valid">
         <template #default="scope">
           <dict-tag :options="dict.type.biz_yes_no" :value="scope.row.valid" />
@@ -65,7 +65,7 @@
     <pagination v-show="total > 0" :total="total" v-model:page="queryParams.pageNum" v-model:limit="queryParams.pageSize"
       @pagination="getPageList" />
 
-    <!-- 添加或修改客户部门对话框 -->
+    <!-- 添加或修改配送点对话框 -->
     <el-dialog :title="title" v-model="open" width="500px" append-to-body>
       <el-form ref="form" :model="form" :rules="rules" label-width="80px">
         <el-form-item label="当前客户" prop="customerId">
@@ -74,8 +74,8 @@
               :value="item.id" />
           </el-select>
         </el-form-item>
-        <el-form-item label="部门名称" prop="name">
-          <el-input v-model="form.name" @input="handleUpdateMnemonicCode" placeholder="请输入部门名称" />
+        <el-form-item label="配送点名称" prop="name">
+          <el-input v-model="form.name" @input="handleUpdateMnemonicCode" placeholder="请输入配送点名称" />
         </el-form-item>
         <el-form-item label="助记码" prop="mnemonicCode">
           <el-input v-model="form.mnemonicCode" placeholder="请输入助记码" :disabled="form.id == null" />
@@ -132,7 +132,7 @@ export default {
       defaultCustomerId: null,
       // 客户列表数据
       customerOptions: [],
-      // 客户部门表格数据
+      // 配送点表格数据
       customerDeptList: [],
       // 弹出层标题
       title: "",
@@ -146,7 +146,7 @@ export default {
         name: null,
         mnemonicCode: null,
         valid: null,
-        // 默认隐藏父级部门
+        // 默认隐藏父级配送点
         hideParent: true,
       },
       // 查询校验
@@ -163,10 +163,10 @@ export default {
           { required: true, message: "客户ID不能为空", trigger: "change" }
         ],
         parentId: [
-          { required: true, message: "上级部门ID不能为空", trigger: "blur" }
+          { required: true, message: "上级配送点ID不能为空", trigger: "blur" }
         ],
         name: [
-          { required: true, message: "部门名称不能为空", trigger: "blur" }
+          { required: true, message: "配送点名称不能为空", trigger: "blur" }
         ],
         mnemonicCode: [
           { required: true, message: "助记码不能为空", trigger: "blur" }
@@ -192,7 +192,7 @@ export default {
     this.getPageList();
   },
   methods: {
-    /** 查询客户部门列表 */
+    /** 查询配送点列表 */
     getList() {
       this.loading = true;
       listCustomerDept(this.queryParams).then(response => {
@@ -200,7 +200,7 @@ export default {
         this.loading = false;
       });
     },
-    /** 分页查询客户部门列表 */
+    /** 分页查询配送点列表 */
     getPageList() {
       this.loading = true;
       pageCustomerDept(this.queryParams).then(response => {
@@ -261,7 +261,7 @@ export default {
     handleAdd() {
       this.reset();
       this.open = true;
-      this.title = "添加客户部门";
+      this.title = "添加配送点";
     },
     /** 修改按钮操作 */
     handleUpdate(row) {
@@ -270,7 +270,7 @@ export default {
       getCustomerDept(id).then(response => {
         this.form = response.data;
         this.open = true;
-        this.title = "修改客户部门";
+        this.title = "修改配送点";
       });
     },
     /** 提交按钮 */
@@ -297,7 +297,7 @@ export default {
     handleDelete(row) {
       const ids = row.id || this.ids;
       const codes = row.code || this.deptCodes;
-      this.$modal.confirm('是否确认删除客户部门编号为"' + codes + '"的数据项？').then(function () {
+      this.$modal.confirm('是否确认删除配送点编号为"' + codes + '"的数据项？').then(function () {
         return delCustomerDept(ids);
       }).then(() => {
         this.getPageList();

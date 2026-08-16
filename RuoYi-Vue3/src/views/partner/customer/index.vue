@@ -117,7 +117,7 @@
       <el-table-column label="客户名称" align="center" prop="name">
         <template #default="scope">
           <router-link
-            title="查看客户部门列表"
+            title="查看配送点列表"
             :to="'/basicInfo/customer-dept/index/' + scope.row.id"
             class="link-type"
           >

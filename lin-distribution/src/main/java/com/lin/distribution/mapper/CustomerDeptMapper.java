@@ -5,7 +5,7 @@ import com.lin.distribution.domain.CustomerDept;
 import java.util.List;
 
 /**
- * 客户部门Mapper接口
+ * 配送点Mapper接口
  *
  * @author lin
  * @date 2024-11-09
@@ -14,7 +14,7 @@ public interface CustomerDeptMapper {
     /**
      * 查询客户部门
      *
-     * @param id 客户部门主键
+     * @param id 配送点主键
      * @return 客户部门
      */
     CustomerDept selectCustomerDeptById(Long id);
@@ -23,7 +23,7 @@ public interface CustomerDeptMapper {
      * 查询客户部门列表
      *
      * @param customerDept 客户部门
-     * @return 客户部门集合
+     * @return 配送点集合
      */
     List<CustomerDept> selectCustomerDeptList(CustomerDept customerDept);
 
@@ -46,7 +46,7 @@ public interface CustomerDeptMapper {
     /**
      * 删除客户部门
      *
-     * @param id 客户部门主键
+     * @param id 配送点主键
      * @return 结果
      */
     int deleteCustomerDeptById(Long id);

@@ -7,7 +7,7 @@ import org.apache.commons.lang3.builder.ToStringBuilder;
 import org.apache.commons.lang3.builder.ToStringStyle;
 
 /**
- * 客户部门对象 t_customer_dept
+ * 配送点对象 t_customer_dept
  *
  * @author lin
  * @date 2024-11-09
@@ -37,7 +37,7 @@ public class CustomerDept extends BaseEntity {
     private Long parentId;
 
     /**
-     * 客户部门编号
+     * 配送点编号
      */
     private String code;
 

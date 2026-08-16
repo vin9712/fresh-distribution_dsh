@@ -174,7 +174,7 @@ export const dynamicRoutes = [
         path: 'index/:customerId(\\d+)',
         component: () => import('@/views/partner/customer/dept'),
         name: 'CustomerDept',
-        meta: { title: '客户部门', activeMenu: '/basicInfo/customer' }
+        meta: { title: '配送点', activeMenu: '/basicInfo/customer' }
       }
     ]
   },

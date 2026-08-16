@@ -5,7 +5,7 @@ import com.lin.distribution.domain.CustomerDept;
 import java.util.List;
 
 /**
- * 客户部门Service接口
+ * 配送点Service接口
  *
  * @author lin
  * @date 2024-11-09
@@ -15,7 +15,7 @@ public interface CustomerDeptService
     /**
      * 查询客户部门
      *
-     * @param id 客户部门主键
+     * @param id 配送点主键
      * @return 客户部门
      */
     CustomerDept selectCustomerDeptById(Long id);
@@ -31,7 +31,7 @@ public interface CustomerDeptService
      * 查询客户部门列表
      *
      * @param customerDept 客户部门
-     * @return 客户部门集合
+     * @return 配送点集合
      */
     List<CustomerDept> selectCustomerDeptList(CustomerDept customerDept);
 
@@ -54,21 +54,21 @@ public interface CustomerDeptService
     /**
      * 批量删除客户部门
      *
-     * @param ids 需要删除的客户部门主键集合
+     * @param ids 需要删除的配送点主键集合
      * @return 结果
      */
     int deleteCustomerDeptByIds(Long[] ids);
 
     /**
-     * 删除客户部门信息
+     * 删除配送点信息
      *
-     * @param id 客户部门主键
+     * @param id 配送点主键
      * @return 结果
      */
     int deleteCustomerDeptById(Long id);
 
     /**
-     * 生成客户部门编号
+     * 生成配送点编号
      *
      * @param customerId
      * @param mnemonicCode

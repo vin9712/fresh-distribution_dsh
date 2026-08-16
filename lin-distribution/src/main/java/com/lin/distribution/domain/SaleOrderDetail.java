@@ -39,9 +39,9 @@ public class SaleOrderDetail extends BaseEntity {
     private Long customerId;
 
     /**
-     * 客户部门ID
+     * 配送点ID
      */
-    @Excel(name = "客户部门ID")
+    @Excel(name = "配送点ID")
     private Long customerDeptId;
 
     /**
