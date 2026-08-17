@@ -8,7 +8,7 @@
             <el-date-picker
               v-model="dailyForm.deliveryDate"
               type="date"
-              value-format="yyyy-MM-dd"
+              value-format="YYYY-MM-DD"
               placeholder="请选择配送日期"
               style="width: 160px"
             />
@@ -72,7 +72,7 @@
             <el-date-picker
               v-model="statementForm.dateRange"
               type="daterange"
-              value-format="yyyy-MM-dd"
+              value-format="YYYY-MM-DD"
               range-separator="-"
               start-placeholder="开始日期"
               end-placeholder="结束日期"

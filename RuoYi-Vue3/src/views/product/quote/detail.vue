@@ -31,8 +31,8 @@
             <el-date-picker
               type="daterange"
               v-model="quoteForm.effectiveDateRange"
-              format="yyyy-MM-dd"
-              value-format="yyyy-MM-dd"
+              format="YYYY-MM-DD"
+              value-format="YYYY-MM-DD"
               start-placeholder="开始日期"
               end-placeholder="结束日期"
               clearable
@@ -84,7 +84,7 @@
             trigger: 'click',
             mode: 'cell',
             showStatus: true,
-            activeMethod: checkTableActive,
+            beforeEditMethod: checkTableActive,
           }"
           :data="skuQuoteList"
         >
@@ -99,7 +99,7 @@
           >
             <template #filter="{ $panel, column }">
               <el-input
-                type="type"
+                type="text"
                 v-for="(option, index) in column.filters"
                 :key="index"
                 v-model="option.data"
@@ -270,14 +270,13 @@ export default {
     },
     /** 获取当前报价单号 */
     getQuoteCode() {
-      genQuoteCode().then((response) => {
+      genQuoteCode({ refresh: true }).then((response) => {
         this.quoteForm.quoteCode = response.msg;
       });
     },
     /** 刷新当前报价单号 */
     refreshQuoteCode() {
-      let param = { currentCode: this.quoteForm.quoteCode };
-      genQuoteCode(param).then((response) => {
+      genQuoteCode({ refresh: true }).then((response) => {
         this.quoteForm.quoteCode = response.msg;
       });
     },

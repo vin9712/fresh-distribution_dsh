@@ -287,7 +287,7 @@ public class SaleOrderServiceImpl implements SaleOrderService {
             // check order code
             SaleOrder saleOrder = saleOrderMapper.selectSaleOrderByCode(request.getOrderCode());
             if (saleOrder != null) {
-                throw new ServiceException("sale order no existed");
+                throw new ServiceException("销售订单编号已存在");
             }
         } else {
             SaleOrder saleOrder = saleOrderMapper.selectSaleOrderById(orderId);

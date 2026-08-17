@@ -31,7 +31,7 @@
           clearable
           v-model="queryParams.deliveryDate"
           type="date"
-          value-format="yyyy-MM-dd"
+          value-format="YYYY-MM-DD"
           placeholder="请选择配送日期"
         >
         </el-date-picker>
@@ -55,7 +55,7 @@
         <el-date-picker
           v-model="generateDate"
           type="date"
-          value-format="yyyy-MM-dd"
+          value-format="YYYY-MM-DD"
           placeholder="选择配送日期"
           size="small"
           style="width: 150px"

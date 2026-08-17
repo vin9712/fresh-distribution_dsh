@@ -75,7 +75,7 @@
           clearable
           v-model="queryParams.deliveryDate"
           type="date"
-          value-format="yyyy-MM-dd"
+          value-format="YYYY-MM-DD"
           placeholder="请选择配送日期"
         >
         </el-date-picker>
@@ -327,7 +327,7 @@
             clearable
             v-model="form.deliveryDate"
             type="date"
-            value-format="yyyy-MM-dd"
+            value-format="YYYY-MM-DD"
             placeholder="请选择配送日期"
           >
           </el-date-picker>
@@ -375,7 +375,7 @@
                 clearable
                 v-model="adjustForm.adjustDate"
                 type="date"
-                value-format="yyyy-MM-dd"
+                value-format="YYYY-MM-DD"
                 placeholder="请选择调整日期"
                 style="width: 100%"
               />

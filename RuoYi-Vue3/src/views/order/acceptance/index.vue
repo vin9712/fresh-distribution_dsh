@@ -152,7 +152,7 @@
           <el-date-picker
             v-model="editForm.acceptDate"
             type="date"
-            value-format="yyyy-MM-dd"
+            value-format="YYYY-MM-DD"
             placeholder="请选择验收日期"
           />
         </el-form-item>

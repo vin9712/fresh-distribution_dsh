@@ -38,8 +38,8 @@
               <el-form-item label="配送日期" prop="deliveryDate">
                 <el-date-picker
                   v-model="orderForm.deliveryDate"
-                  format="yyyy-MM-dd"
-                  value-format="yyyy-MM-dd"
+                  format="YYYY-MM-DD"
+                  value-format="YYYY-MM-DD"
                   placeholder="请选择配送日期"
                   clearable
                 ></el-date-picker>
@@ -700,7 +700,7 @@ export default {
           deliveryDate: null,
           remark: null,
         };
-        genOrderCode()
+        genOrderCode({ refresh: true })
           .then((response) => {
             // 初始化订单编号
             this.orderForm.orderCode = response.msg;
@@ -715,9 +715,15 @@ export default {
             const nowHour = today.getHours();
             const tomorrow = new Date(today);
             tomorrow.setDate(today.getDate() + 1);
+            const formatDay = (d) => {
+              const y = d.getFullYear();
+              const m = String(d.getMonth() + 1).padStart(2, "0");
+              const day = String(d.getDate()).padStart(2, "0");
+              return `${y}-${m}-${day}`;
+            };
 
             // 若当前时间小于15点，则送货时间为今天，否则为明天
-            const deliveryDate = nowHour < 15 ? today : tomorrow;
+            const deliveryDate = nowHour < 15 ? formatDay(today) : formatDay(tomorrow);
             this.orderForm.deliveryDate = deliveryDate;
 
             // 初始化订单表格
@@ -736,8 +742,7 @@ export default {
     },
     /** 刷新订单编号 */
     refreshOrderCode() {
-      let param = { currentCode: this.orderForm.orderCode };
-      genOrderCode(param).then((response) => {
+      genOrderCode({ refresh: true }).then((response) => {
         this.orderForm.orderCode = response.msg;
       });
     },
