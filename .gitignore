@@ -47,6 +47,9 @@ nbdist/
 *.xml.versionsBackup
 *.swp
 
+# dev.sh 运行时 PID（一键启动/关闭脚本）
+.run/
+
 # 生产配置（真实密码不入库，模板见 application-prod.yml.example）
 application-prod.yml
 
