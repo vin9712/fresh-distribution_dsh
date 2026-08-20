@@ -8,7 +8,7 @@
           ref="quoteForm"
           :model="quoteForm"
           :rules="rules"
-          size="medium"
+          size="default"
           inline
           label-width="100px"
           :disabled="isViewMode"
@@ -45,7 +45,8 @@
                 v-if="isAddMode || isCopyMode"
                 @click="refreshQuoteCode"
                 style="cursor: pointer"
-              ><Refresh /></el-icon>
+                ><Refresh
+              /></el-icon>
             </template>
             <el-input
               v-model="quoteForm.quoteCode"
@@ -94,7 +95,7 @@
           <vxe-column
             field="productName"
             title="商品名称"
-            :filters="[{ data: '' }]"
+            :filters="productFilters"
             :filter-method="filterProductNameMethod"
           >
             <template #filter="{ $panel, column }">
@@ -153,6 +154,7 @@ const quotePage = { path: "/basicInfo/quote" };
 export default {
   name: "QuoteDetail",
   dicts: ["biz_yes_no"],
+  productFilters: [{ data: "" }],
   setup() {
     return { Refresh };
   },
