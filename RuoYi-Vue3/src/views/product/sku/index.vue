@@ -1,279 +1,123 @@
 <template>
   <div class="app-container">
-    <el-form
-      :model="queryParams"
-      ref="queryForm"
-      size="small"
-      :inline="true"
-      v-show="showSearch"
-      label-width="80px"
+    <quick-table
+      ref="quickTable"
+      id="basic-sku-table"
+      v-model:page="queryParams.pageNum"
+      v-model:limit="queryParams.pageSize"
+      v-model:showSearch="showSearch"
+      :columns="columns"
+      :data="skuList"
+      :total="total"
+      :loading="loading"
+      :batch-actions="batchActions"
+      @query="handleQuery"
+      @reset="resetQuery"
+      @page-change="getPageList"
+      @selection-change="handleSelectionChange"
+      @add="handleAdd"
+      @edit="handleUpdate"
+      @delete="handleQuickDelete"
+      @batch-action="handleBatchAction"
     >
-      <el-form-item label="商品分类" prop="categoryId">
-        <el-cascader
-          v-model="querySelectedOptions"
-          placeholder="请选择商品分类"
-          @change="handleQueryCascaderChange"
-          :options="categoryOptions"
-          :props="{ expandTrigger: 'hover' }"
-          :show-all-levels="false"
-          filterable
-          clearable
-        />
-      </el-form-item>
-      <el-form-item label="商品名称" prop="name">
-        <el-input
-          v-model="queryParams.name"
-          placeholder="请输入商品名称/助记码/别名"
-          clearable
-          @keyup.enter="handleQuery"
-        />
-      </el-form-item>
-      <el-form-item label="是否上架" prop="saleable">
-        <el-select
-          v-model="queryParams.saleable"
-          placeholder="请选择是否上架"
-          clearable
-        >
-          <el-option
-            v-for="dict in dict.type.biz_yes_no"
-            :key="dict.value"
-            :label="dict.label"
-            :value="dict.value"
-          />
-        </el-select>
-      </el-form-item>
-      <el-form-item label="是否有效" prop="valid">
-        <el-select
-          v-model="queryParams.valid"
-          placeholder="请选择是否有效"
-          clearable
-        >
-          <el-option
-            v-for="dict in dict.type.biz_yes_no"
-            :key="dict.value"
-            :label="dict.label"
-            :value="dict.value"
-          />
-        </el-select>
-      </el-form-item>
-      <el-form-item label="是否匹配" prop="matchedSpu">
-        <el-select
-          v-model="queryParams.matchedSpu"
-          placeholder="请选择是否匹配商品库"
-          clearable
-        >
-          <el-option
-            v-for="dict in dict.type.biz_yes_no"
-            :key="dict.value"
-            :label="dict.label"
-            :value="dict.value"
-          />
-        </el-select>
-      </el-form-item>
-      <el-form-item>
-        <el-button
-          type="primary"
-          :icon="Search"
-          size="small"
-          @click="handleQuery"
-          >搜索</el-button
-        >
-        <el-button :icon="Refresh" size="small" @click="resetQuery"
-          >重置</el-button
-        >
-      </el-form-item>
-    </el-form>
+      <template #search>
+        <el-form :model="queryParams" ref="queryForm" size="small" :inline="true" label-width="60px">
+          <el-form-item label="商品分类" prop="categoryId">
+            <el-cascader
+              v-model="querySelectedOptions"
+              placeholder="请选择商品分类"
+              @change="handleQueryCascaderChange"
+              :options="categoryOptions"
+              :props="{ expandTrigger: 'hover' }"
+              :show-all-levels="false"
+              filterable
+              clearable
+              style="width: 160px"
+            />
+          </el-form-item>
+          <el-form-item label="商品名称" prop="name">
+            <el-input
+              v-model="queryParams.name"
+              placeholder="名称/助记码/别名"
+              clearable
+              style="width: 160px"
+              @keyup.enter="handleQuery"
+            />
+          </el-form-item>
+          <el-form-item label="上架" prop="saleable">
+            <el-select v-model="queryParams.saleable" placeholder="全部" clearable style="width: 100px">
+              <el-option v-for="dict in dict.type.biz_yes_no" :key="dict.value" :label="dict.label" :value="dict.value" />
+            </el-select>
+          </el-form-item>
+          <el-form-item label="有效" prop="valid">
+            <el-select v-model="queryParams.valid" placeholder="全部" clearable style="width: 100px">
+              <el-option v-for="dict in dict.type.biz_yes_no" :key="dict.value" :label="dict.label" :value="dict.value" />
+            </el-select>
+          </el-form-item>
+          <el-form-item label="匹配" prop="matchedSpu">
+            <el-select v-model="queryParams.matchedSpu" placeholder="全部" clearable style="width: 100px">
+              <el-option v-for="dict in dict.type.biz_yes_no" :key="dict.value" :label="dict.label" :value="dict.value" />
+            </el-select>
+          </el-form-item>
+        </el-form>
+      </template>
 
-    <el-row :gutter="10" class="mb8">
-      <el-col :span="1.5">
-        <el-button
-          type="primary"
-          plain
-          :icon="Plus"
-          size="small"
-          @click="handleAdd"
-          v-hasPermi="['product:sku:add']"
-          >新增</el-button
-        >
-      </el-col>
-      <el-col :span="1.5">
-        <el-dropdown
-          split-button
-          type="success"
-          size="small"
-          :disabled="ids.length == 0"
-          @command="handleCommand"
-        >
+      <template #buttons>
+        <el-button type="primary" plain :icon="Plus" size="small" @click="handleAdd"
+          v-hasPermi="['product:sku:add']">新增</el-button>
+        <el-dropdown split-button type="success" size="small" :disabled="ids.length == 0" @command="handleCommand">
           关联商品库
           <template #dropdown>
             <el-dropdown-menu>
               <el-dropdown-item command="matched">批量关联</el-dropdown-item>
-              <el-dropdown-item command="undoMatched"
-                >批量取消关联</el-dropdown-item
-              >
+              <el-dropdown-item command="undoMatched">批量取消关联</el-dropdown-item>
             </el-dropdown-menu>
           </template>
         </el-dropdown>
-      </el-col>
-      <el-col :span="1.5">
-        <el-button
-          type="danger"
-          plain
-          :icon="Delete"
-          size="small"
-          :disabled="multiple"
-          @click="handleDelete"
-          v-hasPermi="['product:sku:remove']"
-          >删除</el-button
-        >
-      </el-col>
-      <el-col :span="1.5">
-        <el-button
-          type="info"
-          plain
-          :icon="UploadFilled"
-          size="small"
-          @click="handleImport"
-          >导入</el-button
-        >
-      </el-col>
-      <el-col :span="1.5">
-        <el-button
-          type="warning"
-          plain
-          :icon="Download"
-          size="small"
-          @click="handleExport"
-          v-hasPermi="['product:sku:export']"
-          >导出</el-button
-        >
-      </el-col>
-      <right-toolbar
-        v-model:showSearch="showSearch"
-        @queryTable="getPageList"
-      ></right-toolbar>
-    </el-row>
+        <el-button type="danger" plain :icon="Delete" size="small" :disabled="multiple" @click="handleDelete"
+          v-hasPermi="['product:sku:remove']">删除</el-button>
+        <el-button type="info" plain :icon="UploadFilled" size="small" @click="handleImport">导入</el-button>
+        <el-button type="warning" plain :icon="Download" size="small" @click="handleExport"
+          v-hasPermi="['product:sku:export']">导出</el-button>
+      </template>
 
-    <el-table
-      v-loading="loading"
-      :data="skuList"
-      @selection-change="handleSelectionChange"
-    >
-      <el-table-column type="selection" width="55" align="center" />
-      <el-table-column label="商品编号" align="center" prop="code" width="110" />
-      <el-table-column
-        label="商品分类"
-        align="center"
-        prop="categoryId"
-        :formatter="categoryFormatter"
-        :show-overflow-tooltip="true"
-      />
-      <el-table-column
-        label="商品名称"
-        align="center"
-        prop="name"
-        :show-overflow-tooltip="true"
-      />
-      <el-table-column label="商品规格" align="center" prop="specName" />
-      <el-table-column label="单位" width="70" align="center" prop="unit" />
-      <el-table-column label="称重" width="70" align="center" prop="isWeighted">
-        <template #default="scope">
-          <el-tag :type="scope.row.isWeighted == 1 ? 'warning' : 'info'">
-            {{ scope.row.isWeighted == 1 ? "称重" : "非称重" }}
-          </el-tag>
-        </template>
-      </el-table-column>
-      <el-table-column label="基础单位" width="90" align="center" prop="baseUnit" />
-      <el-table-column
-        label="换算率"
-        width="80"
-        align="center"
-        prop="conversionRate"
-      />
-      <el-table-column
-        align="center"
-        prop="salePrice"
-        :formatter="salePriceFormatter"
-        width="90"
-      >
-        <template #header>
-          <el-tooltip content="参考售价，仅展示，非交易价格" placement="top">
-            <span>参考售价</span>
-          </el-tooltip>
-        </template>
-      </el-table-column>
-      <el-table-column label="上架" width="70" align="center" prop="saleable">
-        <template #default="scope">
-          <dict-tag
-            :options="dict.type.biz_yes_no"
-            :value="scope.row.saleable"
-          />
-        </template>
-      </el-table-column>
-      <el-table-column label="有效" width="70" align="center" prop="valid">
-        <template #default="scope">
-          <dict-tag :options="dict.type.biz_yes_no" :value="scope.row.valid" />
-        </template>
-      </el-table-column>
-      <el-table-column label="关联" width="70" align="center" prop="matchedSpu">
-        <template #default="scope">
-          <dict-tag
-            :options="dict.type.biz_yes_no"
-            :value="scope.row.spuId ? '1' : '0'"
-          />
-        </template>
-      </el-table-column>
-      <el-table-column label="备注" align="center" prop="remark" :show-overflow-tooltip="true" />
-      <el-table-column
-        label="操作"
-        align="center"
-        class-name="small-padding fixed-width"
-        width="140"
-      >
-        <template #default="scope">
-          <el-button
-            size="small"
-            link
-            :icon="Edit"
-            @click="handleUpdate(scope.row)"
-            v-hasPermi="['product:sku:edit']"
-            >修改</el-button
-          >
-          <el-button
-            size="small"
-            link
-            :icon="Delete"
-            @click="handleDelete(scope.row)"
-            v-hasPermi="['product:sku:remove']"
-            >删除</el-button
-          >
-          <el-dropdown
-            v-if="scope.row.spuId ? true : false"
-            size="small"
-            @command="(command) => handleMoreCommand(command, scope.row)"
-          >
-            <el-button size="small" link :icon="DArrowRight"
-              >更多</el-button
-            >
-            <template #dropdown>
-              <el-dropdown-menu>
-                <el-dropdown-item command="undoMatched" :icon="Delete"
-                  >取消关联</el-dropdown-item
-                >
-              </el-dropdown-menu>
-            </template>
-          </el-dropdown>
-        </template>
-      </el-table-column>
-    </el-table>
-
-    <pagination
-      v-show="total > 0"
-      :total="total"
-      v-model:page="queryParams.pageNum"
-      v-model:limit="queryParams.pageSize"
-      @pagination="getPageList"
-    />
+      <!-- 列插槽 -->
+      <template #col_category="{ row }">
+        <span>{{ categoryFormatter(row) }}</span>
+      </template>
+      <template #col_weighted="{ row }">
+        <el-tag :type="row.isWeighted == 1 ? 'warning' : 'info'" size="small">
+          {{ row.isWeighted == 1 ? "称重" : "非称重" }}
+        </el-tag>
+      </template>
+      <template #col_saleable="{ row }">
+        <dict-tag :options="dict.type.biz_yes_no" :value="row.saleable" />
+      </template>
+      <template #col_valid="{ row }">
+        <dict-tag :options="dict.type.biz_yes_no" :value="row.valid" />
+      </template>
+      <template #col_matched="{ row }">
+        <dict-tag :options="dict.type.biz_yes_no" :value="row.spuId ? '1' : '0'" />
+      </template>
+      <template #col_op="{ row }">
+        <el-button size="small" link :icon="Edit" @click="handleUpdate(row)"
+          v-hasPermi="['product:sku:edit']">修改</el-button>
+        <el-button size="small" link :icon="Delete" @click="handleDelete(row)"
+          v-hasPermi="['product:sku:remove']">删除</el-button>
+        <el-dropdown
+          v-if="row.spuId ? true : false"
+          size="small"
+          @command="(command) => handleMoreCommand(command, row)"
+        >
+          <el-button size="small" link :icon="DArrowRight">更多</el-button>
+          <template #dropdown>
+            <el-dropdown-menu>
+              <el-dropdown-item command="undoMatched" :icon="Delete">取消关联</el-dropdown-item>
+            </el-dropdown-menu>
+          </template>
+        </el-dropdown>
+      </template>
+    </quick-table>
 
     <!-- 添加或修改商品信息对话框 -->
     <el-dialog :title="title" v-model="open" width="560px" append-to-body>
@@ -330,6 +174,7 @@
             filterable
             allow-create
             default-first-option
+            style="width: 100%"
           >
             <el-option
               v-for="dict in dict.type.t_sku_unit"
@@ -357,6 +202,7 @@
             filterable
             allow-create
             default-first-option
+            style="width: 100%"
           >
             <el-option
               v-for="dict in dict.type.t_sku_unit"
@@ -522,6 +368,7 @@ import { listCategory } from "@/api/product/category";
 import { listSpu } from "@/api/product/spu";
 import { pinyin } from "pinyin-pro";
 import { getToken } from "@/utils/auth";
+import quickTableMixin from "@/components/QuickTable/quickTableMixin";
 import {
   Search,
   Refresh,
@@ -538,6 +385,7 @@ import {
 export default {
   name: "Sku",
   dicts: ["t_sku_unit", "biz_yes_no"],
+  mixins: [quickTableMixin],
   setup() {
     return {
       Search,
@@ -592,15 +440,10 @@ export default {
       },
       // 商品导入参数
       upload: {
-        // 是否显示弹出层（商品导入）
         open: false,
-        // 弹出层标题（商品导入）
         title: "",
-        // 是否禁用上传
         isUploading: false,
-        // 设置上传的请求头部
         headers: { Authorization: "Bearer " + getToken() },
-        // 上传的地址
         url: import.meta.env.VITE_APP_BASE_API + "/product/sku/importData",
       },
       // 查询参数
@@ -616,6 +459,35 @@ export default {
         // 辅助查询是否关联spu
         matchedSpu: null,
       },
+      // 表格列配置
+      columns: [
+        { field: "code", title: "商品编号", width: 110, align: "center", sortable: true },
+        { field: "categoryId", title: "商品分类", minWidth: 110, slots: { default: "col_category" } },
+        { field: "name", title: "商品名称", minWidth: 150, fixed: "left" },
+        { field: "specName", title: "商品规格", minWidth: 100, showOverflow: true },
+        { field: "unit", title: "单位", width: 70, align: "center" },
+        { field: "isWeighted", title: "称重", width: 80, align: "center", slots: { default: "col_weighted" } },
+        { field: "baseUnit", title: "基础单位", width: 90, align: "center" },
+        { field: "conversionRate", title: "换算率", width: 80, align: "center" },
+        {
+          field: "salePrice",
+          title: "参考售价",
+          width: 90,
+          align: "right",
+          titleHelp: { content: "参考售价，仅展示，非交易价格", placement: "top" },
+          slots: { default: "col_price" },
+        },
+        { field: "saleable", title: "上架", width: 70, align: "center", slots: { default: "col_saleable" } },
+        { field: "valid", title: "有效", width: 70, align: "center", slots: { default: "col_valid" } },
+        { field: "matchedSpu", title: "关联", width: 70, align: "center", slots: { default: "col_matched" } },
+        { field: "remark", title: "备注", minWidth: 140, showOverflow: true },
+        { field: "op", title: "操作", width: 180, fixed: "right", align: "center", slots: { default: "col_op" } },
+      ],
+      // 批量操作条
+      batchActions: [
+        { key: "match", label: "批量关联", type: "success", icon: "Link" },
+        { key: "delete", label: "删除", type: "danger", icon: "Delete" },
+      ],
       // 表单参数
       form: {},
       // 表单校验
@@ -659,6 +531,16 @@ export default {
         this.total = response.total;
         this.loading = false;
       });
+    },
+    /** 批量操作条分发 */
+    handleBatchAction(key, rows) {
+      if (key === "match") {
+        this.selectedSkuList = rows;
+        this.ids = rows.map((r) => r.id);
+        this.handleMatched();
+      } else if (key === "delete") {
+        this.handleDelete();
+      }
     },
     /** 查询商品库列表 */
     querySpuList(queryString, cb) {
@@ -835,7 +717,7 @@ export default {
     },
     /** 删除按钮操作 */
     handleDelete(row) {
-      const ids = row.id || this.ids;
+      const ids = (row && row.id) || this.ids;
       this.$modal
         .confirm('是否确认删除商品信息编号为"' + ids + '"的数据项？')
         .then(function () {
@@ -934,10 +816,6 @@ export default {
       return this.categoryMap
         ? this.categoryMap[row.categoryId] || ""
         : row.categoryId;
-    },
-    /** 参考售价格式化 */
-    salePriceFormatter(row) {
-      return row.salePrice == null ? "" : row.salePrice;
     },
     /** 根据 id 构造父节点列表，并添加自身 */
     fillWithParentCategoryId(list, id) {

@@ -1,73 +1,69 @@
 <template>
   <div class="app-container">
-    <el-form :model="queryParams" ref="queryForm" size="small" :inline="true" label-width="80px">
-      <el-form-item label="配送点" prop="deliveryPointId">
-        <el-select v-model="queryParams.deliveryPointId" placeholder="请选择配送点" clearable filterable style="width: 220px">
-          <el-option v-for="item in deptOptions" :key="item.id" :label="item.name" :value="item.id" />
-        </el-select>
-      </el-form-item>
-      <el-form-item label="商品名称" prop="skuName">
-        <el-input v-model="queryParams.skuName" placeholder="请输入商品名称" clearable style="width: 180px" @keyup.enter="handleQuery" />
-      </el-form-item>
-      <el-form-item label="可见" prop="isAvailable">
-        <el-select v-model="queryParams.isAvailable" placeholder="全部" clearable style="width: 120px">
-          <el-option label="可见" :value="1" />
-          <el-option label="隐藏" :value="0" />
-        </el-select>
-      </el-form-item>
-      <el-form-item>
-        <el-button type="primary" :icon="Search" size="small" @click="handleQuery">搜索</el-button>
-        <el-button :icon="Refresh" size="small" @click="resetQuery">重置</el-button>
-      </el-form-item>
-    </el-form>
+    <quick-table
+      ref="quickTable"
+      id="price-delivery-override-table"
+      v-model:showSearch="showSearch"
+      :columns="columns"
+      :data="overrideList"
+      :loading="loading"
+      :show-pager="false"
+      :batch-actions="batchActions"
+      @query="handleQuery"
+      @reset="resetQuery"
+      @selection-change="handleSelectionChange"
+      @add="handleAdd"
+      @edit="handleUpdate"
+      @delete="handleQuickDelete"
+      @batch-action="handleQuickBatchAction"
+    >
+      <template #search>
+        <el-form :model="queryParams" ref="queryForm" size="small" :inline="true" label-width="48px">
+          <el-form-item label="配送点" prop="deliveryPointId">
+            <el-select v-model="queryParams.deliveryPointId" placeholder="请选择配送点" clearable filterable style="width: 200px">
+              <el-option v-for="item in deptOptions" :key="item.id" :label="item.name" :value="item.id" />
+            </el-select>
+          </el-form-item>
+          <el-form-item label="商品" prop="skuName">
+            <el-input v-model="queryParams.skuName" placeholder="请输入商品名称" clearable style="width: 160px" @keyup.enter="handleQuery" />
+          </el-form-item>
+          <el-form-item label="可见" prop="isAvailable">
+            <el-select v-model="queryParams.isAvailable" placeholder="全部" clearable style="width: 100px">
+              <el-option label="可见" :value="1" />
+              <el-option label="隐藏" :value="0" />
+            </el-select>
+          </el-form-item>
+        </el-form>
+      </template>
 
-    <el-row :gutter="10" class="mb8">
-      <el-col :span="1.5">
+      <template #buttons>
         <el-button type="primary" plain :icon="Plus" size="small" @click="handleAdd"
           v-hasPermi="['price:delivery-override:add']">新增</el-button>
-      </el-col>
-      <el-col :span="1.5">
         <el-button type="danger" plain :icon="Delete" size="small" :disabled="multiple" @click="handleDelete"
           v-hasPermi="['price:delivery-override:remove']">删除</el-button>
-      </el-col>
-      <right-toolbar :showSearch="showSearch" @update:showSearch="showSearch = $event" @queryTable="getList"></right-toolbar>
-    </el-row>
+      </template>
 
-    <el-table v-loading="loading" :data="overrideList" @selection-change="handleSelectionChange">
-      <el-table-column type="selection" width="50" align="center" />
-      <el-table-column label="配送点" align="center" prop="deliveryPointName" min-width="140" :show-overflow-tooltip="true" />
-      <el-table-column label="商品" align="center" prop="skuName" min-width="140" :show-overflow-tooltip="true" />
-      <el-table-column label="是否可见" align="center" prop="isAvailable" width="90">
-        <template #default="scope">
-          <el-tag :type="scope.row.isAvailable == 1 ? 'success' : 'danger'">
-            {{ scope.row.isAvailable == 1 ? "可见" : "隐藏" }}
-          </el-tag>
-        </template>
-      </el-table-column>
-      <el-table-column label="价格覆盖" align="center" prop="priceOverride" width="100">
-        <template #default="scope">
-          <span v-if="scope.row.priceOverride != null">{{ scope.row.priceOverride }}</span>
-          <span v-else class="text-muted">继承客户价</span>
-        </template>
-      </el-table-column>
-      <el-table-column label="别名覆盖" align="center" prop="aliasOverride" width="120" :show-overflow-tooltip="true">
-        <template #default="scope">
-          <span v-if="scope.row.aliasOverride">{{ scope.row.aliasOverride }}</span>
-          <span v-else class="text-muted">-</span>
-        </template>
-      </el-table-column>
-      <el-table-column label="有效期" align="center" min-width="190">
-        <template #default="scope">{{ formatRange(scope.row) }}</template>
-      </el-table-column>
-      <el-table-column label="操作" align="center" class-name="small-padding fixed-width" width="130">
-        <template #default="scope">
-          <el-button size="small" link :icon="Edit" @click="handleUpdate(scope.row)"
-            v-hasPermi="['price:delivery-override:add']">修改</el-button>
-          <el-button size="small" link :icon="Delete" @click="handleDelete(scope.row)"
-            v-hasPermi="['price:delivery-override:remove']">删除</el-button>
-        </template>
-      </el-table-column>
-    </el-table>
+      <template #col_available="{ row }">
+        <el-tag :type="row.isAvailable == 1 ? 'success' : 'danger'" size="small">
+          {{ row.isAvailable == 1 ? "可见" : "隐藏" }}
+        </el-tag>
+      </template>
+      <template #col_price="{ row }">
+        <span v-if="row.priceOverride != null">{{ row.priceOverride }}</span>
+        <span v-else class="text-muted">继承客户价</span>
+      </template>
+      <template #col_alias="{ row }">
+        <span v-if="row.aliasOverride">{{ row.aliasOverride }}</span>
+        <span v-else class="text-muted">-</span>
+      </template>
+      <template #col_range="{ row }">{{ formatRange(row) }}</template>
+      <template #col_op="{ row }">
+        <el-button size="small" link :icon="Edit" @click="handleUpdate(row)"
+          v-hasPermi="['price:delivery-override:add']">修改</el-button>
+        <el-button size="small" link :icon="Delete" @click="handleDelete(row)"
+          v-hasPermi="['price:delivery-override:remove']">删除</el-button>
+      </template>
+    </quick-table>
 
     <!-- 添加或修改配送点覆盖对话框 -->
     <el-dialog :title="title" v-model="open" width="580px" append-to-body>
@@ -123,9 +119,11 @@ import { listDeliverySkuOverride, getDeliverySkuOverride, saveDeliverySkuOverrid
 import { listCustomerDept } from "@/api/partner/customerDept";
 import { listSku } from "@/api/product/sku";
 import { Search, Refresh, Plus, Edit, Delete } from "@element-plus/icons-vue";
+import quickTableMixin from "@/components/QuickTable/quickTableMixin";
 
 export default {
   name: "DeliverySkuOverride",
+  mixins: [quickTableMixin],
   setup() {
     return { Search, Refresh, Plus, Edit, Delete };
   },
@@ -141,8 +139,20 @@ export default {
       },
       deptOptions: [],
       skuOptions: [],
-      ids: [],
-      multiple: true,
+      // 表格列配置
+      columns: [
+        { field: "deliveryPointName", title: "配送点", minWidth: 140, fixed: "left" },
+        { field: "skuName", title: "商品", minWidth: 140 },
+        { field: "isAvailable", title: "是否可见", width: 90, align: "center", slots: { default: "col_available" } },
+        { field: "priceOverride", title: "价格覆盖", width: 110, align: "right", slots: { default: "col_price" } },
+        { field: "aliasOverride", title: "别名覆盖", width: 120, align: "center", slots: { default: "col_alias" } },
+        { field: "range", title: "有效期", minWidth: 190, align: "center", slots: { default: "col_range" } },
+        { field: "op", title: "操作", width: 130, fixed: "right", align: "center", slots: { default: "col_op" } },
+      ],
+      // 批量操作条
+      batchActions: [
+        { key: "delete", label: "删除", type: "danger", icon: "Delete" },
+      ],
       form: {},
       open: false,
       title: "",
@@ -198,10 +208,6 @@ export default {
       this.resetForm("queryForm");
       this.getList();
     },
-    handleSelectionChange(selection) {
-      this.ids = selection.map((item) => item.id);
-      this.multiple = !selection.length;
-    },
     reset() {
       this.form = {
         id: null,
@@ -244,9 +250,9 @@ export default {
       });
     },
     handleDelete(row) {
-      const ids = row.id || this.ids;
+      const ids = (row && row.id) || this.ids;
       this.$modal
-        .confirm('是否确认删除配送点【"' + (row.deliveryPointName || "") + '"】对商品【"' + (row.skuName || "") + '"】的覆盖？')
+        .confirm('是否确认删除配送点【"' + ((row && row.deliveryPointName) || "") + '"】对商品【"' + ((row && row.skuName) || "") + '"】的覆盖？')
         .then(function () {
           return delDeliverySkuOverride(ids);
         })

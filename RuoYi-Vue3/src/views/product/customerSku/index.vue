@@ -1,138 +1,91 @@
 <template>
   <div class="app-container">
-    <el-form
-      :model="queryParams"
-      ref="queryForm"
-      size="small"
-      :inline="true"
-      label-width="70px"
+    <quick-table
+      ref="quickTable"
+      id="basic-customer-sku-table"
+      v-model:showSearch="showSearch"
+      :columns="columns"
+      :data="customerSkuList"
+      :loading="loading"
+      :show-pager="false"
+      :batch-actions="batchActions"
+      @query="handleQuery"
+      @reset="resetQuery"
+      @selection-change="handleSelectionChange"
+      @add="handleAdd"
+      @edit="handleUpdate"
+      @delete="handleQuickDelete"
+      @batch-action="handleBatchAction"
     >
-      <el-form-item label="客户" prop="customerId">
-        <el-select
-          v-model="queryParams.customerId"
-          placeholder="请选择客户（必选）"
-          filterable
-          clearable
-          style="width: 220px"
-          @change="handleQuery"
-        >
-          <el-option
-            v-for="item in customerOptions"
-            :key="item.id"
-            :label="item.alias ? item.alias + '（' + item.name + '）' : item.name"
-            :value="item.id"
-          />
-        </el-select>
-      </el-form-item>
-      <el-form-item label="关键字" prop="keyword">
-        <el-input
-          v-model="queryParams.keyword"
-          placeholder="商品名/助记码/别名/客户编码"
-          clearable
-          style="width: 200px"
-          @keyup.enter="handleQuery"
-        />
-      </el-form-item>
-      <el-form-item label="状态" prop="status">
-        <el-select v-model="queryParams.status" placeholder="全部" clearable style="width: 120px">
-          <el-option label="可用" :value="1" />
-          <el-option label="停用" :value="0" />
-        </el-select>
-      </el-form-item>
-      <el-form-item>
-        <el-button type="primary" :icon="Search" size="small" @click="handleQuery">搜索</el-button>
-        <el-button :icon="Refresh" size="small" @click="resetQuery">重置</el-button>
-      </el-form-item>
-    </el-form>
+      <template #search>
+        <el-form :model="queryParams" ref="queryForm" size="small" :inline="true" label-width="48px">
+          <el-form-item label="客户" prop="customerId">
+            <el-select
+              v-model="queryParams.customerId"
+              placeholder="请选择客户（必选）"
+              filterable
+              clearable
+              style="width: 220px"
+              @change="handleQuery"
+            >
+              <el-option
+                v-for="item in customerOptions"
+                :key="item.id"
+                :label="item.alias ? item.alias + '（' + item.name + '）' : item.name"
+                :value="item.id"
+              />
+            </el-select>
+          </el-form-item>
+          <el-form-item label="关键字" prop="keyword">
+            <el-input
+              v-model="queryParams.keyword"
+              placeholder="商品名/助记码/别名/客户编码"
+              clearable
+              style="width: 200px"
+              @keyup.enter="handleQuery"
+            />
+          </el-form-item>
+          <el-form-item label="状态" prop="status">
+            <el-select v-model="queryParams.status" placeholder="全部" clearable style="width: 110px">
+              <el-option label="可用" :value="1" />
+              <el-option label="停用" :value="0" />
+            </el-select>
+          </el-form-item>
+        </el-form>
+      </template>
 
-    <el-row :gutter="10" class="mb8">
-      <el-col :span="1.5">
-        <el-button
-          type="primary"
-          plain
-          :icon="Plus"
-          size="small"
-          @click="handleAdd"
-          v-hasPermi="['product:customer-sku:add']"
-          >新增</el-button
-        >
-      </el-col>
-      <el-col :span="1.5">
-        <el-button
-          type="success"
-          plain
-          :icon="Promotion"
-          size="small"
-          v-hasPermi="['product:customer-sku:assign']"
-          @click="handleAssign"
-          >批量赋值</el-button
-        >
-      </el-col>
-      <el-col :span="1.5">
-        <el-button
-          type="warning"
-          plain
-          :icon="Switch"
-          size="small"
-          :disabled="multiple"
-          v-hasPermi="['product:customer-sku:edit']"
-          @click="handleToggleStatus"
-          >停用/启用</el-button
-        >
-      </el-col>
-      <el-col :span="1.5">
-        <el-button
-          type="danger"
-          plain
-          :icon="Delete"
-          size="small"
-          :disabled="multiple"
-          v-hasPermi="['product:customer-sku:remove']"
-          @click="handleDelete"
-          >删除</el-button
-        >
-      </el-col>
-      <right-toolbar :showSearch="showSearch" @update:showSearch="showSearch = $event" @queryTable="getList"></right-toolbar>
-    </el-row>
+      <template #buttons>
+        <el-button type="primary" plain :icon="Plus" size="small" @click="handleAdd"
+          v-hasPermi="['product:customer-sku:add']">新增</el-button>
+        <el-button type="success" plain :icon="Promotion" size="small"
+          v-hasPermi="['product:customer-sku:assign']" @click="handleAssign">批量赋值</el-button>
+        <el-button type="warning" plain :icon="Switch" size="small" :disabled="multiple"
+          v-hasPermi="['product:customer-sku:edit']" @click="handleToggleStatus">停用/启用</el-button>
+        <el-button type="danger" plain :icon="Delete" size="small" :disabled="multiple"
+          v-hasPermi="['product:customer-sku:remove']" @click="handleDelete">删除</el-button>
+      </template>
 
-    <el-table v-loading="loading" :data="customerSkuList" @selection-change="handleSelectionChange">
-      <el-table-column type="selection" width="50" align="center" />
-      <el-table-column label="客户商品编码" align="center" prop="customerCode" width="120" />
-      <el-table-column label="别名" align="center" prop="alias" :show-overflow-tooltip="true" width="120">
-        <template #default="scope">
-          <span v-if="scope.row.alias">{{ scope.row.alias }}</span>
-          <span v-else class="text-muted">-</span>
-        </template>
-      </el-table-column>
-      <el-table-column label="标准SKU" align="center" prop="skuName" :show-overflow-tooltip="true" min-width="140" />
-      <el-table-column label="标准编码" align="center" prop="skuCode" width="110" />
-      <el-table-column label="规格" align="center" prop="skuSpecName" :show-overflow-tooltip="true" width="110" />
-      <el-table-column label="单位" align="center" prop="skuUnit" width="70" />
-      <el-table-column label="起订量" align="center" prop="minOrderQty" width="80" />
-      <el-table-column label="步长" align="center" prop="orderStep" width="70" />
-      <el-table-column label="状态" align="center" prop="status" width="80">
-        <template #default="scope">
-          <el-tag :type="scope.row.status == 1 ? 'success' : 'danger'">
-            {{ scope.row.status == 1 ? "可用" : "停用" }}
-          </el-tag>
-        </template>
-      </el-table-column>
-      <el-table-column label="个性化" align="center" prop="isFollowDefault" width="90">
-        <template #default="scope">
-          <el-tag :type="scope.row.isFollowDefault == 1 ? 'info' : 'warning'" size="small">
-            {{ scope.row.isFollowDefault == 1 ? "跟随默认" : "已个性化" }}
-          </el-tag>
-        </template>
-      </el-table-column>
-      <el-table-column label="操作" align="center" class-name="small-padding fixed-width" width="130">
-        <template #default="scope">
-          <el-button size="small" link :icon="Edit" @click="handleUpdate(scope.row)"
-            v-hasPermi="['product:customer-sku:edit']">修改</el-button>
-          <el-button size="small" link :icon="Delete" @click="handleDelete(scope.row)"
-            v-hasPermi="['product:customer-sku:remove']">删除</el-button>
-        </template>
-      </el-table-column>
-    </el-table>
+      <template #col_alias="{ row }">
+        <span v-if="row.alias">{{ row.alias }}</span>
+        <span v-else class="text-muted">-</span>
+      </template>
+      <template #col_status="{ row }">
+        <el-tag :type="row.status == 1 ? 'success' : 'danger'" size="small">
+          {{ row.status == 1 ? "可用" : "停用" }}
+        </el-tag>
+      </template>
+      <template #col_follow="{ row }">
+        <el-tag :type="row.isFollowDefault == 1 ? 'info' : 'warning'" size="small">
+          {{ row.isFollowDefault == 1 ? "跟随默认" : "已个性化" }}
+        </el-tag>
+      </template>
+      <template #col_op="{ row }">
+        <el-button size="small" link :icon="Edit" @click="handleUpdate(row)"
+          v-hasPermi="['product:customer-sku:edit']">修改</el-button>
+        <el-button size="small" link :icon="Delete" @click="handleDelete(row)"
+          v-hasPermi="['product:customer-sku:remove']">删除</el-button>
+      </template>
+    </quick-table>
 
     <!-- 新增客户商品对话框 -->
     <el-dialog :title="title" v-model="open" width="560px" append-to-body>
@@ -305,9 +258,11 @@ import {
 import { listSku } from "@/api/product/sku";
 import { listCustomer } from "@/api/partner/customer";
 import { Search, Refresh, Plus, Delete, Edit, Promotion, Switch } from "@element-plus/icons-vue";
+import quickTableMixin from "@/components/QuickTable/quickTableMixin";
 
 export default {
   name: "CustomerSku",
+  mixins: [quickTableMixin],
   setup() {
     return { Search, Refresh, Plus, Delete, Edit, Promotion, Switch };
   },
@@ -317,9 +272,6 @@ export default {
       showSearch: true,
       // 客户商品列表
       customerSkuList: [],
-      // 选中
-      ids: [],
-      multiple: true,
       // 客户选项
       customerOptions: [],
       // 标准SKU选项（新增用，剔除已分配的）
@@ -334,6 +286,25 @@ export default {
         keyword: null,
         status: null,
       },
+      // 表格列配置
+      columns: [
+        { field: "customerCode", title: "客户商品编码", width: 120, align: "center", sortable: true },
+        { field: "alias", title: "别名", width: 120, align: "center", slots: { default: "col_alias" } },
+        { field: "skuName", title: "标准SKU", minWidth: 140, fixed: "left" },
+        { field: "skuCode", title: "标准编码", width: 110, align: "center" },
+        { field: "skuSpecName", title: "规格", width: 110, align: "center", showOverflow: true },
+        { field: "skuUnit", title: "单位", width: 70, align: "center" },
+        { field: "minOrderQty", title: "起订量", width: 80, align: "right" },
+        { field: "orderStep", title: "步长", width: 70, align: "right" },
+        { field: "status", title: "状态", width: 80, align: "center", slots: { default: "col_status" } },
+        { field: "isFollowDefault", title: "个性化", width: 90, align: "center", slots: { default: "col_follow" } },
+        { field: "op", title: "操作", width: 130, fixed: "right", align: "center", slots: { default: "col_op" } },
+      ],
+      // 批量操作条
+      batchActions: [
+        { key: "toggle", label: "停用/启用", type: "warning", icon: "Switch" },
+        { key: "delete", label: "删除", type: "danger", icon: "Delete" },
+      ],
       // 新增
       form: {},
       open: false,
@@ -387,6 +358,14 @@ export default {
         this.loading = false;
       });
     },
+    /** 批量操作条分发 */
+    handleBatchAction(key, rows) {
+      if (key === "toggle") {
+        this.handleToggleStatus();
+      } else if (key === "delete") {
+        this.handleDelete();
+      }
+    },
     /** 客户下拉 */
     getCustomerOptions() {
       listCustomer().then((response) => {
@@ -399,28 +378,12 @@ export default {
         this.templateOptions = response.data || [];
       });
     },
-    /** 全部SKU（批量赋值用） */
-    getSkuOptions(assignedSkuIds) {
-      listSku({}).then((response) => {
-        const all = response.data || [];
-        this.allSkuOptions = all;
-        if (this.queryParams.customerId) {
-          this.skuOptions = all.filter((sku) => !assignedSkuIds.includes(sku.id));
-        } else {
-          this.skuOptions = all;
-        }
-      });
-    },
     handleQuery() {
       this.getList();
     },
     resetQuery() {
       this.resetForm("queryForm");
       this.getList();
-    },
-    handleSelectionChange(selection) {
-      this.ids = selection.map((item) => item.id);
-      this.multiple = !selection.length;
     },
     /** 新增 */
     handleAdd() {
@@ -509,7 +472,7 @@ export default {
     },
     /** 删除 */
     handleDelete(row) {
-      const ids = row.id || this.ids;
+      const ids = (row && row.id) || this.ids;
       this.$modal
         .confirm('是否确认删除选中的客户商品数据项？')
         .then(function () {

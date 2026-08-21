@@ -3,137 +3,151 @@
     <el-tabs v-model="activeTab" type="border-card">
       <!-- ==================== 全局别名 ==================== -->
       <el-tab-pane label="全局别名" name="alias">
-        <el-form :model="aliasQueryParams" ref="aliasQueryForm" size="small" :inline="true" label-width="68px">
-          <el-form-item label="别名" prop="alias">
-            <el-input v-model="aliasQueryParams.alias" placeholder="请输入别名" clearable @keyup.enter="aliasHandleQuery" />
-          </el-form-item>
-          <el-form-item label="类型" prop="aliasType">
-            <el-select v-model="aliasQueryParams.aliasType" placeholder="请选择类型" clearable>
-              <el-option v-for="item in aliasTypeOptions" :key="item.value" :label="item.label" :value="item.value" />
-            </el-select>
-          </el-form-item>
-          <el-form-item>
-            <el-button type="primary" :icon="Search" size="small" @click="aliasHandleQuery">搜索</el-button>
-            <el-button :icon="Refresh" size="small" @click="aliasResetQuery">重置</el-button>
-          </el-form-item>
-        </el-form>
+        <quick-table
+          ref="aliasQuickTable"
+          id="product-alias-table"
+          v-model:showSearch="showAliasSearch"
+          :columns="aliasColumns"
+          :data="aliasList"
+          :loading="aliasLoading"
+          :show-pager="false"
+          :batch-actions="[]"
+          :shortcuts="false"
+          @query="aliasHandleQuery"
+          @reset="aliasResetQuery"
+          @selection-change="aliasHandleSelectionChange"
+          @add="aliasHandleAdd"
+          @edit="aliasHandleUpdate"
+          @delete="aliasHandleQuickDelete"
+        >
+          <template #search>
+            <el-form :model="aliasQueryParams" ref="aliasQueryForm" size="small" :inline="true" label-width="48px">
+              <el-form-item label="别名" prop="alias">
+                <el-input v-model="aliasQueryParams.alias" placeholder="请输入别名" clearable style="width: 160px" @keyup.enter="aliasHandleQuery" />
+              </el-form-item>
+              <el-form-item label="类型" prop="aliasType">
+                <el-select v-model="aliasQueryParams.aliasType" placeholder="全部" clearable style="width: 120px">
+                  <el-option v-for="item in aliasTypeOptions" :key="item.value" :label="item.label" :value="item.value" />
+                </el-select>
+              </el-form-item>
+            </el-form>
+          </template>
 
-        <el-row :gutter="10" class="mb8">
-          <el-col :span="1.5">
+          <template #buttons>
             <el-button type="primary" plain :icon="Plus" size="small" @click="aliasHandleAdd"
               v-hasPermi="['product:alias:add']">新增</el-button>
-          </el-col>
-        </el-row>
+          </template>
 
-        <el-table v-loading="aliasLoading" :data="aliasList">
-          <el-table-column label="别名" align="center" prop="alias" :show-overflow-tooltip="true" />
-          <el-table-column label="类型" align="center" prop="aliasType">
-            <template #default="scope">{{ aliasTypeLabel(scope.row.aliasType) }}</template>
-          </el-table-column>
-          <el-table-column label="关联SKU" align="center" prop="skuName" :show-overflow-tooltip="true" />
-          <el-table-column label="操作" align="center" class-name="small-padding fixed-width" width="160">
-            <template #default="scope">
-              <el-button size="small" link :icon="Edit" @click="aliasHandleUpdate(scope.row)"
-                v-hasPermi="['product:alias:edit']">修改</el-button>
-              <el-button size="small" link :icon="Delete" @click="aliasHandleDelete(scope.row)"
-                v-hasPermi="['product:alias:remove']">删除</el-button>
-            </template>
-          </el-table-column>
-        </el-table>
+          <template #col_type="{ row }">{{ aliasTypeLabel(row.aliasType) }}</template>
+          <template #col_op="{ row }">
+            <el-button size="small" link :icon="Edit" @click="aliasHandleUpdate(row)"
+              v-hasPermi="['product:alias:edit']">修改</el-button>
+            <el-button size="small" link :icon="Delete" @click="aliasHandleDelete(row)"
+              v-hasPermi="['product:alias:remove']">删除</el-button>
+          </template>
+        </quick-table>
       </el-tab-pane>
 
       <!-- ==================== 客户SKU映射 ==================== -->
       <el-tab-pane label="客户SKU映射" name="mapping">
-        <el-form :model="mappingQueryParams" ref="mappingQueryForm" size="small" :inline="true" label-width="80px">
-          <el-form-item label="客户" prop="customerId">
-            <el-select v-model="mappingQueryParams.customerId" placeholder="请选择客户" clearable filterable>
-              <el-option v-for="item in customerOptions" :key="item.id" :label="item.name" :value="item.id" />
-            </el-select>
-          </el-form-item>
-          <el-form-item label="客户叫法" prop="customerAlias">
-            <el-input v-model="mappingQueryParams.customerAlias" placeholder="请输入客户叫法" clearable @keyup.enter="mappingHandleQuery" />
-          </el-form-item>
-          <el-form-item>
-            <el-button type="primary" :icon="Search" size="small" @click="mappingHandleQuery">搜索</el-button>
-            <el-button :icon="Refresh" size="small" @click="mappingResetQuery">重置</el-button>
-          </el-form-item>
-        </el-form>
+        <quick-table
+          ref="mappingQuickTable"
+          id="product-mapping-table"
+          v-model:showSearch="showMappingSearch"
+          :columns="mappingColumns"
+          :data="mappingList"
+          :loading="mappingLoading"
+          :show-pager="false"
+          :batch-actions="[]"
+          :shortcuts="false"
+          @query="mappingHandleQuery"
+          @reset="mappingResetQuery"
+          @selection-change="mappingHandleSelectionChange"
+          @add="mappingHandleAdd"
+          @edit="mappingHandleUpdate"
+          @delete="mappingHandleQuickDelete"
+        >
+          <template #search>
+            <el-form :model="mappingQueryParams" ref="mappingQueryForm" size="small" :inline="true" label-width="60px">
+              <el-form-item label="客户" prop="customerId">
+                <el-select v-model="mappingQueryParams.customerId" placeholder="全部" clearable filterable style="width: 160px">
+                  <el-option v-for="item in customerOptions" :key="item.id" :label="item.name" :value="item.id" />
+                </el-select>
+              </el-form-item>
+              <el-form-item label="客户叫法" prop="customerAlias">
+                <el-input v-model="mappingQueryParams.customerAlias" placeholder="请输入客户叫法" clearable style="width: 160px" @keyup.enter="mappingHandleQuery" />
+              </el-form-item>
+            </el-form>
+          </template>
 
-        <el-row :gutter="10" class="mb8">
-          <el-col :span="1.5">
+          <template #buttons>
             <el-button type="primary" plain :icon="Plus" size="small" @click="mappingHandleAdd"
               v-hasPermi="['product:mapping:add']">新增</el-button>
-          </el-col>
-        </el-row>
+          </template>
 
-        <el-table v-loading="mappingLoading" :data="mappingList">
-          <el-table-column label="客户" align="center" prop="customerName" :show-overflow-tooltip="true" />
-          <el-table-column label="客户叫法" align="center" prop="customerAlias" :show-overflow-tooltip="true" />
-          <el-table-column label="我方SKU" align="center" prop="skuName" :show-overflow-tooltip="true" />
-          <el-table-column label="操作" align="center" class-name="small-padding fixed-width" width="160">
-            <template #default="scope">
-              <el-button size="small" link :icon="Edit" @click="mappingHandleUpdate(scope.row)"
-                v-hasPermi="['product:mapping:edit']">修改</el-button>
-              <el-button size="small" link :icon="Delete" @click="mappingHandleDelete(scope.row)"
-                v-hasPermi="['product:mapping:remove']">删除</el-button>
-            </template>
-          </el-table-column>
-        </el-table>
+          <template #col_op="{ row }">
+            <el-button size="small" link :icon="Edit" @click="mappingHandleUpdate(row)"
+              v-hasPermi="['product:mapping:edit']">修改</el-button>
+            <el-button size="small" link :icon="Delete" @click="mappingHandleDelete(row)"
+              v-hasPermi="['product:mapping:remove']">删除</el-button>
+          </template>
+        </quick-table>
       </el-tab-pane>
 
       <!-- ==================== 临时商品 ==================== -->
       <el-tab-pane label="临时商品" name="temp">
-        <el-form :model="tempQueryParams" ref="tempQueryForm" size="small" :inline="true" label-width="68px">
-          <el-form-item label="客户" prop="customerId">
-            <el-select v-model="tempQueryParams.customerId" placeholder="全部（含客户专用）" clearable filterable style="width: 180px" @change="tempHandleQuery">
-              <el-option v-for="item in customerOptions" :key="item.id" :label="item.name" :value="item.id" />
-            </el-select>
-          </el-form-item>
-          <el-form-item label="名称" prop="name">
-            <el-input v-model="tempQueryParams.name" placeholder="请输入商品名称" clearable @keyup.enter="tempHandleQuery" />
-          </el-form-item>
-          <el-form-item>
-            <el-button type="primary" :icon="Search" size="small" @click="tempHandleQuery">搜索</el-button>
-            <el-button :icon="Refresh" size="small" @click="tempResetQuery">重置</el-button>
-          </el-form-item>
-        </el-form>
+        <quick-table
+          ref="tempQuickTable"
+          id="product-temp-table"
+          v-model:showSearch="showTempSearch"
+          :columns="tempColumns"
+          :data="tempList"
+          :loading="tempLoading"
+          :show-pager="false"
+          :batch-actions="[]"
+          :shortcuts="false"
+          @query="tempHandleQuery"
+          @reset="tempResetQuery"
+          @selection-change="tempHandleSelectionChange"
+          @add="tempHandleAdd"
+          @edit="tempHandleUpdate"
+          @delete="tempHandleQuickDelete"
+        >
+          <template #search>
+            <el-form :model="tempQueryParams" ref="tempQueryForm" size="small" :inline="true" label-width="48px">
+              <el-form-item label="客户" prop="customerId">
+                <el-select v-model="tempQueryParams.customerId" placeholder="全部（含客户专用）" clearable filterable style="width: 180px" @change="tempHandleQuery">
+                  <el-option v-for="item in customerOptions" :key="item.id" :label="item.name" :value="item.id" />
+                </el-select>
+              </el-form-item>
+              <el-form-item label="名称" prop="name">
+                <el-input v-model="tempQueryParams.name" placeholder="请输入商品名称" clearable style="width: 160px" @keyup.enter="tempHandleQuery" />
+              </el-form-item>
+            </el-form>
+          </template>
 
-        <el-row :gutter="10" class="mb8">
-          <el-col :span="1.5">
+          <template #buttons>
             <el-button type="primary" plain :icon="Plus" size="small" @click="tempHandleAdd"
               v-hasPermi="['product:temp:add']">新增</el-button>
-          </el-col>
-        </el-row>
+          </template>
 
-        <el-table v-loading="tempLoading" :data="tempList">
-          <el-table-column label="名称" align="center" prop="name" :show-overflow-tooltip="true" min-width="140" />
-          <el-table-column label="规格" align="center" prop="spec" :show-overflow-tooltip="true" />
-          <el-table-column label="单位" align="center" prop="unit" width="70" />
-          <el-table-column label="默认单价" align="center" prop="defaultPrice" width="100" />
-          <el-table-column label="所属客户" align="center" width="120">
-            <template #default="scope">
-              <el-tag v-if="!scope.row.customerId" type="info" size="small">全局</el-tag>
-              <span v-else>{{ customerName(scope.row.customerId) }}</span>
-            </template>
-          </el-table-column>
-          <el-table-column label="状态" align="center" width="100">
-            <template #default="scope">
-              <el-tag v-if="scope.row.convertedSkuId" type="success" size="small">已转正</el-tag>
-              <el-tag v-else type="warning" size="small">未转正</el-tag>
-            </template>
-          </el-table-column>
-          <el-table-column label="备注" align="center" prop="remark" :show-overflow-tooltip="true" />
-          <el-table-column label="操作" align="center" class-name="small-padding fixed-width" width="220">
-            <template #default="scope">
-              <el-button size="small" link type="primary" :icon="Promotion" @click="tempHandleConvert(scope.row)"
-                v-hasPermi="['product:temp:convert']" :disabled="scope.row.convertedSkuId != null">转正</el-button>
-              <el-button size="small" link :icon="Edit" @click="tempHandleUpdate(scope.row)"
-                v-hasPermi="['product:temp:edit']">修改</el-button>
-              <el-button size="small" link :icon="Delete" @click="tempHandleDelete(scope.row)"
-                v-hasPermi="['product:temp:remove']">删除</el-button>
-            </template>
-          </el-table-column>
-        </el-table>
+          <template #col_customer="{ row }">
+            <el-tag v-if="!row.customerId" type="info" size="small">全局</el-tag>
+            <span v-else>{{ customerName(row.customerId) }}</span>
+          </template>
+          <template #col_status="{ row }">
+            <el-tag v-if="row.convertedSkuId" type="success" size="small">已转正</el-tag>
+            <el-tag v-else type="warning" size="small">未转正</el-tag>
+          </template>
+          <template #col_op="{ row }">
+            <el-button size="small" link type="primary" :icon="Promotion" @click="tempHandleConvert(row)"
+              v-hasPermi="['product:temp:convert']" :disabled="row.convertedSkuId != null">转正</el-button>
+            <el-button size="small" link :icon="Edit" @click="tempHandleUpdate(row)"
+              v-hasPermi="['product:temp:edit']">修改</el-button>
+            <el-button size="small" link :icon="Delete" @click="tempHandleDelete(row)"
+              v-hasPermi="['product:temp:remove']">删除</el-button>
+          </template>
+        </quick-table>
       </el-tab-pane>
     </el-tabs>
 
@@ -144,7 +158,7 @@
           <el-input v-model="aliasForm.alias" placeholder="请输入别名" />
         </el-form-item>
         <el-form-item label="别名类型" prop="aliasType">
-          <el-select v-model="aliasForm.aliasType" placeholder="请选择别名类型">
+          <el-select v-model="aliasForm.aliasType" placeholder="请选择别名类型" style="width: 100%">
             <el-option v-for="item in aliasTypeOptions" :key="item.value" :label="item.label" :value="item.value" />
           </el-select>
         </el-form-item>
@@ -277,6 +291,9 @@ export default {
   data() {
     return {
       activeTab: "alias",
+      showAliasSearch: true,
+      showMappingSearch: true,
+      showTempSearch: true,
       // 别名类型（写死，不引字典）
       aliasTypeOptions: [
         { label: "名称", value: 1 },
@@ -302,6 +319,13 @@ export default {
         aliasType: [{ required: true, message: "别名类型不能为空", trigger: "change" }],
         skuId: [{ required: true, message: "关联SKU不能为空", trigger: "change" }],
       },
+      // 别名表格列
+      aliasColumns: [
+        { field: "alias", title: "别名", minWidth: 160, fixed: "left" },
+        { field: "aliasType", title: "类型", width: 110, align: "center", slots: { default: "col_type" } },
+        { field: "skuName", title: "关联SKU", minWidth: 180 },
+        { field: "op", title: "操作", width: 130, fixed: "right", align: "center", slots: { default: "col_op" } },
+      ],
 
       // 客户SKU映射
       mappingLoading: false,
@@ -318,6 +342,13 @@ export default {
         customerAlias: [{ required: true, message: "客户叫法不能为空", trigger: "blur" }],
         skuId: [{ required: true, message: "我方SKU不能为空", trigger: "change" }],
       },
+      // 映射表格列
+      mappingColumns: [
+        { field: "customerName", title: "客户", minWidth: 160, fixed: "left" },
+        { field: "customerAlias", title: "客户叫法", minWidth: 160 },
+        { field: "skuName", title: "我方SKU", minWidth: 180 },
+        { field: "op", title: "操作", width: 130, fixed: "right", align: "center", slots: { default: "col_op" } },
+      ],
 
       // 临时商品
       tempLoading: false,
@@ -332,6 +363,17 @@ export default {
       tempRules: {
         name: [{ required: true, message: "商品名称不能为空", trigger: "blur" }],
       },
+      // 临时商品表格列
+      tempColumns: [
+        { field: "name", title: "名称", minWidth: 140, fixed: "left" },
+        { field: "spec", title: "规格", minWidth: 100, showOverflow: true },
+        { field: "unit", title: "单位", width: 70, align: "center" },
+        { field: "defaultPrice", title: "默认单价", width: 100, align: "right" },
+        { field: "customerId", title: "所属客户", width: 130, align: "center", slots: { default: "col_customer" } },
+        { field: "convertedSkuId", title: "状态", width: 100, align: "center", slots: { default: "col_status" } },
+        { field: "remark", title: "备注", minWidth: 140, showOverflow: true },
+        { field: "op", title: "操作", width: 220, fixed: "right", align: "center", slots: { default: "col_op" } },
+      ],
       // 转正
       convertOpen: false,
       convertForm: {},
@@ -394,6 +436,10 @@ export default {
       const item = this.aliasTypeOptions.find((o) => o.value === value);
       return item ? item.label : value;
     },
+    /** 各 tab 选择状态（QuickTable 直接回传行对象） */
+    aliasHandleSelectionChange() {},
+    mappingHandleSelectionChange() {},
+    tempHandleSelectionChange() {},
 
     /** ==================== 全局别名 ==================== */
     getAliasList() {
@@ -411,6 +457,11 @@ export default {
     aliasResetQuery() {
       this.resetForm("aliasQueryForm");
       this.getAliasList();
+    },
+    aliasHandleQuickDelete(ids) {
+      if (ids && ids.length) {
+        this.aliasHandleDelete({ id: ids[0] });
+      }
     },
     aliasReset() {
       this.aliasForm = {
@@ -486,6 +537,11 @@ export default {
     mappingResetQuery() {
       this.resetForm("mappingQueryForm");
       this.getMappingList();
+    },
+    mappingHandleQuickDelete(ids) {
+      if (ids && ids.length) {
+        this.mappingHandleDelete({ id: ids[0] });
+      }
     },
     mappingReset() {
       this.mappingForm = {
@@ -563,6 +619,11 @@ export default {
     tempResetQuery() {
       this.resetForm("tempQueryForm");
       this.getTempList();
+    },
+    tempHandleQuickDelete(ids) {
+      if (ids && ids.length) {
+        this.tempHandleDelete({ id: ids[0] });
+      }
     },
     tempReset() {
       this.tempForm = {

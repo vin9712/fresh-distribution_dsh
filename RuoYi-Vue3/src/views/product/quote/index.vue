@@ -1,304 +1,179 @@
 <template>
   <div class="app-container">
-    <el-form
-      :model="queryParams"
-      ref="queryForm"
-      :rules="queryFormRules"
-      size="small"
-      :inline="true"
-      v-show="showSearch"
-      label-width="80px"
-    >
-      <el-form-item label="报价客户" prop="customerId">
-        <el-select v-model="queryParams.customerId" filterable clearable>
-          <el-option
-            v-for="item in customerOptions"
-            :key="item.id"
-            :label="item.alias ? item.alias : item.name"
-            :value="item.id"
-          />
-        </el-select>
-      </el-form-item>
-      <el-form-item label="报价编号" prop="code">
-        <el-input
-          v-model="queryParams.code"
-          placeholder="请输入报价编号"
-          clearable
-          @keyup.enter="handleQuery"
-        />
-      </el-form-item>
-      <el-form-item label="是否有效" prop="valid">
-        <el-select
-          v-model="queryParams.valid"
-          placeholder="请选择是否有效"
-          clearable
-        >
-          <el-option
-            v-for="dict in dict.type.biz_yes_no"
-            :key="dict.value"
-            :label="dict.label"
-            :value="dict.value"
-          />
-        </el-select>
-      </el-form-item>
-      <el-form-item label="报价时间" prop="createTimeRange">
-        <el-date-picker
-          v-model="queryParams.createTimeRange"
-          type="daterange"
-          start-placeholder="开始日期"
-          end-placeholder="结束日期"
-          :picker-options="datePickerOptions"
-          :default-time="['00:00:00', '23:59:59']"
-        >
-        </el-date-picker>
-      </el-form-item>
-      <el-form-item label="生效时间" prop="effectiveDateRange">
-        <el-date-picker
-          clearable
-          v-model="queryParams.effectiveDateRange"
-          type="daterange"
-          unlink-panels
-          start-placeholder="开始日期"
-          end-placeholder="结束日期"
-          :picker-options="datePickerOptions"
-        >
-        </el-date-picker>
-      </el-form-item>
-      <el-form-item>
-        <el-button
-          type="primary"
-          :icon="Search"
-          size="small"
-          @click="handleQuery"
-          >搜索</el-button
-        >
-        <el-button :icon="Refresh" size="small" @click="resetQuery"
-          >重置</el-button
-        >
-      </el-form-item>
-    </el-form>
-
-    <el-row :gutter="10" class="mb8">
-      <el-col :span="1.5">
-        <el-button
-          type="primary"
-          plain
-          :icon="Plus"
-          size="small"
-          @click="handleAdd"
-          v-hasPermi="['product:quote:add']"
-          >新增报价</el-button
-        >
-      </el-col>
-      <el-col :span="1.5">
-        <el-button
-          type="success"
-          plain
-          :icon="Edit"
-          size="small"
-          :disabled="single"
-          @click="handleUpdate"
-          v-hasPermi="['product:quote:edit']"
-          >修改</el-button
-        >
-      </el-col>
-      <el-col :span="1.5">
-        <el-button
-          type="danger"
-          plain
-          :icon="Delete"
-          size="small"
-          :disabled="multiple"
-          @click="handleDelete"
-          v-hasPermi="['product:quote:remove']"
-          >删除</el-button
-        >
-      </el-col>
-      <el-col :span="1.5">
-        <el-button
-          type="warning"
-          plain
-          :icon="Download"
-          size="small"
-          @click="handleExport"
-          v-hasPermi="['product:quote:export']"
-          >导出</el-button
-        >
-      </el-col>
-      <el-col :span="1.5">
-        <el-button
-          type="info"
-          plain
-          :icon="Upload"
-          size="small"
-          @click="handleImport"
-          v-hasPermi="['product:quote:import']"
-          >导入</el-button
-        >
-      </el-col>
-      <right-toolbar
-        v-model:showSearch="showSearch"
-        @queryTable="getPageList"
-      ></right-toolbar>
-    </el-row>
-
-    <el-table
-      v-loading="loading"
-      :data="quoteList"
-      @selection-change="handleSelectionChange"
-    >
-      <el-table-column type="selection" width="55" align="center" />
-      <el-table-column
-        label="客户名称"
-        align="center"
-        width="100"
-        prop="customerId"
-        :formatter="formatCustomerName"
-      />
-      <el-table-column
-        label="报价编号"
-        align="center"
-        prop="code"
-        width="140"
-      />
-      <el-table-column
-        label="报价生效时间"
-        align="center"
-        prop="effectiveStartDate"
-        width="140"
-      >
-        <template #default="scope">
-          <span>{{
-            parseTime(scope.row.effectiveStartDate, "{y}-{m}-{d}")
-          }}</span>
-        </template>
-      </el-table-column>
-      <el-table-column
-        label="报价结束时间"
-        align="center"
-        prop="effectiveEndDate"
-        width="160"
-      >
-        <template #default="scope">
-          <span>{{
-            parseTime(scope.row.effectiveEndDate, "{y}-{m}-{d}")
-          }}</span>
-          <el-tag
-            v-if="isQuoteExpired(scope.row)"
-            type="danger"
-            size="small"
-            style="margin-left: 6px"
-            >已过期</el-tag
-          >
-        </template>
-      </el-table-column>
-      <el-table-column label="状态" align="center" prop="status">
-        <template #default="scope">
-          <dict-tag
-            :options="dict.type.t_sku_quote_status"
-            :value="scope.row.status"
-          />
-        </template>
-      </el-table-column>
-      <el-table-column label="有效" align="center" prop="valid">
-        <template #default="scope">
-          <dict-tag :options="dict.type.biz_yes_no" :value="scope.row.valid" />
-        </template>
-      </el-table-column>
-      <el-table-column
-        label="创建时间"
-        align="center"
-        width="100"
-        prop="createTime"
-      />
-      <el-table-column label="备注" align="center" prop="remark" />
-      <el-table-column
-        label="操作"
-        align="center"
-        width="210"
-        class-name="small-padding fixed-width"
-      >
-        <template #default="scope">
-          <el-button
-            size="small"
-            link
-            :icon="View"
-            @click="handleView(scope.row)"
-            >查看</el-button
-          >
-          <el-button
-            size="small"
-            link
-            :icon="DocumentCopy"
-            @click="handleCopy(scope.row)"
-            v-hasPermi="['product:quote:edit']"
-            >复制</el-button
-          >
-          <!-- 变更状态 -->
-          <el-button
-            v-if="scope.row.status == quoteStatus.NEW.code"
-            size="small"
-            link
-            :icon="Operation"
-            @click="handleUpdateStatus(scope.row, quoteStatus.PUBLISHED.name)"
-            v-hasPermi="['product:quote:edit']"
-            >发布</el-button
-          >
-          <el-dropdown
-            size="small"
-            v-if="
-              scope.row.valid == '0' &&
-              scope.row.status == quoteStatus.PUBLISHED.code
-            "
-            @command="(command) => handleStatusCommand(command, scope.row)"
-          >
-            <el-button size="small" link :icon="Link"
-              >取消</el-button
-            >
-            <template #dropdown>
-              <el-dropdown-menu>
-                <el-dropdown-item command="revoke">撤销</el-dropdown-item>
-                <el-dropdown-item command="invalid">失效</el-dropdown-item>
-              </el-dropdown-menu>
-            </template>
-          </el-dropdown>
-          <!-- 更多操作 -->
-          <el-dropdown
-            v-if="scope.row.valid == '0'"
-            size="small"
-            @command="(command) => handleMoreCommand(command, scope.row)"
-          >
-            <el-button size="small" link :icon="DArrowRight"
-              >更多</el-button
-            >
-            <template #dropdown>
-              <el-dropdown-menu>
-                <el-dropdown-item
-                  command="edit"
-                  :icon="Edit"
-                  v-hasPermi="['product:quote:edit']"
-                  >修改报价</el-dropdown-item
-                >
-                <el-dropdown-item
-                  command="delete"
-                  :icon="Delete"
-                  v-hasPermi="['product:quote:remove']"
-                  >删除报价</el-dropdown-item
-                >
-              </el-dropdown-menu>
-            </template>
-          </el-dropdown>
-        </template>
-      </el-table-column>
-    </el-table>
-
-    <pagination
-      v-show="total > 0"
-      :total="total"
+    <quick-table
+      ref="quickTable"
+      id="basic-quote-table"
       v-model:page="queryParams.pageNum"
       v-model:limit="queryParams.pageSize"
-      @pagination="getPageList"
-    />
+      v-model:showSearch="showSearch"
+      :columns="columns"
+      :data="quoteList"
+      :total="total"
+      :loading="loading"
+      :batch-actions="batchActions"
+      @query="handleQuery"
+      @reset="resetQuery"
+      @page-change="getPageList"
+      @selection-change="handleSelectionChange"
+      @add="handleAdd"
+      @edit="handleUpdate"
+      @delete="handleQuickDelete"
+      @batch-action="handleQuickBatchAction"
+    >
+      <template #search>
+        <el-form :model="queryParams" ref="queryForm" :rules="queryFormRules" size="small" :inline="true"
+          label-width="64px">
+          <el-form-item label="报价客户" prop="customerId">
+            <el-select v-model="queryParams.customerId" filterable clearable style="width: 150px">
+              <el-option
+                v-for="item in customerOptions"
+                :key="item.id"
+                :label="item.alias ? item.alias : item.name"
+                :value="item.id"
+              />
+            </el-select>
+          </el-form-item>
+          <el-form-item label="报价编号" prop="code">
+            <el-input
+              v-model="queryParams.code"
+              placeholder="请输入报价编号"
+              clearable
+              style="width: 150px"
+              @keyup.enter="handleQuery"
+            />
+          </el-form-item>
+          <el-form-item label="有效" prop="valid">
+            <el-select
+              v-model="queryParams.valid"
+              placeholder="全部"
+              clearable
+              style="width: 100px"
+            >
+              <el-option
+                v-for="dict in dict.type.biz_yes_no"
+                :key="dict.value"
+                :label="dict.label"
+                :value="dict.value"
+              />
+            </el-select>
+          </el-form-item>
+          <el-form-item label="报价时间" prop="createTimeRange">
+            <el-date-picker
+              v-model="queryParams.createTimeRange"
+              type="daterange"
+              start-placeholder="开始日期"
+              end-placeholder="结束日期"
+              :picker-options="datePickerOptions"
+              :default-time="['00:00:00', '23:59:59']"
+              style="width: 230px"
+            >
+            </el-date-picker>
+          </el-form-item>
+          <el-form-item label="生效时间" prop="effectiveDateRange">
+            <el-date-picker
+              clearable
+              v-model="queryParams.effectiveDateRange"
+              type="daterange"
+              unlink-panels
+              start-placeholder="开始日期"
+              end-placeholder="结束日期"
+              :picker-options="datePickerOptions"
+              style="width: 230px"
+            >
+            </el-date-picker>
+          </el-form-item>
+        </el-form>
+      </template>
+
+      <template #buttons>
+        <el-button type="primary" plain :icon="Plus" size="small" @click="handleAdd"
+          v-hasPermi="['product:quote:add']">新增报价</el-button>
+        <el-button type="success" plain :icon="Edit" size="small" :disabled="single" @click="handleUpdate"
+          v-hasPermi="['product:quote:edit']">修改</el-button>
+        <el-button type="danger" plain :icon="Delete" size="small" :disabled="multiple" @click="handleDelete"
+          v-hasPermi="['product:quote:remove']">删除</el-button>
+        <el-button type="warning" plain :icon="Download" size="small" @click="handleExport"
+          v-hasPermi="['product:quote:export']">导出</el-button>
+        <el-button type="info" plain :icon="Upload" size="small" @click="handleImport"
+          v-hasPermi="['product:quote:import']">导入</el-button>
+      </template>
+
+      <!-- 列插槽 -->
+      <template #col_customer="{ row }">
+        <span>{{ formatCustomerName(row) }}</span>
+      </template>
+      <template #col_start="{ row }">
+        <span>{{ parseTime(row.effectiveStartDate, "{y}-{m}-{d}") }}</span>
+      </template>
+      <template #col_end="{ row }">
+        <span>{{ parseTime(row.effectiveEndDate, "{y}-{m}-{d}") }}</span>
+        <el-tag
+          v-if="isQuoteExpired(row)"
+          type="danger"
+          size="small"
+          style="margin-left: 6px"
+          >已过期</el-tag
+        >
+      </template>
+      <template #col_status="{ row }">
+        <dict-tag :options="dict.type.t_sku_quote_status" :value="row.status" />
+      </template>
+      <template #col_valid="{ row }">
+        <dict-tag :options="dict.type.biz_yes_no" :value="row.valid" />
+      </template>
+      <template #col_op="{ row }">
+        <el-button size="small" link :icon="View" @click="handleView(row)">查看</el-button>
+        <el-button size="small" link :icon="DocumentCopy" @click="handleCopy(row)"
+          v-hasPermi="['product:quote:edit']">复制</el-button>
+        <!-- 变更状态 -->
+        <el-button
+          v-if="row.status == quoteStatus.NEW.code"
+          size="small"
+          link
+          :icon="Operation"
+          @click="handleUpdateStatus(row, quoteStatus.PUBLISHED.name)"
+          v-hasPermi="['product:quote:edit']"
+          >发布</el-button
+        >
+        <el-dropdown
+          size="small"
+          v-if="row.valid == '0' && row.status == quoteStatus.PUBLISHED.code"
+          @command="(command) => handleStatusCommand(command, row)"
+        >
+          <el-button size="small" link :icon="Link">取消</el-button>
+          <template #dropdown>
+            <el-dropdown-menu>
+              <el-dropdown-item command="revoke">撤销</el-dropdown-item>
+              <el-dropdown-item command="invalid">失效</el-dropdown-item>
+            </el-dropdown-menu>
+          </template>
+        </el-dropdown>
+        <!-- 更多操作 -->
+        <el-dropdown
+          v-if="row.valid == '0'"
+          size="small"
+          @command="(command) => handleMoreCommand(command, row)"
+        >
+          <el-button size="small" link :icon="DArrowRight">更多</el-button>
+          <template #dropdown>
+            <el-dropdown-menu>
+              <el-dropdown-item
+                command="edit"
+                :icon="Edit"
+                v-hasPermi="['product:quote:edit']"
+                >修改报价</el-dropdown-item
+              >
+              <el-dropdown-item
+                command="delete"
+                :icon="Delete"
+                v-hasPermi="['product:quote:remove']"
+                >删除报价</el-dropdown-item
+              >
+            </el-dropdown-menu>
+          </template>
+        </el-dropdown>
+      </template>
+    </quick-table>
 
     <!-- 客户报价导入对话框 -->
     <el-dialog :title="upload.title" v-model="upload.open" width="400px" append-to-body>
@@ -345,6 +220,7 @@ import {
 } from "@/api/product/quote";
 import { listCustomer } from "@/api/partner/customer";
 import { getToken } from "@/utils/auth";
+import quickTableMixin from "@/components/QuickTable/quickTableMixin";
 import {
   Search,
   Refresh,
@@ -370,6 +246,7 @@ function getEffectiveDateRange() {
 export default {
   name: "SkuQuote",
   dicts: ["biz_yes_no", "t_sku_quote_status"],
+  mixins: [quickTableMixin],
   setup() {
     return {
       Search,
@@ -486,6 +363,22 @@ export default {
         PUBLISHED: { code: 1, description: "发布", name: "PUBLISHED" },
         INVALID: { code: 3, description: "失效", name: "INVALID" },
       },
+      // 表格列配置
+      columns: [
+        { field: "customerId", title: "客户名称", width: 110, align: "center", slots: { default: "col_customer" } },
+        { field: "code", title: "报价编号", width: 150, align: "center", sortable: true },
+        { field: "effectiveStartDate", title: "报价生效时间", width: 140, align: "center", slots: { default: "col_start" } },
+        { field: "effectiveEndDate", title: "报价结束时间", width: 170, align: "center", slots: { default: "col_end" } },
+        { field: "status", title: "状态", width: 90, align: "center", slots: { default: "col_status" } },
+        { field: "valid", title: "有效", width: 80, align: "center", slots: { default: "col_valid" } },
+        { field: "createTime", title: "创建时间", width: 110, align: "center" },
+        { field: "remark", title: "备注", minWidth: 120, showOverflow: true },
+        { field: "op", title: "操作", width: 250, fixed: "right", align: "center", slots: { default: "col_op" } },
+      ],
+      // 批量操作条
+      batchActions: [
+        { key: "delete", label: "删除", type: "danger", icon: "Delete" },
+      ],
     };
   },
   watch: {
@@ -651,7 +544,7 @@ export default {
     },
     /** 删除按钮操作 */
     handleDelete(row) {
-      const ids = row.id || this.ids;
+      const ids = (row && row.id) || this.ids;
       this.$modal
         .confirm('是否确认删除商品报价编号为"' + ids + '"的数据项？')
         .then(function () {

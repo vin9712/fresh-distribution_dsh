@@ -1,77 +1,89 @@
 <template>
   <div class="app-container">
-    <el-form
-      :model="queryParams"
-      ref="queryForm"
-      size="small"
-      :inline="true"
-      v-show="showSearch"
-      label-width="68px"
+    <quick-table
+      ref="quickTable"
+      id="basic-spu-table"
+      v-model:page="queryParams.pageNum"
+      v-model:limit="queryParams.pageSize"
+      v-model:showSearch="showSearch"
+      :columns="columns"
+      :data="spuList"
+      :total="total"
+      :loading="loading"
+      :batch-actions="batchActions"
+      @query="handleQuery"
+      @reset="resetQuery"
+      @page-change="getPageList"
+      @selection-change="handleSelectionChange"
+      @add="handleAdd"
+      @edit="handleUpdate"
+      @delete="handleQuickDelete"
+      @batch-action="handleQuickBatchAction"
     >
-      <el-form-item label="商品名称" prop="name">
-        <el-input
-          v-model="queryParams.name"
-          placeholder="请输入商品名称/助记码"
-          clearable
-          @keyup.enter="handleQuery"
-        />
-      </el-form-item>
-      <el-form-item label="商品分类" prop="categoryId">
-        <el-cascader
-          v-model="querySelectedOptions"
-          placeholder="请选择商品分类"
-          @change="handleQueryCascaderChange"
-          :options="categoryOptions"
-          :props="{ expandTrigger: 'hover' }"
-          :show-all-levels="false"
-          filterable
-          clearable
-        />
-      </el-form-item>
-      <el-form-item label="是否上架" prop="saleable">
-        <el-select
-          v-model="queryParams.saleable"
-          placeholder="请选择是否上架"
-          clearable
-        >
-          <el-option
-            v-for="dict in dict.type.biz_yes_no"
-            :key="dict.value"
-            :label="dict.label"
-            :value="dict.value"
-          />
-        </el-select>
-      </el-form-item>
-      <el-form-item label="是否有效" prop="valid">
-        <el-select
-          v-model="queryParams.valid"
-          placeholder="请选择是否有效"
-          clearable
-        >
-          <el-option
-            v-for="dict in dict.type.biz_yes_no"
-            :key="dict.value"
-            :label="dict.label"
-            :value="dict.value"
-          />
-        </el-select>
-      </el-form-item>
-      <el-form-item>
-        <el-button
-          type="primary"
-          :icon="Search"
+      <template #search>
+        <el-form
+          :model="queryParams"
+          ref="queryForm"
           size="small"
-          @click="handleQuery"
-          >搜索</el-button
+          :inline="true"
+          label-width="60px"
         >
-        <el-button :icon="Refresh" size="small" @click="resetQuery"
-          >重置</el-button
-        >
-      </el-form-item>
-    </el-form>
+          <el-form-item label="商品名称" prop="name">
+            <el-input
+              v-model="queryParams.name"
+              placeholder="商品名称/助记码"
+              clearable
+              style="width: 160px"
+              @keyup.enter="handleQuery"
+            />
+          </el-form-item>
+          <el-form-item label="商品分类" prop="categoryId">
+            <el-cascader
+              v-model="querySelectedOptions"
+              placeholder="请选择商品分类"
+              @change="handleQueryCascaderChange"
+              :options="categoryOptions"
+              :props="{ expandTrigger: 'hover' }"
+              :show-all-levels="false"
+              filterable
+              clearable
+              style="width: 160px"
+            />
+          </el-form-item>
+          <el-form-item label="上架" prop="saleable">
+            <el-select
+              v-model="queryParams.saleable"
+              placeholder="全部"
+              clearable
+              style="width: 100px"
+            >
+              <el-option
+                v-for="dict in dict.type.biz_yes_no"
+                :key="dict.value"
+                :label="dict.label"
+                :value="dict.value"
+              />
+            </el-select>
+          </el-form-item>
+          <el-form-item label="有效" prop="valid">
+            <el-select
+              v-model="queryParams.valid"
+              placeholder="全部"
+              clearable
+              style="width: 100px"
+            >
+              <el-option
+                v-for="dict in dict.type.biz_yes_no"
+                :key="dict.value"
+                :label="dict.label"
+                :value="dict.value"
+              />
+            </el-select>
+          </el-form-item>
+        </el-form>
+      </template>
 
-    <el-row :gutter="10" class="mb8">
-      <el-col :span="1.5">
+      <template #buttons>
         <el-button
           type="primary"
           plain
@@ -81,8 +93,6 @@
           v-hasPermi="['product:spu:add']"
           >新增</el-button
         >
-      </el-col>
-      <el-col :span="1.5">
         <el-button
           type="success"
           plain
@@ -93,8 +103,6 @@
           v-hasPermi="['product:spu:edit']"
           >修改</el-button
         >
-      </el-col>
-      <el-col :span="1.5">
         <el-button
           type="danger"
           plain
@@ -105,8 +113,6 @@
           v-hasPermi="['product:spu:remove']"
           >删除</el-button
         >
-      </el-col>
-      <el-col :span="1.5">
         <el-button
           type="warning"
           plain
@@ -116,8 +122,6 @@
           v-hasPermi="['product:spu:export']"
           >导出</el-button
         >
-      </el-col>
-      <el-col :span="1.5">
         <el-button
           type="info"
           plain
@@ -127,75 +131,37 @@
           v-hasPermi="['product:spu:import']"
           >导入</el-button
         >
-      </el-col>
-      <right-toolbar
-        v-model:showSearch="showSearch"
-        @queryTable="getPageList"
-      ></right-toolbar>
-    </el-row>
+      </template>
 
-    <el-table
-      v-loading="loading"
-      :data="spuList"
-      @selection-change="handleSelectionChange"
-    >
-      <el-table-column type="selection" width="55" align="center" />
-      <el-table-column label="主键" align="center" prop="id" />
-      <el-table-column
-        label="商品分类"
-        align="center"
-        prop="categoryId"
-        :formatter="categoryFormatter"
-      />
-      <el-table-column label="商品名称" align="center" prop="name" />
-      <el-table-column label="商品描述" align="center" prop="description" />
-      <el-table-column label="是否上架" align="center" prop="saleable">
-        <template #default="scope">
-          <dict-tag
-            :options="dict.type.biz_yes_no"
-            :value="scope.row.saleable"
-          />
-        </template>
-      </el-table-column>
-      <el-table-column label="是否有效" align="center" prop="valid">
-        <template #default="scope">
-          <dict-tag :options="dict.type.biz_yes_no" :value="scope.row.valid" />
-        </template>
-      </el-table-column>
-      <el-table-column label="备注" align="center" prop="remark" />
-      <el-table-column
-        label="操作"
-        align="center"
-        class-name="small-padding fixed-width"
-      >
-        <template #default="scope">
-          <el-button
-            size="small"
-            link
-            :icon="Edit"
-            @click="handleUpdate(scope.row)"
-            v-hasPermi="['product:spu:edit']"
-            >修改</el-button
-          >
-          <el-button
-            size="small"
-            link
-            :icon="Delete"
-            @click="handleDelete(scope.row)"
-            v-hasPermi="['product:spu:remove']"
-            >删除</el-button
-          >
-        </template>
-      </el-table-column>
-    </el-table>
-
-    <pagination
-      v-show="total > 0"
-      :total="total"
-      v-model:page="queryParams.pageNum"
-      v-model:limit="queryParams.pageSize"
-      @pagination="getPageList"
-    />
+      <!-- 列插槽 -->
+      <template #col_category="{ row }">
+        <span>{{ categoryFormatter(row) }}</span>
+      </template>
+      <template #col_saleable="{ row }">
+        <dict-tag :options="dict.type.biz_yes_no" :value="row.saleable" />
+      </template>
+      <template #col_valid="{ row }">
+        <dict-tag :options="dict.type.biz_yes_no" :value="row.valid" />
+      </template>
+      <template #col_op="{ row }">
+        <el-button
+          size="small"
+          link
+          :icon="Edit"
+          @click="handleUpdate(row)"
+          v-hasPermi="['product:spu:edit']"
+          >修改</el-button
+        >
+        <el-button
+          size="small"
+          link
+          :icon="Delete"
+          @click="handleDelete(row)"
+          v-hasPermi="['product:spu:remove']"
+          >删除</el-button
+        >
+      </template>
+    </quick-table>
 
     <!-- 添加或修改商品spu对话框 -->
     <el-dialog :title="title" v-model="open" width="700px" append-to-body>
@@ -210,6 +176,7 @@
             :show-all-levels="false"
             filterable
             clearable
+            style="width: 100%"
           />
         </el-form-item>
         <el-form-item label="商品名称" prop="name">
@@ -323,10 +290,12 @@ import { listCategory } from "@/api/product/category";
 import { pinyin } from "pinyin-pro";
 import { getToken } from "@/utils/auth";
 import { Search, Refresh, Plus, Edit, Delete, Download, Upload } from "@element-plus/icons-vue";
+import quickTableMixin from "@/components/QuickTable/quickTableMixin";
 
 export default {
   name: "Spu",
   dicts: ["biz_yes_no"],
+  mixins: [quickTableMixin],
   setup() {
     return { Search, Refresh, Plus, Edit, Delete, Download, Upload };
   },
@@ -334,12 +303,6 @@ export default {
     return {
       // 遮罩层
       loading: true,
-      // 选中数组
-      ids: [],
-      // 非单个禁用
-      single: true,
-      // 非多个禁用
-      multiple: true,
       // 显示搜索条件
       showSearch: true,
       // 总条数
@@ -359,15 +322,10 @@ export default {
       open: false,
       // 商品库导入参数
       upload: {
-        // 是否显示弹出层（商品库导入）
         open: false,
-        // 弹出层标题（商品库导入）
         title: "",
-        // 是否禁用上传
         isUploading: false,
-        // 设置上传的请求头部
         headers: { Authorization: "Bearer " + getToken() },
-        // 上传的地址
         url: import.meta.env.VITE_APP_BASE_API + "/product/spu/importData",
       },
       // 查询参数
@@ -383,6 +341,21 @@ export default {
         sort: null,
         valid: null,
       },
+      // 表格列配置
+      columns: [
+        { field: "id", title: "主键", width: 80, align: "center", sortable: true },
+        { field: "categoryId", title: "商品分类", minWidth: 110, slots: { default: "col_category" } },
+        { field: "name", title: "商品名称", minWidth: 160, fixed: "left" },
+        { field: "description", title: "商品描述", minWidth: 180, showOverflow: true },
+        { field: "saleable", title: "是否上架", width: 90, align: "center", slots: { default: "col_saleable" } },
+        { field: "valid", title: "是否有效", width: 90, align: "center", slots: { default: "col_valid" } },
+        { field: "remark", title: "备注", minWidth: 140, showOverflow: true },
+        { field: "op", title: "操作", width: 130, fixed: "right", align: "center", slots: { default: "col_op" } },
+      ],
+      // 批量操作条
+      batchActions: [
+        { key: "delete", label: "删除", type: "danger", icon: "Delete" },
+      ],
       // 表单参数
       form: {},
       // 表单校验
@@ -404,9 +377,6 @@ export default {
         ],
         valid: [
           { required: true, message: "是否有效不能为空", trigger: "change" },
-        ],
-        createTime: [
-          { required: true, message: "创建时间不能为空", trigger: "blur" },
         ],
       },
     };
@@ -464,12 +434,6 @@ export default {
       this.querySelectedOptions = [];
       this.handleQuery();
     },
-    // 多选框选中数据
-    handleSelectionChange(selection) {
-      this.ids = selection.map((item) => item.id);
-      this.single = selection.length !== 1;
-      this.multiple = !selection.length;
-    },
     /** 新增按钮操作 */
     handleAdd() {
       this.reset();
@@ -493,7 +457,6 @@ export default {
     },
     /** 提交按钮 */
     submitForm() {
-      console.log("this.form", this.form);
       this.$refs["form"].validate((valid) => {
         if (valid) {
           if (this.form.id != null) {
@@ -514,7 +477,7 @@ export default {
     },
     /** 删除按钮操作 */
     handleDelete(row) {
-      const ids = row.id || this.ids;
+      const ids = (row && row.id) || this.ids;
       this.$modal
         .confirm('是否确认删除商品spu编号为"' + ids + '"的数据项？')
         .then(function () {
@@ -647,6 +610,5 @@ export default {
       return getParents(list, id) || [];
     },
   },
-  watch: {},
 };
 </script>

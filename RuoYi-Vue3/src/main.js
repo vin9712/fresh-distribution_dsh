@@ -50,6 +50,9 @@ import ImageUpload from "@/components/ImageUpload"
 import ImagePreview from "@/components/ImagePreview"
 // 字典标签组件
 import DictTag from '@/components/DictTag'
+// QuickTable 快捷列表组件（deepseek_ui_redesign）
+import QuickTable from '@/components/QuickTable'
+import '@/assets/styles/quick-table.scss'
 
 const app = createApp(App)
 
@@ -72,6 +75,7 @@ app.component('ImageUpload', ImageUpload)
 app.component('ImagePreview', ImagePreview)
 app.component('RightToolbar', RightToolbar)
 app.component('Editor', Editor)
+app.component('QuickTable', QuickTable)
 
 app.use(router)
 app.use(store)

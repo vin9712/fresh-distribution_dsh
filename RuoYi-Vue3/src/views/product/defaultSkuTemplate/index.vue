@@ -1,29 +1,43 @@
 <template>
   <div class="app-container">
-    <el-form :model="queryParams" ref="queryForm" size="small" :inline="true" label-width="70px">
-      <el-form-item label="模板名称" prop="name">
-        <el-input
-          v-model="queryParams.name"
-          placeholder="请输入模板名称"
-          clearable
-          style="width: 200px"
-          @keyup.enter="handleQuery"
-        />
-      </el-form-item>
-      <el-form-item label="状态" prop="status">
-        <el-select v-model="queryParams.status" placeholder="全部" clearable style="width: 120px">
-          <el-option label="启用" :value="1" />
-          <el-option label="停用" :value="0" />
-        </el-select>
-      </el-form-item>
-      <el-form-item>
-        <el-button type="primary" :icon="Search" size="small" @click="handleQuery">搜索</el-button>
-        <el-button :icon="Refresh" size="small" @click="resetQuery">重置</el-button>
-      </el-form-item>
-    </el-form>
+    <quick-table
+      ref="quickTable"
+      id="basic-sku-template-table"
+      v-model:showSearch="showSearch"
+      :columns="columns"
+      :data="templateList"
+      :loading="loading"
+      :show-pager="false"
+      :batch-actions="batchActions"
+      @query="handleQuery"
+      @reset="resetQuery"
+      @selection-change="handleSelectionChange"
+      @add="handleAdd"
+      @edit="handleUpdate"
+      @delete="handleQuickDelete"
+      @batch-action="handleQuickBatchAction"
+    >
+      <template #search>
+        <el-form :model="queryParams" ref="queryForm" size="small" :inline="true" label-width="60px">
+          <el-form-item label="模板名称" prop="name">
+            <el-input
+              v-model="queryParams.name"
+              placeholder="请输入模板名称"
+              clearable
+              style="width: 200px"
+              @keyup.enter="handleQuery"
+            />
+          </el-form-item>
+          <el-form-item label="状态" prop="status">
+            <el-select v-model="queryParams.status" placeholder="全部" clearable style="width: 110px">
+              <el-option label="启用" :value="1" />
+              <el-option label="停用" :value="0" />
+            </el-select>
+          </el-form-item>
+        </el-form>
+      </template>
 
-    <el-row :gutter="10" class="mb8">
-      <el-col :span="1.5">
+      <template #buttons>
         <el-button
           type="primary"
           plain
@@ -33,8 +47,6 @@
           v-hasPermi="['product:default-sku-template:add']"
           >新增模板</el-button
         >
-      </el-col>
-      <el-col :span="1.5">
         <el-button
           type="danger"
           plain
@@ -45,37 +57,25 @@
           v-hasPermi="['product:default-sku-template:remove']"
           >删除</el-button
         >
-      </el-col>
-      <right-toolbar :showSearch="showSearch" @update:showSearch="showSearch = $event" @queryTable="getList"></right-toolbar>
-    </el-row>
+      </template>
 
-    <el-table v-loading="loading" :data="templateList" @selection-change="handleSelectionChange">
-      <el-table-column type="selection" width="50" align="center" />
-      <el-table-column label="模板名称" align="center" prop="name" min-width="160" :show-overflow-tooltip="true" />
-      <el-table-column label="SKU数量" align="center" width="100">
-        <template #default="scope">
-          <el-button link type="primary" @click="handleViewItems(scope.row)">{{ scope.row.skuCount || 0 }} 个</el-button>
-        </template>
-      </el-table-column>
-      <el-table-column label="状态" align="center" prop="status" width="90">
-        <template #default="scope">
-          <el-tag :type="scope.row.status == 1 ? 'success' : 'info'">
-            {{ scope.row.status == 1 ? "启用" : "停用" }}
-          </el-tag>
-        </template>
-      </el-table-column>
-      <el-table-column label="创建时间" align="center" prop="createdAt" width="170" />
-      <el-table-column label="操作" align="center" class-name="small-padding fixed-width" width="150">
-        <template #default="scope">
-          <el-button size="small" link :icon="Edit" @click="handleUpdate(scope.row)"
-            v-hasPermi="['product:default-sku-template:edit']">修改</el-button>
-          <el-button size="small" link :icon="View" @click="handleViewItems(scope.row)"
-            v-hasPermi="['product:default-sku-template:query']">明细</el-button>
-          <el-button size="small" link :icon="Delete" @click="handleDelete(scope.row)"
-            v-hasPermi="['product:default-sku-template:remove']">删除</el-button>
-        </template>
-      </el-table-column>
-    </el-table>
+      <template #col_count="{ row }">
+        <el-button link type="primary" size="small" @click="handleViewItems(row)">{{ row.skuCount || 0 }} 个</el-button>
+      </template>
+      <template #col_status="{ row }">
+        <el-tag :type="row.status == 1 ? 'success' : 'info'" size="small">
+          {{ row.status == 1 ? "启用" : "停用" }}
+        </el-tag>
+      </template>
+      <template #col_op="{ row }">
+        <el-button size="small" link :icon="Edit" @click="handleUpdate(row)"
+          v-hasPermi="['product:default-sku-template:edit']">修改</el-button>
+        <el-button size="small" link :icon="View" @click="handleViewItems(row)"
+          v-hasPermi="['product:default-sku-template:query']">明细</el-button>
+        <el-button size="small" link :icon="Delete" @click="handleDelete(row)"
+          v-hasPermi="['product:default-sku-template:remove']">删除</el-button>
+      </template>
+    </quick-table>
 
     <!-- 新增/修改模板对话框 -->
     <el-dialog :title="title" v-model="open" width="620px" append-to-body>
@@ -143,9 +143,11 @@ import {
 } from "@/api/product/customerSku";
 import { listSku } from "@/api/product/sku";
 import { Search, Refresh, Plus, Delete, Edit, View } from "@element-plus/icons-vue";
+import quickTableMixin from "@/components/QuickTable/quickTableMixin";
 
 export default {
   name: "DefaultSkuTemplate",
+  mixins: [quickTableMixin],
   setup() {
     return { Search, Refresh, Plus, Delete, Edit, View };
   },
@@ -155,12 +157,22 @@ export default {
       showSearch: true,
       templateList: [],
       skuOptions: [],
-      ids: [],
-      multiple: true,
       queryParams: {
         name: null,
         status: null,
       },
+      // 表格列配置
+      columns: [
+        { field: "name", title: "模板名称", minWidth: 180, fixed: "left" },
+        { field: "skuCount", title: "SKU数量", width: 100, align: "center", slots: { default: "col_count" } },
+        { field: "status", title: "状态", width: 90, align: "center", slots: { default: "col_status" } },
+        { field: "createdAt", title: "创建时间", width: 170, align: "center" },
+        { field: "op", title: "操作", width: 180, fixed: "right", align: "center", slots: { default: "col_op" } },
+      ],
+      // 批量操作条
+      batchActions: [
+        { key: "delete", label: "删除", type: "danger", icon: "Delete" },
+      ],
       form: {},
       open: false,
       title: "",
@@ -215,10 +227,6 @@ export default {
     resetQuery() {
       this.resetForm("queryForm");
       this.getList();
-    },
-    handleSelectionChange(selection) {
-      this.ids = selection.map((item) => item.id);
-      this.multiple = !selection.length;
     },
     reset() {
       this.form = {
@@ -288,7 +296,7 @@ export default {
       });
     },
     handleDelete(row) {
-      const ids = row.id || this.ids;
+      const ids = (row && row.id) || this.ids;
       this.$modal
         .confirm('是否确认删除选中的默认SKU模板？')
         .then(function () {

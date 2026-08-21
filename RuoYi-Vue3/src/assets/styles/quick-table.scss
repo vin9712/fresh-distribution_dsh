@@ -1,0 +1,65 @@
+/* ============================================================
+ * quick-table.scss — 快捷列表页全局样式（deepseek_ui_redesign.md §2 高密度）
+ * 覆盖 vxe-grid 默认间距，使列表页更紧凑、信息密度更高
+ * ============================================================ */
+
+/* ---------- vxe-grid 紧凑化 ---------- */
+.quick-table {
+  .vxe-grid {
+    border: 1px solid var(--el-border-color-lighter, #ebeef5);
+    border-radius: 4px;
+  }
+
+  /* 表头 */
+  .vxe-grid .vxe-table--header-wrapper {
+    th {
+      font-weight: 600;
+      color: var(--el-text-color-primary, #303133);
+      background-color: var(--el-fill-color-light, #f5f7fa);
+    }
+  }
+
+  /* 单元格行高（row-config.height=44 时配合 padding 收紧） */
+  .vxe-grid .vxe-body--column,
+  .vxe-grid .vxe-header--column {
+    padding: 0 6px;
+  }
+
+  /* 行高亮色跟随主题 */
+  .vxe-grid .vxe-table--body .vxe-row--checked,
+  .vxe-grid .vxe-table--body .vxe-row--current {
+    background-color: var(--el-color-primary-light-9, #ecf5ff);
+  }
+
+  /* 表格内 el-button link 更紧凑 */
+  .vxe-grid .el-button + .el-button {
+    margin-left: 4px;
+  }
+  .vxe-grid .el-button.is-link {
+    padding: 2px 4px;
+    font-size: 12px;
+  }
+
+  /* 行号/勾选列文字居中 */
+  .vxe-grid .vxe-cell--seq,
+  .vxe-grid .vxe-cell--checkbox {
+    justify-content: center;
+  }
+}
+
+/* ---------- vxe 弹层（右键菜单/列设置）与 element 风格协调 ---------- */
+.vxe-menu--wrapper .vxe-menu--item .vxe-menu--link {
+  font-size: 13px;
+  padding: 6px 20px;
+}
+.vxe-menu--wrapper .vxe-menu--item .vxe-menu--link:hover {
+  background-color: var(--el-color-primary-light-9, #ecf5ff);
+}
+
+/* vxe 分页与 element 大小一致 */
+.quick-table .vxe-pager {
+  padding: 6px 4px 0;
+  .vxe-pager--wrapper {
+    font-size: 13px;
+  }
+}
