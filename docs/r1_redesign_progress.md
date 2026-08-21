@@ -3,6 +3,7 @@
 > 更新日期：2026-08-21
 > 设计文档：`docs/deepseek_redesign.md`（最终目标）
 > 现状文档：`docs/基础信息模块梳理.md`（改造前基线）
+> UI 设计文档：`docs/deepseek_ui_redesign.md`（前端交互设计指南）
 > 下一轮执行人：**从此文档"下一步"章节直接开始**，无需重新调研。
 
 ---
@@ -17,6 +18,7 @@
 | 阶段 3 | 接口层 + curl 全链路验证 | ✅ 完成 |
 | 阶段 4 | 前端（SKU 去客户化 / 客户商品页 / 覆盖页 / 临时商品 / 录单） | ✅ 完成 |
 | 阶段 5 | 搜索增强 + 全量回归 + 文档收尾 | ✅ 完成 |
+| 阶段 6 | UI 改造（deepseek_ui_redesign.md）：QuickTable 组件 + 基础信息 10 页全部接入 | ✅ 完成 |
 
 **前后端当前可运行**（后端 8090，前端 1025），全链路已验证：建标准 SKU → 建模板 → 批量赋值 → 客户商品池 → 配送点覆盖 → 取价。
 
@@ -132,6 +134,61 @@
 - `npm run build:prod` 0 报错；vite dev（1025）各新页面模块编译 200
 - 后端 43 单测全绿（新增接口无回归）；curl 验证：模板明细 items ✅、临时商品 showAll 过滤 ✅、客户专用临时商品创建+转正+自动入池 ✅、录单双源列表合并 ✅
 - 已知限制：配送点覆盖的别名（如"洋柿子"）为内存级覆盖，DB 关键字检索匹配不到（搜索仍命中标准 SKU 名/助记码/客户别名/全局别名），列入 T18 搜索增强可选优化
+
+---
+
+## 6. 阶段 6：前端 UI 改造（deepseek_ui_redesign.md，✅ 已完成 2026-08-21）
+
+### 目标
+基于 `docs/deepseek_ui_redesign.md` 对**基础信息**模块全面改造：高密度布局、vxe-table 深度配置、键盘快捷键、右键菜单、批量操作条、列设置持久化。**改造范围仅限 `RuoYi-Vue3`（Vue3 + Element Plus + vxe-table@4 + vxe-pc-ui@4）**，`ruoyi-ui`（Vue2 旧前端）不动。
+
+### 新增共享组件
+| 文件 | 说明 |
+|------|------|
+| `RuoYi-Vue3/src/components/QuickTable/index.vue` | 快捷列表核心组件（vxe-grid 封装）：紧凑搜索区（可折叠）+ 工具栏（自定义列/全屏/刷新/快捷键提示）+ 虚拟滚动 + 行高亮 + 右键菜单 + 批量操作条 + 分页 + 键盘快捷键 |
+| `RuoYi-Vue3/src/components/QuickTable/quickTableMixin.js` | 页面通用 mixin：选中状态（ids/single/multiple）、分页事件、批量动作分发（默认 delete 走 handleDelete） |
+| `RuoYi-Vue3/src/assets/styles/quick-table.scss` | 紧凑化全局样式（表头/行高/单元格密度/分页） |
+
+### QuickTable 能力（对应设计文档 §3/§4/§5）
+- **键盘快捷键**：`F2` 新增 / `F3` 聚焦搜索 / `Delete` 删除选中 / `Ctrl+S` 保存（事件）/ `Esc` 清除选择；快捷键提示弹层（工具栏问号图标）
+- **右键菜单**：行右键=新增/修改/删除/刷新；表头右键=刷新/重置列设置；`menu-config` v4 结构为 `body: { options: [[...]] }`（v3 直数组结构在 v4 无效）
+- **批量操作条**：选中行后浮出「已选 N 项 + 动作按钮 + 清除选择」，动作由 `batch-actions` prop 配置
+- **列设置**：`custom-config.storage=true` + grid `id`，localStorage 键 `VXE_CUSTOM_STORE`，支持显隐/拖拽排序/固定列/宽度记忆
+- **表格**：checkbox（多选 range）+ seq + 虚拟滚动（gt 100）+ resizable + 双击行=编辑 + 行 hover 高亮
+- **搜索区**：右上折叠箭头（v-model:showSearch 双向）
+
+### 接入页面（10 个，均在基础信息菜单下）
+| 页面 | 文件 | 说明 |
+|------|------|------|
+| 客户管理 | `views/partner/customer/index.vue` | 参考实现；右键菜单新增「复制」扩展点 |
+| 客户部门(配送点) | `views/partner/customer/dept.vue` | 保留 deptCodes 删除提示 |
+| 商品分类 | `views/product/category/index.vue` | 树形表格（tree-config），展开/折叠按钮走 `setAllTreeExpand` |
+| 商品SPU | `views/product/spu/index.vue` | |
+| 标准SKU | `views/product/sku/index.vue` | 批量操作条含「批量关联」；`titleHelp` 展示参考售价提示 |
+| 客户商品 | `views/product/customerSku/index.vue` | 无分页；批量条含「停用/启用」 |
+| 默认SKU模板 | `views/product/defaultSkuTemplate/index.vue` | 无分页 |
+| 配送点覆盖 | `views/price/pointPrice/index.vue` | 无分页 |
+| 报价 | `views/product/quote/index.vue` | 保留状态操作列（发布/撤销/失效） |
+| 别名/映射/临时商品 | `views/product/aliasMapping/index.vue` | 3 个 tab 各自 QuickTable，`shortcuts=false` 防冲突 |
+
+### 已知坑（下次遇到直接绕开）
+1. **vxe v4 menu-config 结构**：`{ body: { options: [[{code,name,prefixIcon}...]] } }`，不是 v3 的直接数组
+2. **vxe v4 图标类名**：`vxe-icon-*` 在 vxe-pc-ui 样式里（249 个），`vxe-icon-wipe` 不存在，用 `vxe-icon-custom-column`；element 图标字符串需全局注册（本项目已 `app.use(elementIcons)`）
+3. **树形表格**不支持 `checkbox-config.range`（控制台警告），QuickTable 已按 treeConfig 自动降级
+4. **右键菜单点击行**：事件目标必须在 `td.vxe-body--column` 内；对 `tr` 合成 contextmenu 无效（测试时注意）
+5. **页面 handleDelete(row)** 需容忍 undefined（批量条/Delete 键走无参调用），统一写成 `(row && row.id) || this.ids`
+6. **列设置持久化**：customConfig.storage 需要 grid `id` + 每列 `field`（QuickTable 已自动补操作列 field）
+7. **批量条无动作按钮时不显示**（batch-actions 为空数组 → 只显示计数+清除）
+
+### 验证结果
+- `npm run build:prod` 0 报错
+- puppeteer 冒烟（`.dsh-e2e/verify-quicktable.js`，gitignore）：8 页全部渲染 vxe-grid、0 控制台错误
+- 交互验证：F2 新增对话框 ✅ / F3 聚焦搜索 ✅ / 双击行编辑 ✅ / 右键菜单→修改 ✅ / 勾选批量条→删除确认 ✅ / 列设置显隐+localStorage 持久化+刷新恢复 ✅
+
+### 下一步（可选）
+- 全局快捷键 `Ctrl+K` 全局搜索（设计文档 §5.1）：QuickTable 已预留 `global-search` 事件
+- 录单页/订单页接入 QuickTable 或深度配置（订单页已有 vxe 表格，需人工评估）
+- 常用商品面板、草稿自动保存（keep-alive 已有）+ Pinia 草稿状态（设计文档 §6）
 
 ---
 
