@@ -156,6 +156,7 @@ public class ProductSkuQuoteServiceImpl implements ProductSkuQuoteService {
         // batch insert quote details
         List<ProductSkuQuoteDetail> quoteDetails = request.getQuoteDetails();
         quoteDetails.forEach(detail -> {
+            detail.setCustomerId(request.getCustomerId());
             detail.setQuoteId(quoteId);
             detail.setValid(1);
             detail.setIsDeleted(false);
@@ -192,6 +193,7 @@ public class ProductSkuQuoteServiceImpl implements ProductSkuQuoteService {
         // batch insert quote details
         List<ProductSkuQuoteDetail> quoteDetails = request.getQuoteDetails();
         quoteDetails.forEach(detail -> {
+            detail.setCustomerId(request.getCustomerId());
             detail.setQuoteId(quoteId);
             detail.setValid(1);
             detail.setIsDeleted(false);

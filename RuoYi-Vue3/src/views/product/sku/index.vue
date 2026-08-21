@@ -629,9 +629,6 @@ export default {
         unit: [
           { required: true, message: "商品单位不能为空", trigger: "blur" },
         ],
-        specName: [
-          { required: true, message: "商品规格不能为空", trigger: "blur" },
-        ],
         saleable: [
           { required: true, message: "是否上架不能为空", trigger: "blur" },
         ],

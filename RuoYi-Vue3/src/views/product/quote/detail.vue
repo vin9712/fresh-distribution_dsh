@@ -137,7 +137,7 @@
 </template>
 
 <script>
-import { listSku } from "@/api/product/sku";
+import { listCustomerSkuPool } from "@/api/product/customerSku";
 import {
   getQuote,
   genQuoteCode,
@@ -289,19 +289,24 @@ export default {
       let skuQuoteList = [];
 
       try {
-        // 从sku列表初始化报价明细列表
-        const param = { customerId: this.quoteForm.customerId };
-        const response = await listSku(param);
+        // 从客户商品池初始化报价明细（重构后标准SKU无客户维度，报价面向客户商品池）
+        if (!this.quoteForm.customerId) {
+          this.skuQuoteList = [];
+          return;
+        }
+        const response = await listCustomerSkuPool({
+          customerId: this.quoteForm.customerId,
+        });
         const skuList = response.data || [];
         skuQuoteList = skuList.map((item) => ({
-          customerId: item.customerId,
+          customerId: this.quoteForm.customerId,
           categoryName: item.categoryName,
           quoteId: null,
-          skuId: item.id,
-          productCode: item.code,
-          productName: item.name,
-          productUnit: item.unit,
-          productSpec: item.spec,
+          skuId: item.skuId,
+          productCode: item.skuCode,
+          productName: item.alias || item.skuName,
+          productUnit: item.skuUnit,
+          productSpec: item.skuSpecName,
           price: "0.00",
         }));
 
