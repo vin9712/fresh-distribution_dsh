@@ -2,27 +2,12 @@
   <div class="app-container">
     <el-form
       :model="queryParams"
-      :rules="queryFormRules"
       ref="queryForm"
       size="small"
       :inline="true"
       v-show="showSearch"
       label-width="80px"
     >
-      <el-form-item label="当前客户" prop="customerId">
-        <el-select
-          v-model="queryParams.customerId"
-          filterable
-          @change="handleCustomerChanged"
-        >
-          <el-option
-            v-for="item in customerOptions"
-            :key="item.id"
-            :label="item.alias ? item.alias : item.name"
-            :value="item.id"
-          />
-        </el-select>
-      </el-form-item>
       <el-form-item label="商品分类" prop="categoryId">
         <el-cascader
           v-model="querySelectedOptions"
@@ -38,7 +23,7 @@
       <el-form-item label="商品名称" prop="name">
         <el-input
           v-model="queryParams.name"
-          placeholder="请输入商品名称"
+          placeholder="请输入商品名称/助记码/别名"
           clearable
           @keyup.enter="handleQuery"
         />
@@ -175,28 +160,49 @@
       @selection-change="handleSelectionChange"
     >
       <el-table-column type="selection" width="55" align="center" />
-      <el-table-column label="商品编号" align="center" prop="code" />
+      <el-table-column label="商品编号" align="center" prop="code" width="110" />
       <el-table-column
         label="商品分类"
         align="center"
         prop="categoryId"
         :formatter="categoryFormatter"
+        :show-overflow-tooltip="true"
       />
-      <el-table-column label="商品名称" align="center" prop="name" />
-      <el-table-column label="单位" width="55" align="center" prop="unit" />
-      <el-table-column label="商品规格" align="center" prop="spec" />
+      <el-table-column
+        label="商品名称"
+        align="center"
+        prop="name"
+        :show-overflow-tooltip="true"
+      />
+      <el-table-column label="商品规格" align="center" prop="specName" />
+      <el-table-column label="单位" width="70" align="center" prop="unit" />
+      <el-table-column label="称重" width="70" align="center" prop="isWeighted">
+        <template #default="scope">
+          <el-tag :type="scope.row.isWeighted == 1 ? 'warning' : 'info'">
+            {{ scope.row.isWeighted == 1 ? "称重" : "非称重" }}
+          </el-tag>
+        </template>
+      </el-table-column>
+      <el-table-column label="基础单位" width="90" align="center" prop="baseUnit" />
+      <el-table-column
+        label="换算率"
+        width="80"
+        align="center"
+        prop="conversionRate"
+      />
       <el-table-column
         align="center"
         prop="salePrice"
         :formatter="salePriceFormatter"
+        width="90"
       >
         <template #header>
-          <el-tooltip :content="priceTooltips" placement="top">
-            <span>当期售价</span>
+          <el-tooltip content="参考售价，仅展示，非交易价格" placement="top">
+            <span>参考售价</span>
           </el-tooltip>
         </template>
       </el-table-column>
-      <el-table-column label="上架" width="55" align="center" prop="saleable">
+      <el-table-column label="上架" width="70" align="center" prop="saleable">
         <template #default="scope">
           <dict-tag
             :options="dict.type.biz_yes_no"
@@ -204,12 +210,12 @@
           />
         </template>
       </el-table-column>
-      <el-table-column label="有效" width="55" align="center" prop="valid">
+      <el-table-column label="有效" width="70" align="center" prop="valid">
         <template #default="scope">
           <dict-tag :options="dict.type.biz_yes_no" :value="scope.row.valid" />
         </template>
       </el-table-column>
-      <el-table-column label="关联" width="55" align="center" prop="matchedSpu">
+      <el-table-column label="关联" width="70" align="center" prop="matchedSpu">
         <template #default="scope">
           <dict-tag
             :options="dict.type.biz_yes_no"
@@ -217,11 +223,12 @@
           />
         </template>
       </el-table-column>
-      <el-table-column label="备注" align="center" prop="remark" />
+      <el-table-column label="备注" align="center" prop="remark" :show-overflow-tooltip="true" />
       <el-table-column
         label="操作"
         align="center"
         class-name="small-padding fixed-width"
+        width="140"
       >
         <template #default="scope">
           <el-button
@@ -269,18 +276,8 @@
     />
 
     <!-- 添加或修改商品信息对话框 -->
-    <el-dialog :title="title" v-model="open" width="500px" append-to-body>
+    <el-dialog :title="title" v-model="open" width="560px" append-to-body>
       <el-form ref="form" :model="form" :rules="rules" label-width="100px">
-        <el-form-item label="当前客户" prop="customerId">
-          <el-select v-model="form.customerId" disabled>
-            <el-option
-              v-for="item in customerOptions"
-              :key="item.id"
-              :label="item.alias ? item.alias : item.name"
-              :value="item.id"
-            />
-          </el-select>
-        </el-form-item>
         <el-form-item label="商品分类" prop="categoryId">
           <el-cascader
             v-model="formSelectedOptions"
@@ -318,9 +315,12 @@
         <el-form-item label="助记码" prop="mnemonicCode">
           <el-input
             v-model="form.mnemonicCode"
-            placeholder="请输入助记码"
+            placeholder="自动根据商品名称生成，可手动修改"
             :disabled="form.id == null"
           />
+        </el-form-item>
+        <el-form-item label="商品规格" prop="specName">
+          <el-input v-model="form.specName" placeholder="如：大果 / 5斤/箱" />
         </el-form-item>
         <el-form-item label="商品单位" prop="unit">
           <el-select
@@ -339,14 +339,49 @@
             />
           </el-select>
         </el-form-item>
-        <el-form-item label="商品规格" prop="spec">
-          <el-input v-model="form.spec" placeholder="请输入商品规格" />
+        <el-form-item label="是否称重" prop="isWeighted">
+          <el-switch
+            v-model="form.isWeighted"
+            :active-value="1"
+            :inactive-value="0"
+            active-text="称重"
+            inactive-text="非称重"
+          />
+          <div class="el-form-item-msg">称重商品按斤/公斤计价，非称重按固定包装（如箱）下单</div>
         </el-form-item>
-        <el-form-item label="商品售价" prop="salePrice">
+        <el-form-item label="基础单位" prop="baseUnit">
+          <el-select
+            v-model="form.baseUnit"
+            placeholder="跨SKU汇总的基础单位（可选）"
+            clearable
+            filterable
+            allow-create
+            default-first-option
+          >
+            <el-option
+              v-for="dict in dict.type.t_sku_unit"
+              :key="dict.value"
+              :label="dict.label"
+              :value="dict.label"
+            />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="换算率" prop="conversionRate">
+          <el-input-number
+            v-model="form.conversionRate"
+            :min="0"
+            :precision="2"
+            placeholder="与基础单位的换算率（可选）"
+            style="width: 100%"
+          />
+        </el-form-item>
+        <el-form-item label="参考售价" prop="salePrice">
           <el-input-number
             v-model="form.salePrice"
+            :min="0"
             :precision="2"
-            placeholder="请输入商品售价"
+            placeholder="仅展示，非交易价格"
+            style="width: 100%"
           />
         </el-form-item>
         <el-form-item label="是否上架" prop="saleable">
@@ -418,7 +453,7 @@
           </template>
         </el-table-column>
         <el-table-column label="商品单位" prop="unit" />
-        <el-table-column label="商品规格" prop="spec" />
+        <el-table-column label="商品规格" prop="specName" />
       </el-table>
 
       <template #footer>
@@ -476,7 +511,6 @@
 <script>
 import {
   pageSku,
-  listSku,
   getSku,
   delSku,
   addSku,
@@ -486,9 +520,6 @@ import {
 } from "@/api/product/sku";
 import { listCategory } from "@/api/product/category";
 import { listSpu } from "@/api/product/spu";
-import { listCustomer } from "@/api/partner/customer";
-import { getCustomerActiveQuote } from "@/api/product/quote";
-import { listQuoteDetail } from "@/api/product/quoteDetail";
 import { pinyin } from "pinyin-pro";
 import { getToken } from "@/utils/auth";
 import {
@@ -506,7 +537,7 @@ import {
 
 export default {
   name: "Sku",
-  dicts: ["t_customer_type", "t_sku_unit", "biz_yes_no"],
+  dicts: ["t_sku_unit", "biz_yes_no"],
   setup() {
     return {
       Search,
@@ -535,14 +566,10 @@ export default {
       showSearch: true,
       // 总条数
       total: 0,
-      // 默认客户ID
-      defaultCustomerId: null,
       // 商品分类map
       categoryMap: {},
       // 商品分类树选项
       categoryOptions: [],
-      // 客户列表数据
-      customerOptions: [],
       // 商品信息表格数据
       skuList: [],
       // 选择的商品列表
@@ -580,7 +607,6 @@ export default {
       queryParams: {
         pageNum: 1,
         pageSize: 10,
-        customerId: 0,
         categoryId: null,
         spuId: null,
         name: null,
@@ -590,34 +616,21 @@ export default {
         // 辅助查询是否关联spu
         matchedSpu: null,
       },
-      // 查询校验
-      queryFormRules: {
-        customerId: [
-          { required: true, message: "当前客户不能为空", trigger: "change" },
-        ],
-      },
       // 表单参数
       form: {},
       // 表单校验
       rules: {
-        customerId: [
-          { required: true, message: "客户ID不能为空", trigger: "blur" },
-        ],
-        spuId: [{ required: true, message: "产品ID不能为空", trigger: "blur" }],
         categoryId: [
           { required: true, message: "商品分类不能为空", trigger: "change" },
         ],
         name: [
           { required: true, message: "商品名称不能为空", trigger: "blur" },
         ],
-        mnemonicCode: [
-          { required: true, message: "助记码不能为空", trigger: "blur" },
-        ],
         unit: [
           { required: true, message: "商品单位不能为空", trigger: "blur" },
         ],
-        salePrice: [
-          { required: true, message: "商品售价不能为空", trigger: "blur" },
+        specName: [
+          { required: true, message: "商品规格不能为空", trigger: "blur" },
         ],
         saleable: [
           { required: true, message: "是否上架不能为空", trigger: "blur" },
@@ -625,17 +638,7 @@ export default {
         valid: [
           { required: true, message: "是否有效不能为空", trigger: "change" },
         ],
-        isDeleted: [
-          { required: true, message: "逻辑删除不能为空", trigger: "blur" },
-        ],
-        createTime: [
-          { required: true, message: "创建时间不能为空", trigger: "blur" },
-        ],
       },
-      // 有效报价及明细
-      validSkuQuote: {},
-      validSkuQuoteDetails: [],
-      priceTooltips: "",
     };
   },
   watch: {
@@ -647,22 +650,10 @@ export default {
     },
   },
   created() {
-    this.defaultCustomerId =
-      (this.$route.params && parseInt(this.$route.params.customerId)) || 0;
     this.getTreeselect();
-    this.getCustomerList();
-    this.getValidSkuQuoteDetails();
     this.getPageList();
   },
   methods: {
-    /** 查询商品信息列表 */
-    getList() {
-      this.loading = true;
-      listSku(this.queryParams).then((response) => {
-        this.skuList = response.data;
-        this.loading = false;
-      });
-    },
     /** 分页查询商品信息列表 */
     getPageList() {
       this.loading = true;
@@ -671,36 +662,6 @@ export default {
         this.total = response.total;
         this.loading = false;
       });
-    },
-    /** 查询客户列表 */
-    getCustomerList() {
-      listCustomer().then((response) => {
-        this.customerOptions = response.data;
-        this.customerOptions.unshift({ id: 0, name: "默认客户" });
-      });
-    },
-    /** 查询有效报价明细 */
-    async getValidSkuQuoteDetails(queryCustomerId) {
-      this.validSkuQuote = {};
-      this.validSkuQuoteDetails = [];
-      this.priceTooltips = "暂无报价";
-      const customerId = queryCustomerId || this.defaultCustomerId;
-      if (!customerId) {
-        return;
-      }
-
-      const quoteResponse = await getCustomerActiveQuote(customerId);
-      const quote = quoteResponse.data || {};
-      this.validSkuQuote = quote;
-
-      // 如果报价存在，则查询报价明细
-      if (quote && quote.id) {
-        const detailResponse = await listQuoteDetail({ quoteId: quote.id });
-        this.validSkuQuoteDetails = detailResponse.data || [];
-
-        // 填充当期售价提示
-        this.priceTooltips = `报价编号：${this.validSkuQuote.code}`;
-      }
     },
     /** 查询商品库列表 */
     querySpuList(queryString, cb) {
@@ -742,26 +703,19 @@ export default {
     reset(row) {
       this.form = {
         id: null,
-        customerId: row
-          ? row.customerId
-          : this.queryParams.customerId || this.defaultCustomerId,
         categoryId: null,
         spuId: null,
         name: null,
         mnemonicCode: null,
         unit: "斤",
-        spec: null,
-        images: null,
-        properties: null,
+        specName: null,
+        isWeighted: 1,
+        baseUnit: null,
+        conversionRate: null,
         salePrice: 0,
-        visitCount: null,
         saleable: 1,
         valid: 1,
         isDeleted: 0,
-        createBy: null,
-        createTime: null,
-        updateBy: null,
-        updateTime: null,
         remark: null,
       };
       this.resetForm("form");
@@ -770,12 +724,8 @@ export default {
     },
     /** 搜索按钮操作 */
     handleQuery() {
-      this.$refs["queryForm"].validate((valid) => {
-        if (valid) {
-          this.queryParams.pageNum = 1;
-          this.getPageList();
-        }
-      });
+      this.queryParams.pageNum = 1;
+      this.getPageList();
     },
     /** 重置按钮操作 */
     resetQuery() {
@@ -974,19 +924,13 @@ export default {
         this.form.spuId = spuItem.spuId;
       }
     },
-    /** 处理客户选择变化 */
-    handleCustomerChanged(value) {
-      // 获取当前客户有效报价单
-      this.getValidSkuQuoteDetails(value);
-      this.handleQuery();
-    },
     /** 处理级联选择器，取最后一个选项 */
     handleQueryCascaderChange(value) {
-      this.queryParams.categoryId = value[value.length - 1];
+      this.queryParams.categoryId = value ? value[value.length - 1] : null;
       this.handleQuery();
     },
     handleFormOptionsChanged(value) {
-      this.form.categoryId = value[value.length - 1];
+      this.form.categoryId = value ? value[value.length - 1] : null;
     },
     /** 格式化商品分类 */
     categoryFormatter(row) {
@@ -994,17 +938,9 @@ export default {
         ? this.categoryMap[row.categoryId] || ""
         : row.categoryId;
     },
-    /** 当期售价格式化 */
+    /** 参考售价格式化 */
     salePriceFormatter(row) {
-      const quoteDetails = this.validSkuQuoteDetails;
-      if (!quoteDetails) {
-        return row.salePrice;
-      }
-      const detail = quoteDetails.find((detail) => detail.skuId === row.id);
-      if (!detail) {
-        return row.salePrice;
-      }
-      return detail.price;
+      return row.salePrice == null ? "" : row.salePrice;
     },
     /** 根据 id 构造父节点列表，并添加自身 */
     fillWithParentCategoryId(list, id) {
@@ -1101,3 +1037,12 @@ export default {
   },
 };
 </script>
+
+<style scoped>
+.el-form-item-msg {
+  font-size: 12px;
+  color: #909399;
+  line-height: 1.4;
+  margin-top: 2px;
+}
+</style>

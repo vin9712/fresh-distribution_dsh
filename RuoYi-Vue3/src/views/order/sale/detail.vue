@@ -361,16 +361,10 @@
 </template>
 
 <script>
-import {
-  pageSaleOrder,
-  getSaleOrder,
-  genOrderCode,
-  createSaleOrder,
-  updateSaleOrder,
-  recentSaleOrder,
-} from "@/api/order/sale";
+import { pageSaleOrder, getSaleOrder, genOrderCode, createSaleOrder, updateSaleOrder, recentSaleOrder } from "@/api/order/sale";
 import { listSaleDetail } from "@/api/order/saleDetail";
-import { customerListQuoteDetail } from "@/api/product/quoteDetail";
+import { listCustomerSku } from "@/api/product/customerSku";
+import { listTemp } from "@/api/product/temp";
 import { queryPrice } from "@/api/price/query";
 import { listCustomer } from "@/api/partner/customer";
 import { listCustomerDept } from "@/api/partner/customerDept";
@@ -627,23 +621,47 @@ export default {
       this.resetForm("recentOrderForm");
       this.handleRecentQuery();
     },
-    /** 获取当前客户的报价明细列表 */
-    async getSkuQuoteDetailList() {
+    /** 获取当前客户的商品选项列表（客户商品池+配送点覆盖+临时商品） */
+    async getSkuQuoteDetailList(keyword) {
       const customerId = this.orderForm.customerId;
       if (!customerId) {
         this.skuQuoteDetails = [];
         return;
       }
-      const detailResponse = await customerListQuoteDetail({ customerId });
-      const skuQuoteDetails = detailResponse.data || [];
-      this.skuQuoteDetails = skuQuoteDetails.map((item) => {
-        return {
-          ...item,
-          price: XEUtils.commafy(item.price, {
-            digits: 2,
-          }),
-        };
-      });
+      const [poolRes, tempRes] = await Promise.all([
+        listCustomerSku({
+          customerId,
+          deliveryPointId: this.orderForm.customerDeptId || undefined,
+          keyword: keyword || undefined,
+        }),
+        listTemp({ customerId, name: keyword || undefined }),
+      ]);
+      // 客户商品池：覆盖后的别名/展示价格，交易价仍走取价引擎
+      const pool = (poolRes.data || []).map((item) => ({
+        skuId: item.skuId,
+        productName: item.alias || item.skuName,
+        productUnit: item.skuUnit,
+        productSpec: item.skuSpecName || "",
+        productMnemonicCode: item.skuMnemonicCode || "",
+        price: item.priceOverride != null ? item.priceOverride : item.skuSalePrice,
+        isTemp: false,
+        remark: "",
+      }));
+      // 临时商品：全局 + 客户专用（未转正）
+      const temps = (tempRes.data || []).map((item) => ({
+        skuId: null,
+        productName: item.name,
+        productUnit: item.unit || "斤",
+        productSpec: item.spec || "",
+        productMnemonicCode: "",
+        price: item.defaultPrice,
+        isTemp: true,
+        remark: item.remark || "",
+      }));
+      this.skuQuoteDetails = [...pool, ...temps].map((item) => ({
+        ...item,
+        price: XEUtils.commafy(item.price == null ? 0 : item.price, { digits: 2 }),
+      }));
     },
     /** 初始化订单明细页 */
     initOrderDetailPage(orderId) {
@@ -1019,11 +1037,11 @@ export default {
     focusProductNameEvent({ value }) {
       const $pulldown = this.$refs.pulldownRef;
       if ($pulldown) {
-        this.initPulldownData(value);
+        this.initPulldownData("");
         $pulldown.showPanel();
       }
     },
-    /** 商品名称输入框-键盘按下事件 */
+    /** 商品名称输入框-键盘按下事件（服务端按关键字检索，防抖） */
     keyupProductNameEvent({ value }) {
       this.initPulldownData(value);
     },
@@ -1077,15 +1095,21 @@ export default {
       const $table = this.$refs.xTable;
       const $pulldown = this.$refs.pulldownRef;
       if ($pulldown) {
-        // 设置选中的 skuQuote 到订单详情
+        // 设置选中的商品到订单详情
         parentRow.productName = row.productName;
         parentRow.productUnit = row.productUnit;
         parentRow.productSpec = row.productSpec;
         parentRow.productPrice = row.price;
         parentRow.skuId = row.skuId;
+        parentRow.isTemp = row.isTemp ? 1 : 0;
 
-        // S3-3：三层取价覆盖（配送点报价 > 客户报价 > 客户模板），未命中提示人工填写
-        this.applyPriceQuery(parentRow);
+        if (row.isTemp) {
+          // 临时商品：使用默认单价，不参与取价
+          this.calcAmount(parentRow);
+        } else {
+          // 正式SKU：三层取价覆盖（配送点覆盖 > 客户报价 > 客户模板），未命中提示人工填写
+          this.applyPriceQuery(parentRow);
+        }
 
         // 聚焦到数量单元格
         $table.setEditCell(parentRow, "num");
@@ -1128,18 +1152,16 @@ export default {
           // 取价失败不阻塞录单，保留报价明细默认价
         });
     },
-    /** 商品名称下拉容器-初始化数据 */
+    /** 商品名称下拉容器-初始化数据（服务端按关键字检索客户商品池+临时商品） */
     initPulldownData(value) {
-      if (value) {
-        // 'i' 标志表示不区分大小写
-        const regex = new RegExp(value, "i");
-        this.pulldownTableData = this.skuQuoteDetails.filter(
-          (row) =>
-            regex.test(row.productName) || regex.test(row.productMnemonicCode)
-        );
-      } else {
-        this.pulldownTableData = this.skuQuoteDetails;
+      if (this._pulldownTimer) {
+        clearTimeout(this._pulldownTimer);
       }
+      this._pulldownTimer = setTimeout(() => {
+        this.getSkuQuoteDetailList(value || "").then(() => {
+          this.pulldownTableData = this.skuQuoteDetails;
+        });
+      }, 200);
     },
     /** 选择送货单位树回调 */
     handleFormOptionsChanged(value) {

@@ -84,6 +84,11 @@
       <!-- ==================== 临时商品 ==================== -->
       <el-tab-pane label="临时商品" name="temp">
         <el-form :model="tempQueryParams" ref="tempQueryForm" size="small" :inline="true" label-width="68px">
+          <el-form-item label="客户" prop="customerId">
+            <el-select v-model="tempQueryParams.customerId" placeholder="全部（含客户专用）" clearable filterable style="width: 180px" @change="tempHandleQuery">
+              <el-option v-for="item in customerOptions" :key="item.id" :label="item.name" :value="item.id" />
+            </el-select>
+          </el-form-item>
           <el-form-item label="名称" prop="name">
             <el-input v-model="tempQueryParams.name" placeholder="请输入商品名称" clearable @keyup.enter="tempHandleQuery" />
           </el-form-item>
@@ -101,15 +106,27 @@
         </el-row>
 
         <el-table v-loading="tempLoading" :data="tempList">
-          <el-table-column label="名称" align="center" prop="name" :show-overflow-tooltip="true" />
+          <el-table-column label="名称" align="center" prop="name" :show-overflow-tooltip="true" min-width="140" />
           <el-table-column label="规格" align="center" prop="spec" :show-overflow-tooltip="true" />
-          <el-table-column label="单位" align="center" prop="unit" />
-          <el-table-column label="默认单价" align="center" prop="defaultPrice" />
+          <el-table-column label="单位" align="center" prop="unit" width="70" />
+          <el-table-column label="默认单价" align="center" prop="defaultPrice" width="100" />
+          <el-table-column label="所属客户" align="center" width="120">
+            <template #default="scope">
+              <el-tag v-if="!scope.row.customerId" type="info" size="small">全局</el-tag>
+              <span v-else>{{ customerName(scope.row.customerId) }}</span>
+            </template>
+          </el-table-column>
+          <el-table-column label="状态" align="center" width="100">
+            <template #default="scope">
+              <el-tag v-if="scope.row.convertedSkuId" type="success" size="small">已转正</el-tag>
+              <el-tag v-else type="warning" size="small">未转正</el-tag>
+            </template>
+          </el-table-column>
           <el-table-column label="备注" align="center" prop="remark" :show-overflow-tooltip="true" />
           <el-table-column label="操作" align="center" class-name="small-padding fixed-width" width="220">
             <template #default="scope">
-              <el-button size="small" link :icon="Promotion" @click="tempHandleConvert(scope.row)"
-                v-hasPermi="['product:temp:convert']">转正</el-button>
+              <el-button size="small" link type="primary" :icon="Promotion" @click="tempHandleConvert(scope.row)"
+                v-hasPermi="['product:temp:convert']" :disabled="scope.row.convertedSkuId != null">转正</el-button>
               <el-button size="small" link :icon="Edit" @click="tempHandleUpdate(scope.row)"
                 v-hasPermi="['product:temp:edit']">修改</el-button>
               <el-button size="small" link :icon="Delete" @click="tempHandleDelete(scope.row)"
@@ -173,6 +190,12 @@
     <!-- 临时商品新增/修改对话框 -->
     <el-dialog :title="tempTitle" v-model="tempOpen" width="560px" append-to-body>
       <el-form ref="tempForm" :model="tempForm" :rules="tempRules" label-width="90px">
+        <el-form-item label="所属客户" prop="customerId">
+          <el-select v-model="tempForm.customerId" placeholder="不选=全局临时商品" clearable filterable style="width: 100%">
+            <el-option v-for="item in customerOptions" :key="item.id" :label="item.name" :value="item.id" />
+          </el-select>
+          <div class="form-tip">选择客户后，该临时商品仅该客户录单时可见；不选则所有客户可见</div>
+        </el-form-item>
         <el-form-item label="商品名称" prop="name">
           <el-input v-model="tempForm.name" placeholder="请输入商品名称" />
         </el-form-item>
@@ -196,6 +219,44 @@
         </div>
       </template>
     </el-dialog>
+
+    <!-- 临时商品转正对话框（需选客户 + 分类） -->
+    <el-dialog title="临时商品转正为正式SKU" v-model="convertOpen" width="560px" append-to-body>
+      <el-form ref="convertForm" :model="convertForm" :rules="convertRules" label-width="90px">
+        <el-form-item label="临时商品">
+          <el-input :value="convertForm.name" disabled />
+        </el-form-item>
+        <el-form-item label="归属客户" prop="customerId">
+          <el-select v-model="convertForm.customerId" placeholder="请选择客户" filterable style="width: 100%">
+            <el-option v-for="item in customerOptions" :key="item.id" :label="item.name" :value="item.id" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="商品分类" prop="categoryId">
+          <el-cascader
+            v-model="convertForm.categoryOptions"
+            placeholder="请选择商品分类"
+            :options="categoryOptions"
+            @change="handleConvertCategoryChange"
+            :props="{ expandTrigger: 'hover' }"
+            :show-all-levels="false"
+            filterable
+            clearable
+            style="width: 100%"
+          />
+        </el-form-item>
+        <el-form-item label="助记码" prop="mnemonicCode">
+          <el-input v-model="convertForm.mnemonicCode" placeholder="不填则按商品名称拼音首字母生成" />
+        </el-form-item>
+        <el-alert type="info" :closable="false"
+          title="转正将创建标准SKU（相同名称+规格+单位已存在则直接复用），并自动关联到该客户商品池" />
+      </el-form>
+      <template #footer>
+        <div class="dialog-footer">
+          <el-button type="primary" @click="tempSubmitConvert">确 定</el-button>
+          <el-button @click="convertOpen = false">取 消</el-button>
+        </div>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -205,6 +266,7 @@ import { listMapping, getMapping, delMapping, addMapping, updateMapping } from "
 import { listTemp, getTemp, delTemp, addTemp, updateTemp, convertTemp } from "@/api/product/temp";
 import { listSku } from "@/api/product/sku";
 import { listCustomer } from "@/api/partner/customer";
+import { listCategory } from "@/api/product/category";
 import { Search, Refresh, Plus, Edit, Delete, Promotion } from "@element-plus/icons-vue";
 
 export default {
@@ -261,6 +323,7 @@ export default {
       tempLoading: false,
       tempList: [],
       tempQueryParams: {
+        customerId: null,
         name: null,
       },
       tempForm: {},
@@ -269,11 +332,21 @@ export default {
       tempRules: {
         name: [{ required: true, message: "商品名称不能为空", trigger: "blur" }],
       },
+      // 转正
+      convertOpen: false,
+      convertForm: {},
+      convertRules: {
+        customerId: [{ required: true, message: "归属客户不能为空", trigger: "change" }],
+        categoryId: [{ required: true, message: "商品分类不能为空", trigger: "change" }],
+      },
+      // 商品分类树
+      categoryOptions: [],
     };
   },
   created() {
     this.getSkuOptions();
     this.getCustomerOptions();
+    this.getCategoryOptions();
     this.getAliasList();
     this.getMappingList();
     this.getTempList();
@@ -290,6 +363,31 @@ export default {
       listCustomer({}).then((response) => {
         this.customerOptions = response.data || [];
       });
+    },
+    /** 加载商品分类树（转正用） */
+    getCategoryOptions() {
+      listCategory().then((response) => {
+        const treeList = this.handleTree(response.data || []);
+        this.categoryOptions = this.transformTreeData(treeList);
+      });
+    },
+    /** 树形列表转换为级联列表 */
+    transformTreeData(data) {
+      return data.map((item) => {
+        const newItem = {
+          value: item.id.toString(),
+          label: item.name,
+        };
+        if (Array.isArray(item.children) && item.children.length > 0) {
+          newItem.children = this.transformTreeData(item.children);
+        }
+        return newItem;
+      });
+    },
+    /** 客户名 */
+    customerName(id) {
+      const item = this.customerOptions.find((o) => o.id === id);
+      return item ? item.name : id;
     },
     /** 别名类型文案 */
     aliasTypeLabel(value) {
@@ -450,7 +548,9 @@ export default {
     /** ==================== 临时商品 ==================== */
     getTempList() {
       this.tempLoading = true;
-      listTemp(this.tempQueryParams).then((response) => {
+      // showAll=true：包含已转正记录（默认只查未转正）
+      const params = { ...this.tempQueryParams, showAll: true };
+      listTemp(params).then((response) => {
         this.tempList = response.data || [];
         this.tempLoading = false;
       }).catch(() => {
@@ -467,6 +567,7 @@ export default {
     tempReset() {
       this.tempForm = {
         id: null,
+        customerId: null,
         name: null,
         spec: null,
         unit: null,
@@ -524,17 +625,45 @@ export default {
         .catch(() => {});
     },
     tempHandleConvert(row) {
-      this.$modal
-        .confirm('是否确认将临时商品【"' + row.name + '"】转正为正式SKU？')
-        .then(function () {
-          return convertTemp(row.id, {});
-        })
-        .then(() => {
-          this.getTempList();
+      this.convertForm = {
+        id: row.id,
+        name: row.name,
+        customerId: row.customerId || null,
+        categoryId: null,
+        categoryOptions: [],
+        mnemonicCode: null,
+      };
+      this.convertOpen = true;
+    },
+    /** 分类级联选择回调 */
+    handleConvertCategoryChange(value) {
+      this.convertForm.categoryId = value ? value[value.length - 1] : null;
+    },
+    /** 提交转正 */
+    tempSubmitConvert() {
+      this.$refs["convertForm"].validate((valid) => {
+        if (!valid) {
+          return;
+        }
+        convertTemp(this.convertForm.id, {
+          customerId: this.convertForm.customerId,
+          categoryId: this.convertForm.categoryId,
+          mnemonicCode: this.convertForm.mnemonicCode || undefined,
+        }).then(() => {
           this.$modal.msgSuccess("转正成功");
-        })
-        .catch(() => {});
+          this.convertOpen = false;
+          this.getTempList();
+        }).catch(() => {});
+      });
     },
   },
 };
 </script>
+
+<style scoped>
+.form-tip {
+  font-size: 12px;
+  color: #909399;
+  line-height: 1.4;
+}
+</style>

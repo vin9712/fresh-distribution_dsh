@@ -1,11 +1,11 @@
 package com.lin.distribution.service.impl;
 
-import com.lin.distribution.domain.DeliveryPointPrice;
+import com.lin.distribution.domain.DeliverySkuOverride;
 import com.lin.distribution.domain.PriceQueryResult;
 import com.lin.distribution.domain.PriceTemplate;
 import com.lin.distribution.domain.PriceTemplateSku;
 import com.lin.distribution.domain.ProductSkuQuoteDetail;
-import com.lin.distribution.mapper.DeliveryPointPriceMapper;
+import com.lin.distribution.mapper.DeliverySkuOverrideMapper;
 import com.lin.distribution.mapper.PriceTemplateMapper;
 import com.lin.distribution.mapper.PriceTemplateSkuMapper;
 import com.lin.distribution.mapper.ProductSkuQuoteDetailMapper;
@@ -38,7 +38,7 @@ import static org.mockito.Mockito.when;
 class PriceQueryServiceImplTest {
 
     @Mock
-    private DeliveryPointPriceMapper deliveryPointPriceMapper;
+    private DeliverySkuOverrideMapper deliverySkuOverrideMapper;
     @Mock
     private ProductSkuQuoteDetailMapper productSkuQuoteDetailMapper;
     @Mock
@@ -56,17 +56,17 @@ class PriceQueryServiceImplTest {
 
     @BeforeEach
     void setUp() {
-        lenient().when(deliveryPointPriceMapper.selectActivePriceByPointAndSku(POINT_ID, SKU_ID, DATE)).thenReturn(null);
+        lenient().when(deliverySkuOverrideMapper.selectActiveByPointAndSku(POINT_ID, SKU_ID, DATE)).thenReturn(null);
         lenient().when(productSkuQuoteDetailMapper.selectActivePriceByCustomerAndSku(CUSTOMER_ID, SKU_ID, DATE)).thenReturn(null);
         lenient().when(priceTemplateMapper.selectTemplateByCustomerId(CUSTOMER_ID)).thenReturn(null);
     }
 
     @Test
-    void 配送点报价命中时优先返回() {
-        DeliveryPointPrice pointPrice = new DeliveryPointPrice();
-        pointPrice.setId(1L);
-        pointPrice.setUnitPrice(new BigDecimal("9.50"));
-        when(deliveryPointPriceMapper.selectActivePriceByPointAndSku(POINT_ID, SKU_ID, DATE)).thenReturn(pointPrice);
+    void 配送点覆盖价命中时优先返回() {
+        DeliverySkuOverride override = new DeliverySkuOverride();
+        override.setId(1L);
+        override.setPriceOverride(new BigDecimal("9.50"));
+        when(deliverySkuOverrideMapper.selectActiveByPointAndSku(POINT_ID, SKU_ID, DATE)).thenReturn(override);
 
         PriceQueryResult result = priceQueryService.queryPrice(CUSTOMER_ID, POINT_ID, SKU_ID, DATE);
 
@@ -76,6 +76,24 @@ class PriceQueryServiceImplTest {
         assertEquals(1L, result.getSourceId());
         // 不再查询客户报价
         verify(productSkuQuoteDetailMapper, never()).selectActivePriceByCustomerAndSku(any(), any(), any());
+    }
+
+    @Test
+    void 配送点覆盖存在但无价格时回退客户报价() {
+        DeliverySkuOverride override = new DeliverySkuOverride();
+        override.setId(1L);
+        override.setPriceOverride(null);
+        when(deliverySkuOverrideMapper.selectActiveByPointAndSku(POINT_ID, SKU_ID, DATE)).thenReturn(override);
+
+        ProductSkuQuoteDetail customerPrice = new ProductSkuQuoteDetail();
+        customerPrice.setId(2L);
+        customerPrice.setPrice(new BigDecimal("11.00"));
+        when(productSkuQuoteDetailMapper.selectActivePriceByCustomerAndSku(CUSTOMER_ID, SKU_ID, DATE)).thenReturn(customerPrice);
+
+        PriceQueryResult result = priceQueryService.queryPrice(CUSTOMER_ID, POINT_ID, SKU_ID, DATE);
+
+        assertEquals(0, new BigDecimal("11.00").compareTo(result.getPrice()));
+        assertEquals(2, result.getSource());
     }
 
     @Test
@@ -120,8 +138,8 @@ class PriceQueryServiceImplTest {
     void 查询顺序严格按优先级() {
         priceQueryService.queryPrice(CUSTOMER_ID, POINT_ID, SKU_ID, DATE);
 
-        InOrder inOrder = inOrder(deliveryPointPriceMapper, productSkuQuoteDetailMapper, priceTemplateMapper);
-        inOrder.verify(deliveryPointPriceMapper).selectActivePriceByPointAndSku(POINT_ID, SKU_ID, DATE);
+        InOrder inOrder = inOrder(deliverySkuOverrideMapper, productSkuQuoteDetailMapper, priceTemplateMapper);
+        inOrder.verify(deliverySkuOverrideMapper).selectActiveByPointAndSku(POINT_ID, SKU_ID, DATE);
         inOrder.verify(productSkuQuoteDetailMapper).selectActivePriceByCustomerAndSku(CUSTOMER_ID, SKU_ID, DATE);
         inOrder.verify(priceTemplateMapper).selectTemplateByCustomerId(CUSTOMER_ID);
     }
