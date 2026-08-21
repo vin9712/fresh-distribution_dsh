@@ -3,12 +3,10 @@ package com.lin.distribution.service.impl;
 import com.lin.common.exception.ServiceException;
 import com.lin.common.utils.DateUtils;
 import com.lin.common.utils.bean.BeanValidators;
-import com.lin.distribution.domain.Customer;
 import com.lin.distribution.domain.ProductCategory;
 import com.lin.distribution.domain.ProductSku;
 import com.lin.distribution.domain.ProductSpu;
 import com.lin.distribution.dto.ProductSkuMatchDTO;
-import com.lin.distribution.mapper.CustomerMapper;
 import com.lin.distribution.mapper.ProductCategoryMapper;
 import com.lin.distribution.mapper.ProductSkuMapper;
 import com.lin.distribution.mapper.ProductSpuMapper;
@@ -22,7 +20,6 @@ import org.apache.commons.lang3.StringUtils;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -41,7 +38,6 @@ import java.util.stream.Collectors;
 public class ProductServiceImpl implements ProductService {
 
     private final ProductCategoryMapper productCategoryMapper;
-    private final CustomerMapper customerMapper;
     private final ProductSkuMapper productSkuMapper;
     private final ProductSpuMapper productSpuMapper;
     private final BizCodeService bizCodeService;
@@ -72,14 +68,8 @@ public class ProductServiceImpl implements ProductService {
     }
 
     /**
-     * 新增商品信息
-     * <p>
-     * insert spu method = insert spu one + insert sku one(customerId=0)
-     * insert sku method = insert sku one with customerId
-     * if customerId = 0 & spuId = null, that means try insert spu method
-     * if customerId = 0 & spuId != null, that is invalid request
-     * if customerId != 0 & spuId = null, try insert spu method & insert sku method
-     * if customerId != 0 & spuId != null, that means try insert sku method
+     * 新增商品信息（标准SKU，客户无关）
+     * 编码：全局唯一 S + 8位数字（biz_code_seq.sku_code）
      *
      * @param productSku 商品信息
      * @return 结果
@@ -89,31 +79,12 @@ public class ProductServiceImpl implements ProductService {
     public int insertProductSku(ProductSku productSku) {
         // check request validation
         checkSaveOrUpdateSkuRequest(productSku);
-        Long spuId = productSku.getSpuId();
 
-        // customerId = 0 & spuId = null, insert spu + default sku
-        if (spuId == null && productSku.getCustomerId() == 0L) {
-            ProductSpu newSpu = ProductSpu.builder()
-                    .categoryId(productSku.getCategoryId())
-                    .name(productSku.getName())
-                    .mnemonicCode(productSku.getMnemonicCode())
-                    .valid(1)
-                    .saleable(1)
-                    .isDeleted(Boolean.FALSE)
-                    .build();
-            this.insertProductSpu(newSpu);
-            return 1;
+        // 生成全局唯一编码
+        productSku.setCode(bizCodeService.nextSkuCode());
+        if (StringUtils.isEmpty(productSku.getMnemonicCode())) {
+            productSku.setMnemonicCode(productSku.getSkuMnemonicCode());
         }
-
-        // generate sku code
-        Customer customer = customerMapper.selectCustomerById(productSku.getCustomerId());
-        String customerCode = customer == null ? "#" : StringUtils.substring(customer.getShowMnemonicCode(), 0, Math.min(customer.getShowMnemonicCode().length(), 4));
-        String productCode = generateSkuNo(productSku.getCustomerId(), customerCode);
-
-        // insert sku one with customerId
-        ProductSpu productSpu = spuId == null ? null : productSpuMapper.selectProductSpuById(spuId);
-        productSku.setSpuId(productSpu == null ? null : productSpu.getId());
-        productSku.setCode(productCode);
         productSku.setCreateTime(DateUtils.getNowDate());
         return productSkuMapper.insertProductSku(productSku);
     }
@@ -136,16 +107,16 @@ public class ProductServiceImpl implements ProductService {
             throw new ServiceException("product sku is null");
         }
 
-        if (productSku.getCustomerId() == null) {
-            throw new ServiceException("customerId is null");
-        }
-
         if (productSku.getCategoryId() == null) {
             throw new ServiceException("categoryId is null");
         }
 
-        if (productSku.getSpuId() != null && productSku.getCustomerId() == 0L) {
-            throw new ServiceException("customerId is 0 but spuId is not null");
+        if (StringUtils.isEmpty(productSku.getName())) {
+            throw new ServiceException("商品名称为空");
+        }
+
+        if (StringUtils.isEmpty(productSku.getUnit())) {
+            throw new ServiceException("商品单位为空");
         }
 
         // check unique sku
@@ -174,20 +145,12 @@ public class ProductServiceImpl implements ProductService {
         return productSkuMapper.deleteProductSkuById(id);
     }
 
-    @Override
-    public String generateSkuNo(Long customerId, String customerCode) {
-        String prefix = customerCode + customerId;
-        long seqNbr = bizCodeService.nextSeq("skuNo:" + customerId);
-        String seqNbrStr = String.format("%05d", seqNbr);
-        return prefix + seqNbrStr;
-    }
-
     private void checkUniqueSku(ProductSku productSku) {
         if (productSku == null) {
             throw new ServiceException("product sku is null");
         }
 
-        List<ProductSku> skuList = productSkuMapper.selectProductSkuByCustomerIdAndCategoryIdAndName(productSku.getCustomerId(), productSku.getCategoryId(), productSku.getName());
+        List<ProductSku> skuList = productSkuMapper.selectProductSkuByCategoryNameSpecUnit(productSku.getCategoryId(), productSku.getName(), productSku.getSpecName(), productSku.getUnit());
 
         long count = 0;
         if (productSku.getId() != null) {
@@ -199,7 +162,7 @@ public class ProductServiceImpl implements ProductService {
         }
 
         if (count > 0) {
-            throw new ServiceException("sku name is exist");
+            throw new ServiceException("同分类下商品名称+规格+单位已存在");
         }
     }
 
@@ -228,7 +191,7 @@ public class ProductServiceImpl implements ProductService {
     }
 
     /**
-     * 新增商品spu
+     * 新增商品spu（不再自动创建默认SKU，SKU 由标准SKU管理独立维护）
      *
      * @param productSpu 商品spu
      * @return 结果
@@ -242,22 +205,6 @@ public class ProductServiceImpl implements ProductService {
         // add spu item
         productSpu.setCreateTime(DateUtils.getNowDate());
         productSpuMapper.insertProductSpu(productSpu);
-
-        // add default sku with customerId = 0
-        ProductSku productSku = ProductSku.builder()
-                .customerId(0L)
-                .categoryId(productSpu.getCategoryId())
-                .spuId(productSpu.getId())
-                .code(generateSkuNo(0L, "#"))
-                .mnemonicCode(productSpu.getMnemonicCode())
-                .name(productSpu.getName())
-                .unit("斤")
-                .salePrice(BigDecimal.ZERO)
-                .valid(1)
-                .saleable(1)
-                .isDeleted(false)
-                .build();
-        productSkuMapper.insertProductSku(productSku);
         return productSpu;
     }
 
@@ -284,7 +231,7 @@ public class ProductServiceImpl implements ProductService {
      */
     @Override
     public int deleteProductSpuByIds(Long[] ids) {
-        // todo check sku list, if contains customerId != 0, throw error
+        // todo check sku list（关联标准SKU时禁止删除）
         return productSpuMapper.deleteProductSpuByIds(ids);
     }
 
@@ -321,13 +268,9 @@ public class ProductServiceImpl implements ProductService {
                 if (categoryId == null) {
                     throw new ServiceException("商品分类为空");
                 }
-                Long customerId = sku.getCustomerId();
-                if (customerId == null) {
-                    throw new ServiceException("客户编号为空");
-                }
 
-                // 验证是否存在这个客户
-                ProductSku s = productSkuMapper.selectProductSkuByCustomerIdAndCategoryIdAndName(customerId, categoryId, sku.getName()).stream().findFirst().orElse(null);
+                // 标准SKU查重：同分类+名称+规格+单位
+                ProductSku s = productSkuMapper.selectProductSkuByCategoryNameSpecUnit(categoryId, sku.getName(), sku.getSpecName(), sku.getUnit()).stream().findFirst().orElse(null);
                 if (s == null) {
                     BeanValidators.validateWithException(validator, sku);
                     sku.setMnemonicCode(sku.getSkuMnemonicCode());

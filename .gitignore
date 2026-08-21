@@ -56,3 +56,5 @@ application-prod.yml
 !*/build/*.java
 !*/build/*.html
 !*/build/*.xml
+# r1 tmp
+.r1_*

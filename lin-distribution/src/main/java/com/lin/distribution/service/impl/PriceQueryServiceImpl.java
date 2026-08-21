@@ -1,11 +1,11 @@
 package com.lin.distribution.service.impl;
 
-import com.lin.distribution.domain.DeliveryPointPrice;
+import com.lin.distribution.domain.DeliverySkuOverride;
 import com.lin.distribution.domain.PriceQueryResult;
 import com.lin.distribution.domain.PriceTemplate;
 import com.lin.distribution.domain.PriceTemplateSku;
 import com.lin.distribution.domain.ProductSkuQuoteDetail;
-import com.lin.distribution.mapper.DeliveryPointPriceMapper;
+import com.lin.distribution.mapper.DeliverySkuOverrideMapper;
 import com.lin.distribution.mapper.PriceTemplateMapper;
 import com.lin.distribution.mapper.PriceTemplateSkuMapper;
 import com.lin.distribution.mapper.ProductSkuQuoteDetailMapper;
@@ -16,8 +16,8 @@ import org.springframework.stereotype.Service;
 import java.time.LocalDate;
 
 /**
- * 取价服务实现（DESIGN.md §8）
- * 优先级：配送点报价 > 客户报价 > 客户关联报价模板；均未命中返回空价（不得自动转免费/零价）。
+ * 取价服务实现（deepseek_redesign.md §5.3）
+ * 优先级：配送点覆盖价 > 客户报价单 > 报价模板；均未命中返回空价（不得自动转免费/零价）。
  *
  * @author dsh
  */
@@ -25,22 +25,22 @@ import java.time.LocalDate;
 @RequiredArgsConstructor
 public class PriceQueryServiceImpl implements PriceQueryService {
 
-    private final DeliveryPointPriceMapper deliveryPointPriceMapper;
+    private final DeliverySkuOverrideMapper deliverySkuOverrideMapper;
     private final ProductSkuQuoteDetailMapper productSkuQuoteDetailMapper;
     private final PriceTemplateMapper priceTemplateMapper;
     private final PriceTemplateSkuMapper priceTemplateSkuMapper;
 
     @Override
     public PriceQueryResult queryPrice(Long customerId, Long deliveryPointId, Long skuId, LocalDate deliveryDate) {
-        // 1. 配送点报价
+        // 1. 配送点覆盖价（delivery_sku_override.price_override）
         if (deliveryPointId != null) {
-            DeliveryPointPrice pointPrice = deliveryPointPriceMapper.selectActivePriceByPointAndSku(deliveryPointId, skuId, deliveryDate);
-            if (pointPrice != null && pointPrice.getUnitPrice() != null) {
+            DeliverySkuOverride override = deliverySkuOverrideMapper.selectActiveByPointAndSku(deliveryPointId, skuId, deliveryDate);
+            if (override != null && override.getPriceOverride() != null) {
                 return PriceQueryResult.builder()
                         .skuId(skuId)
-                        .price(pointPrice.getUnitPrice())
+                        .price(override.getPriceOverride())
                         .source(1)
-                        .sourceId(pointPrice.getId())
+                        .sourceId(override.getId())
                         .build();
             }
         }

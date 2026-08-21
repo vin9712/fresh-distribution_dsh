@@ -63,15 +63,6 @@ public interface ProductService {
      */
     int deleteProductSkuById(String skuId);
 
-    /**
-     * 生成客户商品编号
-     *
-     * @param customerCode 客户简写
-     * @param customerId
-     * @return
-     */
-    String generateSkuNo(Long customerId, String customerCode);
-
     /** *************************** spu *************************** **/
 
     /**

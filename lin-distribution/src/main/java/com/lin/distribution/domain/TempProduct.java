@@ -24,6 +24,12 @@ public class TempProduct implements Serializable
     /** 主键 */
     private Long id;
 
+    /** 关联客户ID（可空=全局临时商品） */
+    private Long customerId;
+
+    /** 转正后标准SKU ID（可空=未转正） */
+    private Long convertedSkuId;
+
     /** 临时商品名称 */
     @Excel(name = "临时商品名称")
     private String name;
@@ -56,6 +62,10 @@ public class TempProduct implements Serializable
 
     /** 备注 */
     private String remark;
+
+    /** 是否包含已转正记录（非表字段，true=包含，默认只查未转正） */
+    @com.baomidou.mybatisplus.annotation.TableField(exist = false)
+    private Boolean showAll;
 
     @Override
     public String toString() {

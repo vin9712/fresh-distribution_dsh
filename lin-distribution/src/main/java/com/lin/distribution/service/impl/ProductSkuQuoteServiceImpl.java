@@ -395,7 +395,7 @@ public class ProductSkuQuoteServiceImpl implements ProductSkuQuoteService {
                     detail.setPrice(row.getPrice());
                     detail.setProductName(sku.getName());
                     detail.setProductUnit(sku.getUnit());
-                    detail.setProductSpec(sku.getSpec());
+                    detail.setProductSpec(sku.getSpecName());
                     detail.setProductCode(sku.getCode());
                     detail.setProductMnemonicCode(sku.getMnemonicCode());
                     detail.setCategoryId(sku.getCategoryId());

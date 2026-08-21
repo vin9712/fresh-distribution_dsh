@@ -6,17 +6,17 @@
 
     <resultMap type="com.lin.distribution.domain.ProductSku" id="ProductSkuResult">
         <result property="id" column="id"/>
-        <result property="customerId" column="customer_id"/>
         <result property="categoryId" column="category_id"/>
         <result property="spuId" column="spu_id"/>
+        <result property="code" column="code"/>
         <result property="name" column="name"/>
         <result property="mnemonicCode" column="mnemonic_code"/>
         <result property="unit" column="unit"/>
-        <result property="spec" column="spec"/>
-        <result property="images" column="images"/>
-        <result property="properties" column="properties"/>
+        <result property="specName" column="spec_name"/>
+        <result property="isWeighted" column="is_weighted"/>
+        <result property="baseUnit" column="base_unit"/>
+        <result property="conversionRate" column="conversion_rate"/>
         <result property="salePrice" column="sale_price"/>
-        <result property="visitCount" column="visit_count"/>
         <result property="saleable" column="saleable"/>
         <result property="valid" column="valid"/>
         <result property="isDeleted" column="is_deleted"/>
@@ -29,19 +29,19 @@
 
     <sql id="selectProductSkuVo">
         select sku.id,
-        sku.customer_id,
         sku.category_id,
         sku.spu_id,
         category.name as categoryName,
+        category.code as categoryCode,
         sku.code,
         sku.name,
         sku.mnemonic_code,
         sku.unit,
-        sku.spec,
-        sku.images,
-        sku.properties,
+        sku.spec_name,
+        sku.is_weighted,
+        sku.base_unit,
+        sku.conversion_rate,
         sku.sale_price,
-        sku.visit_count,
         sku.saleable,
         sku.valid,
         sku.is_deleted,
@@ -59,14 +59,12 @@
             resultMap="ProductSkuResult">
         <include refid="selectProductSkuVo"/>
         <where>
-            <if test="customerId != null">and sku.customer_id = #{customerId}</if>
             <if test="categoryId != null">and sku.category_id = #{categoryId}</if>
             <if test="spuId != null">and sku.spu_id = #{spuId}</if>
             <if test="name != null  and name != ''">
                 and ( sku.name like concat('%', #{name}, '%')
                       or sku.mnemonic_code like concat('%', #{name}, '%')
                       or sku.id in (select sku_id from product_alias where alias like concat('%', #{name}, '%'))
-                      or sku.id in (select sku_id from customer_sku_mapping where customer_id = #{customerId} and customer_alias like concat('%', #{name}, '%'))
                     )
             </if>
             <if test="salePrice != null ">and sku.sale_price = #{salePrice}</if>
@@ -75,16 +73,7 @@
             <if test="matchedSpu != null and matchedSpu == 0">and sku.spu_id is null</if>
             <if test="matchedSpu != null and matchedSpu == 1">and sku.spu_id is not null</if>
         </where>
-        <choose>
-            <when test="name != null and name != ''">
-                order by (sku.id in (select sku_id from customer_sku_mapping where customer_id = #{customerId} and customer_alias like concat('%', #{name}, '%'))) desc,
-                         (sku.id in (select sku_id from product_alias where alias like concat('%', #{name}, '%'))) desc,
-                         sku.create_time
-            </when>
-            <otherwise>
-                order by sku.create_time
-            </otherwise>
-        </choose>
+        order by sku.create_time
     </select>
 
     <select id="selectProductSkuById" parameterType="Long" resultMap="ProductSkuResult">
@@ -96,18 +85,17 @@
             keyProperty="id">
         insert into t_product_sku
         <trim prefix="(" suffix=")" suffixOverrides=",">
-            <if test="customerId != null">customer_id,</if>
             <if test="categoryId != null">category_id,</if>
             <if test="spuId != null">spu_id,</if>
             <if test="name != null and name != ''">name,</if>
             <if test="code != null and code != ''">code,</if>
             <if test="mnemonicCode != null and mnemonicCode != ''">mnemonic_code,</if>
             <if test="unit != null and unit != ''">unit,</if>
-            <if test="spec != null">spec,</if>
-            <if test="images != null">images,</if>
-            <if test="properties != null">properties,</if>
+            <if test="specName != null">spec_name,</if>
+            <if test="isWeighted != null">is_weighted,</if>
+            <if test="baseUnit != null">base_unit,</if>
+            <if test="conversionRate != null">conversion_rate,</if>
             <if test="salePrice != null">sale_price,</if>
-            <if test="visitCount != null">visit_count,</if>
             <if test="saleable != null">saleable,</if>
             <if test="valid != null">valid,</if>
             <if test="isDeleted != null">is_deleted,</if>
@@ -118,18 +106,17 @@
             <if test="remark != null">remark,</if>
         </trim>
         <trim prefix="values (" suffix=")" suffixOverrides=",">
-            <if test="customerId != null">#{customerId},</if>
             <if test="categoryId != null">#{categoryId},</if>
             <if test="spuId != null">#{spuId},</if>
             <if test="name != null and name != ''">#{name},</if>
             <if test="code != null and code != ''">#{code},</if>
             <if test="mnemonicCode != null and mnemonicCode != ''">#{mnemonicCode},</if>
             <if test="unit != null and unit != ''">#{unit},</if>
-            <if test="spec != null">#{spec},</if>
-            <if test="images != null">#{images},</if>
-            <if test="properties != null">#{properties},</if>
+            <if test="specName != null">#{specName},</if>
+            <if test="isWeighted != null">#{isWeighted},</if>
+            <if test="baseUnit != null">#{baseUnit},</if>
+            <if test="conversionRate != null">#{conversionRate},</if>
             <if test="salePrice != null">#{salePrice},</if>
-            <if test="visitCount != null">#{visitCount},</if>
             <if test="saleable != null">#{saleable},</if>
             <if test="valid != null">#{valid},</if>
             <if test="isDeleted != null">#{isDeleted},</if>
@@ -144,18 +131,17 @@
     <update id="updateProductSku" parameterType="com.lin.distribution.domain.ProductSku">
         update t_product_sku
         <trim prefix="SET" suffixOverrides=",">
-            <if test="customerId != null">customer_id = #{customerId},</if>
             <if test="categoryId != null">category_id = #{categoryId},</if>
             <if test="spuId != null">spu_id = #{spuId},</if>
             <if test="code != null and code != ''">code = #{code},</if>
             <if test="name != null and name != ''">name = #{name},</if>
             <if test="mnemonicCode != null and mnemonicCode != ''">mnemonic_code = #{mnemonicCode},</if>
             <if test="unit != null and unit != ''">unit = #{unit},</if>
-            <if test="spec != null">spec = #{spec},</if>
-            <if test="images != null">images = #{images},</if>
-            <if test="properties != null">properties = #{properties},</if>
+            <if test="specName != null">spec_name = #{specName},</if>
+            <if test="isWeighted != null">is_weighted = #{isWeighted},</if>
+            <if test="baseUnit != null">base_unit = #{baseUnit},</if>
+            <if test="conversionRate != null">conversion_rate = #{conversionRate},</if>
             <if test="salePrice != null">sale_price = #{salePrice},</if>
-            <if test="visitCount != null">visit_count = #{visitCount},</if>
             <if test="saleable != null">saleable = #{saleable},</if>
             <if test="valid != null">valid = #{valid},</if>
             <if test="isDeleted != null">is_deleted = #{isDeleted},</if>
@@ -179,12 +165,13 @@
         </foreach>
     </delete>
 
-    <select id="selectProductSkuByCustomerIdAndCategoryIdAndName" resultMap="ProductSkuResult">
+    <select id="selectProductSkuByCategoryNameSpecUnit" resultMap="ProductSkuResult">
         <include refid="selectProductSkuVo"/>
         <where>
-            <if test="customerId != null">and sku.customer_id = #{customerId}</if>
             <if test="categoryId != null">and sku.category_id = #{categoryId}</if>
             <if test="name != null and name != ''">and sku.name = #{name}</if>
+            <if test="specName != null">and sku.spec_name = #{specName}</if>
+            <if test="unit != null and unit != ''">and sku.unit = #{unit}</if>
             and sku.is_deleted = 0
         </where>
     </select>

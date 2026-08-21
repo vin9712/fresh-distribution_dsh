@@ -38,6 +38,11 @@ public class Customer extends BaseEntity {
     private String alias;
 
     /**
+     * 客户分组ID（关联 customer_group.id）
+     */
+    private Long groupId;
+
+    /**
      * 客户类型
      */
     @Excel(name = "客户类型", dictType = "t_customer_type")

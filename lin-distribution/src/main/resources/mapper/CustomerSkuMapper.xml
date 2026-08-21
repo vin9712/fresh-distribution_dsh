@@ -1,0 +1,170 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.lin.distribution.mapper.CustomerSkuMapper">
+
+    <resultMap type="com.lin.distribution.domain.CustomerSku" id="CustomerSkuResult">
+        <result property="id" column="id"/>
+        <result property="customerId" column="customer_id"/>
+        <result property="skuId" column="sku_id"/>
+        <result property="alias" column="alias"/>
+        <result property="customerCode" column="customer_code"/>
+        <result property="unit" column="unit"/>
+        <result property="minOrderQty" column="min_order_qty"/>
+        <result property="orderStep" column="order_step"/>
+        <result property="isFollowDefault" column="is_follow_default"/>
+        <result property="sourceTemplateId" column="source_template_id"/>
+        <result property="status" column="status"/>
+        <result property="createdAt" column="created_at"/>
+        <result property="updatedAt" column="updated_at"/>
+        <result property="skuName" column="sku_name"/>
+        <result property="skuCode" column="sku_code"/>
+        <result property="skuSpecName" column="sku_spec_name"/>
+        <result property="skuUnit" column="sku_unit"/>
+        <result property="skuIsWeighted" column="sku_is_weighted"/>
+        <result property="skuSalePrice" column="sku_sale_price"/>
+        <result property="skuCategoryId" column="sku_category_id"/>
+        <result property="skuMnemonicCode" column="sku_mnemonic_code"/>
+        <result property="categoryName" column="category_name"/>
+    </resultMap>
+
+    <sql id="selectCustomerSkuVo">
+        select cs.id,
+        cs.customer_id,
+        cs.sku_id,
+        cs.alias,
+        cs.customer_code,
+        cs.unit,
+        cs.min_order_qty,
+        cs.order_step,
+        cs.is_follow_default,
+        cs.source_template_id,
+        cs.status,
+        cs.created_at,
+        cs.updated_at,
+        sku.name as sku_name,
+        sku.code as sku_code,
+        sku.spec_name as sku_spec_name,
+        sku.unit as sku_unit,
+        sku.is_weighted as sku_is_weighted,
+        sku.sale_price as sku_sale_price,
+        sku.category_id as sku_category_id,
+        sku.mnemonic_code as sku_mnemonic_code,
+        category.name as category_name
+        from customers_sku cs
+        left join t_product_sku sku on cs.sku_id = sku.id
+        left join t_product_category category on sku.category_id = category.id
+    </sql>
+
+    <select id="selectCustomerSkuById" parameterType="Long" resultMap="CustomerSkuResult">
+        <include refid="selectCustomerSkuVo"/>
+        where cs.id = #{id}
+    </select>
+
+    <select id="selectCustomerSkuList" parameterType="com.lin.distribution.domain.CustomerSku"
+            resultMap="CustomerSkuResult">
+        <include refid="selectCustomerSkuVo"/>
+        <if test="deliveryPointId != null">
+            left join delivery_sku_override dso on dso.sku_id = sku.id and dso.delivery_point_id = #{deliveryPointId}
+        </if>
+        <where>
+            <if test="customerId != null">and cs.customer_id = #{customerId}</if>
+            <if test="skuId != null">and cs.sku_id = #{skuId}</if>
+            <if test="status != null">and cs.status = #{status}</if>
+            <if test="keyword != null and keyword != ''">
+                and ( sku.name like concat('%', #{keyword}, '%')
+                      or sku.mnemonic_code like concat('%', #{keyword}, '%')
+                      or cs.alias like concat('%', #{keyword}, '%')
+                      or cs.customer_code like concat('%', #{keyword}, '%')
+                      or sku.id in (select sku_id from product_alias where alias like concat('%', #{keyword}, '%'))
+                      or sku.id in (select sku_id from customer_sku_mapping where customer_id = cs.customer_id and customer_alias like concat('%', #{keyword}, '%'))
+                      <if test="deliveryPointId != null">
+                      or dso.alias_override like concat('%', #{keyword}, '%')
+                      </if>
+                    )
+            </if>
+        </where>
+        order by cs.created_at desc
+    </select>
+
+    <select id="selectByCustomerAndSku" resultMap="CustomerSkuResult">
+        <include refid="selectCustomerSkuVo"/>
+        where cs.customer_id = #{customerId} and cs.sku_id = #{skuId}
+        limit 1
+    </select>
+
+    <select id="selectByKeyword" resultMap="CustomerSkuResult">
+        <include refid="selectCustomerSkuVo"/>
+        where cs.customer_id = #{customerId}
+        and cs.status = 1
+        and ( sku.name like concat('%', #{keyword}, '%')
+              or sku.mnemonic_code like concat('%', #{keyword}, '%')
+              or cs.alias like concat('%', #{keyword}, '%')
+              or cs.customer_code like concat('%', #{keyword}, '%')
+              or sku.id in (select sku_id from product_alias where alias like concat('%', #{keyword}, '%'))
+              or sku.id in (select sku_id from customer_sku_mapping where customer_id = #{customerId} and customer_alias like concat('%', #{keyword}, '%'))
+            )
+        order by (cs.customer_id = #{customerId} and sku.id in (select sku_id from customer_sku_mapping where customer_id = #{customerId} and customer_alias like concat('%', #{keyword}, '%'))) desc,
+                 (sku.id in (select sku_id from product_alias where alias like concat('%', #{keyword}, '%'))) desc,
+                 cs.created_at desc
+    </select>
+
+    <select id="selectSkuIdsByCustomer" parameterType="Long" resultType="Long">
+        select sku_id from customers_sku where customer_id = #{customerId}
+    </select>
+
+    <insert id="insertCustomerSku" parameterType="com.lin.distribution.domain.CustomerSku" useGeneratedKeys="true"
+            keyProperty="id">
+        insert into customers_sku
+        <trim prefix="(" suffix=")" suffixOverrides=",">
+            <if test="customerId != null">customer_id,</if>
+            <if test="skuId != null">sku_id,</if>
+            <if test="alias != null">alias,</if>
+            <if test="customerCode != null and customerCode != ''">customer_code,</if>
+            <if test="unit != null and unit != ''">unit,</if>
+            <if test="minOrderQty != null">min_order_qty,</if>
+            <if test="orderStep != null">order_step,</if>
+            <if test="isFollowDefault != null">is_follow_default,</if>
+            <if test="sourceTemplateId != null">source_template_id,</if>
+            <if test="status != null">status,</if>
+        </trim>
+        <trim prefix="values (" suffix=")" suffixOverrides=",">
+            <if test="customerId != null">#{customerId},</if>
+            <if test="skuId != null">#{skuId},</if>
+            <if test="alias != null">#{alias},</if>
+            <if test="customerCode != null and customerCode != ''">#{customerCode},</if>
+            <if test="unit != null and unit != ''">#{unit},</if>
+            <if test="minOrderQty != null">#{minOrderQty},</if>
+            <if test="orderStep != null">#{orderStep},</if>
+            <if test="isFollowDefault != null">#{isFollowDefault},</if>
+            <if test="sourceTemplateId != null">#{sourceTemplateId},</if>
+            <if test="status != null">#{status},</if>
+        </trim>
+    </insert>
+
+    <update id="updateCustomerSku" parameterType="com.lin.distribution.domain.CustomerSku">
+        update customers_sku
+        <trim prefix="SET" suffixOverrides=",">
+            <if test="alias != null">alias = #{alias},</if>
+            <if test="unit != null and unit != ''">unit = #{unit},</if>
+            <if test="minOrderQty != null">min_order_qty = #{minOrderQty},</if>
+            <if test="orderStep != null">order_step = #{orderStep},</if>
+            <if test="isFollowDefault != null">is_follow_default = #{isFollowDefault},</if>
+            <if test="sourceTemplateId != null">source_template_id = #{sourceTemplateId},</if>
+            <if test="status != null">status = #{status},</if>
+        </trim>
+        where id = #{id}
+    </update>
+
+    <delete id="deleteCustomerSkuById" parameterType="Long">
+        delete from customers_sku where id = #{id}
+    </delete>
+
+    <delete id="deleteCustomerSkuByIds" parameterType="Long">
+        delete from customers_sku where id in
+        <foreach item="id" collection="array" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+    </delete>
+</mapper>

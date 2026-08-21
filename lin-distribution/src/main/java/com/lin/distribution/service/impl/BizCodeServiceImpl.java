@@ -60,4 +60,16 @@ public class BizCodeServiceImpl implements BizCodeService {
         long seq = peekSeq(bizType + ":" + date);
         return prefix + date + String.format("%0" + seqLen + "d", seq);
     }
+
+    @Override
+    public String nextSkuCode() {
+        long seq = nextSeq("sku_code");
+        return "S" + String.format("%08d", seq);
+    }
+
+    @Override
+    public String nextCustomerSkuCode(Long customerId) {
+        long seq = nextSeq("customer_sku_code:" + customerId);
+        return "C" + customerId + String.format("%06d", seq);
+    }
 }

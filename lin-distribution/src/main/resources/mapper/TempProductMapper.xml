@@ -6,6 +6,8 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
     
     <resultMap type="com.lin.distribution.domain.TempProduct" id="TempProductResult">
         <result property="id"    column="id"    />
+        <result property="customerId"    column="customer_id"    />
+        <result property="convertedSkuId"    column="converted_sku_id"    />
         <result property="name"    column="name"    />
         <result property="spec"    column="spec"    />
         <result property="unit"    column="unit"    />
@@ -18,7 +20,7 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
     </resultMap>
 
     <sql id="selectTempProductVo">
-        select id, name, spec, unit, default_price, create_by, create_time, update_by, update_time, remark from temp_product
+        select id, customer_id, converted_sku_id, name, spec, unit, default_price, create_by, create_time, update_by, update_time, remark from temp_product
     </sql>
 
     <select id="selectTempProductList" parameterType="com.lin.distribution.domain.TempProduct" resultMap="TempProductResult">
@@ -27,6 +29,8 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
             <if test="name != null  and name != ''"> and name like concat('%', #{name}, '%')</if>
             <if test="spec != null  and spec != ''"> and spec like concat('%', #{spec}, '%')</if>
             <if test="unit != null  and unit != ''"> and unit = #{unit}</if>
+            <if test="customerId != null"> and (customer_id = #{customerId} or customer_id is null)</if>
+            <if test="showAll == null or showAll == false"> and converted_sku_id is null</if>
         </where>
         order by id desc
     </select>
@@ -39,6 +43,8 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
     <insert id="insertTempProduct" parameterType="com.lin.distribution.domain.TempProduct" useGeneratedKeys="true" keyProperty="id">
         insert into temp_product
         <trim prefix="(" suffix=")" suffixOverrides=",">
+            <if test="customerId != null">customer_id,</if>
+            <if test="convertedSkuId != null">converted_sku_id,</if>
             <if test="name != null and name != ''">name,</if>
             <if test="spec != null">spec,</if>
             <if test="unit != null">unit,</if>
@@ -50,6 +56,8 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
             <if test="remark != null">remark,</if>
          </trim>
         <trim prefix="values (" suffix=")" suffixOverrides=",">
+            <if test="customerId != null">#{customerId},</if>
+            <if test="convertedSkuId != null">#{convertedSkuId},</if>
             <if test="name != null and name != ''">#{name},</if>
             <if test="spec != null">#{spec},</if>
             <if test="unit != null">#{unit},</if>
@@ -65,6 +73,8 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
     <update id="updateTempProduct" parameterType="com.lin.distribution.domain.TempProduct">
         update temp_product
         <trim prefix="SET" suffixOverrides=",">
+            <if test="customerId != null">customer_id = #{customerId},</if>
+            <if test="convertedSkuId != null">converted_sku_id = #{convertedSkuId},</if>
             <if test="name != null and name != ''">name = #{name},</if>
             <if test="spec != null">spec = #{spec},</if>
             <if test="unit != null">unit = #{unit},</if>

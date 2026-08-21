@@ -69,12 +69,13 @@ public interface ProductSkuMapper extends BaseMapper<ProductSku> {
     int deleteProductSkuByIds(String[] ids);
 
     /**
-     * 根据客户id、分类id、商品名称查询商品信息
+     * 根据分类id、名称、规格、单位查询标准SKU（唯一性校验）
      *
-     * @param customerId 客户id
      * @param categoryId 分类id
      * @param name       商品名称
+     * @param specName   规格
+     * @param unit       单位
      * @return 商品信息集合
      */
-    List<ProductSku> selectProductSkuByCustomerIdAndCategoryIdAndName(@Param("customerId") Long customerId, @Param("categoryId") Long categoryId, @Param("name") String name);
+    List<ProductSku> selectProductSkuByCategoryNameSpecUnit(@Param("categoryId") Long categoryId, @Param("name") String name, @Param("specName") String specName, @Param("unit") String unit);
 }

@@ -26,4 +26,14 @@ public interface BizCodeService {
      * 预览按日单号（不自增）
      */
     String peekDailyCode(String bizType, String prefix, int seqLen);
+
+    /**
+     * 生成标准SKU全局唯一编码：S + 8位数字（S00000001）
+     */
+    String nextSkuCode();
+
+    /**
+     * 生成客户商品编码：C{客户ID} + 6位自增序号
+     */
+    String nextCustomerSkuCode(Long customerId);
 }

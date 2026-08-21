@@ -37,9 +37,15 @@ public class PinYinConvertUtils {
         for (int i = 0; i < newChar.length; i++) {
             if (newChar[i] > 128) {
                 try {
-                    pinyinStr += PinyinHelper.toHanyuPinyinStringArray(newChar[i], defaultFormat)[0].charAt(0);
+                    String[] arr = PinyinHelper.toHanyuPinyinStringArray(newChar[i], defaultFormat);
+                    if (arr != null && arr.length > 0) {
+                        pinyinStr += arr[0].charAt(0);
+                    } else {
+                        // 非汉字或无法转拼音的字符，原样保留
+                        pinyinStr += newChar[i];
+                    }
                 } catch (BadHanyuPinyinOutputFormatCombination e) {
-                    e.printStackTrace();
+                    pinyinStr += newChar[i];
                 }
             } else {
                 pinyinStr += newChar[i];

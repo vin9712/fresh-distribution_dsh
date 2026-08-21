@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.lin.distribution.mapper.DefaultSkuTemplateItemMapper">
+
+    <select id="selectByTemplateId" parameterType="Long"
+            resultType="com.lin.distribution.domain.DefaultSkuTemplateItem">
+        select id, template_id, sku_id
+        from default_sku_template_item
+        where template_id = #{templateId}
+    </select>
+
+    <insert id="insertBatch" parameterType="java.util.List">
+        insert into default_sku_template_item (template_id, sku_id) values
+        <foreach item="item" collection="items" separator=",">
+            (#{item.templateId}, #{item.skuId})
+        </foreach>
+    </insert>
+
+    <delete id="deleteByTemplateId" parameterType="Long">
+        delete from default_sku_template_item where template_id = #{templateId}
+    </delete>
+</mapper>

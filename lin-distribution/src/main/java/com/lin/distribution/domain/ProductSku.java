@@ -12,7 +12,7 @@ import org.apache.commons.lang3.builder.ToStringBuilder;
 import org.apache.commons.lang3.builder.ToStringStyle;
 
 /**
- * 商品信息对象 t_product_sku
+ * 标准商品SKU对象 t_product_sku（客户无关）
  *
  * @author lin
  * @date 2024-11-11
@@ -31,12 +31,6 @@ public class ProductSku extends BaseEntity {
     private Long id;
 
     /**
-     * 客户ID
-     */
-    @Excel(name = "客户编号")
-    private Long customerId;
-
-    /**
      * 产品ID(可为空)
      */
     private Long spuId;
@@ -48,8 +42,7 @@ public class ProductSku extends BaseEntity {
 
 
     /**
-     * 商品编码
-     * 客户简写(前四位) + customerId + 5位自增序号
+     * 商品编码（全局唯一：S + 8位自增序号）
      */
     private String code;
     /**
@@ -70,31 +63,31 @@ public class ProductSku extends BaseEntity {
     private String unit;
 
     /**
-     * 商品规格
+     * 规格描述（如“大果”“5斤/箱”）
      */
     @Excel(name = "商品规格")
-    private String spec;
+    private String specName;
 
     /**
-     * 商品图片
+     * 是否称重商品（1=称重，如散装菜；0=非称重，如箱装）
      */
-    private String images;
+    private Integer isWeighted;
 
     /**
-     * 商品参数
+     * 基础单位（可选，跨SKU汇总）
      */
-    private String properties;
+    private String baseUnit;
 
     /**
-     * 商品售价
+     * 与基础单位的换算率
+     */
+    private BigDecimal conversionRate;
+
+    /**
+     * 商品售价（参考价，仅展示，非交易价格）
      */
     @Excel(name = "商品售价", cellType= Excel.ColumnType.NUMERIC, scale = 2)
     private BigDecimal salePrice;
-
-    /**
-     * 下单次数
-     */
-    private String visitCount;
 
     /**
      * 是否上架
