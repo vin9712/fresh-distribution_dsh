@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.lin.distribution.mapper.GlobalSearchMapper">
+
+    <!-- 客户命中：名称 / 别名 / 电话 / 地址 -->
+    <select id="selectCustomerHits" resultType="com.lin.distribution.dto.GlobalSearchVO$CustomerHit">
+        select
+            c.id,
+            c.name,
+            c.alias,
+            c.tel,
+            c.address
+        from t_customer c
+        where c.is_deleted = 0
+          and (
+                c.name like concat('%', #{keyword}, '%')
+                or (c.alias is not null and c.alias != '' and c.alias like concat('%', #{keyword}, '%'))
+                or (c.tel is not null and c.tel != '' and c.tel like concat('%', #{keyword}, '%'))
+                or (c.address is not null and c.address != '' and c.address like concat('%', #{keyword}, '%'))
+              )
+        order by c.name
+        limit #{limit}
+    </select>
+
+    <!-- 商品 SKU 命中：名称 / 编码 / 助记码 / 别名 -->
+    <select id="selectProductHits" resultType="com.lin.distribution.dto.GlobalSearchVO$ProductHit">
+        select
+            sku.id,
+            sku.code,
+            sku.name,
+            sku.spec_name as specName,
+            sku.unit,
+            category.name as categoryName,
+            sku.sale_price as salePrice
+        from t_product_sku sku
+        left join t_product_category category on sku.category_id = category.id
+        where sku.is_deleted = 0
+          and (
+                sku.name like concat('%', #{keyword}, '%')
+                or (sku.code is not null and sku.code != '' and sku.code like concat('%', #{keyword}, '%'))
+                or (sku.mnemonic_code is not null and sku.mnemonic_code != '' and sku.mnemonic_code like concat('%', #{keyword}, '%'))
+                or sku.id in (
+                    select pa.sku_id from product_alias pa where pa.alias like concat('%', #{keyword}, '%')
+                )
+              )
+        order by sku.name
+        limit #{limit}
+    </select>
+
+    <!-- 订单命中：单号 / 客户名称 / 客户别名 -->
+    <select id="selectOrderHits" resultType="com.lin.distribution.dto.GlobalSearchVO$OrderHit">
+        select
+            so.id,
+            so.code,
+            coalesce(customer.alias, customer.name) as customerName,
+            cd.name as customerDeptName,
+            so.delivery_date as deliveryDate,
+            so.amount
+        from t_sale_order so
+        left join t_customer_dept cd on cd.id = so.customer_dept_id
+        left join t_customer customer on customer.id = so.customer_id
+        where so.is_deleted = 0
+          and (
+                so.code like concat('%', #{keyword}, '%')
+                or customer.name like concat('%', #{keyword}, '%')
+                or (customer.alias is not null and customer.alias != '' and customer.alias like concat('%', #{keyword}, '%'))
+              )
+        order by so.create_time desc, so.code desc
+        limit #{limit}
+    </select>
+
+</mapper>

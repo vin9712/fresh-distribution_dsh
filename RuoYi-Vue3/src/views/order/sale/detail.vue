@@ -665,9 +665,12 @@ export default {
 
     // 页面刷新/关闭前立即保存草稿（配合 5s 防抖自动保存）
     window.addEventListener("beforeunload", this.handleBeforeUnload);
+    // 全局搜索 Jump 前立即落盘草稿（Phase 3 联动）
+    window.addEventListener("sale-draft-flush", this.handleBeforeUnload);
   },
   beforeUnmount() {
     window.removeEventListener("beforeunload", this.handleBeforeUnload);
+    window.removeEventListener("sale-draft-flush", this.handleBeforeUnload);
     if (this._draftTimer) clearTimeout(this._draftTimer);
     if (this.sortableX) {
       this.sortableX.destroy();

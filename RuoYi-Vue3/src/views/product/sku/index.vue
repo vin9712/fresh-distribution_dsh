@@ -519,6 +519,11 @@ export default {
     },
   },
   created() {
+    // 支持全局搜索跳转带预填关键词（?name=xxx）
+    const qName = this.$route.query.name;
+    if (qName) {
+      this.queryParams.name = qName;
+    }
     this.getTreeselect();
     this.getPageList();
   },

@@ -10,6 +10,7 @@
       <app-main />
       <settings ref="settingRef" />
     </div>
+    <GlobalSearch />
   </div>
 </template>
 
@@ -19,6 +20,7 @@ import Sidebar from './components/Sidebar/index.vue'
 import { AppMain, Navbar, Settings, TagsView } from './components'
 import useAppStore from '@/store/modules/app'
 import useSettingsStore from '@/store/modules/settings'
+import GlobalSearch from '@/components/GlobalSearch/index.vue'
 
 const settingsStore = useSettingsStore()
 const theme = computed(() => settingsStore.theme)
