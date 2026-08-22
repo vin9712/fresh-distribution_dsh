@@ -97,3 +97,12 @@ export function genOrderCode(query) {
     params: query
   })
 }
+
+// 生成单据前汇总预览（列表页抽屉第一步，按品类分组）
+export function generatePreview(data) {
+  return request({
+    url: '/order/sale/generatePreview',
+    method: 'post',
+    data: data
+  })
+}

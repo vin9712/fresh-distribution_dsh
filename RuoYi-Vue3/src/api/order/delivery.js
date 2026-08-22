@@ -42,6 +42,15 @@ export function generateDelivery(deliveryDate) {
   })
 }
 
+// 按勾选订单生成送货单（销售订单列表页抽屉，配送日期可调整）
+export function generateDeliveryByOrders(data) {
+  return request({
+    url: '/order/delivery/generate-by-orders',
+    method: 'post',
+    data: data
+  })
+}
+
 // 标记打印（print_count + 1）
 export function printDelivery(id) {
   return request({

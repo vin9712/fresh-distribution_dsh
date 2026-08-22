@@ -96,6 +96,7 @@
         </template>
       </el-table-column>
       <el-table-column label="供应商名称" align="center" prop="supplierName" :show-overflow-tooltip="true" />
+      <el-table-column label="采购员" align="center" prop="purchaser" :show-overflow-tooltip="true" />
       <el-table-column label="采购总额" align="center" prop="totalAmount" width="120" />
       <el-table-column label="状态" align="center" prop="status" width="100">
         <template #default="scope">

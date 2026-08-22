@@ -34,6 +34,15 @@ export function generatePurchase(data) {
   })
 }
 
+// 按勾选订单生成采购单（销售订单列表页抽屉）
+export function generatePurchaseByOrders(data) {
+  return request({
+    url: '/purchase/generate-by-orders',
+    method: 'post',
+    data: data
+  })
+}
+
 // 手工新增采购单
 export function addPurchase(data) {
   return request({

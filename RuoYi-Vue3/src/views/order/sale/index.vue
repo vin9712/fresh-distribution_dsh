@@ -246,6 +246,29 @@
           <span>{{ parseTime(scope.row.deliveryDate, "{y}-{m}-{d}") }}</span>
         </template>
       </el-table-column>
+      <el-table-column label="流程单据" align="center" width="110">
+        <template #default="scope">
+          <el-tooltip
+            v-if="scope.row.purchaseOrderCode"
+            :content="'采购单：' + scope.row.purchaseOrderCode"
+            placement="top"
+          >
+            <el-icon class="doc-icon doc-purchase"><ShoppingBag /></el-icon>
+          </el-tooltip>
+          <el-tooltip
+            v-if="scope.row.deliveryOrderCode"
+            :content="'送货单：' + scope.row.deliveryOrderCode"
+            placement="top"
+          >
+            <el-icon class="doc-icon doc-delivery"><Van /></el-icon>
+          </el-tooltip>
+          <span
+            v-if="!scope.row.purchaseOrderCode && !scope.row.deliveryOrderCode"
+            class="doc-empty"
+            >—</span
+          >
+        </template>
+      </el-table-column>
       <el-table-column label="备注" align="center" prop="remark" />
       <el-table-column
         label="操作"
@@ -459,6 +482,187 @@
         </div>
       </template>
     </el-dialog>
+
+    <!-- 生成采购单/送货单抽屉（三步：汇总预览 → 填写信息 → 确认生成） -->
+    <el-drawer
+      v-model="buildDrawerVisible"
+      :title="buildMode === 'purchase' ? '生成采购单' : '生成送货单'"
+      size="600px"
+      append-to-body
+      :destroy-on-close="false"
+      @closed="resetBuildDrawer"
+    >
+      <el-steps
+        :active="buildActiveStep"
+        align-center
+        finish-status="success"
+        style="margin-bottom: 18px"
+      >
+        <el-step title="汇总预览" />
+        <el-step title="填写信息" />
+        <el-step title="确认生成" />
+      </el-steps>
+
+      <!-- 第一步：按品类分组的商品汇总 -->
+      <div v-show="buildActiveStep === 0">
+        <div class="build-orders-summary">
+          <span class="build-orders-label">已选 {{ buildSelectedOrders.length }} 个订单：</span>
+          <el-tag
+            v-for="o in buildSelectedOrders"
+            :key="o.id"
+            size="small"
+            class="order-code-tag"
+            >{{ o.code }}</el-tag
+          >
+        </div>
+        <div v-loading="previewLoading" class="build-preview-body">
+          <template v-if="previewData && previewData.groups && previewData.groups.length">
+            <div
+              v-for="g in previewData.groups"
+              :key="g.categoryName"
+              class="preview-group"
+            >
+              <div class="preview-group-header">
+                <span class="preview-category">{{ g.categoryName }}</span>
+                <span class="preview-group-meta"
+                  >{{ g.items.length }} 项 / 合计 ¥{{ g.amount }}</span
+                >
+              </div>
+              <el-table :data="g.items" size="small" border>
+                <el-table-column
+                  label="商品名称"
+                  prop="productName"
+                  min-width="120"
+                  :show-overflow-tooltip="true"
+                />
+                <el-table-column
+                  label="规格"
+                  prop="productSpec"
+                  width="80"
+                />
+                <el-table-column label="单位" prop="productUnit" width="60" />
+                <el-table-column label="数量" prop="quantity" width="70" />
+                <el-table-column label="单价" prop="price" width="80" />
+                <el-table-column label="小计" prop="amount" width="90" />
+              </el-table>
+            </div>
+            <div class="preview-total">
+              共 {{ previewData.itemCount }} 行商品，总金额
+              <b>¥{{ previewData.totalAmount }}</b>
+            </div>
+          </template>
+          <el-empty
+            v-else-if="!previewLoading"
+            description="暂无商品明细"
+            :image-size="60"
+          />
+        </div>
+      </div>
+
+      <!-- 第二步：填写信息 -->
+      <div v-show="buildActiveStep === 1">
+        <el-form label-width="90px">
+          <template v-if="buildMode === 'purchase'">
+            <el-form-item label="供货商">
+              <el-input
+                v-model="buildForm.supplierName"
+                placeholder="请输入供货商名称（可空，确认时后补）"
+                clearable
+              />
+            </el-form-item>
+            <el-form-item label="采购员">
+              <el-input
+                v-model="buildForm.purchaser"
+                placeholder="请输入采购员（可空）"
+                clearable
+              />
+            </el-form-item>
+          </template>
+          <template v-else>
+            <el-form-item label="配送日期" required>
+              <el-date-picker
+                v-model="buildForm.deliveryDate"
+                type="date"
+                value-format="YYYY-MM-DD"
+                placeholder="请选择配送日期"
+                style="width: 100%"
+              />
+            </el-form-item>
+            <el-alert
+              title="送货单将按 客户+配送点 自动分组生成（多个配送点会生成多张送货单）"
+              type="info"
+              :closable="false"
+              show-icon
+            />
+          </template>
+        </el-form>
+      </div>
+
+      <!-- 第三步：确认生成 -->
+      <div v-show="buildActiveStep === 2">
+        <el-descriptions :column="1" border size="small">
+          <el-descriptions-item label="单据类型">
+            {{ buildMode === 'purchase' ? '采购单' : '送货单' }}
+          </el-descriptions-item>
+          <el-descriptions-item label="订单数量">
+            {{ previewData.orders.length }} 个
+          </el-descriptions-item>
+          <el-descriptions-item label="商品行数">
+            {{ previewData.itemCount }} 行
+          </el-descriptions-item>
+          <el-descriptions-item label="总金额">
+            ¥{{ previewData.totalAmount }}
+          </el-descriptions-item>
+          <el-descriptions-item
+            v-if="buildMode === 'purchase'"
+            label="供货商"
+          >
+            {{ buildForm.supplierName || '-' }}
+          </el-descriptions-item>
+          <el-descriptions-item
+            v-if="buildMode === 'purchase'"
+            label="采购员"
+          >
+            {{ buildForm.purchaser || '-' }}
+          </el-descriptions-item>
+          <el-descriptions-item v-else label="配送日期">
+            {{ buildForm.deliveryDate }}
+          </el-descriptions-item>
+        </el-descriptions>
+        <el-alert
+          title="同一订单不可重复生成单据，生成后列表行将显示采购/送货图标（悬浮可见单号）"
+          type="info"
+          :closable="false"
+          show-icon
+          style="margin-top: 14px"
+        />
+      </div>
+
+      <template #footer>
+        <div class="build-drawer-footer">
+          <el-button @click="buildDrawerVisible = false">取 消</el-button>
+          <el-button
+            v-if="buildActiveStep > 0"
+            @click="buildActiveStep--"
+            >上一步</el-button
+          >
+          <el-button
+            v-if="buildActiveStep < 2"
+            type="primary"
+            :disabled="!buildStep2Valid"
+            @click="buildActiveStep++"
+            >下一步</el-button
+          >
+          <el-button
+            v-else
+            type="primary"
+            :loading="buildSubmitting"
+            @click="confirmBuild"
+            >确认生成</el-button
+          >
+        </div>
+      </template>
+    </el-drawer>
   </div>
 </template>
 
@@ -471,7 +675,10 @@ import {
   addSale,
   updateSale,
   updateOrderStatus,
+  generatePreview,
 } from "@/api/order/sale";
+import { generatePurchaseByOrders } from "@/api/purchase/purchase";
+import { generateDeliveryByOrders } from "@/api/order/delivery";
 import { listCustomerDept } from "@/api/partner/customerDept";
 import { listSaleDetail } from "@/api/order/saleDetail";
 import { listDrafts, removeDraft } from "@/utils/saleDraft";
@@ -586,7 +793,35 @@ export default {
       },
       adjustDetailRows: [],
       adjustNewRows: [],
+      // 生成采购单/送货单抽屉
+      buildDrawerVisible: false,
+      buildMode: "purchase", // purchase | delivery
+      buildActiveStep: 0,
+      buildSelectedOrders: [],
+      buildForm: {
+        supplierName: null,
+        purchaser: null,
+        deliveryDate: null,
+      },
+      previewLoading: false,
+      previewData: {
+        orders: [],
+        groups: [],
+        itemCount: 0,
+        totalQuantity: 0,
+        totalAmount: 0,
+      },
+      buildSubmitting: false,
     };
+  },
+  computed: {
+    /** 第二步可进入：采购单无需必填；送货单需配送日期 */
+    buildStep2Valid() {
+      if (this.buildMode === "delivery") {
+        return !!this.buildForm.deliveryDate;
+      }
+      return true;
+    },
   },
   created() {
     this.getTreeselect();
@@ -856,18 +1091,111 @@ export default {
     },
     /** 生成采购单 */
     handleBuildPurchase() {
-      // todo 使用 el-drawer 来加载已审核的订单，用于生成采购单
-
-      // 校验是否全为审核状态订单
-      const valid = this.formSelectedOptions.some((item) => item.status !== 1);
-      if (valid) {
+      const selected = this.formSelectedOptions;
+      if (!selected.length) {
+        this.$modal.msgWarning("请先勾选要生成采购单的订单");
+        return;
+      }
+      if (selected.some((item) => item.status !== 1)) {
         this.$modal.msgError("请选择审核状态的订单");
         return;
       }
-      const orderIds = this.formSelectedOptions.map((item) => item.id);
+      this.openBuildDrawer("purchase");
     },
     /** 生成送货单 */
-    handleBuildDelivery() {},
+    handleBuildDelivery() {
+      const selected = this.formSelectedOptions;
+      if (!selected.length) {
+        this.$modal.msgWarning("请先勾选要生成送货单的订单");
+        return;
+      }
+      if (selected.some((item) => item.status !== 1)) {
+        this.$modal.msgError("请选择审核状态的订单");
+        return;
+      }
+      this.openBuildDrawer("delivery");
+    },
+    /** 打开抽屉并加载预览 */
+    openBuildDrawer(mode) {
+      this.buildMode = mode;
+      this.buildSelectedOrders = [...this.formSelectedOptions];
+      this.buildActiveStep = 0;
+      this.buildForm = {
+        supplierName: null,
+        purchaser: null,
+        deliveryDate: null,
+      };
+      this.buildSubmitting = false;
+      this.buildDrawerVisible = true;
+      this.loadBuildPreview();
+    },
+    /** 加载汇总预览（按品类分组） */
+    loadBuildPreview() {
+      this.previewLoading = true;
+      const orderIds = this.buildSelectedOrders.map((o) => o.id);
+      generatePreview({ orderIds })
+        .then((response) => {
+          this.previewData = response.data || {
+            orders: [],
+            groups: [],
+            itemCount: 0,
+            totalQuantity: 0,
+            totalAmount: 0,
+          };
+          // 默认配送日期 = 订单配送日期
+          if (!this.buildForm.deliveryDate && this.buildSelectedOrders[0]) {
+            this.buildForm.deliveryDate =
+              this.buildSelectedOrders[0].deliveryDate;
+          }
+        })
+        .finally(() => {
+          this.previewLoading = false;
+        });
+    },
+    /** 关闭抽屉后重置状态 */
+    resetBuildDrawer() {
+      this.buildSelectedOrders = [];
+      this.previewData = {
+        orders: [],
+        groups: [],
+        itemCount: 0,
+        totalQuantity: 0,
+        totalAmount: 0,
+      };
+      this.buildSubmitting = false;
+    },
+    /** 确认生成 */
+    confirmBuild() {
+      this.buildSubmitting = true;
+      const orderIds = this.buildSelectedOrders.map((o) => o.id);
+      const request =
+        this.buildMode === "purchase"
+          ? generatePurchaseByOrders({
+              orderIds,
+              supplierName: this.buildForm.supplierName,
+              purchaser: this.buildForm.purchaser,
+            })
+          : generateDeliveryByOrders({
+              orderIds,
+              deliveryDate: this.buildForm.deliveryDate,
+            });
+      request
+        .then((response) => {
+          const codes =
+            this.buildMode === "purchase"
+              ? response.data && response.data.code
+              : (response.data || [])
+                  .map((d) => d.code)
+                  .join("、");
+          this.$modal.msgSuccess("生成成功：" + (codes || ""));
+          this.buildDrawerVisible = false;
+          this.getPageList();
+        })
+        .catch(() => {})
+        .finally(() => {
+          this.buildSubmitting = false;
+        });
+    },
     /** 导出按钮操作 */
     handleExport() {
       this.download(
@@ -1002,6 +1330,69 @@ export default {
       margin-left: 8px;
     }
   }
+}
+/* 流程单据图标列 */
+.doc-icon {
+  font-size: 18px;
+  vertical-align: middle;
+  cursor: default;
+  &.doc-purchase {
+    color: #e6a23c;
+    margin-right: 4px;
+  }
+  &.doc-delivery {
+    color: #67c23a;
+  }
+}
+.doc-empty {
+  color: #c0c4cc;
+}
+/* 生成单据抽屉 */
+.build-orders-summary {
+  margin-bottom: 10px;
+  .build-orders-label {
+    font-size: 13px;
+    color: #606266;
+  }
+  .order-code-tag {
+    margin: 0 4px 4px 0;
+  }
+}
+.build-preview-body {
+  max-height: 52vh;
+  overflow-y: auto;
+}
+.preview-group {
+  margin-bottom: 12px;
+  .preview-group-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 6px 10px;
+    background: #f5f7fa;
+    border: 1px solid #e4e7ed;
+    border-bottom: none;
+    border-radius: 4px 4px 0 0;
+    .preview-category {
+      font-weight: 600;
+      color: #303133;
+    }
+    .preview-group-meta {
+      font-size: 12px;
+      color: #909399;
+    }
+  }
+}
+.preview-total {
+  text-align: right;
+  padding: 8px 4px;
+  color: #606266;
+  b {
+    color: #e6a23c;
+  }
+}
+.build-drawer-footer {
+  text-align: right;
 }
 .check-order-btn {
   background-color: #625ceb;
