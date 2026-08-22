@@ -1,5 +1,21 @@
 <template>
   <div class="app-container">
+    <!-- 草稿恢复提示条：列表页检测到未完成订单草稿 -->
+    <el-alert
+      v-if="availableDrafts.length"
+      type="warning"
+      :closable="false"
+      show-icon
+      class="draft-recover-banner"
+    >
+      <template #title>
+        <span class="draft-banner-title">
+          检测到 {{ availableDrafts.length }} 个未完成的订单草稿{{ availableDrafts[0].deptName ? '【' + availableDrafts[0].deptName + '】' : '' }}（保存于 {{ formatSavedTime(availableDrafts[0].savedAt) }}）
+          <el-button link type="primary" @click="recoverLatestDraft">去恢复</el-button>
+          <el-button link @click="discardAllDrafts">全部忽略</el-button>
+        </span>
+      </template>
+    </el-alert>
     <el-form
       :model="queryParams"
       ref="queryForm"
@@ -458,6 +474,7 @@ import {
 } from "@/api/order/sale";
 import { listCustomerDept } from "@/api/partner/customerDept";
 import { listSaleDetail } from "@/api/order/saleDetail";
+import { listDrafts, removeDraft } from "@/utils/saleDraft";
 import { createAdjustment } from "@/api/order/adjustment";
 import {
   Search,
@@ -478,6 +495,8 @@ export default {
   },
   data() {
     return {
+      // 未完成订单草稿（列表页恢复横幅）
+      availableDrafts: [],
       // 遮罩层
       loading: true,
       // 选中数组
@@ -572,8 +591,35 @@ export default {
   created() {
     this.getTreeselect();
     this.getPageList();
+    // 检测未完成订单草稿，展示恢复横幅
+    this.refreshDrafts();
   },
   methods: {
+    /** 刷新草稿列表（新单页恢复横幅用） */
+    refreshDrafts() {
+      this.availableDrafts = listDrafts();
+    },
+    /** 去恢复：携带 draft key 跳转录单页，详情页自动恢复 */
+    recoverLatestDraft() {
+      const draft = this.availableDrafts[0];
+      if (!draft) return;
+      this.$router.push({
+        path: "/order/sale-detail/index/",
+        query: { draft: draft.key },
+      });
+    },
+    /** 全部忽略：删除所有草稿 */
+    discardAllDrafts() {
+      this.availableDrafts.forEach((d) => removeDraft(d.key));
+      this.availableDrafts = [];
+    },
+    /** 格式化保存时间 HH:mm */
+    formatSavedTime(savedAt) {
+      if (!savedAt) return "";
+      const d = new Date(savedAt);
+      const p = (n) => String(n).padStart(2, "0");
+      return `${p(d.getHours())}:${p(d.getMinutes())}`;
+    },
     /** 查询销售订单列表 */
     getList() {
       this.loading = true;
@@ -948,6 +994,15 @@ export default {
 </script>
 
 <style lang="scss" scoped>
+/* 草稿恢复横幅 */
+.draft-recover-banner {
+  margin-bottom: 10px;
+  .draft-banner-title {
+    .el-button + .el-button {
+      margin-left: 8px;
+    }
+  }
+}
 .check-order-btn {
   background-color: #625ceb;
   color: #fff;

@@ -1,12 +1,34 @@
 <template>
   <div class="app-container">
+    <!-- 草稿恢复提示条（新单页，检测到未完成草稿时显示） -->
+    <el-alert
+      v-if="showDraftBanner && availableDrafts.length"
+      type="warning"
+      :closable="false"
+      show-icon
+      class="draft-recover-banner"
+    >
+      <template #title>
+        <span class="draft-banner-title">
+          检测到未完成的订单草稿{{ availableDrafts[0].deptName ? '【' + availableDrafts[0].deptName + '】' : '' }}（保存于 {{ formatSavedAt(availableDrafts[0].savedAt) }}）
+          <el-button link type="primary" @click="restoreLatestDraft">点击恢复</el-button>
+          <el-button link @click="dismissDraftBanner">忽略</el-button>
+        </span>
+      </template>
+    </el-alert>
     <el-row :gutter="10">
       <!-- 做单区 -->
       <el-col :span="16">
         <el-card class="order-card">
           <!-- 订单表单 -->
           <template #header>
-            <span>订单信息</span>
+            <span class="order-header-title">订单信息</span>
+            <span
+              v-if="draftStatusText"
+              class="draft-status-tag"
+              :class="draftStatusType"
+              >{{ draftStatusText }}</span
+            >
             <el-form
               ref="orderForm"
               :model="orderForm"
@@ -172,6 +194,19 @@
                             })
                           "
                         >
+                          <!-- 商品名称列：关键词高亮 + 来源标签 -->
+                          <template #productNameCell="{ row }">
+                            <span class="prod-name-cell">
+                              <span v-html="highlightKeyword(row.productName)"></span>
+                              <el-tag
+                                v-if="row.sourceTag"
+                                size="small"
+                                :type="row.sourceTag === '临时' ? 'info' : 'warning'"
+                                class="prod-source-tag"
+                                >{{ row.sourceTag }}</el-tag
+                              >
+                            </span>
+                          </template>
                         </vxe-grid>
                       </div>
                     </template>
@@ -252,9 +287,49 @@
       <!-- 选单区 -->
       <el-col :span="8">
         <el-card class="recent-order-card">
-          <!-- 最近订单表单 -->
           <template #header>
-            <span>最近订单</span>
+            <el-tabs v-model="rightTab" class="right-tabs" stretch>
+              <el-tab-pane label="常用" name="frequent" />
+              <el-tab-pane label="最近" name="recent" />
+            </el-tabs>
+          </template>
+          <!-- 常用商品面板：近30天下单频率 Top，点击即插入明细 -->
+          <div
+            v-show="rightTab === 'frequent'"
+            class="frequent-panel"
+            :style="{ height: recentTableHeight }"
+          >
+            <div v-if="!orderForm.customerId" class="frequent-empty">
+              <el-empty description="请先选择送货单位" :image-size="60" />
+            </div>
+            <div v-else-if="!frequentList.length" class="frequent-empty">
+              <el-empty
+                description="暂无常用商品（按近30天下单频率统计）"
+                :image-size="60"
+              />
+            </div>
+            <div v-else class="frequent-list">
+              <div
+                v-for="(item, idx) in frequentList"
+                :key="item.skuId"
+                class="frequent-item"
+                @click="addFrequentProduct(item)"
+              >
+                <span class="frequent-index">{{ idx + 1 }}</span>
+                <span class="frequent-name"
+                  >{{ item.productName
+                  }}<em v-if="item.productSpec" class="frequent-spec"
+                    >（{{ item.productSpec }}）</em
+                  ></span
+                >
+                <span class="frequent-unit">{{ item.productUnit }}</span>
+                <span class="frequent-count">×{{ item.orderCount }}</span>
+              </div>
+            </div>
+          </div>
+          <!-- 最近订单 -->
+          <div v-show="rightTab === 'recent'">
+            <!-- 最近订单表单 -->
             <el-form
               :model="recentQuery"
               size="small"
@@ -336,12 +411,11 @@
                 </el-col>
               </el-row>
             </el-form>
-          </template>
-          <!-- 最近订单列表 -->
-          <div
-            class="recent-order-table-container"
-            :style="{ height: recentTableHeight }"
-          >
+            <!-- 最近订单列表 -->
+            <div
+              class="recent-order-table-container"
+              :style="{ height: recentTableHeight }"
+            >
             <vxe-grid
               border
               auto-resize
@@ -353,6 +427,7 @@
               :columns="recentTableColumns"
               @current-change="handleRecentOrderRowChange"
             />
+            </div>
           </div>
         </el-card>
       </el-col>
@@ -362,7 +437,8 @@
 
 <script>
 import { pageSaleOrder, getSaleOrder, genOrderCode, createSaleOrder, updateSaleOrder, recentSaleOrder } from "@/api/order/sale";
-import { listSaleDetail } from "@/api/order/saleDetail";
+import { listSaleDetail, frequentSaleDetail } from "@/api/order/saleDetail";
+import { listDrafts, saveDraft, removeDraft, restoreDraft } from "@/utils/saleDraft";
 import { listCustomerSku } from "@/api/product/customerSku";
 import { listTemp } from "@/api/product/temp";
 import { queryPrice } from "@/api/price/query";
@@ -401,8 +477,14 @@ function throttle(delay, fn) {
 
 /** 深拷贝含忽略字段 */
 function deepCloneWithoutFields(obj, ignoreFields = []) {
-  // 兼容旧浏览器（structuredClone 为 Chrome 98+ API），订单明细为纯 JSON 数据，JSON 克隆等效
-  const clone = typeof structuredClone === 'function' ? structuredClone(obj) : JSON.parse(JSON.stringify(obj)); // 深拷贝
+  // 兼容旧浏览器（structuredClone 为 Chrome 98+ API），订单明细为纯 JSON 数据，JSON 克隆等效。
+  // 注意：Vue3 响应式对象是 Proxy，structuredClone 会抛 DataCloneError，需回退 JSON。
+  let clone
+  try {
+    clone = typeof structuredClone === 'function' ? structuredClone(obj) : JSON.parse(JSON.stringify(obj))
+  } catch (e) {
+    clone = JSON.parse(JSON.stringify(obj))
+  }
 
   function removeFields(o) {
     if (Array.isArray(o)) {
@@ -537,7 +619,12 @@ export default {
       pulldownTableData: [],
       // 下拉表格列配置
       pulldownTableColumn: [
-        { field: "productName", title: "商品名称" },
+        {
+          field: "productName",
+          title: "商品名称",
+          minWidth: 200,
+          slots: { default: "productNameCell" },
+        },
         { field: "productUnit", title: "单位" },
         { field: "price", title: "单价" },
         { field: "productSpec", title: "规格" },
@@ -545,6 +632,21 @@ export default {
       ],
       // 当前鼠标悬停的行
       currentHoverRow: null,
+      // 右侧面板当前 tab（frequent=常用 / recent=最近）
+      rightTab: "recent",
+      // 常用商品列表（近30天下单频率 Top）
+      frequentList: [],
+      // 草稿自动保存状态文案 / 类型（saving/saved/idle）
+      draftStatusText: "",
+      draftStatusType: "",
+      // 可恢复的草稿列表（新单页提示恢复）
+      availableDrafts: [],
+      // 是否显示草稿恢复横幅
+      showDraftBanner: false,
+      // 商品下拉检索关键词（高亮用）
+      pulldownKeyword: "",
+      // 表单初始快照（判定是否脏）
+      originalOrderForm: null,
       // 每行的大致高度，单位为像素
       rowHeight: 40,
       // 最大显示行数
@@ -560,8 +662,13 @@ export default {
     // 组件挂载完成后添加一行
     this.throttledAddRow();
     this.rowDrop();
+
+    // 页面刷新/关闭前立即保存草稿（配合 5s 防抖自动保存）
+    window.addEventListener("beforeunload", this.handleBeforeUnload);
   },
   beforeUnmount() {
+    window.removeEventListener("beforeunload", this.handleBeforeUnload);
+    if (this._draftTimer) clearTimeout(this._draftTimer);
     if (this.sortableX) {
       this.sortableX.destroy();
     }
@@ -590,6 +697,14 @@ export default {
       // 固定15行的高度
       return `${this.maxRows * this.rowHeight}px`;
     },
+    // 订单是否有未保存改动（明细对比 + 表单字段对比）
+    isOrderDirty() {
+      if (this.checkTableUpdted()) return true;
+      if (!this.originalOrderForm) return false;
+      const { orderId, orderCode, customerId, customerDeptId, deliveryDate, remark } = this.orderForm;
+      const cur = { orderId, orderCode, customerId, customerDeptId, deliveryDate, remark };
+      return JSON.stringify(cur) !== JSON.stringify(this.originalOrderForm);
+    },
   },
   created() {
     // 从路由获取参数
@@ -602,6 +717,26 @@ export default {
     this.getTreeselect();
     this.getCustomerList();
     this.initOrderDetailPage(this.defaultOrderId);
+
+    // 草稿：列表页跳转（query.draft）自动恢复；新单页展示恢复横幅
+    this.checkDraftOnEnter();
+  },
+  watch: {
+    orderForm: {
+      handler() {
+        this.scheduleDraftSave();
+      },
+      deep: true,
+    },
+    orderDetailList: {
+      handler() {
+        this.scheduleDraftSave();
+      },
+      deep: true,
+    },
+    "orderForm.customerId"(val) {
+      this.loadFrequentProducts();
+    },
   },
   methods: {
     /** 查询最近订单列表 */
@@ -645,6 +780,7 @@ export default {
         productMnemonicCode: item.skuMnemonicCode || "",
         price: item.priceOverride != null ? item.priceOverride : item.skuSalePrice,
         isTemp: false,
+        sourceTag: item.alias && item.alias !== item.skuName ? "别名" : "",
         remark: "",
       }));
       // 临时商品：全局 + 客户专用（未转正）
@@ -656,6 +792,7 @@ export default {
         productMnemonicCode: "",
         price: item.defaultPrice,
         isTemp: true,
+        sourceTag: "临时",
         remark: item.remark || "",
       }));
       this.skuQuoteDetails = [...pool, ...temps].map((item) => ({
@@ -703,6 +840,8 @@ export default {
                 this.deepCloneOrderDetailList(responseOrderDetails);
               this.originalOrderDetailList =
                 this.deepCloneOrderDetailList(responseOrderDetails);
+              this.snapshotOriginalOrderForm();
+              this.draftStatusText = "";
 
               // 初始化下拉列表
               this.getSkuQuoteDetailList();
@@ -750,6 +889,8 @@ export default {
             this.originalOrderDetailList = this.deepCloneOrderDetailList(
               this.orderDetailList
             );
+            this.snapshotOriginalOrderForm();
+            this.draftStatusText = "";
 
             // 初始化下拉列表
             this.getSkuQuoteDetailList();
@@ -814,6 +955,9 @@ export default {
             updateSaleOrder(this.orderForm).then((response) => {
               if (response.code === 200) {
                 this.$modal.msgSuccess("修改成功");
+                // 已保存订单：清除对应草稿
+                removeDraft("saleDraft:order:" + this.orderForm.orderId);
+                this.refreshDraftBanner();
                 const orderId = this.isContinueAdd
                   ? null
                   : this.orderForm.orderId;
@@ -824,6 +968,9 @@ export default {
             createSaleOrder(this.orderForm).then((response) => {
               if (response.code === 200) {
                 this.$modal.msgSuccess("新增成功");
+                // 新单已保存：清除对应草稿
+                removeDraft("saleDraft:new:" + this.orderForm.customerDeptId);
+                this.refreshDraftBanner();
                 const orderId = this.isContinueAdd ? null : response.data.id;
                 this.initOrderDetailPage(orderId);
               }
@@ -1154,6 +1301,8 @@ export default {
     },
     /** 商品名称下拉容器-初始化数据（服务端按关键字检索客户商品池+临时商品） */
     initPulldownData(value) {
+      // 记录关键词供下拉单元格高亮
+      this.pulldownKeyword = value || "";
       if (this._pulldownTimer) {
         clearTimeout(this._pulldownTimer);
       }
@@ -1284,6 +1433,221 @@ export default {
         this.initOrderDetailPage(orderId);
       }
     },
+
+    /* ========== 草稿自动保存（Phase 1.1） ========== */
+    /** 进入页面时检查草稿：路由带 draft key 则自动恢复，否则新单页显示恢复横幅 */
+    checkDraftOnEnter() {
+      const draftKey = this.$route.query.draft;
+      if (draftKey) {
+        const draft = restoreDraft(draftKey);
+        if (draft && !this.defaultOrderId) {
+          this.restoreDraftIntoForm(draft);
+        } else {
+          this.$modal.msgWarning("草稿不存在或已过期");
+        }
+        return;
+      }
+      this.refreshDraftBanner();
+    },
+    /** 刷新草稿横幅（新单页且有未过期草稿时显示） */
+    refreshDraftBanner() {
+      this.availableDrafts = listDrafts();
+      this.showDraftBanner =
+        !this.defaultOrderId && this.availableDrafts.length > 0;
+    },
+    /** 恢复最新一条草稿 */
+    restoreLatestDraft() {
+      if (this.availableDrafts.length) {
+        this.restoreDraftIntoForm(this.availableDrafts[0]);
+      }
+    },
+    /** 忽略草稿（仅隐藏横幅，不删除数据） */
+    dismissDraftBanner() {
+      this.showDraftBanner = false;
+    },
+    /** 将草稿恢复到表单：校验客户/配送点仍存在，恢复后删除草稿 */
+    restoreDraftIntoForm(draft) {
+      const deptId = draft.customerDeptId;
+      // 客户配送点树已加载时校验存在性
+      if (
+        deptId &&
+        Object.keys(this.customerDeptMap).length &&
+        !this.customerDeptMap[deptId]
+      ) {
+        this.$modal.msgWarning("草稿对应的送货单位已不存在，草稿已失效");
+        removeDraft(draft.key);
+        this.refreshDraftBanner();
+        return;
+      }
+      this.orderForm = {
+        orderId: draft.orderId || null,
+        orderCode: draft.orderCode || null,
+        customerId: draft.customerId || null,
+        customerDeptId: draft.customerDeptId || null,
+        deliveryDate: draft.deliveryDate || null,
+        remark: draft.remark || null,
+      };
+      this.selectedCustomerDepts = this.fillWithParentCustomerDeptId(
+        this.customerDeptOptions,
+        deptId ? String(deptId) : ""
+      );
+      this.orderDetailList = (draft.details || []).map((row) => ({ ...row }));
+      this.originalOrderDetailList = this.deepCloneOrderDetailList(
+        this.orderDetailList
+      );
+      this.snapshotOriginalOrderForm();
+      this.customerDeptDisabled = true;
+      removeDraft(draft.key);
+      this.refreshDraftBanner();
+      this.getSkuQuoteDetailList();
+      this.$modal.msgSuccess("已恢复草稿，请核对后保存");
+    },
+    /** 记录表单初始快照（不含 orderDetails，用于脏判定） */
+    snapshotOriginalOrderForm() {
+      const { orderId, orderCode, customerId, customerDeptId, deliveryDate, remark } = this.orderForm;
+      this.originalOrderForm = {
+        orderId,
+        orderCode,
+        customerId,
+        customerDeptId,
+        deliveryDate,
+        remark,
+      };
+    },
+    /** 按配送点ID查名称（级联树） */
+    deptNameOf(deptId) {
+      if (!deptId) return "";
+      let name = "";
+      const find = (nodes) => {
+        for (const n of nodes) {
+          if (String(n.value) === String(deptId)) {
+            name = n.label;
+            return true;
+          }
+          if (n.children && find(n.children)) return true;
+        }
+        return false;
+      };
+      find(this.customerDeptOptions);
+      return name;
+    },
+    /** 格式化保存时间 HH:mm */
+    formatSavedAt(savedAt) {
+      if (!savedAt) return "";
+      const d = new Date(savedAt);
+      const p = (n) => String(n).padStart(2, "0");
+      return `${p(d.getHours())}:${p(d.getMinutes())}`;
+    },
+    /** 数据变更后 5s 防抖触发保存（配合 beforeunload 兜底） */
+    scheduleDraftSave() {
+      if (!this.isOrderDirty) return;
+      this.draftStatusText = "草稿保存中...";
+      this.draftStatusType = "saving";
+      if (this._draftTimer) clearTimeout(this._draftTimer);
+      this._draftTimer = setTimeout(() => {
+        this.saveDraftIfMeaningful();
+      }, 5000);
+    },
+    /** 保存草稿（有实际内容才保存；恢复/重置后自动清理状态） */
+    saveDraftIfMeaningful() {
+      if (!this.isOrderDirty) return;
+      const deptId = this.orderForm.customerDeptId;
+      const hasContent = (this.orderDetailList || []).some(
+        (row) =>
+          row.productName &&
+          (XEUtils.toNumber(row.num) > 0 || row.skuId)
+      );
+      if (!deptId || !hasContent) {
+        this.draftStatusText = "未保存";
+        this.draftStatusType = "idle";
+        return;
+      }
+      saveDraft({
+        orderId: this.orderForm.orderId,
+        customerId: this.orderForm.customerId,
+        customerDeptId: deptId,
+        deptName: this.deptNameOf(deptId),
+        orderCode: this.orderForm.orderCode,
+        deliveryDate: this.orderForm.deliveryDate,
+        remark: this.orderForm.remark,
+        details: this.deepCloneOrderDetailList(this.orderDetailList),
+      });
+      this.draftStatusText = `已于 ${this.formatSavedAt(new Date())} 自动保存`;
+      this.draftStatusType = "saved";
+    },
+    /** 页面刷新/关闭前立即保存 */
+    handleBeforeUnload() {
+      if (this._draftTimer) clearTimeout(this._draftTimer);
+      this.saveDraftIfMeaningful();
+    },
+
+    /* ========== 常用商品面板（Phase 1.2） ========== */
+    /** 加载近30天下单频率 Top20（当前客户） */
+    loadFrequentProducts() {
+      const customerId = this.orderForm.customerId;
+      if (!customerId) {
+        this.frequentList = [];
+        return;
+      }
+      frequentSaleDetail({ customerId, days: 30, limit: 20 }).then(
+        (response) => {
+          this.frequentList = response.data || [];
+        }
+      );
+    },
+    /** 点击常用商品：插入明细行（末尾）→ 取价 → 光标落数量列 */
+    addFrequentProduct(item) {
+      this.handleAddRow(-1);
+      const row = this.orderDetailList[this.orderDetailList.length - 1];
+      row.productName = item.productName;
+      row.productUnit = item.productUnit || "斤";
+      row.productSpec = item.productSpec || "";
+      row.skuId = item.skuId;
+      row.isTemp = 0;
+      row.remark = "";
+      // 带出客户商品池展示价（若有），交易价仍走取价引擎
+      const pool = this.skuQuoteDetails.find((q) => q.skuId === item.skuId);
+      row.productPrice = pool ? pool.price : "0.00";
+      row.amount = "0.00";
+      this.applyPriceQuery(row);
+      // 光标跳至数量列
+      this.$nextTick(() => {
+        this.$refs.xTable.setEditCell(row, "num");
+      });
+      // 末尾追加空行，保持录单流
+      this.handleAddRow(-1);
+    },
+
+    /* ========== 下拉关键词高亮（Phase 1.3） ========== */
+    escapeHtml(s) {
+      return String(s == null ? "" : s)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;");
+    },
+    /** 匹配关键词包一层高亮 span（先转义再高亮，防 XSS） */
+    highlightKeyword(name) {
+      const raw = String(name == null ? "" : name);
+      const kw = String(this.pulldownKeyword || "").trim();
+      if (!kw) return this.escapeHtml(raw);
+      const lower = raw.toLowerCase();
+      const kl = kw.toLowerCase();
+      let out = "";
+      let idx = 0;
+      let pos = lower.indexOf(kl);
+      while (pos !== -1) {
+        out += this.escapeHtml(raw.slice(idx, pos));
+        out +=
+          '<span class="kw-hl">' +
+          this.escapeHtml(raw.slice(pos, pos + kw.length)) +
+          "</span>";
+        idx = pos + kw.length;
+        pos = lower.indexOf(kl, idx);
+      }
+      out += this.escapeHtml(raw.slice(idx));
+      return out;
+    },
   },
 };
 </script>
@@ -1337,6 +1701,114 @@ export default {
 
   .my-footdown4 {
     border-top: 1px solid #e8eaec;
+  }
+}
+
+/* 草稿恢复横幅 */
+.draft-recover-banner {
+  margin-bottom: 10px;
+  .draft-banner-title {
+    .el-button + .el-button {
+      margin-left: 8px;
+    }
+  }
+}
+
+/* 订单头部草稿状态标签 */
+.order-header-title {
+  margin-right: 10px;
+}
+.draft-status-tag {
+  display: inline-block;
+  padding: 0 8px;
+  font-size: 12px;
+  line-height: 20px;
+  border-radius: 3px;
+  margin-right: 10px;
+  vertical-align: middle;
+  &.saving {
+    color: #909399;
+    background: #f4f4f5;
+  }
+  &.saved {
+    color: #67c23a;
+    background: #f0f9eb;
+  }
+  &.idle {
+    color: #e6a23c;
+    background: #fdf6ec;
+  }
+}
+
+/* 右侧选单区 Tabs + 常用面板 */
+.right-tabs {
+  :deep(.el-tabs__header) {
+    margin-bottom: 0;
+  }
+  :deep(.el-tabs__nav-wrap::after) {
+    height: 0;
+  }
+}
+.frequent-panel {
+  overflow-y: auto;
+  .frequent-empty {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+  }
+  .frequent-list {
+    padding: 4px 0;
+    .frequent-item {
+      display: flex;
+      align-items: center;
+      padding: 6px 10px;
+      cursor: pointer;
+      border-bottom: 1px dashed #ebeef5;
+      &:hover {
+        background: #f5f7fa;
+      }
+      .frequent-index {
+        width: 22px;
+        color: #c0c4cc;
+        font-size: 12px;
+        flex-shrink: 0;
+      }
+      .frequent-name {
+        flex: 1;
+        font-size: 13px;
+        overflow: hidden;
+        white-space: nowrap;
+        text-overflow: ellipsis;
+        .frequent-spec {
+          color: #909399;
+          font-style: normal;
+        }
+      }
+      .frequent-unit {
+        margin-left: 8px;
+        color: #909399;
+        font-size: 12px;
+        flex-shrink: 0;
+      }
+      .frequent-count {
+        margin-left: 8px;
+        color: #409eff;
+        font-size: 12px;
+        flex-shrink: 0;
+      }
+    }
+  }
+}
+
+/* 下拉商品名称：关键词高亮 + 来源标签 */
+.prod-name-cell {
+  .kw-hl {
+    color: #f56c6c;
+    font-weight: 600;
+  }
+  .prod-source-tag {
+    margin-left: 6px;
   }
 }
 </style>

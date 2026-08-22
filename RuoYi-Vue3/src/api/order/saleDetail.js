@@ -19,6 +19,16 @@ export function listSaleDetail(query) {
 }
 
 // 查询销售订单详情详细
+// 常用商品统计：近N天下单频率最高的 SKU（录单页"常用"面板）
+export function frequentSaleDetail(query) {
+  return request({
+    url: '/order/saleDetail/frequent',
+    method: 'get',
+    params: query
+  })
+}
+
+// 查询销售订单详情详细
 export function getSaleDetail(id) {
   return request({
     url: '/order/saleDetail/' + id,
