@@ -1,6 +1,9 @@
 package com.lin.distribution.service.impl;
 
+import java.util.Collections;
 import java.util.List;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
 
 import com.lin.common.utils.DateUtils;
 import lombok.RequiredArgsConstructor;
@@ -88,5 +91,19 @@ public class SaleOrderDetailServiceImpl implements SaleOrderDetailService {
     @Override
     public int deleteSaleOrderDetailById(Long id) {
         return saleOrderDetailMapper.deleteSaleOrderDetailById(id);
+    }
+
+    /**
+     * 常用商品统计：近 N 天下单频率最高的 SKU（录单页"常用"面板）
+     */
+    @Override
+    public List<SaleOrderDetail> selectFrequentSkuList(Long customerId, Integer days, Integer limit) {
+        if (customerId == null) {
+            return Collections.emptyList();
+        }
+        int d = (days == null || days <= 0) ? 30 : Math.min(days, 90);
+        int lim = (limit == null || limit <= 0) ? 20 : Math.min(limit, 50);
+        LocalDateTime startTime = LocalDate.now().minusDays(d).atStartOfDay();
+        return saleOrderDetailMapper.selectFrequentSkuList(customerId, startTime, lim);
     }
 }

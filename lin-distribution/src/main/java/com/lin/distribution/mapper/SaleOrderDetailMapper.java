@@ -3,6 +3,9 @@ package com.lin.distribution.mapper;
 import java.util.List;
 
 import com.lin.distribution.domain.SaleOrderDetail;
+import org.apache.ibatis.annotations.Param;
+
+import java.time.LocalDateTime;
 
 /**
  * 销售订单详情Mapper接口
@@ -77,4 +80,16 @@ public interface SaleOrderDetailMapper {
      * @return 聚合后的订单明细
      */
     List<SaleOrderDetail> selectAggregatedByDeliveryDate(java.time.LocalDate deliveryDate);
+
+    /**
+     * 常用商品统计：近 N 天下单频率最高的 SKU（录单页"常用"面板）
+     *
+     * @param customerId 客户ID
+     * @param startTime  统计起始时间
+     * @param limit      返回条数上限
+     * @return 按下单次数倒序的 SKU 列表
+     */
+    List<SaleOrderDetail> selectFrequentSkuList(@Param("customerId") Long customerId,
+                                                @Param("startTime") LocalDateTime startTime,
+                                                @Param("limit") Integer limit);
 }

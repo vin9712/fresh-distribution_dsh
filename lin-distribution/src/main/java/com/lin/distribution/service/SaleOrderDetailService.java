@@ -58,4 +58,14 @@ public interface SaleOrderDetailService {
      * @return 结果
      */
     int deleteSaleOrderDetailById(Long id);
+
+    /**
+     * 常用商品统计：近 N 天下单频率最高的 SKU（录单页"常用"面板）
+     *
+     * @param customerId 客户ID（必填）
+     * @param days       统计天数（默认 30，上限 90）
+     * @param limit      返回条数（默认 20，上限 50）
+     * @return 按下单次数倒序的 SKU 列表
+     */
+    List<SaleOrderDetail> selectFrequentSkuList(Long customerId, Integer days, Integer limit);
 }

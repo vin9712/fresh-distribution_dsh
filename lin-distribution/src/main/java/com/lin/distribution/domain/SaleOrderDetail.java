@@ -2,6 +2,7 @@ package com.lin.distribution.domain;
 
 import java.math.BigDecimal;
 
+import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.Version;
 import com.lin.common.annotation.Excel;
 import com.lin.common.core.domain.BaseEntity;
@@ -125,5 +126,17 @@ public class SaleOrderDetail extends BaseEntity {
      */
     @Version
     private Integer version;
+
+    /**
+     * 查询字段：常用商品统计-下单次数（frequent 接口）
+     */
+    @TableField(exist = false)
+    private Long orderCount;
+
+    /**
+     * 查询字段：常用商品统计-最近下单时间（frequent 接口）
+     */
+    @TableField(exist = false)
+    private String lastOrderTime;
 
 }

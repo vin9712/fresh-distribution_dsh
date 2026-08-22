@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import com.lin.common.annotation.Log;
 import com.lin.common.core.controller.BaseController;
@@ -55,6 +56,17 @@ public class SaleOrderDetailController extends BaseController {
     public AjaxResult list(SaleOrderDetail saleOrderDetail) {
         List<SaleOrderDetail> list = saleOrderDetailService.selectSaleOrderDetailList(saleOrderDetail);
         return success(list);
+    }
+
+    /**
+     * 常用商品统计：近 N 天下单频率最高的 SKU（录单页"常用"面板）
+     */
+    @PreAuthorize("@ss.hasPermi('order:saleDetail:list')")
+    @GetMapping("/frequent")
+    public AjaxResult frequent(@RequestParam Long customerId,
+                               @RequestParam(defaultValue = "30") Integer days,
+                               @RequestParam(defaultValue = "20") Integer limit) {
+        return success(saleOrderDetailService.selectFrequentSkuList(customerId, days, limit));
     }
 
     /**

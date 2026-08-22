@@ -28,6 +28,8 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         <result property="updateBy"    column="update_by"    />
         <result property="updateTime"    column="update_time"    />
         <result property="remark"    column="remark"    />
+        <result property="orderCount"    column="order_count"    />
+        <result property="lastOrderTime"    column="last_order_time"    />
     </resultMap>
 
     <sql id="selectSaleOrderDetailVo">
@@ -165,5 +167,27 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
           and d.is_deleted = 0
         group by d.customer_id, d.customer_dept_id, d.sku_id, d.product_name, d.product_unit, d.product_spec, d.product_price
         order by d.customer_id, d.customer_dept_id, d.product_name
+    </select>
+
+    <!-- 常用商品统计：近N天下单频率最高的 SKU（录单页"常用"面板）
+         仅统计已确认及后续状态的订单（排除制单草稿），临时商品(sku_id 为空)不参与 -->
+    <select id="selectFrequentSkuList" resultMap="SaleOrderDetailResult">
+        select d.sku_id,
+               max(d.product_name)  as product_name,
+               max(d.product_unit)  as product_unit,
+               max(d.product_spec)  as product_spec,
+               count(*)             as order_count,
+               date_format(max(d.create_time), '%Y-%m-%d %H:%i:%s') as last_order_time
+        from t_sale_order_detail d
+        inner join t_sale_order o on o.id = d.order_id
+        where o.customer_id = #{customerId}
+          and o.status > 0
+          and o.is_deleted = 0
+          and d.is_deleted = 0
+          and d.sku_id is not null
+          and d.create_time &gt;= #{startTime}
+        group by d.sku_id
+        order by order_count desc, last_order_time desc
+        limit #{limit}
     </select>
 </mapper>
