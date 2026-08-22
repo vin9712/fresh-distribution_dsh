@@ -5,6 +5,7 @@ import com.lin.common.utils.DateUtils;
 import com.lin.distribution.constant.SaleOrderStatus;
 import com.lin.distribution.domain.SaleOrder;
 import com.lin.distribution.domain.SaleOrderDetail;
+import com.lin.distribution.dto.SaleGeneratePreviewVO;
 import com.lin.distribution.dto.SaleOrderCreateDTO;
 import com.lin.distribution.dto.SaleOrderUpdateStatusDTO;
 import com.lin.distribution.mapper.DeliveryOrderMapper;
@@ -27,8 +28,13 @@ import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 /**
  * 销售订单Service业务层处理
@@ -311,5 +317,91 @@ public class SaleOrderServiceImpl implements SaleOrderService {
             return bizCodeService.nextDailyCode("saleOrder", "XD", 4);
         }
         return peekCode;
+    }
+
+    /**
+     * 生成单据前汇总预览（Phase 2，销售订单列表页抽屉第一步）
+     * 校验订单均为已确认，按品类分组聚合明细（临时商品归"临时商品"）。
+     */
+    @Override
+    public SaleGeneratePreviewVO generatePreview(List<Long> orderIds) {
+        if (CollectionUtils.isEmpty(orderIds)) {
+            throw new ServiceException("请选择要预览的订单");
+        }
+        List<Long> distinctIds = orderIds.stream().distinct().collect(Collectors.toList());
+
+        List<SaleOrder> orders = saleOrderMapper.selectSaleOrderByIdIn(distinctIds);
+        if (orders.size() != distinctIds.size()) {
+            throw new ServiceException("部分订单不存在或已删除，请刷新列表后重试");
+        }
+        String invalidCodes = orders.stream()
+                .filter(o -> !SaleOrderStatus.CONFIRMED.getCode().equals(o.getStatus()))
+                .map(SaleOrder::getCode)
+                .collect(Collectors.joining(","));
+        if (StringUtils.isNotEmpty(invalidCodes)) {
+            throw new ServiceException("以下订单不是审核状态：" + invalidCodes);
+        }
+
+        List<SaleOrderDetail> aggregated = saleOrderDetailMapper.selectPreviewByOrderIds(distinctIds);
+        Map<String, List<SaleOrderDetail>> groupMap = aggregated.stream().collect(Collectors.groupingBy(
+                it -> StringUtils.defaultIfBlank(it.getCategoryName(), "临时商品"),
+                LinkedHashMap::new, Collectors.toList()));
+
+        List<SaleGeneratePreviewVO.PreviewGroup> groups = new ArrayList<>();
+        for (Map.Entry<String, List<SaleOrderDetail>> entry : groupMap.entrySet()) {
+            BigDecimal quantity = BigDecimal.ZERO;
+            BigDecimal amount = BigDecimal.ZERO;
+            List<SaleGeneratePreviewVO.PreviewItem> items = new ArrayList<>();
+            for (SaleOrderDetail detail : entry.getValue()) {
+                BigDecimal qty = Optional.ofNullable(detail.getNum()).orElse(BigDecimal.ZERO);
+                BigDecimal price = Optional.ofNullable(detail.getProductPrice()).orElse(BigDecimal.ZERO);
+                BigDecimal amt = Optional.ofNullable(detail.getExpectAmount()).orElse(qty.multiply(price));
+                quantity = quantity.add(qty);
+                amount = amount.add(amt);
+                items.add(SaleGeneratePreviewVO.PreviewItem.builder()
+                        .skuId(detail.getSkuId())
+                        .productName(detail.getProductName())
+                        .productSpec(detail.getProductSpec())
+                        .productUnit(detail.getProductUnit())
+                        .quantity(qty)
+                        .price(price)
+                        .amount(amt)
+                        .build());
+            }
+            groups.add(SaleGeneratePreviewVO.PreviewGroup.builder()
+                    .categoryName(entry.getKey())
+                    .items(items)
+                    .quantity(quantity)
+                    .amount(amount)
+                    .build());
+        }
+
+        BigDecimal totalQuantity = groups.stream()
+                .map(SaleGeneratePreviewVO.PreviewGroup::getQuantity)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal totalAmount = orders.stream()
+                .map(SaleOrder::getAmount)
+                .filter(Objects::nonNull)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        List<SaleGeneratePreviewVO.PreviewOrder> previewOrders = orders.stream()
+                .map(o -> SaleGeneratePreviewVO.PreviewOrder.builder()
+                        .id(o.getId())
+                        .code(o.getCode())
+                        .customerName(o.getCustomerName())
+                        .customerDeptName(o.getCustomerDeptName())
+                        .deliveryName(o.getDeliveryName())
+                        .deliveryDate(o.getDeliveryDate())
+                        .amount(o.getAmount())
+                        .build())
+                .collect(Collectors.toList());
+
+        return SaleGeneratePreviewVO.builder()
+                .orders(previewOrders)
+                .groups(groups)
+                .itemCount(aggregated.size())
+                .totalQuantity(totalQuantity)
+                .totalAmount(totalAmount)
+                .build();
     }
 }

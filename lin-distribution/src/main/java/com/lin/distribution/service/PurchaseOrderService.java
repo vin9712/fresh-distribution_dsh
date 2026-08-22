@@ -2,6 +2,7 @@ package com.lin.distribution.service;
 
 import com.lin.distribution.domain.PurchaseItem;
 import com.lin.distribution.domain.PurchaseOrder;
+import com.lin.distribution.dto.PurchaseByOrdersDTO;
 import com.lin.distribution.dto.PurchaseGenerateDTO;
 
 import java.util.List;
@@ -43,6 +44,15 @@ public interface PurchaseOrderService {
      * @return 生成的采购单
      */
     PurchaseOrder generateByOrderDate(PurchaseGenerateDTO dto);
+
+    /**
+     * 按勾选订单生成采购单（销售订单列表页抽屉，Phase 2）
+     * 仅汇总已确认订单明细，按 sku_id 合并数量；订单不可重复生成（source_order_ids 重叠校验）。
+     *
+     * @param dto 生成请求（orderIds + 供应商/采购员）
+     * @return 生成的采购单
+     */
+    PurchaseOrder generateByOrderIds(PurchaseByOrdersDTO dto);
 
     /**
      * 手工创建采购单（含明细）

@@ -134,6 +134,12 @@ public class SaleOrderDetail extends BaseEntity {
     private Long orderCount;
 
     /**
+     * 查询字段：品类名称（生成单据预览按品类分组用，临时商品归"临时商品"）
+     */
+    @TableField(exist = false)
+    private String categoryName;
+
+    /**
      * 查询字段：常用商品统计-最近下单时间（frequent 接口）
      */
     @TableField(exist = false)

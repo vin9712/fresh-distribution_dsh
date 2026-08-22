@@ -7,6 +7,8 @@ import com.lin.common.core.page.TableDataInfo;
 import com.lin.common.enums.BusinessType;
 import com.lin.common.utils.poi.ExcelUtil;
 import com.lin.distribution.domain.SaleOrder;
+import com.lin.distribution.dto.SaleGeneratePreviewVO;
+import com.lin.distribution.dto.SaleOrderGeneratePreviewDTO;
 import com.lin.distribution.dto.SaleOrderUpdateStatusDTO;
 import com.lin.distribution.dto.SaleOrderCreateDTO;
 import com.lin.distribution.service.SaleOrderService;
@@ -160,5 +162,17 @@ public class SaleOrderController extends BaseController {
     public AjaxResult updateSaleOrder(@RequestBody @Validated SaleOrderUpdateStatusDTO request) {
         saleOrderService.updateSaleOrderStatus(request);
         return success();
+    }
+
+    /**
+     * 生成单据前汇总预览（列表页抽屉第一步，按品类分组）
+     *
+     * @param request 选中的订单ID集合
+     * @return 汇总预览（订单头 + 品类分组明细）
+     */
+    @PreAuthorize("@ss.hasPermi('order:sale:list')")
+    @PostMapping("/generatePreview")
+    public AjaxResult generatePreview(@RequestBody @Validated SaleOrderGeneratePreviewDTO request) {
+        return success(saleOrderService.generatePreview(request.getOrderIds()));
     }
 }

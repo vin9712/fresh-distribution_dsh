@@ -5,7 +5,9 @@ import com.lin.distribution.constant.DeliveryOrderStatus;
 import com.lin.distribution.constant.SaleOrderStatus;
 import com.lin.distribution.domain.DeliveryOrder;
 import com.lin.distribution.domain.DeliveryOrderDetail;
+import com.lin.distribution.domain.SaleOrder;
 import com.lin.distribution.domain.SaleOrderDetail;
+import com.lin.distribution.dto.DeliveryByOrdersDTO;
 import com.lin.distribution.mapper.DeliveryOrderDetailMapper;
 import com.lin.distribution.mapper.DeliveryOrderMapper;
 import com.lin.distribution.mapper.SaleOrderDetailMapper;
@@ -200,5 +202,123 @@ class DeliveryOrderServiceImplTest {
 
         assertThrows(ServiceException.class, () -> deliveryOrderService.markDelivered(9L));
         verify(saleOrderMapper, never()).updateStatusByDeliveryGroup(any(), any(), any(), any(), any());
+    }
+
+    // ================= Phase 2：按勾选订单生成（generateByOrderIds） =================
+
+    private SaleOrder saleOrder(Long id, String code, Integer status) {
+        SaleOrder order = new SaleOrder();
+        order.setId(id);
+        order.setCode(code);
+        order.setStatus(status);
+        order.setDeliveryDate(DATE);
+        order.setAmount(new BigDecimal("10.00"));
+        return order;
+    }
+
+    private SaleOrderDetail aggRow(Long orderId, Long customerId, Long pointId, Long skuId, String name,
+                                   String unit, String spec, String price, String num) {
+        SaleOrderDetail detail = new SaleOrderDetail();
+        detail.setOrderId(orderId);
+        detail.setOrderCode("XD" + orderId);
+        detail.setCustomerId(customerId);
+        detail.setCustomerDeptId(pointId);
+        detail.setSkuId(skuId);
+        detail.setProductName(name);
+        detail.setProductUnit(unit);
+        detail.setProductSpec(spec);
+        detail.setProductPrice(new BigDecimal(price));
+        detail.setNum(new BigDecimal(num));
+        return detail;
+    }
+
+    @Test
+    void 按订单生成时空订单集合应报错() {
+        assertThrows(ServiceException.class, () -> deliveryOrderService.generateByOrderIds(
+                DeliveryByOrdersDTO.builder().orderIds(Collections.emptyList()).build()));
+    }
+
+    @Test
+    void 按订单生成时含非审核状态订单应报错() {
+        when(saleOrderMapper.selectSaleOrderByIdIn(Collections.singletonList(100L)))
+                .thenReturn(Collections.singletonList(saleOrder(100L, "XD100", SaleOrderStatus.DRAFT.getCode())));
+        assertThrows(ServiceException.class, () -> deliveryOrderService.generateByOrderIds(
+                DeliveryByOrdersDTO.builder().orderIds(Collections.singletonList(100L)).build()));
+    }
+
+    @Test
+    void 按订单生成时已生成过送货单的订单应拒绝() {
+        when(saleOrderMapper.selectSaleOrderByIdIn(Collections.singletonList(100L)))
+                .thenReturn(Collections.singletonList(saleOrder(100L, "XD100", SaleOrderStatus.CONFIRMED.getCode())));
+        DeliveryOrderDetail existed = DeliveryOrderDetail.builder().orderId(100L).build();
+        when(deliveryOrderDetailMapper.selectListByOrderIdIn(Collections.singletonList(100L)))
+                .thenReturn(Collections.singletonList(existed));
+        assertThrows(ServiceException.class, () -> deliveryOrderService.generateByOrderIds(
+                DeliveryByOrdersDTO.builder().orderIds(Collections.singletonList(100L)).build()));
+    }
+
+    @Test
+    void 按订单生成时按客户配送点分组明细带订单号且日期可调整() {
+        when(saleOrderMapper.selectSaleOrderByIdIn(Arrays.asList(100L, 101L)))
+                .thenReturn(Arrays.asList(
+                        saleOrder(100L, "XD100", SaleOrderStatus.CONFIRMED.getCode()),
+                        saleOrder(101L, "XD101", SaleOrderStatus.CONFIRMED.getCode())));
+        when(deliveryOrderDetailMapper.selectListByOrderIdIn(any())).thenReturn(Collections.emptyList());
+        when(saleOrderDetailMapper.selectAggregatedByOrderIds(Arrays.asList(100L, 101L))).thenReturn(Arrays.asList(
+                aggRow(100L, CUSTOMER_A, POINT_A1, SKU_1, "白菜", "斤", "", "2.00", "2"),
+                aggRow(100L, CUSTOMER_A, POINT_A1, SKU_2, "土豆", "斤", "大", "3.50", "3"),
+                aggRow(101L, CUSTOMER_B, POINT_B1, SKU_1, "白菜", "斤", "", "2.00", "4")
+        ));
+        when(deliveryOrderMapper.insertDeliveryOrder(any(DeliveryOrder.class))).thenAnswer(invocation -> {
+            DeliveryOrder order = invocation.getArgument(0);
+            order.setId(order.getCustomerId() == CUSTOMER_A ? 1L : 2L);
+            return 1;
+        });
+        LocalDate adjustedDate = DATE.plusDays(1);
+
+        List<DeliveryOrder> created = deliveryOrderService.generateByOrderIds(DeliveryByOrdersDTO.builder()
+                .orderIds(Arrays.asList(100L, 101L))
+                .deliveryDate(adjustedDate)
+                .build());
+
+        assertEquals(2, created.size());
+        assertEquals(adjustedDate, created.get(0).getDeliveryDate());
+        assertEquals(CUSTOMER_A, created.get(0).getCustomerId());
+        assertEquals(CUSTOMER_B, created.get(1).getCustomerId());
+
+        // 明细 3 条，均带 order_id/order_code
+        ArgumentCaptor<DeliveryOrderDetail> detailCaptor = ArgumentCaptor.forClass(DeliveryOrderDetail.class);
+        verify(deliveryOrderDetailMapper, org.mockito.Mockito.times(3))
+                .insertDeliveryOrderDetail(detailCaptor.capture());
+        DeliveryOrderDetail first = detailCaptor.getAllValues().get(0);
+        assertEquals(100L, first.getOrderId());
+        assertEquals("XD100", first.getOrderCode());
+        assertEquals(CUSTOMER_A, first.getCustomerId());
+        assertEquals(POINT_A1, first.getCustomerDeptId());
+        assertEquals(0, new BigDecimal("4.00").compareTo(first.getAmount()));
+        DeliveryOrderDetail third = detailCaptor.getAllValues().get(2);
+        assertEquals(101L, third.getOrderId());
+        assertEquals("XD101", third.getOrderCode());
+        assertEquals(CUSTOMER_B, third.getCustomerId());
+        assertEquals(0, new BigDecimal("8.00").compareTo(third.getAmount()));
+    }
+
+    @Test
+    void 按订单生成时未传日期默认取订单配送日期() {
+        when(saleOrderMapper.selectSaleOrderByIdIn(Collections.singletonList(100L)))
+                .thenReturn(Collections.singletonList(saleOrder(100L, "XD100", SaleOrderStatus.CONFIRMED.getCode())));
+        when(deliveryOrderDetailMapper.selectListByOrderIdIn(any())).thenReturn(Collections.emptyList());
+        when(saleOrderDetailMapper.selectAggregatedByOrderIds(Collections.singletonList(100L))).thenReturn(
+                Collections.singletonList(aggRow(100L, CUSTOMER_A, POINT_A1, SKU_1, "白菜", "斤", "", "2.00", "2")));
+        when(deliveryOrderMapper.insertDeliveryOrder(any(DeliveryOrder.class))).thenAnswer(invocation -> {
+            ((DeliveryOrder) invocation.getArgument(0)).setId(1L);
+            return 1;
+        });
+
+        List<DeliveryOrder> created = deliveryOrderService.generateByOrderIds(DeliveryByOrdersDTO.builder()
+                .orderIds(Collections.singletonList(100L))
+                .build());
+
+        assertEquals(DATE, created.get(0).getDeliveryDate());
     }
 }

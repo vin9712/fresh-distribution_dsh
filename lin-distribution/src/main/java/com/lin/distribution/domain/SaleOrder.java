@@ -108,6 +108,18 @@ public class SaleOrder extends BaseEntity {
     @TableField(exist = false)
     private String deliveryName;
 
+    /**
+     * 查询字段：已生成的采购单号（列表图标悬浮展示，无则空）
+     */
+    @TableField(exist = false)
+    private String purchaseOrderCode;
+
+    /**
+     * 查询字段：已生成的送货单号（列表图标悬浮展示，无则空）
+     */
+    @TableField(exist = false)
+    private String deliveryOrderCode;
+
     public String getDeliveryName() {
         if (!StringUtils.equals(customerName, customerDeptName)) {
             return customerName + "-" + customerDeptName;

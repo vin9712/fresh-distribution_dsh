@@ -4,16 +4,21 @@ import com.alibaba.fastjson2.JSON;
 import com.lin.common.exception.ServiceException;
 import com.lin.common.utils.DateUtils;
 import com.lin.distribution.constant.PurchaseOrderStatus;
+import com.lin.distribution.constant.SaleOrderStatus;
 import com.lin.distribution.domain.PurchaseItem;
 import com.lin.distribution.domain.PurchaseOrder;
+import com.lin.distribution.domain.SaleOrder;
+import com.lin.distribution.dto.PurchaseByOrdersDTO;
 import com.lin.distribution.dto.PurchaseGenerateDTO;
 import com.lin.distribution.mapper.PurchaseItemMapper;
 import com.lin.distribution.mapper.PurchaseOrderMapper;
+import com.lin.distribution.mapper.SaleOrderMapper;
 import com.lin.distribution.service.BizCodeService;
 import com.lin.distribution.service.PurchaseOrderService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.math.NumberUtils;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -21,8 +26,11 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * 采购单Service业务层处理
@@ -40,6 +48,7 @@ public class PurchaseOrderServiceImpl implements PurchaseOrderService {
 
     private final PurchaseOrderMapper purchaseOrderMapper;
     private final PurchaseItemMapper purchaseItemMapper;
+    private final SaleOrderMapper saleOrderMapper;
     private final BizCodeService bizCodeService;
 
     @Override
@@ -55,6 +64,90 @@ public class PurchaseOrderServiceImpl implements PurchaseOrderService {
     @Override
     public List<PurchaseItem> selectPurchaseItemListByPurchaseId(Long purchaseId) {
         return purchaseItemMapper.selectPurchaseItemListByPurchaseId(purchaseId);
+    }
+
+    @Override
+    @Transactional
+    public PurchaseOrder generateByOrderIds(PurchaseByOrdersDTO dto) {
+        if (dto == null || CollectionUtils.isEmpty(dto.getOrderIds())) {
+            throw new ServiceException("请选择要生成采购单的订单");
+        }
+        List<Long> orderIds = dto.getOrderIds().stream().distinct().collect(Collectors.toList());
+
+        // 校验：订单存在且均已确认，配送日期一致（采购单归属日期 = 配送日期）
+        List<SaleOrder> orders = saleOrderMapper.selectSaleOrderByIdIn(orderIds);
+        if (orders.size() != orderIds.size()) {
+            throw new ServiceException("部分订单不存在或已删除，请刷新列表后重试");
+        }
+        String invalidCodes = orders.stream()
+                .filter(o -> !SaleOrderStatus.CONFIRMED.getCode().equals(o.getStatus()))
+                .map(SaleOrder::getCode)
+                .collect(Collectors.joining(","));
+        if (StringUtils.isNotEmpty(invalidCodes)) {
+            throw new ServiceException("以下订单不是审核状态，无法生成采购单：" + invalidCodes);
+        }
+        Set<LocalDate> dates = orders.stream().map(SaleOrder::getDeliveryDate).collect(Collectors.toSet());
+        if (dates.size() > 1) {
+            throw new ServiceException("所选订单配送日期不一致，请按配送日期分批生成采购单");
+        }
+        LocalDate orderDate = orders.get(0).getDeliveryDate();
+
+        // 幂等：任一选中订单已存在于自动采购单 source_order_ids 则拒绝
+        checkOrdersNotInAutoPurchase(orderIds);
+
+        List<PurchaseItem> summaryItems = purchaseItemMapper.selectSummaryByOrderIds(orderIds);
+        if (CollectionUtils.isEmpty(summaryItems)) {
+            throw new ServiceException("所选订单没有可汇总的商品明细，无法生成采购单");
+        }
+
+        String code = bizCodeService.nextDailyCode("purchase", "PC", 3);
+        BigDecimal totalAmount = calcTotalAmount(summaryItems);
+
+        PurchaseOrder order = new PurchaseOrder();
+        order.setCode(code);
+        order.setOrderDate(orderDate);
+        order.setSourceType(SOURCE_TYPE_AUTO);
+        order.setSourceOrderIds(JSON.toJSONString(orderIds));
+        order.setSupplierName(dto.getSupplierName());
+        order.setPurchaser(dto.getPurchaser());
+        order.setTotalAmount(totalAmount);
+        order.setStatus(PurchaseOrderStatus.DRAFT.getCode());
+        order.setCreateTime(DateUtils.getNowDate());
+        purchaseOrderMapper.insertPurchaseOrder(order);
+
+        fillItemsAndSave(order.getId(), summaryItems);
+
+        return order;
+    }
+
+    /**
+     * 幂等校验：已有自动采购单引用任一选中订单则抛异常（含按日期生成的旧单）
+     */
+    private void checkOrdersNotInAutoPurchase(List<Long> orderIds) {
+        PurchaseOrder query = new PurchaseOrder();
+        query.setSourceType(SOURCE_TYPE_AUTO);
+        List<PurchaseOrder> existList = purchaseOrderMapper.selectPurchaseOrderList(query);
+        if (CollectionUtils.isEmpty(existList)) {
+            return;
+        }
+        Set<Long> target = new HashSet<>(orderIds);
+        for (PurchaseOrder po : existList) {
+            if (StringUtils.isEmpty(po.getSourceOrderIds())) {
+                continue;
+            }
+            List<Long> ids;
+            try {
+                ids = JSON.parseArray(po.getSourceOrderIds(), Long.class);
+            } catch (Exception ignored) {
+                // source_order_ids 非 JSON 的历史数据跳过
+                continue;
+            }
+            for (Long id : ids) {
+                if (target.contains(id)) {
+                    throw new ServiceException("订单已包含在采购单【" + po.getCode() + "】中，请勿重复生成");
+                }
+            }
+        }
     }
 
     @Override

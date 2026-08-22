@@ -5,6 +5,7 @@ import com.lin.common.core.controller.BaseController;
 import com.lin.common.core.domain.AjaxResult;
 import com.lin.common.enums.BusinessType;
 import com.lin.distribution.domain.PurchaseOrder;
+import com.lin.distribution.dto.PurchaseByOrdersDTO;
 import com.lin.distribution.dto.PurchaseGenerateDTO;
 import com.lin.distribution.service.PurchaseOrderService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -68,6 +69,17 @@ public class PurchaseOrderController extends BaseController {
     @PostMapping("/generate")
     public AjaxResult generate(@RequestBody @Validated PurchaseGenerateDTO dto) {
         return success(purchaseOrderService.generateByOrderDate(dto));
+    }
+
+    /**
+     * 按勾选订单自动生成采购单（销售订单列表页抽屉）
+     */
+    @Operation(summary = "按勾选订单自动生成采购单")
+    @PreAuthorize("@ss.hasPermi('purchase:add')")
+    @Log(title = "采购单", businessType = BusinessType.INSERT)
+    @PostMapping("/generate-by-orders")
+    public AjaxResult generateByOrders(@RequestBody @Validated PurchaseByOrdersDTO dto) {
+        return success(purchaseOrderService.generateByOrderIds(dto));
     }
 
     /**

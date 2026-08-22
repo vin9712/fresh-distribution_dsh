@@ -17,11 +17,13 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.validation.annotation.Validated;
 import com.lin.common.annotation.Log;
 import com.lin.common.core.controller.BaseController;
 import com.lin.common.core.domain.AjaxResult;
 import com.lin.common.enums.BusinessType;
 import com.lin.distribution.domain.DeliveryOrder;
+import com.lin.distribution.dto.DeliveryByOrdersDTO;
 import com.lin.distribution.service.DeliveryOrderService;
 import com.lin.distribution.service.PrintTemplateService;
 import com.lin.common.utils.poi.ExcelUtil;
@@ -151,6 +153,16 @@ public class DeliveryOrderController extends BaseController {
     @PostMapping("/generate/{deliveryDate}")
     public AjaxResult generate(@PathVariable("deliveryDate") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate deliveryDate) {
         return success(deliveryOrderService.generateByDeliveryDate(deliveryDate));
+    }
+
+    /**
+     * 按勾选订单生成送货单（销售订单列表页抽屉，配送日期可调整）
+     */
+    @PreAuthorize("@ss.hasPermi('order:delivery:add')")
+    @Log(title = "送货单生成", businessType = BusinessType.INSERT)
+    @PostMapping("/generate-by-orders")
+    public AjaxResult generateByOrders(@RequestBody @Validated DeliveryByOrdersDTO dto) {
+        return success(deliveryOrderService.generateByOrderIds(dto));
     }
 
     /**

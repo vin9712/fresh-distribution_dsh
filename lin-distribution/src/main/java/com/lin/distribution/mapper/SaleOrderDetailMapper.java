@@ -82,6 +82,24 @@ public interface SaleOrderDetailMapper {
     List<SaleOrderDetail> selectAggregatedByDeliveryDate(java.time.LocalDate deliveryDate);
 
     /**
+     * 按指定订单ID集合聚合已确认订单明细（送货单按勾选订单生成口径）
+     * 分组：客户 + 配送点 + SKU/品名/单位/规格/单价；数量求和。
+     *
+     * @param orderIds 销售订单ID集合
+     * @return 聚合后的订单明细
+     */
+    List<SaleOrderDetail> selectAggregatedByOrderIds(@Param("orderIds") java.util.Collection<Long> orderIds);
+
+    /**
+     * 按指定订单ID集合聚合已确认订单明细并关联品类名称（生成单据预览口径）
+     * 分组：品类 + SKU/品名/单位/规格；临时商品（sku_id 空）归"临时商品"品类。
+     *
+     * @param orderIds 销售订单ID集合
+     * @return 含 categoryName 的聚合明细
+     */
+    List<SaleOrderDetail> selectPreviewByOrderIds(@Param("orderIds") java.util.Collection<Long> orderIds);
+
+    /**
      * 常用商品统计：近 N 天下单频率最高的 SKU（录单页"常用"面板）
      *
      * @param customerId 客户ID

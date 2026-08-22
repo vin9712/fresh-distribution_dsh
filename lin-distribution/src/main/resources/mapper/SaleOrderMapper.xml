@@ -21,6 +21,8 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         <result property="updateBy"    column="update_by"    />
         <result property="updateTime"    column="update_time"    />
         <result property="remark"    column="remark"    />
+        <result property="purchaseOrderCode"    column="purchaseOrderCode"    />
+        <result property="deliveryOrderCode"    column="deliveryOrderCode"    />
     </resultMap>
 
     <sql id="selectSaleOrderVo">
@@ -42,7 +44,13 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
             so.update_time,
             so.remark,
             coalesce(customer.alias, customer.name) as customerName,
-            cd.name as customerDeptName
+            cd.name as customerDeptName,
+            (select po.code from purchase_order po
+              where po.source_type = 1 and po.source_order_ids is not null
+                and JSON_CONTAINS(po.source_order_ids, cast(so.id as char)) limit 1) as purchaseOrderCode,
+            (select d.code from t_delivery_order d
+              inner join t_delivery_order_detail dd on dd.delivery_id = d.id
+              where dd.order_id = so.id and d.is_deleted = 0 limit 1) as deliveryOrderCode
         from t_sale_order so
         left join t_customer_dept cd on cd.id = so.customer_dept_id
         left join t_customer customer on customer.id = so.customer_id

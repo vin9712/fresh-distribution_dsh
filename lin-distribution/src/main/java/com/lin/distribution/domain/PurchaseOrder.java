@@ -49,6 +49,10 @@ public class PurchaseOrder extends BaseEntity {
     @Excel(name = "供应商名称")
     private String supplierName;
 
+    /** 采购员 */
+    @Excel(name = "采购员")
+    private String purchaser;
+
     /** 采购总额 */
     @Excel(name = "采购总额")
     private BigDecimal totalAmount;

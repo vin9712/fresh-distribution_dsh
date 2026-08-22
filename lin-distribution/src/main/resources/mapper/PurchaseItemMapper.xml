@@ -121,5 +121,25 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         group by d.sku_id, d.product_name, d.product_spec, d.product_unit
         order by d.sku_id, d.product_name
     </select>
+    <select id="selectSummaryByOrderIds" resultMap="PurchaseItemResult">
+        select
+            d.sku_id,
+            d.product_name,
+            d.product_spec,
+            d.product_unit,
+            sum(d.num) as quantity,
+            min(d.product_price) as unit_price
+        from t_sale_order_detail d
+        join t_sale_order o on o.id = d.order_id
+        where o.status = 1
+          and o.is_deleted = 0
+          and d.is_deleted = 0
+          and o.id in
+        <foreach item="orderId" collection="orderIds" open="(" separator="," close=")">
+            #{orderId}
+        </foreach>
+        group by d.sku_id, d.product_name, d.product_spec, d.product_unit
+        order by d.sku_id, d.product_name
+    </select>
 
 </mapper>

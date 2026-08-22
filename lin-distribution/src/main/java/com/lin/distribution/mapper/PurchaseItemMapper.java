@@ -82,4 +82,12 @@ public interface PurchaseItemMapper {
      * @return 汇总后的采购明细（quantity=合计数量，unit_price=商品单价，product_name/unit/spec 取首条明细）
      */
     List<PurchaseItem> selectSummaryByDeliveryDate(LocalDate deliveryDate);
+
+    /**
+     * 按指定订单ID集合汇总已确认订单明细（join t_sale_order 过滤 status=1 且 is_deleted=0），按 sku_id 合并数量
+     *
+     * @param orderIds 销售订单ID集合
+     * @return 汇总后的采购明细（quantity=合计数量，unit_price=商品单价，product_name/unit/spec 取首条明细）
+     */
+    List<PurchaseItem> selectSummaryByOrderIds(java.util.Collection<Long> orderIds);
 }

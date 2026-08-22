@@ -1,6 +1,7 @@
 package com.lin.distribution.service;
 
 import com.lin.distribution.domain.SaleOrder;
+import com.lin.distribution.dto.SaleGeneratePreviewVO;
 import com.lin.distribution.dto.SaleOrderCreateDTO;
 import com.lin.distribution.dto.SaleOrderUpdateStatusDTO;
 import jakarta.validation.constraints.Max;
@@ -95,4 +96,13 @@ public interface SaleOrderService {
      * @param request
      */
     void updateSaleOrderStatus(SaleOrderUpdateStatusDTO request);
+
+    /**
+     * 生成单据前汇总预览（销售订单列表页抽屉第一步，Phase 2）
+     * 校验订单均为已确认，按品类分组聚合明细并返回选中订单头信息。
+     *
+     * @param orderIds 选中的销售订单ID集合
+     * @return 按品类分组的汇总预览
+     */
+    SaleGeneratePreviewVO generatePreview(List<Long> orderIds);
 }
