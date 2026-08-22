@@ -1,10 +1,22 @@
 # 基础信息模块重构（deepseek_redesign.md）— 执行进度与无缝衔接手册
 
-> 更新日期：2026-08-21
+> 更新日期：2026-08-22
 > 设计文档：`docs/deepseek_redesign.md`（最终目标）
 > 现状文档：`docs/基础信息模块梳理.md`（改造前基线）
 > UI 设计文档：`docs/deepseek_ui_redesign.md`（前端交互设计指南）
 > 下一轮执行人：**从此文档"下一步"章节直接开始**，无需重新调研。
+
+---
+
+## ⚠️ 2026-08-22 追加（新工作流已启动，本手册进入维护态）
+
+交互优化方案（`docs/生鲜配送 ERP 交互优化方案.md`）已立项，按 **`docs/交互优化开发计划.md`** 分阶段执行（Phase 0 已完成），
+本手册保留作为 R1 重构期的执行记录与坑位参考。与本次工作相关的两点变化：
+
+1. **遗留问题 #1 已解决**：t_product_sku 已通过 `docs/报价demo.csv` 初始化（88 标准 SKU + 86 SPU + 丽宫已发布报价单 BJ2026082200001 + 客户商品池 88 条），见计划文档 Phase 0。
+2. **取价引擎 Bug 修复（commit be4f982）**：`selectActivePriceByCustomerAndSku` 条件 `sq.valid = 0` → `1`（3e1db22 引入）。
+   原条件与 `selectCustomerActiveQuote`(valid=1) 矛盾，**客户报价层自上线起从未真正命中取价**，单测因 mock mapper 未暴露；
+   修复后 `/price/query` 命中丽宫报价（大白菜 1.20 等，source=2），verify-product-init.js 已加回归守护断言。
 
 ---
 
@@ -218,7 +230,8 @@
 
 ## 4. 遗留问题与后续扩展（非阻塞）
 
-1. **历史数据**：t_product_sku 已重建为空表，旧 SKU 数据（含 customer_id 维度）已清空，需业务侧重新录入标准 SKU 后再做批量赋值
+1. **历史数据** ✅ 已解决（2026-08-22）：t_product_sku 已通过 `docs/报价demo.csv` 初始化（88 标准 SKU + 86 SPU + 客户商品池），
+   并生成丽宫已发布报价单 BJ2026082200001；详见 `docs/交互优化开发计划.md` Phase 0（幂等脚本 `sql/s7_product_init.sql`）
 2. ~~菜单/权限 SQL 未写~~ ✅ 已落地（`sql/r1_frontend_menu.sql`，阶段 4）
 3. 报价单/模板的 skuId 语义已指向标准 SKU，无需改表，代码已验证
 4. 库存/采购/单位换算为设计文档 §9 预留项，未实现（符合"不过度设计"原则）
