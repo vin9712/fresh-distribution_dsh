@@ -1,5 +1,9 @@
 <template>
-  <div class="quick-table" :class="{ 'is-zoomed': isZoomed }">
+  <div
+    class="quick-table"
+    :class="{ 'is-zoomed': isZoomed }"
+    :style="isZoomed ? null : containerStyle"
+  >
     <!-- 搜索区（紧凑、可折叠） -->
     <div
       v-if="$slots.search"
@@ -31,7 +35,7 @@
       auto-resize
       border
       show-overflow
-      :height="height"
+      :height="gridHeight"
       :data="data"
       :loading="loading"
       :columns="mergedColumns"
@@ -133,6 +137,10 @@ export default {
     page: { type: Number, default: 1 },
     limit: { type: Number, default: 10 },
     pageSizes: { type: Array, default: () => [10, 20, 50, 100, 200] },
+    /**
+     * 表格高度：数字（px）/ '100%' / 'auto' 直接传给 vxe；
+     * calc() 等 CSS 字符串由容器承载（vxe-table 内部无法解析 calc()，会导致表格高度落到 40px 只剩一行）
+     */
     height: { type: [String, Number], default: 'calc(100vh - 230px)' },
     /** 批量操作条按钮：{ key, label, type, icon, plain, disabled(rows) } */
     batchActions: {
@@ -192,6 +200,28 @@ export default {
         }
       })
       return [...new Set(names)]
+    },
+    /**
+     * 传给 vxe-grid 的高度：
+     *  - 数字 / '100%' / 'auto' 直接透传（vxe 原生支持）
+     *  - calc() 等 CSS 字符串：vxe-table 内部用 XEUtils.toNumber 解析，calc() 会被解析成 0，
+     *    customHeight 落到 40px 下限 → 表格只剩一行显示空间。故字符串高度改由容器 CSS 承载，
+     *    表格用 '100%' 按父容器计算高度（填充整个容器）。
+     */
+    gridHeight() {
+      const h = this.height
+      if (typeof h === 'number' || h === '100%' || h === 'auto') {
+        return h
+      }
+      return '100%'
+    },
+    /** 容器高度样式（calc() 字符串时承载高度，浏览器原生解析） */
+    containerStyle() {
+      const h = this.height
+      if (typeof h === 'number' || h === '100%' || h === 'auto') {
+        return {}
+      }
+      return { height: h }
     },
     mergedColumns() {
       const cols = [
