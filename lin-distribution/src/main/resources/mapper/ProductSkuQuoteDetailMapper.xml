@@ -89,7 +89,7 @@
         inner join t_product_sku_quote sq on sq.id = sqd.quote_id
         where sq.customer_id = #{customerId}
           and sq.status = 1
-          and sq.valid = 0
+          and sq.valid = 1
           and sqd.sku_id = #{skuId}
           and sqd.is_deleted = 0
           and sq.effective_start_date &lt;= #{priceDate}
