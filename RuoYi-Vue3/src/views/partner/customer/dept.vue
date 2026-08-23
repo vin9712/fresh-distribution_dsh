@@ -24,20 +24,16 @@
 
     <el-row :gutter="10" class="mb8">
       <el-col :span="1.5">
-        <el-button type="primary" plain :icon="Plus" size="small" @click="handleAdd"
-          v-hasPermi="['partner:customerDept:add']">新增</el-button>
+        <el-button type="primary" plain :icon="Plus" size="small" @click="handleAdd">新增</el-button>
       </el-col>
       <el-col :span="1.5">
-        <el-button type="success" plain :icon="Edit" size="small" :disabled="single" @click="handleUpdate"
-          v-hasPermi="['partner:customerDept:edit']">修改</el-button>
+        <el-button type="success" plain :icon="Edit" size="small" :disabled="single" @click="handleUpdate">修改</el-button>
       </el-col>
       <el-col :span="1.5">
-        <el-button type="danger" plain :icon="Delete" size="small" :disabled="multiple" @click="handleDelete"
-          v-hasPermi="['partner:customerDept:remove']">删除</el-button>
+        <el-button type="danger" plain :icon="Delete" size="small" :disabled="multiple" @click="handleDelete">删除</el-button>
       </el-col>
       <el-col :span="1.5">
-        <el-button type="warning" plain :icon="Download" size="small" @click="handleExport"
-          v-hasPermi="['partner:customerDept:export']">导出</el-button>
+        <el-button type="warning" plain :icon="Download" size="small" @click="handleExport">导出</el-button>
       </el-col>
       <right-toolbar v-model:showSearch="showSearch" @queryTable="getPageList"></right-toolbar>
     </el-row>
@@ -54,10 +50,8 @@
       <el-table-column label="备注" align="center" prop="remark" />
       <el-table-column label="操作" align="center" class-name="small-padding fixed-width">
         <template #default="scope">
-          <el-button size="small" link :icon="Edit" @click="handleUpdate(scope.row)"
-            v-hasPermi="['partner:customerDept:edit']">修改</el-button>
-          <el-button size="small" link :icon="Delete" @click="handleDelete(scope.row)"
-            v-hasPermi="['partner:customerDept:remove']">删除</el-button>
+          <el-button size="small" link :icon="Edit" @click="handleUpdate(scope.row)">修改</el-button>
+          <el-button size="small" link :icon="Delete" @click="handleDelete(scope.row)">删除</el-button>
         </template>
       </el-table-column>
     </el-table>

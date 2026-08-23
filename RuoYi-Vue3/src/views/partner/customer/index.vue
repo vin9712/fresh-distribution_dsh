@@ -129,9 +129,12 @@
       <el-table-column label="客户类型" align="center" prop="type">
         <template #default="scope">
           <dict-tag
+            v-if="scope.row.type !== null && scope.row.type !== undefined && scope.row.type !== ''"
             :options="dict.type.t_customer_type"
             :value="scope.row.type"
           />
+          <!-- 兜底：字典无值/客户未设置类型时显示 - -->
+          <span v-else>-</span>
         </template>
       </el-table-column>
       <el-table-column label="是否有效" align="center" prop="valid">

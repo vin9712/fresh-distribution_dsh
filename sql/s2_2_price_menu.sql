@@ -1,5 +1,5 @@
 -- ============================================================
--- S2-2 菜单/权限：报价模板、配送点报价
+-- S2-2 菜单/权限：报价模板、配送点覆盖（原"配送点报价"，已由 price:delivery-override:* 取代 price:point:*）
 -- 父菜单挂载在"基础信息"(menu_id=4) 下；menu_id 从 2063 起
 -- ============================================================
 
@@ -11,10 +11,10 @@ INSERT INTO `fresh-distribution-dsh`.`sys_menu` (`menu_id`, `menu_name`, `parent
 INSERT INTO `fresh-distribution-dsh`.`sys_menu` (`menu_id`, `menu_name`, `parent_id`, `order_num`, `path`, `component`, `query`, `route_name`, `is_frame`, `is_cache`, `menu_type`, `visible`, `status`, `perms`, `icon`, `create_by`, `create_time`, `update_by`, `update_time`, `remark`) VALUES (2066, '模板修改', 2063, 2, '#', '', NULL, '', 1, 0, 'F', '0', '0', 'price:template:edit', '#', 'admin', sysdate(), '', NULL, '');
 INSERT INTO `fresh-distribution-dsh`.`sys_menu` (`menu_id`, `menu_name`, `parent_id`, `order_num`, `path`, `component`, `query`, `route_name`, `is_frame`, `is_cache`, `menu_type`, `visible`, `status`, `perms`, `icon`, `create_by`, `create_time`, `update_by`, `update_time`, `remark`) VALUES (2067, '模板删除', 2063, 3, '#', '', NULL, '', 1, 0, 'F', '0', '0', 'price:template:remove', '#', 'admin', sysdate(), '', NULL, '');
 
--- 父菜单（C）：配送点报价
-INSERT INTO `fresh-distribution-dsh`.`sys_menu` (`menu_id`, `menu_name`, `parent_id`, `order_num`, `path`, `component`, `query`, `route_name`, `is_frame`, `is_cache`, `menu_type`, `visible`, `status`, `perms`, `icon`, `create_by`, `create_time`, `update_by`, `update_time`, `remark`) VALUES (2064, '配送点报价', 4, 4, 'pointPrice', 'price/pointPrice/index', NULL, '', 1, 0, 'C', '0', '0', 'price:point:list', '#', 'admin', sysdate(), '', NULL, '配送点报价菜单');
+-- 父菜单（C）：配送点覆盖
+INSERT INTO `fresh-distribution-dsh`.`sys_menu` (`menu_id`, `menu_name`, `parent_id`, `order_num`, `path`, `component`, `query`, `route_name`, `is_frame`, `is_cache`, `menu_type`, `visible`, `status`, `perms`, `icon`, `create_by`, `create_time`, `update_by`, `update_time`, `remark`) VALUES (2064, '配送点覆盖', 4, 4, 'pointPrice', 'price/pointPrice/index', NULL, '', 1, 0, 'C', '0', '0', 'price:delivery-override:list', '#', 'admin', sysdate(), '', NULL, '配送点覆盖菜单（替代原配送点报价）');
 
--- 按钮（F）：配送点报价
-INSERT INTO `fresh-distribution-dsh`.`sys_menu` (`menu_id`, `menu_name`, `parent_id`, `order_num`, `path`, `component`, `query`, `route_name`, `is_frame`, `is_cache`, `menu_type`, `visible`, `status`, `perms`, `icon`, `create_by`, `create_time`, `update_by`, `update_time`, `remark`) VALUES (2068, '配送点新增', 2064, 1, '#', '', NULL, '', 1, 0, 'F', '0', '0', 'price:point:add', '#', 'admin', sysdate(), '', NULL, '');
-INSERT INTO `fresh-distribution-dsh`.`sys_menu` (`menu_id`, `menu_name`, `parent_id`, `order_num`, `path`, `component`, `query`, `route_name`, `is_frame`, `is_cache`, `menu_type`, `visible`, `status`, `perms`, `icon`, `create_by`, `create_time`, `update_by`, `update_time`, `remark`) VALUES (2069, '配送点修改', 2064, 2, '#', '', NULL, '', 1, 0, 'F', '0', '0', 'price:point:edit', '#', 'admin', sysdate(), '', NULL, '');
-INSERT INTO `fresh-distribution-dsh`.`sys_menu` (`menu_id`, `menu_name`, `parent_id`, `order_num`, `path`, `component`, `query`, `route_name`, `is_frame`, `is_cache`, `menu_type`, `visible`, `status`, `perms`, `icon`, `create_by`, `create_time`, `update_by`, `update_time`, `remark`) VALUES (2070, '配送点删除', 2064, 3, '#', '', NULL, '', 1, 0, 'F', '0', '0', 'price:point:remove', '#', 'admin', sysdate(), '', NULL, '');
+-- 按钮（F）：配送点覆盖
+INSERT INTO `fresh-distribution-dsh`.`sys_menu` (`menu_id`, `menu_name`, `parent_id`, `order_num`, `path`, `component`, `query`, `route_name`, `is_frame`, `is_cache`, `menu_type`, `visible`, `status`, `perms`, `icon`, `create_by`, `create_time`, `update_by`, `update_time`, `remark`) VALUES (2068, '配送点覆盖新增', 2064, 1, '#', '', NULL, '', 1, 0, 'F', '0', '0', 'price:delivery-override:add', '#', 'admin', sysdate(), '', NULL, '');
+INSERT INTO `fresh-distribution-dsh`.`sys_menu` (`menu_id`, `menu_name`, `parent_id`, `order_num`, `path`, `component`, `query`, `route_name`, `is_frame`, `is_cache`, `menu_type`, `visible`, `status`, `perms`, `icon`, `create_by`, `create_time`, `update_by`, `update_time`, `remark`) VALUES (2069, '配送点覆盖修改', 2064, 2, '#', '', NULL, '', 1, 0, 'F', '0', '0', 'price:delivery-override:edit', '#', 'admin', sysdate(), '', NULL, '');
+INSERT INTO `fresh-distribution-dsh`.`sys_menu` (`menu_id`, `menu_name`, `parent_id`, `order_num`, `path`, `component`, `query`, `route_name`, `is_frame`, `is_cache`, `menu_type`, `visible`, `status`, `perms`, `icon`, `create_by`, `create_time`, `update_by`, `update_time`, `remark`) VALUES (2070, '配送点覆盖删除', 2064, 3, '#', '', NULL, '', 1, 0, 'F', '0', '0', 'price:delivery-override:remove', '#', 'admin', sysdate(), '', NULL, '');

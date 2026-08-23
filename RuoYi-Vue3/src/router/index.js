@@ -182,7 +182,7 @@ export const dynamicRoutes = [
     path: '/basicInfo/quote-detail',
     component: Layout,
     hidden: true,
-    permissions: ['partner:quote:add'],
+    permissions: ['product:quote:add'],
     children: [
       {
         path: 'index/:customerId(\\d+)',

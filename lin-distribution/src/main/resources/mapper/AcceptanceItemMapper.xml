@@ -9,6 +9,7 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         <result property="acceptanceId"    column="acceptance_id"    />
         <result property="deliveryItemId"    column="delivery_item_id"    />
         <result property="skuId"    column="sku_id"    />
+        <result property="skuCode"    column="sku_code"    />
         <result property="productName"    column="product_name"    />
         <result property="productSpec"    column="product_spec"    />
         <result property="productUnit"    column="product_unit"    />
@@ -22,7 +23,11 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
     </resultMap>
 
     <sql id="selectAcceptanceItemVo">
-        select id, acceptance_id, delivery_item_id, sku_id, product_name, product_spec, product_unit, delivered_quantity, actual_quantity, unit_price, loss_quantity, loss_reason, actual_amount, sort from acceptance_item
+        select ai.id, ai.acceptance_id, ai.delivery_item_id, ai.sku_id,
+        sku.code as sku_code,
+        ai.product_name, ai.product_spec, ai.product_unit, ai.delivered_quantity, ai.actual_quantity, ai.unit_price, ai.loss_quantity, ai.loss_reason, ai.actual_amount, ai.sort
+        from acceptance_item ai
+        left join t_product_sku sku on ai.sku_id = sku.id
     </sql>
 
     <select id="selectAcceptanceItemList" parameterType="com.lin.distribution.domain.AcceptanceItem" resultMap="AcceptanceItemResult">

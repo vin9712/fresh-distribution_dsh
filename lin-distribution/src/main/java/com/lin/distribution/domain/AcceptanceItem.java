@@ -31,6 +31,10 @@ public class AcceptanceItem implements Serializable {
     @Excel(name = "SKU ID")
     private Long skuId;
 
+    /** SKU 编码（关联 t_product_sku.code；扫码枪扫码定位用，非表字段） */
+    @Excel(name = "商品编码")
+    private String skuCode;
+
     /** 商品名称快照 */
     @Excel(name = "商品名称")
     private String productName;
