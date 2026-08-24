@@ -67,15 +67,6 @@
         <div class="quote-table-toolbar">
           <div class="toolbar-left">
             <span class="panel-title">报价表格</span>
-            <el-tag v-if="anomalyCount > 0" type="warning" size="small" effect="plain">
-              {{ anomalyCount }} 项涨幅异常
-            </el-tag>
-            <el-tooltip
-              content="勾选商品行后点击「批量调价」，输入涨幅%统一调整新报价；新报价相对上次价上涨超过 30% 或下跌超过 10% 会标黄预警"
-              placement="top"
-            >
-              <el-icon class="toolbar-hint"><QuestionFilled /></el-icon>
-            </el-tooltip>
           </div>
           <div class="toolbar-right">
             <el-button
@@ -102,7 +93,6 @@
           :menu-config="isViewMode ? undefined : menuConfig"
           :edit-rules="validRules"
           :edit-config="editConfig"
-          :cell-class-name="cellClassName"
           :data="skuQuoteList"
           @menu-click="handleMenuClick"
         >
@@ -135,8 +125,7 @@
             align="right"
             width="110"
             :formatter="priceFormatter"
-          ></vxe-column>
-          <vxe-column field="productSpec" title="商品规格" width="120"></vxe-column>
+          ></vxe-column>          <vxe-column field="productSpec" title="商品规格" width="120"></vxe-column>
           <vxe-column
             field="price"
             title="新报价"
@@ -145,16 +134,7 @@
             :edit-render="{ name: '$input', autoselect: true }"
           >
             <template #default="{ row }">
-              <span class="price-cell" :class="{ 'has-anomaly': isPriceAnomaly(row) }">
-                {{ formatPrice(row.price) }}
-                <el-tooltip
-                  v-if="isPriceAnomaly(row)"
-                  content="涨幅异常：相对上次价涨幅>30% 或跌幅>10%"
-                  placement="top"
-                >
-                  <span class="anomaly-dot">!</span>
-                </el-tooltip>
-              </span>
+              <span class="price-cell">{{ formatPrice(row.price) }}</span>
             </template>
           </vxe-column>
           <vxe-column field="op" title="操作" fixed="right" width="70" align="center">
@@ -197,7 +177,7 @@ import {
 } from "@/api/product/quote";
 import { listQuoteDetail } from "@/api/product/quoteDetail";
 import { listCustomer } from "@/api/partner/customer";
-import { Refresh, TrendCharts, QuestionFilled } from "@element-plus/icons-vue";
+import { Refresh, TrendCharts } from "@element-plus/icons-vue";
 
 import XEUtils from "xe-utils";
 const quotePage = { path: "/basicInfo/quote" };
@@ -207,7 +187,7 @@ export default {
   dicts: ["biz_yes_no"],
   productFilters: [{ data: "" }],
   setup() {
-    return { Refresh, TrendCharts, QuestionFilled };
+    return { Refresh, TrendCharts };
   },
   data() {
     return {
@@ -242,8 +222,6 @@ export default {
       customerOptions: [],
       // 客户 sku 报价列表
       skuQuoteList: [],
-      // 异常预警基准：新报价相对上次价（sku 参考售价）的偏移阈值
-      anomalyThresholds: { up: 0.3, down: -0.1 },
       // 键盘配置（Excel 式）：isEnter 在「新报价」列向下移动、isTab 横向移动，
       // 均由 vxe-table 默认编辑键盘处理；仅「新报价」列可编辑（见 checkTableActive），
       // 其余列为只读，Enter/Tab 不会误触编辑，通过 Tab 横向浏览。
@@ -324,10 +302,6 @@ export default {
     },
     isCopyMode() {
       return this.$route.query.mode == "copy";
-    },
-    /** 涨幅异常的行数 */
-    anomalyCount() {
-      return this.skuQuoteList.filter((row) => this.isPriceAnomaly(row)).length;
     },
   },
   created() {
@@ -497,12 +471,11 @@ export default {
         this.$tab.closeOpenPage(quotePage);
       }
     },
-    /** 格式化商品单价 */
+    /** 格式化商品单价（上次价：无报价显示 -） */
     priceFormatter({ row }) {
-      const n = this.parseNum(row.price);
-      if (n === null || n === "") return "";
-      const val = n < 0 ? 0 : n;
-      return XEUtils.commafy(val, { digits: 2 });
+      const n = this.parseNum(row.basePrice);
+      if (n === null || n === "" || n <= 0) return "-";
+      return XEUtils.commafy(n, { digits: 2 });
     },
     /** 格式化价格（供模板用于展示，保留两位小数） */
     formatPrice(value) {
@@ -533,25 +506,6 @@ export default {
     /** 保留两位小数 */
     round2(value) {
       return Math.round(parseFloat(value) * 100) / 100;
-    },
-    /**
-     * 判断某行新报价是否涨幅异常：
-     * 仅当已填写且>0 的真实报价才参与判定（未填写的客户池商品 price=0 不误报）
-     */
-    isPriceAnomaly(row) {
-      if (this.isViewMode) return false;
-      const price = this.parseNum(row.price);
-      const base = this.parseNum(row.basePrice);
-      if (price === null || price <= 0 || base === null || base <= 0) return false;
-      const dev = (price - base) / base;
-      return dev > this.anomalyThresholds.up || dev < this.anomalyThresholds.down;
-    },
-    /** vxe 单元格样式：异常预警（橙色背景/边框） */
-    cellClassName({ row, column }) {
-      if (column.field === "price" && this.isPriceAnomaly(row)) {
-        return "quote-anomaly-cell";
-      }
-      return "";
     },
     /** 右键菜单点击 */
     handleMenuClick({ row, rowIndex, column, menu }) {
@@ -681,32 +635,10 @@ export default {
   align-items: center;
 }
 
-/* 异常预警单元格：橙色背景 + 边框 */
-:deep(.vxe-table--body .quote-anomaly-cell) {
-  background-color: #fff3e0 !important;
-  box-shadow: inset 0 0 0 1px #f5a623;
-}
-:deep(.vxe-table--body .quote-anomaly-cell:focus) {
-  background-color: #fff3e0 !important;
-}
-
 .price-cell {
   position: relative;
   display: inline-flex;
   align-items: center;
   gap: 4px;
-}
-.anomaly-dot {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 14px;
-  height: 14px;
-  border-radius: 50%;
-  background: #f5a623;
-  color: #fff;
-  font-size: 11px;
-  line-height: 14px;
-  cursor: help;
 }
 </style>
