@@ -1,5 +1,8 @@
 <template>
   <div class="app-container">
+    <div class="quick-page-hint">
+      商品可售单元（规格 / 单位 / 售价），如「苹果 - 5斤/箱」。可通过「关联商品库」挂到「<b>商品库</b>」的商品上。
+    </div>
     <quick-table
       ref="quickTable"
       id="basic-sku-table"
@@ -21,7 +24,16 @@
       @batch-action="handleBatchAction"
     >
       <template #search>
-        <el-form :model="queryParams" ref="queryForm" size="small" :inline="true" label-width="60px">
+        <el-form :model="queryParams" ref="queryForm" size="small" :inline="true" label-width="80px">
+          <el-form-item label="商品名称" prop="name">
+            <el-input
+              v-model="queryParams.name"
+              placeholder="名称/助记码/别名"
+              clearable
+              style="width: 160px"
+              @keyup.enter="handleQuery"
+            />
+          </el-form-item>
           <el-form-item label="商品分类" prop="categoryId">
             <el-cascader
               v-model="querySelectedOptions"
@@ -33,15 +45,6 @@
               filterable
               clearable
               style="width: 160px"
-            />
-          </el-form-item>
-          <el-form-item label="商品名称" prop="name">
-            <el-input
-              v-model="queryParams.name"
-              placeholder="名称/助记码/别名"
-              clearable
-              style="width: 160px"
-              @keyup.enter="handleQuery"
             />
           </el-form-item>
           <el-form-item label="上架" prop="saleable">
@@ -65,8 +68,17 @@
       <template #buttons>
         <el-button type="primary" plain :icon="Plus" size="small" @click="handleAdd"
           v-hasPermi="['product:sku:add']">新增</el-button>
-        <el-dropdown split-button type="success" size="small" :disabled="ids.length == 0" @command="handleCommand">
-          关联商品库
+        <el-button type="danger" plain :icon="Delete" size="small" :disabled="multiple" @click="handleDelete"
+          v-hasPermi="['product:sku:remove']">删除</el-button>
+        <el-button type="info" plain :icon="UploadFilled" size="small" @click="handleImport">导入</el-button>
+        <el-button type="warning" plain :icon="Download" size="small" @click="handleExport"
+          v-hasPermi="['product:sku:export']">导出</el-button>
+        <el-dropdown size="small" :disabled="ids.length == 0" @command="handleCommand">
+          <el-button type="success" plain size="small" :disabled="ids.length == 0">
+            <el-icon style="margin-right: 4px"><Connection /></el-icon>
+            关联商品库
+            <el-icon class="el-icon--right"><ArrowDown /></el-icon>
+          </el-button>
           <template #dropdown>
             <el-dropdown-menu>
               <el-dropdown-item command="matched">批量关联</el-dropdown-item>
@@ -74,11 +86,6 @@
             </el-dropdown-menu>
           </template>
         </el-dropdown>
-        <el-button type="danger" plain :icon="Delete" size="small" :disabled="multiple" @click="handleDelete"
-          v-hasPermi="['product:sku:remove']">删除</el-button>
-        <el-button type="info" plain :icon="UploadFilled" size="small" @click="handleImport">导入</el-button>
-        <el-button type="warning" plain :icon="Download" size="small" @click="handleExport"
-          v-hasPermi="['product:sku:export']">导出</el-button>
       </template>
 
       <!-- 列插槽 -->
@@ -120,7 +127,7 @@
     </quick-table>
 
     <!-- 添加或修改商品信息对话框 -->
-    <el-dialog :title="title" v-model="open" width="560px" append-to-body>
+    <el-dialog align-center :title="title" v-model="open" width="640px" append-to-body>
       <el-form ref="form" :model="form" :rules="rules" label-width="100px">
         <el-form-item label="商品分类" prop="categoryId">
           <el-cascader
@@ -163,10 +170,76 @@
             :disabled="form.id == null"
           />
         </el-form-item>
-        <el-form-item label="商品规格" prop="specName">
+        <!-- 新增：多单位/规格批量添加 -->
+        <el-form-item v-if="form.id == null" label="单位/规格">
+          <div style="width: 100%">
+            <el-table :data="variantRows" size="small" style="width: 100%">
+              <el-table-column label="规格" min-width="110">
+                <template #default="{ row }">
+                  <el-input v-model="row.specName" placeholder="如：大果/5斤装" size="small" />
+                </template>
+              </el-table-column>
+              <el-table-column label="单位" width="100">
+                <template #default="{ row }">
+                  <el-select
+                    v-model="row.unit"
+                    size="small"
+                    filterable
+                    allow-create
+                    default-first-option
+                    placeholder="必选"
+                  >
+                    <el-option
+                      v-for="dict in dict.type.t_sku_unit"
+                      :key="dict.value"
+                      :label="dict.label"
+                      :value="dict.label"
+                    />
+                  </el-select>
+                </template>
+              </el-table-column>
+              <el-table-column label="称重" width="65" align="center">
+                <template #default="{ row }">
+                  <el-switch v-model="row.isWeighted" :active-value="1" :inactive-value="0" size="small" />
+                </template>
+              </el-table-column>
+              <el-table-column label="售价" width="115">
+                <template #default="{ row }">
+                  <el-input-number
+                    v-model="row.salePrice"
+                    :min="0"
+                    :precision="2"
+                    size="small"
+                    controls-position="right"
+                    style="width: 95px"
+                  />
+                </template>
+              </el-table-column>
+              <el-table-column width="55" align="center">
+                <template #default="{ $index }">
+                  <el-button
+                    size="small"
+                    link
+                    type="danger"
+                    :icon="Delete"
+                    :disabled="variantRows.length <= 1"
+                    @click="handleRemoveVariantRow($index)"
+                  />
+                </template>
+              </el-table-column>
+            </el-table>
+            <div style="margin-top: 6px">
+              <el-button size="small" type="primary" plain :icon="Plus" @click="handleAddVariantRow">添加一行</el-button>
+              <span class="el-form-item-msg" style="margin-left: 8px">
+                同一商品可一次添加多个单位/规格，每行生成一个标准SKU
+              </span>
+            </div>
+          </div>
+        </el-form-item>
+        <el-form-item v-if="form.id != null" label="商品规格" prop="specName">
           <el-input v-model="form.specName" placeholder="如：大果 / 5斤/箱" />
         </el-form-item>
-        <el-form-item label="商品单位" prop="unit">
+        <el-form-item v-if="form.id != null" label="商品单位" prop="unit">
           <el-select
             v-model="form.unit"
             placeholder="请选择商品单位"
@@ -184,7 +257,7 @@
             />
           </el-select>
         </el-form-item>
-        <el-form-item label="是否称重" prop="isWeighted">
+        <el-form-item v-if="form.id != null" label="是否称重" prop="isWeighted">
           <el-switch
             v-model="form.isWeighted"
             :active-value="1"
@@ -194,7 +267,7 @@
           />
           <div class="el-form-item-msg">称重商品按斤/公斤计价，非称重按固定包装（如箱）下单</div>
         </el-form-item>
-        <el-form-item label="基础单位" prop="baseUnit">
+        <el-form-item v-if="form.id != null" label="基础单位" prop="baseUnit">
           <el-select
             v-model="form.baseUnit"
             placeholder="跨SKU汇总的基础单位（可选）"
@@ -212,7 +285,7 @@
             />
           </el-select>
         </el-form-item>
-        <el-form-item label="换算率" prop="conversionRate">
+        <el-form-item v-if="form.id != null" label="换算率" prop="conversionRate">
           <el-input-number
             v-model="form.conversionRate"
             :min="0"
@@ -221,7 +294,7 @@
             style="width: 100%"
           />
         </el-form-item>
-        <el-form-item label="参考售价" prop="salePrice">
+        <el-form-item v-if="form.id != null" label="参考售价" prop="salePrice">
           <el-input-number
             v-model="form.salePrice"
             :min="0"
@@ -267,7 +340,7 @@
     </el-dialog>
 
     <!-- 批量关联商品库弹窗 -->
-    <el-dialog
+    <el-dialog align-center
       v-model="matchDialog.open"
       title="批量关联商品库"
       width="1000px"
@@ -311,7 +384,7 @@
     </el-dialog>
 
     <!-- 商品导入对话框 -->
-    <el-dialog
+    <el-dialog align-center
       :title="upload.title"
       v-model="upload.open"
       width="400px"
@@ -380,6 +453,8 @@ import {
   UploadFilled,
   DArrowRight,
   QuestionFilled,
+  Connection,
+  ArrowDown,
 } from "@element-plus/icons-vue";
 
 export default {
@@ -398,6 +473,8 @@ export default {
       UploadFilled,
       DArrowRight,
       QuestionFilled,
+      Connection,
+      ArrowDown,
     };
   },
   data() {
@@ -467,8 +544,6 @@ export default {
         { field: "specName", title: "商品规格", minWidth: 100, showOverflow: true },
         { field: "unit", title: "单位", width: 70, align: "center" },
         { field: "isWeighted", title: "称重", width: 80, align: "center", slots: { default: "col_weighted" } },
-        { field: "baseUnit", title: "基础单位", width: 90, align: "center" },
-        { field: "conversionRate", title: "换算率", width: 80, align: "center" },
         {
           field: "salePrice",
           title: "参考售价",
@@ -490,6 +565,8 @@ export default {
       ],
       // 表单参数
       form: {},
+      // 新增时的多单位/规格行
+      variantRows: [],
       // 表单校验
       rules: {
         categoryId: [
@@ -605,6 +682,27 @@ export default {
       this.resetForm("form");
       // 清空级联选择器
       this.formSelectedOptions = [];
+      // 重置多单位/规格行（保留一行默认行）
+      this.variantRows = [this.createVariantRow()];
+    },
+    /** 创建一行默认的规格 */
+    createVariantRow() {
+      return {
+        specName: "",
+        unit: "斤",
+        isWeighted: 1,
+        baseUnit: null,
+        conversionRate: null,
+        salePrice: 0,
+      };
+    },
+    /** 添加一行规格 */
+    handleAddVariantRow() {
+      this.variantRows.push(this.createVariantRow());
+    },
+    /** 删除一行规格 */
+    handleRemoveVariantRow(index) {
+      this.variantRows.splice(index, 1);
     },
     /** 搜索按钮操作 */
     handleQuery() {
@@ -628,7 +726,7 @@ export default {
     handleAdd() {
       this.reset();
       this.open = true;
-      this.title = "添加商品信息";
+      this.title = "添加规格";
     },
     /** 修改按钮操作 */
     handleUpdate(row) {
@@ -642,7 +740,7 @@ export default {
           this.form.categoryId.toString()
         );
         this.open = true;
-        this.title = "修改商品信息";
+        this.title = "修改规格";
       });
     },
     /** 更多按钮操作 */
@@ -697,14 +795,67 @@ export default {
               this.getPageList();
             });
           } else {
-            addSku(this.form).then((response) => {
-              this.$modal.msgSuccess("新增成功");
-              this.open = false;
-              this.getPageList();
-            });
+            this.submitAddWithVariants();
           }
         }
       });
+    },
+    /** 新增：按多单位/规格逐行提交 */
+    async submitAddWithVariants() {
+      const rows = this.variantRows;
+      // 行级校验：单位必填 + 规格/单位不重复
+      const seen = new Set();
+      for (let i = 0; i < rows.length; i++) {
+        const row = rows[i];
+        if (!row.unit) {
+          this.$modal.msgWarning("第" + (i + 1) + "行：请选择商品单位");
+          return;
+        }
+        const key = (row.specName || "") + "|" + row.unit;
+        if (seen.has(key)) {
+          this.$modal.msgWarning(
+            "第" + (i + 1) + "行：规格/单位与前面行重复（" + (row.specName || "无规格") + "/" + row.unit + "）"
+          );
+          return;
+        }
+        seen.add(key);
+      }
+      const payloads = rows.map((row) => ({
+        ...this.form,
+        id: null,
+        specName: row.specName || null,
+        unit: row.unit,
+        isWeighted: row.isWeighted,
+        baseUnit: row.baseUnit || null,
+        conversionRate: row.conversionRate || null,
+        salePrice: row.salePrice == null ? 0 : row.salePrice,
+      }));
+      let successCount = 0;
+      const failedRows = [];
+      for (let i = 0; i < payloads.length; i++) {
+        try {
+          await addSku(payloads[i]);
+          successCount++;
+        } catch (e) {
+          const row = rows[i];
+          failedRows.push("第" + (i + 1) + "行（" + (row.specName || "无规格") + "/" + row.unit + "）");
+        }
+      }
+      if (failedRows.length === 0) {
+        this.$modal.msgSuccess("新增成功，共 " + successCount + " 个SKU");
+      } else if (successCount > 0) {
+        this.$alert(
+          "<div style='max-height: 50vh; overflow: auto;'>成功 " + successCount + " 个，失败 " + failedRows.length + " 个：<br/>" +
+            failedRows.join("<br/>") + "</div>",
+          "部分失败",
+          { dangerouslyUseHTMLString: true }
+        );
+      } else {
+        this.$modal.msgError("全部新增失败，请检查后重试");
+        return;
+      }
+      this.open = false;
+      this.getPageList();
     },
     /** 批量取消匹配按钮操作 */
     handleUndoMatchedSku(row) {
@@ -808,13 +959,15 @@ export default {
         this.form.spuId = spuItem.spuId;
       }
     },
-    /** 处理级联选择器，取最后一个选项 */
+    /** 处理级联选择器，取最后一个选项（兼容清空时传入 null） */
     handleQueryCascaderChange(value) {
-      this.queryParams.categoryId = value ? value[value.length - 1] : null;
+      const arr = Array.isArray(value) ? value : [];
+      this.queryParams.categoryId = arr.length ? arr[arr.length - 1] : null;
       this.handleQuery();
     },
     handleFormOptionsChanged(value) {
-      this.form.categoryId = value ? value[value.length - 1] : null;
+      const arr = Array.isArray(value) ? value : [];
+      this.form.categoryId = arr.length ? arr[arr.length - 1] : null;
     },
     /** 格式化商品分类 */
     categoryFormatter(row) {
