@@ -60,7 +60,7 @@
       @pagination="getPageList" />
 
     <!-- 添加或修改配送点对话框 -->
-    <el-dialog :title="title" v-model="open" width="500px" append-to-body>
+    <el-dialog align-center :title="title" v-model="open" width="500px" append-to-body>
       <el-form ref="form" :model="form" :rules="rules" label-width="80px">
         <el-form-item label="当前客户" prop="customerId">
           <el-select v-model="form.customerId" disabled>

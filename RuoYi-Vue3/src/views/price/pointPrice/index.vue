@@ -18,7 +18,7 @@
       @batch-action="handleQuickBatchAction"
     >
       <template #search>
-        <el-form :model="queryParams" ref="queryForm" size="small" :inline="true" label-width="48px">
+        <el-form :model="queryParams" ref="queryForm" size="small" :inline="true" label-width="80px">
           <el-form-item label="配送点" prop="deliveryPointId">
             <el-select v-model="queryParams.deliveryPointId" placeholder="请选择配送点" clearable filterable style="width: 200px">
               <el-option v-for="item in deptOptions" :key="item.id" :label="item.name" :value="item.id" />
@@ -66,7 +66,7 @@
     </quick-table>
 
     <!-- 添加或修改配送点覆盖对话框 -->
-    <el-dialog :title="title" v-model="open" width="580px" append-to-body>
+    <el-dialog align-center :title="title" v-model="open" width="580px" append-to-body>
       <el-form ref="form" :model="form" :rules="rules" label-width="90px">
         <el-form-item label="配送点" prop="deliveryPointId">
           <el-select v-model="form.deliveryPointId" placeholder="请选择配送点" filterable clearable style="width: 100%">

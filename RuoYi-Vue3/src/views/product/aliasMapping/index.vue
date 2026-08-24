@@ -21,7 +21,7 @@
           @delete="aliasHandleQuickDelete"
         >
           <template #search>
-            <el-form :model="aliasQueryParams" ref="aliasQueryForm" size="small" :inline="true" label-width="48px">
+            <el-form :model="aliasQueryParams" ref="aliasQueryForm" size="small" :inline="true" label-width="80px">
               <el-form-item label="别名" prop="alias">
                 <el-input v-model="aliasQueryParams.alias" placeholder="请输入别名" clearable style="width: 160px" @keyup.enter="aliasHandleQuery" />
               </el-form-item>
@@ -68,7 +68,7 @@
           @delete="mappingHandleQuickDelete"
         >
           <template #search>
-            <el-form :model="mappingQueryParams" ref="mappingQueryForm" size="small" :inline="true" label-width="60px">
+            <el-form :model="mappingQueryParams" ref="mappingQueryForm" size="small" :inline="true" label-width="80px">
               <el-form-item label="客户" prop="customerId">
                 <el-select v-model="mappingQueryParams.customerId" placeholder="全部" clearable filterable style="width: 160px">
                   <el-option v-for="item in customerOptions" :key="item.id" :label="item.name" :value="item.id" />
@@ -114,7 +114,7 @@
           @delete="tempHandleQuickDelete"
         >
           <template #search>
-            <el-form :model="tempQueryParams" ref="tempQueryForm" size="small" :inline="true" label-width="48px">
+            <el-form :model="tempQueryParams" ref="tempQueryForm" size="small" :inline="true" label-width="80px">
               <el-form-item label="客户" prop="customerId">
                 <el-select v-model="tempQueryParams.customerId" placeholder="全部（含客户专用）" clearable filterable style="width: 180px" @change="tempHandleQuery">
                   <el-option v-for="item in customerOptions" :key="item.id" :label="item.name" :value="item.id" />
@@ -152,7 +152,7 @@
     </el-tabs>
 
     <!-- 全局别名新增/修改对话框 -->
-    <el-dialog :title="aliasTitle" v-model="aliasOpen" width="560px" append-to-body>
+    <el-dialog align-center :title="aliasTitle" v-model="aliasOpen" width="560px" append-to-body>
       <el-form ref="aliasForm" :model="aliasForm" :rules="aliasRules" label-width="90px">
         <el-form-item label="别名" prop="alias">
           <el-input v-model="aliasForm.alias" placeholder="请输入别名" />
@@ -177,7 +177,7 @@
     </el-dialog>
 
     <!-- 客户SKU映射新增/修改对话框 -->
-    <el-dialog :title="mappingTitle" v-model="mappingOpen" width="560px" append-to-body>
+    <el-dialog align-center :title="mappingTitle" v-model="mappingOpen" width="560px" append-to-body>
       <el-form ref="mappingForm" :model="mappingForm" :rules="mappingRules" label-width="90px">
         <el-form-item label="客户" prop="customerId">
           <el-select v-model="mappingForm.customerId" placeholder="请选择客户" filterable clearable style="width: 100%">
@@ -202,7 +202,7 @@
     </el-dialog>
 
     <!-- 临时商品新增/修改对话框 -->
-    <el-dialog :title="tempTitle" v-model="tempOpen" width="560px" append-to-body>
+    <el-dialog align-center :title="tempTitle" v-model="tempOpen" width="560px" append-to-body>
       <el-form ref="tempForm" :model="tempForm" :rules="tempRules" label-width="90px">
         <el-form-item label="所属客户" prop="customerId">
           <el-select v-model="tempForm.customerId" placeholder="不选=全局临时商品" clearable filterable style="width: 100%">
@@ -235,7 +235,7 @@
     </el-dialog>
 
     <!-- 临时商品转正对话框（需选客户 + 分类） -->
-    <el-dialog title="临时商品转正为正式SKU" v-model="convertOpen" width="560px" append-to-body>
+    <el-dialog align-center title="临时商品转正为正式SKU" v-model="convertOpen" width="560px" append-to-body>
       <el-form ref="convertForm" :model="convertForm" :rules="convertRules" label-width="90px">
         <el-form-item label="临时商品">
           <el-input :value="convertForm.name" disabled />

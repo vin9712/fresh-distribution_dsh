@@ -18,7 +18,7 @@
       @batch-action="handleQuickBatchAction"
     >
       <template #search>
-        <el-form :model="queryParams" ref="queryForm" size="small" :inline="true" label-width="60px">
+        <el-form :model="queryParams" ref="queryForm" size="small" :inline="true" label-width="80px">
           <el-form-item label="模板名称" prop="name">
             <el-input
               v-model="queryParams.name"
@@ -78,7 +78,7 @@
     </quick-table>
 
     <!-- 新增/修改模板对话框 -->
-    <el-dialog :title="title" v-model="open" width="620px" append-to-body>
+    <el-dialog align-center :title="title" v-model="open" width="620px" append-to-body>
       <el-form ref="form" :model="form" :rules="rules" label-width="90px">
         <el-form-item label="模板名称" prop="name">
           <el-input v-model="form.name" placeholder="如：食堂常用商品 / 蔬菜周配" />
@@ -120,7 +120,7 @@
     </el-dialog>
 
     <!-- 模板明细对话框 -->
-    <el-dialog title="模板SKU明细" v-model="itemsOpen" width="680px" append-to-body>
+    <el-dialog align-center title="模板SKU明细" v-model="itemsOpen" width="680px" append-to-body>
       <el-table :data="itemsList" border>
         <el-table-column label="编码" align="center" prop="code" width="110" />
         <el-table-column label="商品名称" align="center" prop="name" min-width="140" :show-overflow-tooltip="true" />

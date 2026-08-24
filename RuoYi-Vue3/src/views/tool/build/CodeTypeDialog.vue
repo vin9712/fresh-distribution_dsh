@@ -1,5 +1,5 @@
 <template>
-  <el-dialog v-model="open" width="500px" title="选择生成类型" @open="onOpen" @close="onClose">
+  <el-dialog align-center v-model="open" width="500px" title="选择生成类型" @open="onOpen" @close="onClose">
     <el-form ref="codeTypeForm" :model="formData" :rules="rules" label-width="100px">
       <el-form-item label="生成类型" prop="type">
         <el-radio-group v-model="formData.type">

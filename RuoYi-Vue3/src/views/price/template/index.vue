@@ -1,6 +1,6 @@
 <template>
   <div class="app-container">
-    <el-form :model="queryParams" ref="queryForm" size="small" :inline="true" label-width="68px">
+    <el-form :model="queryParams" ref="queryForm" size="small" :inline="true" label-width="80px">
       <el-form-item label="模板名称" prop="name">
         <el-input v-model="queryParams.name" placeholder="请输入模板名称" clearable @keyup.enter="handleQuery" />
       </el-form-item>
@@ -51,7 +51,7 @@
     </el-table>
 
     <!-- 添加或修改报价模板对话框 -->
-    <el-dialog :title="title" v-model="open" width="560px" append-to-body>
+    <el-dialog align-center :title="title" v-model="open" width="560px" append-to-body>
       <el-form ref="form" :model="form" :rules="rules" label-width="90px">
         <el-form-item label="模板名称" prop="name">
           <el-input v-model="form.name" placeholder="请输入模板名称" />
@@ -81,7 +81,7 @@
     </el-dialog>
 
     <!-- SKU价格对话框 -->
-    <el-dialog :title="skuTitle" v-model="skuOpen" width="860px" append-to-body>
+    <el-dialog align-center :title="skuTitle" v-model="skuOpen" width="860px" append-to-body>
       <div class="mb8">
         <el-button type="primary" plain :icon="Plus" size="small" @click="skuAddRow">新增行</el-button>
       </div>
@@ -123,7 +123,7 @@
     </el-dialog>
 
     <!-- 绑定客户对话框 -->
-    <el-dialog :title="customerTitle" v-model="customerOpen" width="560px" append-to-body>
+    <el-dialog align-center :title="customerTitle" v-model="customerOpen" width="560px" append-to-body>
       <el-alert type="info" :closable="false" title="提示：一个客户最多绑定一个模板，重新绑定将自动替换原绑定。" class="mb8" />
       <el-form label-width="90px">
         <el-form-item label="选择客户">

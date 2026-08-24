@@ -1,6 +1,6 @@
 <template>
   <div class="app-container">
-    <el-form :model="queryParams" ref="queryForm" size="small" :inline="true" v-show="showSearch" label-width="68px">
+    <el-form :model="queryParams" ref="queryForm" size="small" :inline="true" v-show="showSearch" label-width="80px">
       <el-form-item label="分类名称" prop="name">
         <el-input v-model="queryParams.name" placeholder="请输入分类名称" clearable @keyup.enter="handleQuery" />
       </el-form-item>
@@ -50,7 +50,7 @@
     </el-table>
 
     <!-- 添加或修改商品分类对话框 -->
-    <el-dialog :title="title" v-model="open" width="680px" append-to-body>
+    <el-dialog align-center :title="title" v-model="open" width="680px" append-to-body>
       <el-form ref="form" :model="form" :rules="rules" label-width="100px">
         <el-row>
           <el-col :span="24">

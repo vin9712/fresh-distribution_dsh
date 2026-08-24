@@ -1,5 +1,5 @@
 <template>
-  <el-dialog :title="type === 'log' ? '调度日志详细' : '任务详细'" v-model="dialogVisible" width="780px" append-to-body>
+  <el-dialog align-center :title="type === 'log' ? '调度日志详细' : '任务详细'" v-model="dialogVisible" width="780px" append-to-body>
     <div class="detail-wrap">
       <template v-if="type === 'log'">
         <!-- 基本信息 -->

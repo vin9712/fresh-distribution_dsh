@@ -170,7 +170,7 @@
     />
 
     <!-- 送货单明细对话框（按商品合并行） -->
-    <el-dialog :title="detailTitle" v-model="detailOpen" width="760px" append-to-body>
+    <el-dialog align-center :title="detailTitle" v-model="detailOpen" width="760px" append-to-body>
       <el-table :data="detailList" size="small" border>
         <el-table-column label="商品名称" align="center" prop="productName" />
         <el-table-column label="单位" align="center" prop="productUnit" width="80" />

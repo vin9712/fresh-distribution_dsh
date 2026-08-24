@@ -1,5 +1,5 @@
 <template>
-  <el-dialog title="操作日志详细" v-model="dialogVisible" width="780px" append-to-body @close="$emit('update:visible', false)">
+  <el-dialog align-center title="操作日志详细" v-model="dialogVisible" width="780px" append-to-body @close="$emit('update:visible', false)">
     <div class="detail-wrap">
       <!-- 基本信息 -->
       <div class="detail-card">

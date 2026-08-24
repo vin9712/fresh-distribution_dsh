@@ -6,7 +6,7 @@
       size="small"
       :inline="true"
       v-show="showSearch"
-      label-width="68px"
+      label-width="80px"
     >
       <el-form-item label="客户名称" prop="name">
         <el-input
@@ -178,7 +178,7 @@
     />
 
     <!-- 添加或修改客户对话框 -->
-    <el-dialog :title="title" v-model="open" width="500px" append-to-body>
+    <el-dialog align-center :title="title" v-model="open" width="500px" append-to-body>
       <el-form ref="form" :model="form" :rules="rules" label-width="80px">
         <el-form-item label="客户类别" prop="type">
           <el-select v-model="form.type" placeholder="请选择客户类别" clearable>
@@ -229,7 +229,7 @@
     </el-dialog>
 
     <!-- 客户导入对话框 -->
-    <el-dialog
+    <el-dialog align-center
       :title="upload.title"
       v-model="upload.open"
       width="400px"

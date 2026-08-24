@@ -136,7 +136,7 @@
     />
 
     <!-- 添加或修改打印模板对话框 -->
-    <el-dialog :title="title" v-model="open" width="620px" append-to-body>
+    <el-dialog align-center :title="title" v-model="open" width="620px" append-to-body>
       <el-form ref="form" :model="form" :rules="rules" label-width="110px">
         <el-form-item label="模板编号" prop="code">
           <el-input v-model="form.code" placeholder="请输入模板编号" />

@@ -123,7 +123,7 @@
     />
 
     <!-- 新增验收单：选择已送达送货单（一单一验） -->
-    <el-dialog :title="addTitle" v-model="addOpen" width="560px" append-to-body>
+    <el-dialog align-center :title="addTitle" v-model="addOpen" width="560px" append-to-body>
       <el-form label-width="90px">
         <el-form-item label="送货单">
           <el-select v-model="addForm.deliveryOrderId" placeholder="请选择已送达的送货单" filterable style="width: 100%">
@@ -146,7 +146,7 @@
     </el-dialog>
 
     <!-- 验收明细对话框（查看/录入共用，录入时实收数量与损耗原因可编辑） -->
-    <el-dialog :title="detailTitle" v-model="detailOpen" width="900px" append-to-body>
+    <el-dialog align-center :title="detailTitle" v-model="detailOpen" width="900px" append-to-body>
       <template #header>
         <div class="detail-dialog-header">
           <span class="detail-dialog-title">{{ detailTitle }}</span>

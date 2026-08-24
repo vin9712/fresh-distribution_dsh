@@ -147,7 +147,7 @@
     </el-table>
 
     <!-- 添加或修改采购单对话框 -->
-    <el-dialog :title="title" v-model="open" width="920px" append-to-body>
+    <el-dialog align-center :title="title" v-model="open" width="920px" append-to-body>
       <el-form ref="form" :model="form" :rules="rules" label-width="90px">
         <el-row>
           <el-col :span="12">
