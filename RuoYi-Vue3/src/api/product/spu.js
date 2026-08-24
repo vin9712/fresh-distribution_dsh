@@ -51,3 +51,12 @@ export function delSpu(id) {
     method: 'delete'
   })
 }
+
+// 粘贴文本快速导入商品库
+export function importTextSpu(data) {
+  return request({
+    url: '/product/spu/importText',
+    method: 'post',
+    data: data
+  })
+}

@@ -127,6 +127,14 @@ public interface ProductService {
      */
     String importProductSpu(List<ProductSpu> spuList);
 
+    /**
+     * 粘贴文本快速导入商品库（每行一条：支持「分类/商品名」或直接「商品名」）
+     * @param text 粘贴的文本内容
+     * @param defaultCategoryId 行内未指定分类时使用的默认分类ID（可为空）
+     * @return 导入结果报告
+     */
+    String importProductSpuText(String text, Long defaultCategoryId);
+
     int matchProductSku(ProductSkuMatchDTO request);
 
     int undoMatchProductSku(ProductSkuMatchDTO request);

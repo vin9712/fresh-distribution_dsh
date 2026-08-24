@@ -1,5 +1,8 @@
 <template>
   <div class="app-container">
+    <div class="quick-page-hint">
+      商品本体档案（叫什么、归属分类）。先在这里建商品，再到「<b>商品规格</b>」添加可售的规格与单位。
+    </div>
     <quick-table
       ref="quickTable"
       id="basic-spu-table"
@@ -26,7 +29,7 @@
           ref="queryForm"
           size="small"
           :inline="true"
-          label-width="60px"
+          label-width="80px"
         >
           <el-form-item label="商品名称" prop="name">
             <el-input
@@ -131,6 +134,15 @@
           v-hasPermi="['product:spu:import']"
           >导入</el-button
         >
+        <el-button
+          type="warning"
+          plain
+          :icon="DocumentAdd"
+          size="small"
+          @click="handleQuickImport"
+          v-hasPermi="['product:spu:import']"
+          >快速导入</el-button
+        >
       </template>
 
       <!-- 列插槽 -->
@@ -164,7 +176,7 @@
     </quick-table>
 
     <!-- 添加或修改商品spu对话框 -->
-    <el-dialog :title="title" v-model="open" width="700px" append-to-body>
+    <el-dialog align-center :title="title" v-model="open" width="700px" append-to-body>
       <el-form ref="form" :model="form" :rules="rules" label-width="80px">
         <el-form-item label="商品分类" prop="categoryId">
           <el-cascader
@@ -244,8 +256,49 @@
       </template>
     </el-dialog>
 
+    <!-- 快速导入对话框 -->
+    <el-dialog align-center title="快速导入" v-model="quickImport.open" width="560px" append-to-body>
+      <el-alert type="info" :closable="false" show-icon style="margin-bottom: 12px">
+        <template #title>
+          每行一条商品，支持「<b>分类/商品名</b>」或直接「<b>商品名</b>」（使用默认分类），可直接从 Excel 粘贴一列商品名。
+        </template>
+      </el-alert>
+      <el-form label-width="80px">
+        <el-form-item label="默认分类">
+          <el-cascader
+            v-model="quickImportSelectedOptions"
+            placeholder="行内未指定分类时使用（可选）"
+            :options="categoryOptions"
+            @change="handleQuickImportCategoryChange"
+            :props="{ expandTrigger: 'hover' }"
+            :show-all-levels="false"
+            filterable
+            clearable
+            style="width: 100%"
+          />
+        </el-form-item>
+        <el-form-item label="商品列表">
+          <el-input
+            v-model="quickImport.text"
+            type="textarea"
+            :rows="12"
+            placeholder="水果/苹果\n水果/香蕉\n白菜\n土豆"
+          />
+        </el-form-item>
+      </el-form>
+      <div class="el-upload__tip" style="text-align: center">
+        已识别 <b>{{ parsedLines.length }}</b> 条商品，其中 {{ parsedLinesWithoutCategory.length }} 条将使用默认分类
+      </div>
+      <template #footer>
+        <div class="dialog-footer">
+          <el-button type="primary" :loading="quickImport.submitting" @click="submitQuickImport">导 入</el-button>
+          <el-button @click="quickImport.open = false">取 消</el-button>
+        </div>
+      </template>
+    </el-dialog>
+
     <!-- 商品库导入对话框 -->
-    <el-dialog :title="upload.title" v-model="upload.open" width="400px" append-to-body>
+    <el-dialog align-center :title="upload.title" v-model="upload.open" width="400px" append-to-body>
       <el-upload
         ref="upload"
         :limit="1"
@@ -285,11 +338,12 @@ import {
   delSpu,
   addSpu,
   updateSpu,
+  importTextSpu,
 } from "@/api/product/spu";
 import { listCategory } from "@/api/product/category";
 import { pinyin } from "pinyin-pro";
 import { getToken } from "@/utils/auth";
-import { Search, Refresh, Plus, Edit, Delete, Download, Upload } from "@element-plus/icons-vue";
+import { Search, Refresh, Plus, Edit, Delete, Download, Upload, DocumentAdd } from "@element-plus/icons-vue";
 import quickTableMixin from "@/components/QuickTable/quickTableMixin";
 
 export default {
@@ -297,7 +351,7 @@ export default {
   dicts: ["biz_yes_no"],
   mixins: [quickTableMixin],
   setup() {
-    return { Search, Refresh, Plus, Edit, Delete, Download, Upload };
+    return { Search, Refresh, Plus, Edit, Delete, Download, Upload, DocumentAdd };
   },
   data() {
     return {
@@ -328,6 +382,14 @@ export default {
         headers: { Authorization: "Bearer " + getToken() },
         url: import.meta.env.VITE_APP_BASE_API + "/product/spu/importData",
       },
+      // 快速导入参数
+      quickImport: {
+        open: false,
+        text: "",
+        defaultCategoryId: null,
+        submitting: false,
+      },
+      quickImportSelectedOptions: [],
       // 查询参数
       queryParams: {
         pageNum: 1,
@@ -343,7 +405,6 @@ export default {
       },
       // 表格列配置
       columns: [
-        { field: "id", title: "主键", width: 80, align: "center", sortable: true },
         { field: "categoryId", title: "商品分类", minWidth: 110, slots: { default: "col_category" } },
         { field: "name", title: "商品名称", minWidth: 160, fixed: "left" },
         { field: "description", title: "商品描述", minWidth: 180, showOverflow: true },
@@ -384,6 +445,25 @@ export default {
   created() {
     this.getPageList();
     this.getTreeselect();
+  },
+  computed: {
+    /** 解析粘贴文本：每行一条，返回 [{ name, hasCategory }] */
+    parsedLines() {
+      return (this.quickImport.text || "")
+        .split(/\r?\n/)
+        .map((line) => line.trim())
+        .filter((line) => line.length > 0)
+        .map((line) => {
+          const parts = line.split(/[\/,，\t]/, 2);
+          if (parts.length > 1 && parts[0].trim() && parts[1].trim()) {
+            return { name: parts[1].trim(), hasCategory: true };
+          }
+          return { name: line, hasCategory: false };
+        });
+    },
+    parsedLinesWithoutCategory() {
+      return this.parsedLines.filter((item) => !item.hasCategory);
+    },
   },
   methods: {
     /** 查询商品spu列表 */
@@ -438,7 +518,7 @@ export default {
     handleAdd() {
       this.reset();
       this.open = true;
-      this.title = "添加商品spu";
+      this.title = "添加商品";
     },
     /** 修改按钮操作 */
     handleUpdate(row) {
@@ -452,7 +532,7 @@ export default {
           this.form.categoryId.toString()
         );
         this.open = true;
-        this.title = "修改商品spu";
+        this.title = "修改商品";
       });
     },
     /** 提交按钮 */
@@ -503,6 +583,51 @@ export default {
     handleImport() {
       this.upload.title = "商品库导入";
       this.upload.open = true;
+    },
+    /** 快速导入按钮操作 */
+    handleQuickImport() {
+      this.quickImport.text = "";
+      this.quickImport.defaultCategoryId = null;
+      this.quickImportSelectedOptions = [];
+      this.quickImport.open = true;
+    },
+    handleQuickImportCategoryChange(value) {
+      this.quickImport.defaultCategoryId = value && value.length ? value[value.length - 1] : null;
+    },
+    /** 提交快速导入 */
+    submitQuickImport() {
+      if (!this.parsedLines.length) {
+        this.$modal.msgWarning("请先粘贴商品列表");
+        return;
+      }
+      if (
+        this.parsedLinesWithoutCategory.length > 0 &&
+        !this.quickImport.defaultCategoryId
+      ) {
+        this.$modal.msgWarning(
+          "有 " + this.parsedLinesWithoutCategory.length + " 条未指定分类，请先选择默认分类"
+        );
+        return;
+      }
+      this.quickImport.submitting = true;
+      importTextSpu({
+        text: this.quickImport.text,
+        defaultCategoryId: this.quickImport.defaultCategoryId,
+      })
+        .then((response) => {
+          this.quickImport.open = false;
+          this.$alert(
+            "<div style='overflow: auto;max-height: 70vh;padding: 10px 20px 0;'>" +
+              response.msg +
+              "</div>",
+            "导入结果",
+            { dangerouslyUseHTMLString: true }
+          );
+          this.getPageList();
+        })
+        .finally(() => {
+          this.quickImport.submitting = false;
+        });
     },
     /** 下载模板操作 */
     importTemplate() {
@@ -582,13 +707,15 @@ export default {
         ? this.categoryMap[row.categoryId] || ""
         : row.categoryId;
     },
-    /** 处理级联选择器，取最后一个选项 */
+    /** 处理级联选择器，取最后一个选项（兼容清空时传入 null） */
     handleQueryCascaderChange(value) {
-      this.queryParams.categoryId = value[value.length - 1];
+      const arr = Array.isArray(value) ? value : [];
+      this.queryParams.categoryId = arr.length ? arr[arr.length - 1] : null;
       this.handleQuery();
     },
     handleFormOptionsChanged(value) {
-      this.form.categoryId = value[value.length - 1];
+      const arr = Array.isArray(value) ? value : [];
+      this.form.categoryId = arr.length ? arr[arr.length - 1] : null;
     },
     /** 根据 id 构造父节点列表，并添加自身 */
     fillWithParentCategoryId(list, id) {

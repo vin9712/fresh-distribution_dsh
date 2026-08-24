@@ -20,6 +20,7 @@ import com.lin.common.core.controller.BaseController;
 import com.lin.common.core.domain.AjaxResult;
 import com.lin.common.enums.BusinessType;
 import com.lin.distribution.domain.ProductSpu;
+import com.lin.distribution.dto.ProductSpuTextImportDTO;
 import com.lin.common.utils.poi.ExcelUtil;
 import com.lin.common.core.page.TableDataInfo;
 import org.springframework.web.multipart.MultipartFile;
@@ -81,6 +82,16 @@ public class ProductSpuController extends BaseController {
         List<ProductSpu> spuList = util.importExcel(file.getInputStream());
         String message = productSpuService.importProductSpu(spuList);
         return AjaxResult.success(message);
+    }
+
+    /**
+     * 粘贴文本快速导入（每行一条：支持「分类/商品名」或直接「商品名」）
+     */
+    @PreAuthorize("@ss.hasPermi('product:spu:import')")
+    @Log(title = "商品spu", businessType = BusinessType.IMPORT)
+    @PostMapping("/importText")
+    public AjaxResult importText(@RequestBody ProductSpuTextImportDTO dto) {
+        return AjaxResult.success(productSpuService.importProductSpuText(dto.getText(), dto.getDefaultCategoryId()));
     }
 
     /**

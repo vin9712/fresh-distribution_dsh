@@ -2,6 +2,7 @@ package com.lin.distribution.service.impl;
 
 import com.lin.common.exception.ServiceException;
 import com.lin.common.utils.DateUtils;
+import com.lin.common.utils.PinYinConvertUtils;
 import com.lin.common.utils.bean.BeanValidators;
 import com.lin.distribution.domain.ProductCategory;
 import com.lin.distribution.domain.ProductSku;
@@ -354,6 +355,93 @@ public class ProductServiceImpl implements ProductService {
             successMsg.insert(0, "恭喜您，数据已全部导入成功！共 " + successNum + " 条，数据如下：");
         }
         return successMsg.toString();
+    }
+
+    /**
+     * 粘贴文本快速导入商品库：每行一条，支持「分类/商品名」（分隔符：/ 、, ， tab）或直接「商品名」。
+     * 重复（同分类+名称）跳过，不回滚已成功数据，返回完整报告。
+     */
+    @Override
+    @Transactional
+    public String importProductSpuText(String text, Long defaultCategoryId) {
+        if (StringUtils.isBlank(text)) {
+            throw new ServiceException("导入内容不能为空！");
+        }
+        // 分类名 -> id 映射（重名取第一个）
+        Map<String, Long> categoryMap = productCategoryMapper.selectProductCategoryList(new ProductCategory()).stream()
+                .filter(c -> StringUtils.isNotBlank(c.getName()))
+                .collect(Collectors.toMap(ProductCategory::getName, ProductCategory::getId, (a, b) -> a));
+
+        int successNum = 0;
+        int duplicateNum = 0;
+        int failureNum = 0;
+        StringBuilder detailMsg = new StringBuilder();
+
+        String[] lines = text.split("\\r?\\n");
+        for (int i = 0; i < lines.length; i++) {
+            String line = lines[i].trim();
+            if (StringUtils.isEmpty(line)) {
+                continue;
+            }
+            int lineNo = i + 1;
+            try {
+                String categoryName = null;
+                String name;
+                String[] parts = line.split("[/，,\\t]", 2);
+                if (parts.length > 1 && StringUtils.isNotBlank(parts[0])) {
+                    categoryName = parts[0].trim();
+                    name = parts[1].trim();
+                } else {
+                    name = line;
+                }
+                if (StringUtils.isEmpty(name)) {
+                    throw new ServiceException("商品名称为空");
+                }
+                Long categoryId;
+                if (categoryName != null) {
+                    categoryId = categoryMap.get(categoryName);
+                    if (categoryId == null) {
+                        throw new ServiceException("分类[" + categoryName + "]不存在");
+                    }
+                } else {
+                    categoryId = defaultCategoryId;
+                    if (categoryId == null) {
+                        throw new ServiceException("未指定分类且未选择默认分类");
+                    }
+                }
+                // 同分类+名称查重，重复跳过
+                List<ProductSpu> existList = productSpuMapper.selectProductSpuByCategoryIdAndName(categoryId, name);
+                if (CollectionUtils.isNotEmpty(existList)) {
+                    duplicateNum++;
+                    detailMsg.append("<br/>").append(duplicateNum).append("、第").append(lineNo).append("行 商品 ").append(name).append(" 已存在，跳过");
+                    continue;
+                }
+                ProductSpu spu = new ProductSpu();
+                spu.setCategoryId(categoryId);
+                spu.setName(name);
+                // 助记码非空字段，与前端一致：名称拼音首字母大写
+                spu.setMnemonicCode(PinYinConvertUtils.toFirstChar(name).toUpperCase());
+                spu.setSaleable(1);
+                spu.setValid(1);
+                spu.setSort(0);
+                spu.setIsDeleted(false);
+                productSpuMapper.insertProductSpu(spu);
+                successNum++;
+            } catch (Exception e) {
+                failureNum++;
+                detailMsg.append("<br/>").append(failureNum).append("、第").append(lineNo).append("行 导入失败：").append(e.getMessage());
+                log.error("快速导入第{}行失败：{}", lineNo, line, e);
+            }
+        }
+
+        StringBuilder message = new StringBuilder("导入完成：成功 ").append(successNum)
+                .append(" 条，重复跳过 ").append(duplicateNum).append(" 条，失败 ").append(failureNum).append(" 条");
+        if (detailMsg.length() > 0) {
+            message.insert(0, "<b>").append("</b>").append(detailMsg);
+        } else {
+            message.insert(0, "<b>").append("</b>");
+        }
+        return message.toString();
     }
 
     @Override
