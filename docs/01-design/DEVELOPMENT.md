@@ -9,7 +9,7 @@
 |---|---|
 | 后端 | `lin-entry`（启动）、`lin-admin`（web/controller）、`lin-common`（core）；RuoYi 3.8.8 改造，JDK 17，端口 8090（profile=local） |
 | 前端 | `RuoYi-Vue3`（3.9.2，业务页面已全部迁移，vxe-table v4），dev 端口 1025，代理后端 8090 |
-| 数据库 | MySQL 8，`sql/` 目录含 `ry_20240629.sql`（RuoYi 骨架）、`init_fresh_distribution.sql`（业务表）、`new_added_sql.sql`（菜单/字典增量） |
+| 数据库 | MySQL 8，`../../sql/` 目录含 `ry_20240629.sql`（RuoYi 骨架）、`init_fresh_distribution.sql`（业务表）、`new_added_sql.sql`（菜单/字典增量） |
 | 业务表 | 见 §2 清单 |
 | 环境约定 | 见 `DEV-ENV-NOTES.md`（Node 版本、PowerShell 5.1 编码陷阱、E2E 工具 `.dsh-e2e/`） |
 
@@ -47,7 +47,7 @@
 - 主键 `BIGINT` AUTO_INCREMENT；关联键同类型；`DATETIME` 时间、`DATE` 业务日期；
 - 数量/单价 `DECIMAL(10,2)`，金额 `DECIMAL(12,2)`，Java 侧 `BigDecimal`；
 - 单号 `VARCHAR(32)` 唯一索引；软删/停用优先，已发生业务不物理删除；
-- 建表脚本必须能从空库执行（`sql/` 目录维护一套最新基线 + 增量脚本）。
+- 建表脚本必须能从空库执行（`../../sql/` 目录维护一套最新基线 + 增量脚本）。
 
 ### 2.3 关键表字段概要（新建表）
 
@@ -169,7 +169,7 @@
 
 **实施步骤**：
 
-0. **S0-3 技术验证（已完成，2026-08）**：结论通过。依赖 `org.jeecgframework.jimureport:jimureport-spring-boot3-starter-fastjson2:2.0.0`（Boot 3.4.x 系）；schema 见 `sql/s0_3_jimureport_init.sql`（17 张 jimu_* 核心表）；鉴权桥接 `JimuReportTokenServiceImpl`（实现 `JmReportTokenServiceI`，token 参数 + RuoYi JWT/Redis 校验）+ SecurityConfig 放行 `/jmreport/**`；已验证：JDK17 编译启动正常、`/jmreport/list?token=<JWT>` 返回完整设计器页面（509KB HTML）、无 token/伪造 token 均被拒。待用户实机验证：设计器交互、打印效果、社区版功能边界（水印等）。
+0. **S0-3 技术验证（已完成，2026-08）**：结论通过。依赖 `org.jeecgframework.jimureport:jimureport-spring-boot3-starter-fastjson2:2.0.0`（Boot 3.4.x 系）；schema 见 `../../sql/s0_3_jimureport_init.sql`（17 张 jimu_* 核心表）；鉴权桥接 `JimuReportTokenServiceImpl`（实现 `JmReportTokenServiceI`，token 参数 + RuoYi JWT/Redis 校验）+ SecurityConfig 放行 `/jmreport/**`；已验证：JDK17 编译启动正常、`/jmreport/list?token=<JWT>` 返回完整设计器页面（509KB HTML）、无 token/伪造 token 均被拒。待用户实机验证：设计器交互、打印效果、社区版功能边界（水印等）。
 
 1. **技术验证（S0-3，先行）**：引入 JimuReport 社区版依赖，验证 JDK 17 兼容性、在线报表/打印设计器、数据源配置（对接现有业务表/接口）、与 RuoYi JWT 鉴权集成、多联与浏览器打印能力；产出验证报告与集成方案；
 2. 前端嵌入 JimuReport Vue3 组件（打印模板菜单替换占位页）；

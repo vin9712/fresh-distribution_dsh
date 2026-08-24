@@ -1,19 +1,19 @@
 # 基础信息模块重构（deepseek_redesign.md）— 执行进度与无缝衔接手册
 
 > 更新日期：2026-08-22
-> 设计文档：`docs/deepseek_redesign.md`（最终目标）
-> 现状文档：`docs/基础信息模块梳理.md`（改造前基线）
-> UI 设计文档：`docs/deepseek_ui_redesign.md`（前端交互设计指南）
+> 设计文档：`deepseek_redesign.md`（最终目标）
+> 现状文档：`基础信息模块梳理.md`（改造前基线）
+> UI 设计文档：`deepseek_ui_redesign.md`（前端交互设计指南）
 > 下一轮执行人：**从此文档"下一步"章节直接开始**，无需重新调研。
 
 ---
 
 ## ⚠️ 2026-08-22 追加（新工作流已启动，本手册进入维护态）
 
-交互优化方案（`docs/生鲜配送 ERP 交互优化方案.md`）已立项，按 **`docs/交互优化开发计划.md`** 分阶段执行（Phase 0 商品初始化、Phase 1 录单体验、Phase 2 列表页生成采购/送货抽屉均已 ✅），
+交互优化方案（`../03-ui-optimization/生鲜配送 ERP 交互优化方案.md`）已立项，按 **`../03-ui-optimization/交互优化开发计划.md`** 分阶段执行（Phase 0 商品初始化、Phase 1 录单体验、Phase 2 列表页生成采购/送货抽屉均已 ✅），
 本手册保留作为 R1 重构期的执行记录与坑位参考。与本次工作相关的变化：
 
-1. **遗留问题 #1 已解决**：t_product_sku 已通过 `docs/报价demo.csv` 初始化（88 标准 SKU + 86 SPU + 丽宫已发布报价单 BJ2026082200001 + 客户商品池 88 条），见计划文档 Phase 0。
+1. **遗留问题 #1 已解决**：t_product_sku 已通过 `../assets/报价demo.csv` 初始化（88 标准 SKU + 86 SPU + 丽宫已发布报价单 BJ2026082200001 + 客户商品池 88 条），见计划文档 Phase 0。
 2. **取价引擎 Bug 修复（commit be4f982）**：`selectActivePriceByCustomerAndSku` 条件 `sq.valid = 0` → `1`（3e1db22 引入）。
    原条件与 `selectCustomerActiveQuote`(valid=1) 矛盾，**客户报价层自上线起从未真正命中取价**，单测因 mock mapper 未暴露；
    修复后 `/price/query` 命中丽宫报价（大白菜 1.20 等，source=2），verify-product-init.js 已加回归守护断言。
@@ -137,7 +137,7 @@
 - 搜索框防抖 200ms 服务端关键字检索（匹配 SKU 名/助记码/客户别名/客户编码/全局别名）
 - **后端配套**：`DefaultSkuTemplateController` 新增 `GET /product/default-sku-template/{id}/items`（模板明细 SKU 集合，供模板页编辑回显）
 
-### 菜单/权限 SQL — `sql/r1_frontend_menu.sql`（已执行）
+### 菜单/权限 SQL — `../../sql/r1_frontend_menu.sql`（已执行）
 - 菜单 2064/2068-2070：配送点报价 → 配送点覆盖，`price:point:*` → `price:delivery-override:*`
 - 新增菜单 2090-2094 客户商品（含 assign 权限）、2095-2099 默认SKU模板（挂"基础信息"下）
 - 补齐空字典数据：`biz_yes_no`（是/否）、`t_sku_unit`（斤/公斤/箱/袋/份/个/包/瓶/件/捆）
@@ -152,7 +152,7 @@
 ## 6. 阶段 6：前端 UI 改造（deepseek_ui_redesign.md，✅ 已完成 2026-08-21）
 
 ### 目标
-基于 `docs/deepseek_ui_redesign.md` 对**基础信息**模块全面改造：高密度布局、vxe-table 深度配置、键盘快捷键、右键菜单、批量操作条、列设置持久化。**改造范围仅限 `RuoYi-Vue3`（Vue3 + Element Plus + vxe-table@4 + vxe-pc-ui@4）**，`ruoyi-ui`（Vue2 旧前端）不动。
+基于 `deepseek_ui_redesign.md` 对**基础信息**模块全面改造：高密度布局、vxe-table 深度配置、键盘快捷键、右键菜单、批量操作条、列设置持久化。**改造范围仅限 `RuoYi-Vue3`（Vue3 + Element Plus + vxe-table@4 + vxe-pc-ui@4）**，`ruoyi-ui`（Vue2 旧前端）不动。
 
 ### 新增共享组件
 | 文件 | 说明 |
@@ -211,7 +211,7 @@
   - `mvn -pl lin-distribution test -o`：44 用例全绿（43+新增 search 透传用例）
   - E2E 全链路（`.dsh-e2e/e2e-full-flow.js`）：录单→确认→采购→送货→打印→送达→验收→销售日报 ✅ 不受 SKU 表结构变化影响
   - 历史订单：t_sale_order_detail 旧 sku_id(10/11) 无对应标准 SKU，但 product_name 快照正常，订单详情/明细接口不崩
-- [x] 更新 `docs/基础信息模块梳理.md`（顶部加重构后现状速览对照表）与 `docs/deepseek_redesign.md`（标注已落地项）
+- [x] 更新 `基础信息模块梳理.md`（顶部加重构后现状速览对照表）与 `deepseek_redesign.md`（标注已落地项）
 - [x] git commit（见下方 §7）
 
 ### T18 配套改动
@@ -230,9 +230,9 @@
 
 ## 4. 遗留问题与后续扩展（非阻塞）
 
-1. **历史数据** ✅ 已解决（2026-08-22）：t_product_sku 已通过 `docs/报价demo.csv` 初始化（88 标准 SKU + 86 SPU + 客户商品池），
-   并生成丽宫已发布报价单 BJ2026082200001；详见 `docs/交互优化开发计划.md` Phase 0（幂等脚本 `sql/s7_product_init.sql`）
-2. ~~菜单/权限 SQL 未写~~ ✅ 已落地（`sql/r1_frontend_menu.sql`，阶段 4）
+1. **历史数据** ✅ 已解决（2026-08-22）：t_product_sku 已通过 `../assets/报价demo.csv` 初始化（88 标准 SKU + 86 SPU + 客户商品池），
+   并生成丽宫已发布报价单 BJ2026082200001；详见 `../03-ui-optimization/交互优化开发计划.md` Phase 0（幂等脚本 `../../sql/s7_product_init.sql`）
+2. ~~菜单/权限 SQL 未写~~ ✅ 已落地（`../../sql/r1_frontend_menu.sql`，阶段 4）
 3. 报价单/模板的 skuId 语义已指向标准 SKU，无需改表，代码已验证
 4. 库存/采购/单位换算为设计文档 §9 预留项，未实现（符合"不过度设计"原则）
 5. `deleteProductSpuByIds` 的关联 SKU 校验仍是 TODO（原系统遗留）
@@ -244,10 +244,10 @@
 
 | 用途 | 路径 |
 |------|------|
-| 设计文档 | `docs/deepseek_redesign.md` |
-| DDL 脚本（幂等） | `sql/r1_basicinfo_redesign.sql` |
-| 前端菜单/权限/字典 SQL | `sql/r1_frontend_menu.sql` |
+| 设计文档 | `deepseek_redesign.md` |
+| DDL 脚本（幂等） | `../../sql/r1_basicinfo_redesign.sql` |
+| 前端菜单/权限/字典 SQL | `../../sql/r1_frontend_menu.sql` |
 | 全链路验证脚本 | `.r1_flow.sh`（需先登录拿 token 写入 `.r1_token.txt`） |
-| 旧基线文档 | `docs/基础信息模块梳理.md` |
+| 旧基线文档 | `基础信息模块梳理.md` |
 | 测试 | `lin-distribution/src/test/java/com/lin/distribution/service/impl/*Test.java` |
 | 前端新页面 | `RuoYi-Vue3/src/views/product/customerSku/`、`RuoYi-Vue3/src/views/product/defaultSkuTemplate/`、`RuoYi-Vue3/src/views/price/pointPrice/`、`RuoYi-Vue3/src/views/product/sku/`、`RuoYi-Vue3/src/views/product/aliasMapping/`、`RuoYi-Vue3/src/views/order/sale/detail.vue` |

@@ -1,12 +1,12 @@
 # 生鲜配送 ERP — 基础信息模块设计文档（重构版）
 
 > **实现状态（2026-08-21）：✅ 已全部落地**。数据层/服务层/接口层/前端均完成并通过验证，
-> 详见 `docs/r1_redesign_progress.md`（执行进度与全链路验证）与 `sql/r1_basicinfo_redesign.sql`/`sql/r1_frontend_menu.sql`。
+> 详见 `r1_redesign_progress.md`（执行进度与全链路验证）与 `../../sql/r1_basicinfo_redesign.sql`/`../../sql/r1_frontend_menu.sql`。
 > 下表为落地对照：
 >
 > | 章节 | 落地情况 |
 > |---|---|
-> | §3 核心表结构 | 全部建表（`sql/r1_basicinfo_redesign.sql` 幂等）；标准 SKU 已重建，旧 SKU 数据清空待重录 |
+> | §3 核心表结构 | 全部建表（`../../sql/r1_basicinfo_redesign.sql` 幂等）；标准 SKU 已重建，旧 SKU 数据清空待重录 |
 > | §4 编码规则 | SKU `S+8位`、客户商品 `C{客户ID}+6位` 已实现（`BizCodeService.nextSkuCode/nextCustomerSkuCode`） |
 > | §5.1 批量赋值默认 SKU | 已实现（模板 CRUD + `batchAssign` 三策略） |
 > | §5.2 客户商品查询与配送点覆盖 | 已实现（`listCustomerProducts` 合并覆盖：隐藏/别名/价格；关键字检索含覆盖别名） |

@@ -2,14 +2,14 @@
 
 > 生成日期：2026-08-22
 > 组织方式：按 `sys_menu` 菜单树逐模块描述，与 `RuoYi-Vue3/src/views` 实际代码一一对应
-> 相关文档：`docs/deepseek_ui_redesign.md`（交互设计原则）、`docs/r1_redesign_progress.md`（改造进度）
+> 相关文档：`../02-redesign-r1/deepseek_ui_redesign.md`（交互设计原则）、`../02-redesign-r1/r1_redesign_progress.md`（改造进度）
 > 前端范围：**仅 `RuoYi-Vue3`**（Vue3 + Element Plus 2.13 + vxe-table 4.20），`ruoyi-ui` 为 Vue2 旧前端，已停止维护
 
 ---
 
 ## 0. 菜单树与页面映射
 
-菜单数据来源：`sql/init_all.sql`（基线）+ `sql/s*_*_menu.sql`（各切片）+ `sql/r1_frontend_menu.sql`（R1 阶段）。
+菜单数据来源：`../../sql/init_all.sql`（基线）+ `../../sql/s*_*_menu.sql`（各切片）+ `../../sql/r1_frontend_menu.sql`（R1 阶段）。
 
 | menu_id | 菜单 | parent | path | component | 表格实现 |
 |---------|------|--------|------|-----------|----------|

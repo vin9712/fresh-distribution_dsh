@@ -28,6 +28,22 @@
 | Axios | 1.7.7 |
 | ECharts | 5.5.1 |
 
+## 文档目录
+
+全部文档已归类至 `docs/`，导航索引见 [docs/README.md](docs/README.md)：
+
+```
+docs/
+├── 01-design/             # 设计与开发规范（DESIGN / DEVELOPMENT / Agent 协议 / 环境说明）
+├── 02-redesign-r1/        # 基础信息模块重构（R1）设计与进度
+├── 03-ui-optimization/    # 交互与 UI 优化
+├── 04-manuals/            # 操作手册
+└── assets/                # 截图、示例数据
+
+deploy/
+└── DEPLOY.md              # 部署手册
+```
+
 ## 模块结构
 
 ### 后端 (Java)

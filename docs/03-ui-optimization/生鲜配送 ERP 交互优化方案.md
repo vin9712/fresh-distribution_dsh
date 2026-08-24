@@ -3,7 +3,7 @@
 > 版本：v1.0  
 > 日期：2026-08-22  
 > 适用范围：RuoYi-Vue3 前端（Vue3 + Element Plus 2.13 + vxe-table 4.20）  
-> 相关文档：`docs/deepseek_ui_redesign.md`、`docs/r1_redesign_progress.md`
+> 相关文档：`../02-redesign-r1/deepseek_ui_redesign.md`、`../02-redesign-r1/r1_redesign_progress.md`
 
 ---
 
