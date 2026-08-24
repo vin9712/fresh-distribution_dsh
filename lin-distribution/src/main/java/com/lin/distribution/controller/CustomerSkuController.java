@@ -6,6 +6,7 @@ import com.lin.common.core.domain.AjaxResult;
 import com.lin.common.core.page.TableDataInfo;
 import com.lin.common.enums.BusinessType;
 import com.lin.distribution.domain.CustomerSku;
+import com.lin.distribution.dto.CustomerSkuSyncTextDTO;
 import com.lin.distribution.service.CustomerSkuService;
 import com.lin.distribution.service.DefaultSkuTemplateService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -134,5 +135,16 @@ public class CustomerSkuController extends BaseController {
     @DeleteMapping("/{ids}")
     public AjaxResult remove(@PathVariable Long[] ids) {
         return toAjax(customerSkuService.deleteCustomerSkuByIds(ids));
+    }
+
+    /**
+     * 粘贴文本快速同步客户商品（每行一条，自动按名称/助记码匹配标准SKU）
+     */
+    @Operation(summary = "粘贴文本快速同步客户商品")
+    @PreAuthorize("@ss.hasPermi('product:customer-sku:add')")
+    @Log(title = "客户商品快速同步", businessType = BusinessType.IMPORT)
+    @PostMapping("/syncText")
+    public AjaxResult syncText(@RequestBody CustomerSkuSyncTextDTO dto) {
+        return AjaxResult.success(customerSkuService.syncCustomerSkuText(dto.getCustomerId(), dto.getText(), dto.getUnmatchedToTemp()));
     }
 }

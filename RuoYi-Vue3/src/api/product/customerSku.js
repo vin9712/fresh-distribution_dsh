@@ -122,3 +122,12 @@ export function delDefaultSkuTemplate(ids) {
     method: 'delete'
   })
 }
+
+// 粘贴文本快速同步客户商品
+export function syncCustomerSkuText(data) {
+  return request({
+    url: '/product/customer-sku/syncText',
+    method: 'post',
+    data: data
+  })
+}

@@ -21,6 +21,17 @@ public interface CustomerSkuService {
     int insertCustomerSku(CustomerSku customerSku);
 
     /**
+     * 粘贴文本快速同步客户商品：每行一条，支持「客户叫法=内部商品名」或直接「商品名」。
+     * 自动按名称/助记码匹配内部 SKU 库，重复跳过，返回导入报告。
+     *
+     * @param customerId      客户ID
+     * @param text            粘贴的商品清单文本
+     * @param unmatchedToTemp 未匹配到标准SKU时是否自动转临时商品
+     * @return 同步结果报告
+     */
+    String syncCustomerSkuText(Long customerId, String text, Boolean unmatchedToTemp);
+
+    /**
      * 个性化修改（自动置 is_follow_default=0、清空 source_template_id）
      */
     int updateCustomerSku(CustomerSku customerSku);

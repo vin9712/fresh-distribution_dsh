@@ -1,5 +1,8 @@
 <template>
   <div class="app-container">
+    <div class="quick-page-hint">
+      为每个客户挑选可购商品，并设置客户叫法（别名）、起订量等；录单时按客户显示其可购商品。
+    </div>
     <quick-table
       ref="quickTable"
       id="basic-customer-sku-table"
@@ -18,7 +21,7 @@
       @batch-action="handleBatchAction"
     >
       <template #search>
-        <el-form :model="queryParams" ref="queryForm" size="small" :inline="true" label-width="48px">
+        <el-form :model="queryParams" ref="queryForm" size="small" :inline="true" label-width="80px">
           <el-form-item label="客户" prop="customerId">
             <el-select
               v-model="queryParams.customerId"
@@ -57,6 +60,8 @@
       <template #buttons>
         <el-button type="primary" plain :icon="Plus" size="small" @click="handleAdd"
           v-hasPermi="['product:customer-sku:add']">新增</el-button>
+        <el-button type="success" plain :icon="Connection" size="small" @click="handleSyncImport"
+          v-hasPermi="['product:customer-sku:add']">快速同步</el-button>
         <el-button type="success" plain :icon="Promotion" size="small"
           v-hasPermi="['product:customer-sku:assign']" @click="handleAssign">批量赋值</el-button>
         <el-button type="warning" plain :icon="Switch" size="small" :disabled="multiple"
@@ -87,8 +92,49 @@
       </template>
     </quick-table>
 
+    <!-- 快速同步对话框 -->
+    <el-dialog align-center title="客户商品快速同步" v-model="syncImport.open" width="560px" append-to-body>
+      <el-alert type="info" :closable="false" show-icon style="margin-bottom: 12px">
+        <template #title>
+          每行一条，自动按名称/助记码匹配标准SKU：支持「<b>客户叫法=内部商品名</b>」或直接「<b>商品名</b>」；未匹配的行会列出，不影响其它行。
+        </template>
+      </el-alert>
+      <el-form label-width="80px">
+        <el-form-item label="客户" required>
+          <el-select v-model="syncImport.customerId" placeholder="请选择客户" filterable style="width: 100%">
+            <el-option
+              v-for="item in customerOptions"
+              :key="item.id"
+              :label="item.alias ? item.alias + '（' + item.name + '）' : item.name"
+              :value="item.id"
+            />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="商品清单">
+          <el-input
+            v-model="syncImport.text"
+            type="textarea"
+            :rows="12"
+            placeholder="土豆=黄心土豆\n西红柿\n黄瓜\nPG"
+          />
+        </el-form-item>
+        <el-form-item label="转临时">
+          <el-checkbox v-model="syncImport.unmatchedToTemp">
+            未匹配到标准SKU时，自动存为该客户的临时商品（可在临时商品管理中转正）
+          </el-checkbox>
+        </el-form-item>
+      </el-form>
+      <div class="el-upload__tip" style="text-align: center">已识别 <b>{{ parsedSyncLines }}</b> 条商品</div>
+      <template #footer>
+        <div class="dialog-footer">
+          <el-button type="primary" :loading="syncImport.submitting" @click="submitSyncImport">同 步</el-button>
+          <el-button @click="syncImport.open = false">取 消</el-button>
+        </div>
+      </template>
+    </el-dialog>
+
     <!-- 新增客户商品对话框 -->
-    <el-dialog :title="title" v-model="open" width="560px" append-to-body>
+    <el-dialog align-center :title="title" v-model="open" width="560px" append-to-body>
       <el-form ref="form" :model="form" :rules="rules" label-width="100px">
         <el-form-item label="客户" prop="customerId">
           <el-select v-model="form.customerId" placeholder="请选择客户" filterable clearable style="width: 100%" :disabled="form.id != null">
@@ -139,10 +185,10 @@
     </el-dialog>
 
     <!-- 个性化修改对话框 -->
-    <el-dialog :title="editTitle" v-model="editOpen" width="560px" append-to-body>
+    <el-dialog align-center :title="editTitle" v-model="editOpen" width="560px" append-to-body>
       <el-form ref="editForm" :model="editForm" :rules="editRules" label-width="100px">
         <el-form-item label="标准SKU">
-          <el-input :value="editForm.skuName + '（' + editForm.skuSpecName + '）'" disabled />
+          <el-input :value="editForm.skuName + (editForm.skuSpecName ? '（' + editForm.skuSpecName + '）' : '')" disabled />
         </el-form-item>
         <el-form-item label="客户别名" prop="alias">
           <el-input v-model="editForm.alias" placeholder="客户对该商品的叫法（可空）" />
@@ -170,7 +216,7 @@
     </el-dialog>
 
     <!-- 批量赋值对话框 -->
-    <el-dialog :title="assignDialog.title" v-model="assignDialog.open" width="720px" append-to-body>
+    <el-dialog align-center :title="assignDialog.title" v-model="assignDialog.open" width="860px" append-to-body>
       <el-form ref="assignForm" :model="assignForm" :rules="assignRules" label-width="110px">
         <el-form-item label="商品来源" prop="sourceType">
           <el-radio-group v-model="assignForm.sourceType" @change="handleAssignSourceChange">
@@ -189,22 +235,52 @@
           </el-select>
         </el-form-item>
         <el-form-item v-if="assignForm.sourceType === 'sku'" label="选择SKU" prop="skuIds">
-          <el-select
-            v-model="assignForm.skuIds"
-            multiple
-            filterable
-            collapse-tags
-            collapse-tags-tooltip
-            placeholder="可搜索选择多个标准SKU"
-            style="width: 100%"
-          >
-            <el-option
-              v-for="item in allSkuOptions"
-              :key="item.id"
-              :label="item.name + (item.specName ? '（' + item.specName + '）' : '') + ' / ' + item.unit"
-              :value="item.id"
+          <div style="width: 100%">
+            <div style="margin-bottom: 8px">
+              <el-input
+                v-model="assignSkuQuery.keyword"
+                placeholder="名称/编码/助记码/规格 搜索"
+                clearable
+                style="width: 240px"
+              />
+              <span style="margin-left: 12px; color: #909399; font-size: 12px">
+                已选 <b>{{ assignForm.skuIds.length }}</b> / {{ allSkuOptions.length }} 个
+              </span>
+              <el-link
+                v-if="assignForm.skuIds.length"
+                type="danger"
+                :underline="false"
+                style="font-size: 12px; margin-left: 8px"
+                @click="clearAssignSelection"
+                >清空</el-link
+              >
+            </div>
+            <el-table
+              ref="assignSkuTable"
+              :data="assignPagedSkus"
+              height="420"
+              size="small"
+              row-key="id"
+              @selection-change="handleAssignSelectionChange"
+            >
+              <el-table-column type="selection" width="45" reserve-selection />
+              <el-table-column label="编号" prop="code" width="110" align="center" />
+              <el-table-column label="名称" prop="name" width="180" show-overflow-tooltip />
+              <el-table-column label="单位" prop="unit" width="60" align="center" />
+              <el-table-column label="规格" prop="specName" width="100" show-overflow-tooltip />
+              <el-table-column label="售价" prop="salePrice" width="80" align="right" />
+            </el-table>
+            <el-pagination
+              v-model:current-page="assignSkuQuery.pageNum"
+              layout="total, prev, pager, next, sizes"
+              small
+              :total="assignFilteredSkus.length"
+              :page-size="assignSkuQuery.pageSize"
+              :page-sizes="[10, 20, 50, 100]"
+              @size-change="assignSkuQuery.pageNum = 1"
+              style="margin-top: 8px; justify-content: flex-end"
             />
-          </el-select>
+          </div>
         </el-form-item>
         <el-form-item label="目标客户" prop="customerIds">
           <el-select
@@ -254,17 +330,18 @@ import {
   assignCustomerSku,
   delCustomerSku,
   listDefaultSkuTemplate,
+  syncCustomerSkuText,
 } from "@/api/product/customerSku";
 import { listSku } from "@/api/product/sku";
 import { listCustomer } from "@/api/partner/customer";
-import { Search, Refresh, Plus, Delete, Edit, Promotion, Switch } from "@element-plus/icons-vue";
+import { Search, Refresh, Plus, Delete, Edit, Promotion, Switch, Connection } from "@element-plus/icons-vue";
 import quickTableMixin from "@/components/QuickTable/quickTableMixin";
 
 export default {
   name: "CustomerSku",
   mixins: [quickTableMixin],
   setup() {
-    return { Search, Refresh, Plus, Delete, Edit, Promotion, Switch };
+    return { Search, Refresh, Plus, Delete, Edit, Promotion, Switch, Connection };
   },
   data() {
     return {
@@ -285,6 +362,14 @@ export default {
         customerId: null,
         keyword: null,
         status: null,
+      },
+      // 快速同步参数
+      syncImport: {
+        open: false,
+        customerId: null,
+        text: "",
+        unmatchedToTemp: true,
+        submitting: false,
       },
       // 表格列配置
       columns: [
@@ -336,7 +421,41 @@ export default {
         customerIds: [{ required: true, type: "array", min: 1, message: "请至少选择一个客户", trigger: "change" }],
         strategy: [{ required: true, message: "请选择覆盖策略", trigger: "change" }],
       },
+      // 批量赋值-SKU勾选表格
+      assignSkuQuery: {
+        keyword: "",
+        pageNum: 1,
+        pageSize: 20,
+      },
     };
+  },
+  computed: {
+    /** 解析粘贴文本行数（非空行） */
+    parsedSyncLines() {
+      return (this.syncImport.text || "")
+        .split(/\r?\n/)
+        .map((line) => line.trim())
+        .filter((line) => line.length > 0).length;
+    },
+    /** 批量赋值：按关键字过滤SKU（名称/编码/助记码/规格） */
+    assignFilteredSkus() {
+      const kw = (this.assignSkuQuery.keyword || "").trim().toLowerCase();
+      if (!kw) {
+        return this.allSkuOptions;
+      }
+      return this.allSkuOptions.filter(
+        (sku) =>
+          (sku.name && sku.name.toLowerCase().includes(kw)) ||
+          (sku.code && sku.code.toLowerCase().includes(kw)) ||
+          (sku.mnemonicCode && sku.mnemonicCode.toLowerCase().includes(kw)) ||
+          (sku.specName && sku.specName.toLowerCase().includes(kw))
+      );
+    },
+    /** 批量赋值：当前页SKU */
+    assignPagedSkus() {
+      const start = (this.assignSkuQuery.pageNum - 1) * this.assignSkuQuery.pageSize;
+      return this.assignFilteredSkus.slice(start, start + this.assignSkuQuery.pageSize);
+    },
   },
   created() {
     this.getCustomerOptions();
@@ -344,6 +463,44 @@ export default {
     this.getList();
   },
   methods: {
+    /** 快速同步按钮操作 */
+    handleSyncImport() {
+      this.syncImport.customerId = this.queryParams.customerId || null;
+      this.syncImport.text = "";
+      this.syncImport.unmatchedToTemp = true;
+      this.syncImport.open = true;
+    },
+    /** 提交快速同步 */
+    submitSyncImport() {
+      if (!this.syncImport.customerId) {
+        this.$modal.msgWarning("请先选择客户");
+        return;
+      }
+      if (!this.parsedSyncLines) {
+        this.$modal.msgWarning("请先粘贴商品清单");
+        return;
+      }
+      this.syncImport.submitting = true;
+      syncCustomerSkuText({
+        customerId: this.syncImport.customerId,
+        text: this.syncImport.text,
+        unmatchedToTemp: this.syncImport.unmatchedToTemp,
+      })
+        .then((response) => {
+          this.syncImport.open = false;
+          this.$alert(
+            "<div style='overflow: auto;max-height: 70vh;padding: 10px 20px 0;'>" +
+              response.msg +
+              "</div>",
+            "同步结果",
+            { dangerouslyUseHTMLString: true }
+          );
+          this.getList();
+        })
+        .finally(() => {
+          this.syncImport.submitting = false;
+        });
+    },
     /** 查询客户商品池 */
     getList() {
       if (!this.queryParams.customerId) {
@@ -493,6 +650,8 @@ export default {
         customerIds: [this.queryParams.customerId].filter((id) => id),
         strategy: 1,
       };
+      this.assignSkuQuery.keyword = "";
+      this.assignSkuQuery.pageNum = 1;
       this.assignDialog.open = true;
       // 预加载全部SKU（供手动勾选模式）
       if (this.allSkuOptions.length === 0) {
@@ -503,6 +662,20 @@ export default {
     },
     handleAssignSourceChange() {
       this.assignForm.templateId = null;
+      this.assignForm.skuIds = [];
+      this.assignSkuQuery.keyword = "";
+      this.assignSkuQuery.pageNum = 1;
+      this.clearAssignSelection();
+    },
+    /** SKU勾选变化（跨页保留） */
+    handleAssignSelectionChange(rows) {
+      this.assignForm.skuIds = rows.map((row) => row.id);
+    },
+    /** 清空SKU勾选 */
+    clearAssignSelection() {
+      if (this.$refs.assignSkuTable) {
+        this.$refs.assignSkuTable.clearSelection();
+      }
       this.assignForm.skuIds = [];
     },
     submitAssignForm() {
