@@ -323,7 +323,7 @@
     />
 
     <!-- 添加或修改销售订单对话框 -->
-    <el-dialog :title="title" v-model="open" width="500px" append-to-body>
+    <el-dialog align-center :title="title" v-model="open" width="500px" append-to-body>
       <el-form ref="form" :model="form" :rules="rules" label-width="80px">
         <el-form-item label="订单编号" prop="code">
           <el-input v-model="form.code" placeholder="请输入订单编号" />
@@ -391,7 +391,7 @@
     </el-dialog>
 
     <!-- 订单调整对话框（配送后加退换） -->
-    <el-dialog :title="adjustTitle" v-model="adjustOpen" width="860px" append-to-body>
+    <el-dialog align-center :title="adjustTitle" v-model="adjustOpen" width="860px" append-to-body>
       <el-form label-width="90px">
         <el-row>
           <el-col :span="12">
@@ -1206,11 +1206,12 @@ export default {
         `sale_${new Date().getTime()}.xlsx`
       );
     },
-    /** 选择送货单位树回调 */
+    /** 选择送货单位树回调（兼容清空时传入 null） */
     handleFormOptionsChanged(value) {
-      const customerDeptId = value[value.length - 1];
+      const arr = Array.isArray(value) ? value : [];
+      const customerDeptId = arr.length ? arr[arr.length - 1] : null;
       this.queryParams.customerDeptId = customerDeptId;
-      this.queryParams.customerId = this.customerDeptMap[customerDeptId];
+      this.queryParams.customerId = customerDeptId ? this.customerDeptMap[customerDeptId] : null;
       this.handleQuery();
     },
     /** 查询商品分类下拉树结构 */

@@ -1321,10 +1321,11 @@ export default {
       this.orderDetailList = [];
       this.throttledAddRow();
 
-      // init customerDeptId
-      const customerDeptId = value[value.length - 1];
+      // init customerDeptId（兼容清空时传入 null）
+      const arr = Array.isArray(value) ? value : [];
+      const customerDeptId = arr.length ? arr[arr.length - 1] : null;
       this.orderForm.customerDeptId = customerDeptId;
-      this.orderForm.customerId = this.customerDeptMap[customerDeptId];
+      this.orderForm.customerId = customerDeptId ? this.customerDeptMap[customerDeptId] : null;
 
       // init skuQuoteDetails
       this.getSkuQuoteDetailList();
