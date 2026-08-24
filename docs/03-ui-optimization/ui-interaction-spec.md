@@ -1,6 +1,7 @@
 # 生鲜配送 ERP — 模块 UI 交互规格（基于现有代码现状）
 
 > 生成日期：2026-08-22
+> **最近更新：2026-08-25（v1.2 商品资料效率包）**——菜单更名（2018 商品信息→商品规格、order_num 重排见 `sql/s9_menu_product_ia.sql`）；商品库/客户商品/报价新增粘贴导入向导；全局弹窗可拖拽居中；搜索表单 label-width 统一 80px。详细变更见《操作手册》迭代总览 `[v1.2]`，本文件正文未逐节重写。
 > 组织方式：按 `sys_menu` 菜单树逐模块描述，与 `RuoYi-Vue3/src/views` 实际代码一一对应
 > 相关文档：`../02-redesign-r1/deepseek_ui_redesign.md`（交互设计原则）、`../02-redesign-r1/r1_redesign_progress.md`（改造进度）
 > 前端范围：**仅 `RuoYi-Vue3`**（Vue3 + Element Plus 2.13 + vxe-table 4.20），`ruoyi-ui` 为 Vue2 旧前端，已停止维护
@@ -15,15 +16,15 @@
 |---------|------|--------|------|-----------|----------|
 | 2073 | 工作台 | 0 | workbench | `workbench/index` | 卡片，无表格 |
 | **4** | **基础信息**（目录 M） | 0 | basicInfo | — | — |
+| 2012 | 客户信息 | 4 | customer | `partner/customer/index` | el-table |
 | 2000 | 商品分类 | 4 | category | `product/category/index` | el-table（树形） |
 | 2006 | 商品库(SPU) | 4 | spu | `product/spu/index` | **QuickTable** |
-| 2012 | 客户信息 | 4 | customer | `partner/customer/index` | el-table |
-| 2018 | 商品信息(标准SKU) | 4 | sku | `product/sku/index` | **QuickTable** |
-| 2024 | 商品报价 | 4 | quote | `product/quote/index` | **QuickTable** |
+| 2018 | 商品规格(标准SKU) `[v1.2]` 更名 | 4 | sku | `product/sku/index` | **QuickTable** |
+| 2090 | 客户商品 | 4 | customerSku | `product/customerSku/index` | **QuickTable** |
 | 2050 | 别名与映射 | 4 | aliasMapping | `product/aliasMapping/index` | **QuickTable ×3 tab** |
 | 2063 | 报价模板 | 4 | priceTemplate | `price/template/index` | el-table |
 | 2064 | 配送点覆盖 | 4 | pointPrice | `price/pointPrice/index` | **QuickTable** |
-| 2090 | 客户商品 | 4 | customerSku | `product/customerSku/index` | **QuickTable** |
+| 2024 | 商品报价 | 4 | quote | `product/quote/index` | **QuickTable** |
 | 2095 | 默认SKU模板 | 4 | defaultSkuTemplate | `product/defaultSkuTemplate/index` | **QuickTable** |
 | **5** | **单据管理**（目录 M） | 0 | order | — | — |
 | 2030 | 销售订单 | 5 | sale | `order/sale/index` | el-table + vxe 批量下拉 |
