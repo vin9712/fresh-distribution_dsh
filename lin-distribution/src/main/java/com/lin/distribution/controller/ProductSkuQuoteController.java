@@ -6,6 +6,8 @@ import com.lin.distribution.constant.ProductSkuQuoteStatus;
 import com.lin.distribution.dto.ProductSkuQuoteCreateDTO;
 import com.lin.distribution.dto.ProductSkuQuoteImportDTO;
 import com.lin.distribution.dto.ProductSkuQuoteUpdateStatusDTO;
+import com.lin.distribution.dto.QuotePriceImportConfirmDTO;
+import com.lin.distribution.dto.QuotePriceImportDTO;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -172,5 +174,60 @@ public class ProductSkuQuoteController extends BaseController {
     public void importTemplate(HttpServletResponse response) {
         ExcelUtil<ProductSkuQuoteImportDTO> util = new ExcelUtil<>(ProductSkuQuoteImportDTO.class);
         util.importTemplateExcel(response, "客户报价");
+    }
+
+    /**
+     * 粘贴价格表导入预览：解析并自动匹配内部 SKU
+     */
+    @PreAuthorize("@ss.hasPermi('product:quote:import')")
+    @PostMapping("/importPreview")
+    public AjaxResult importPreview(@RequestBody QuotePriceImportDTO.PreviewReq req) {
+        return AjaxResult.success(productSkuQuoteService.previewQuotePriceImport(req.getCustomerId(), req.getText()));
+    }
+
+    /**
+     * 价格表Excel导入预览：上传文件解析并自动匹配内部 SKU
+     */
+    @PreAuthorize("@ss.hasPermi('product:quote:import')")
+    @PostMapping("/importPreviewExcel")
+    public AjaxResult importPreviewExcel(@RequestParam("file") MultipartFile file,
+                                         @RequestParam("customerId") Long customerId) throws Exception {
+        return AjaxResult.success(productSkuQuoteService.previewQuotePriceImportExcel(customerId, file.getInputStream()));
+    }
+
+    /**
+     * 下载价格表导入模板（EasyExcel 生成）
+     */
+    @PostMapping("/importPriceTemplate")
+    public void importPriceTemplate(HttpServletResponse response) throws Exception {
+        response.setContentType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+        response.setCharacterEncoding("utf-8");
+        String fileName = java.net.URLEncoder.encode("价格表导入模板", java.nio.charset.StandardCharsets.UTF_8)
+                .replaceAll("\\+", "%20");
+        response.setHeader("Content-disposition", "attachment;filename*=utf-8''" + fileName + ".xlsx");
+
+        List<List<String>> head = List.of(
+                List.of("商品名称（或客户叫法）"),
+                List.of("单位（选填）"),
+                List.of("价格"));
+        List<List<Object>> rows = List.of(
+                List.of("土豆", "斤", 2.5),
+                List.of("黄心土豆/5斤装", "", 45));
+        com.alibaba.excel.EasyExcel.write(response.getOutputStream())
+                .head(head)
+                .registerWriteHandler(new com.alibaba.excel.write.style.column.LongestMatchColumnWidthStyleStrategy())
+                .sheet("价格表")
+                .doWrite(rows);
+    }
+
+    /**
+     * 价格表导入确认：已匹配行生成报价单草稿，未匹配行可转临时商品
+     */
+    @PreAuthorize("@ss.hasPermi('product:quote:import')")
+    @Log(title = "商品报价", businessType = BusinessType.IMPORT)
+    @PostMapping("/importConfirm")
+    public AjaxResult importConfirm(@RequestBody QuotePriceImportConfirmDTO dto) {
+        // 返回报告字符串放在 msg 中，前端弹窗展示
+        return AjaxResult.success(productSkuQuoteService.confirmQuotePriceImport(dto));
     }
 }

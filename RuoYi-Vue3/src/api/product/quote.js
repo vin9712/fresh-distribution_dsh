@@ -95,3 +95,31 @@ export function delQuote(id) {
     method: 'delete'
   })
 }
+
+// 粘贴价格表导入预览（解析+自动匹配）
+export function previewQuoteImport(data) {
+  return request({
+    url: '/product/quote/importPreview',
+    method: 'post',
+    data: data
+  })
+}
+
+// 价格表导入确认（生成报价单草稿，未匹配可转临时商品）
+export function confirmQuoteImport(data) {
+  return request({
+    url: '/product/quote/importConfirm',
+    method: 'post',
+    data: data
+  })
+}
+
+// 价格表Excel导入预览（EasyExcel解析+自动匹配）
+export function previewQuoteImportExcel(formData) {
+  return request({
+    url: '/product/quote/importPreviewExcel',
+    method: 'post',
+    data: formData,
+    headers: { 'Content-Type': 'multipart/form-data' }
+  })
+}

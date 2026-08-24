@@ -7,6 +7,8 @@ import com.lin.distribution.domain.ProductSkuQuote;
 import com.lin.distribution.dto.ProductSkuQuoteCreateDTO;
 import com.lin.distribution.dto.ProductSkuQuoteImportDTO;
 import com.lin.distribution.dto.ProductSkuQuoteUpdateStatusDTO;
+import com.lin.distribution.dto.QuotePriceImportConfirmDTO;
+import com.lin.distribution.dto.QuotePriceImportDTO;
 
 /**
  * 商品报价Service接口
@@ -75,6 +77,33 @@ public interface ProductSkuQuoteService {
      * @return
      */
     ProductSkuQuote createSkuQuote(ProductSkuQuoteCreateDTO request);
+
+    /**
+     * 粘贴价格表导入预览：解析文本并自动匹配内部 SKU
+     * 匹配顺序：名称精确 → 助记码 → 全局别名 → 该客户的SKU映射
+     *
+     * @param customerId 客户ID
+     * @param text       价格表文本（每行：商品叫法 价格）
+     * @return 预览行列表
+     */
+    List<QuotePriceImportDTO.Row> previewQuotePriceImport(Long customerId, String text);
+
+    /**
+     * 价格表Excel导入预览：EasyExcel无模型流式读取，逐行解析后自动匹配内部 SKU
+     *
+     * @param customerId 客户ID
+     * @param in         Excel输入流（.xlsx/.xls）
+     * @return 预览行列表
+     */
+    List<QuotePriceImportDTO.Row> previewQuotePriceImportExcel(Long customerId, java.io.InputStream in);
+
+    /**
+     * 按预览确认结果导入：已匹配行生成报价单草稿，未匹配行可转临时商品
+     *
+     * @param dto 确认结果
+     * @return 导入结果报告
+     */
+    String confirmQuotePriceImport(QuotePriceImportConfirmDTO dto);
 
     /**
      * 更新商品报价单含详情

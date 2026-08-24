@@ -22,7 +22,7 @@
     >
       <template #search>
         <el-form :model="queryParams" ref="queryForm" :rules="queryFormRules" size="small" :inline="true"
-          label-width="64px">
+          label-width="80px">
           <el-form-item label="报价客户" prop="customerId">
             <el-select v-model="queryParams.customerId" filterable clearable style="width: 150px">
               <el-option
@@ -96,6 +96,8 @@
           v-hasPermi="['product:quote:export']">导出</el-button>
         <el-button type="info" plain :icon="Upload" size="small" @click="handleImport"
           v-hasPermi="['product:quote:import']">导入</el-button>
+        <el-button type="warning" plain :icon="DocumentAdd" size="small" @click="handlePriceImport"
+          v-hasPermi="['product:quote:import']">导入价格表</el-button>
       </template>
 
       <!-- 列插槽 -->
@@ -176,7 +178,7 @@
     </quick-table>
 
     <!-- 客户报价导入对话框 -->
-    <el-dialog :title="upload.title" v-model="upload.open" width="400px" append-to-body>
+    <el-dialog align-center :title="upload.title" v-model="upload.open" width="400px" append-to-body>
       <el-upload
         ref="upload"
         :limit="1"
@@ -205,6 +207,97 @@
         </div>
       </template>
     </el-dialog>
+    <!-- 价格表导入向导 -->
+    <el-dialog align-center :title="priceImport.step === 1 ? '导入价格表 - 粘贴' : '导入价格表 - 确认匹配'" v-model="priceImport.open" width="860px" append-to-body>
+      <template v-if="priceImport.step === 1">
+        <el-alert type="info" :closable="false" show-icon style="margin-bottom: 12px">
+          <template #title>
+            每行：「商品叫法 [单位] 价格」，如「土豆 2.5」「黄心土豆 斤 2.5」「黄心土豆/5斤装 箱 45」；单位可省略；系统自动按名称/助记码/别名匹配标准SKU，下一步可人工修正。
+          </template>
+        </el-alert>
+        <el-form label-width="80px">
+          <el-form-item label="客户" required>
+            <el-select v-model="priceImport.customerId" placeholder="请选择客户" filterable style="width: 100%">
+              <el-option
+                v-for="item in customerOptions"
+                :key="item.id"
+                :label="item.alias ? item.alias + '（' + item.name + '）' : item.name"
+                :value="item.id"
+              />
+            </el-select>
+          </el-form-item>
+          <el-form-item label="价格表">
+            <el-input
+              v-model="priceImport.text"
+              type="textarea"
+              :rows="12"
+              placeholder="土豆 2.5\n西红柿 3.8\n黄心土豆 45\nPG 1.2"
+            />
+            <div style="margin-top: 8px">
+              <el-upload
+                :show-file-list="false"
+                accept=".xlsx,.xls"
+                :http-request="uploadPriceExcel"
+              >
+                <el-button size="small" type="primary" plain :icon="Upload" :loading="priceImport.uploading">
+                  {{ priceImport.uploading ? "解析中..." : "上传Excel解析" }}
+                </el-button>
+              </el-upload>
+              <el-button size="small" link type="primary" @click="downloadPriceTemplate">下载模板</el-button>
+              <span class="el-form-item-msg">
+                支持 .xlsx/.xls；每行：名称 [单位] 价格，单位选填（斤/箱/袋等常见单位自动识别）
+              </span>
+            </div>
+          </el-form-item>
+        </el-form>
+      </template>
+      <template v-else>
+        <div style="margin-bottom: 8px; display: flex; align-items: center; gap: 12px">
+          <span style="font-size: 13px; color: #909399">
+            共 {{ priceImport.rows.length }} 行：已匹配 {{ matchedRowCount }} 条，未匹配 {{ unmatchedRows.length }} 条；未匹配行可直接改选SKU，或
+          </span>
+          <el-checkbox v-model="priceImport.unmatchedToTemp">转临时商品</el-checkbox>
+        </div>
+        <el-table :data="previewRows" height="380" size="small" border>
+          <el-table-column label="行号" prop="lineNo" width="55" align="center" />
+          <el-table-column label="原始名" prop="rawName" min-width="120" show-overflow-tooltip />
+          <el-table-column label="挂钩SKU" min-width="200">
+            <template #default="{ row }">
+              <el-select v-model="row.skuId" filterable clearable size="small" placeholder="未匹配，点击选择" style="width: 100%">
+                <el-option
+                  v-for="item in allSkuOptions"
+                  :key="item.id"
+                  :label="item.code + ' ' + item.name + (item.specName ? '（' + item.specName + '）' : '')"
+                  :value="item.id"
+                />
+              </el-select>
+            </template>
+          </el-table-column>
+          <el-table-column label="单位" width="70" align="center">
+            <template #default="{ row }">{{ row.unit || skuUnitOf(row) }}</template>
+          </el-table-column>
+          <el-table-column label="规格" width="110" show-overflow-tooltip>
+            <template #default="{ row }">{{ skuSpecOf(row) }}</template>
+          </el-table-column>
+          <el-table-column label="价格" prop="price" width="90" align="right" />
+          <el-table-column label="状态" width="130" align="center">
+            <template #default="{ row }">
+              <el-tag v-if="row.error" type="danger" size="small">{{ row.error }}</el-tag>
+              <el-tag v-else-if="row.skuId" type="success" size="small">已匹配（{{ row.matchType }}）</el-tag>
+              <el-tag v-else type="info" size="small">{{ priceImport.unmatchedToTemp ? "转临时商品" : "跳过" }}</el-tag>
+            </template>
+          </el-table-column>
+        </el-table>
+      </template>
+      <template #footer>
+        <div class="dialog-footer">
+          <el-button v-if="priceImport.step === 2" @click="priceImport.step = 1">上一步</el-button>
+          <el-button v-if="priceImport.step === 1" type="primary" :loading="priceImport.submitting" @click="parsePriceImport">解析预览</el-button>
+          <el-button v-if="priceImport.step === 2" type="primary" :loading="priceImport.submitting" @click="submitPriceImport">确认导入</el-button>
+          <el-button @click="priceImport.open = false">取 消</el-button>
+        </div>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -217,8 +310,12 @@ import {
   addQuote,
   updateQuote,
   updateQuoteStatus,
+  previewQuoteImport,
+  confirmQuoteImport,
+  previewQuoteImportExcel,
 } from "@/api/product/quote";
 import { listCustomer } from "@/api/partner/customer";
+import { listSku } from "@/api/product/sku";
 import { getToken } from "@/utils/auth";
 import quickTableMixin from "@/components/QuickTable/quickTableMixin";
 import {
@@ -234,6 +331,7 @@ import {
   Link,
   DArrowRight,
   Upload,
+  DocumentAdd,
 } from "@element-plus/icons-vue";
 
 // 初始化生效日期：获取当前日期和未来7天后的日期
@@ -261,6 +359,7 @@ export default {
       Link,
       DArrowRight,
       Upload,
+      DocumentAdd,
     };
   },
   data() {
@@ -298,6 +397,19 @@ export default {
         // 上传的地址
         url: import.meta.env.VITE_APP_BASE_API + "/product/quote/importData",
       },
+      // 价格表导入向导
+      priceImport: {
+        open: false,
+        step: 1,
+        customerId: null,
+        text: "",
+        unmatchedToTemp: true,
+        rows: [],
+        uploading: false,
+        submitting: false,
+      },
+      // 全部标准SKU（价格表导入时改选用）
+      allSkuOptions: [],
       // 查询参数
       queryParams: {
         pageNum: 1,
@@ -406,6 +518,19 @@ export default {
         }
       },
       deep: true,
+    },
+  },
+  computed: {
+    /** 已匹配行数 */
+    matchedRowCount() {
+      return this.priceImport.rows.filter((r) => r.skuId).length;
+    },
+    /** 未匹配行 */
+    unmatchedRows() {
+      return this.priceImport.rows.filter((r) => !r.skuId);
+    },
+    previewRows() {
+      return this.priceImport.rows;
     },
   },
   created() {
@@ -624,6 +749,117 @@ export default {
     handleImport() {
       this.upload.title = "客户报价导入";
       this.upload.open = true;
+    },
+    /** 价格表导入向导：打开 */
+    handlePriceImport() {
+      this.priceImport.customerId = this.queryParams.customerId || null;
+      this.priceImport.text = "";
+      this.priceImport.rows = [];
+      this.priceImport.step = 1;
+      this.priceImport.unmatchedToTemp = true;
+      if (this.allSkuOptions.length === 0) {
+        listSku({}).then((response) => {
+          this.allSkuOptions = response.data || [];
+        });
+      }
+      this.priceImport.open = true;
+    },
+    /** 下载价格表导入模板 */
+    downloadPriceTemplate() {
+      this.download(
+        "product/quote/importPriceTemplate",
+        {},
+        `price_import_template_${new Date().getTime()}.xlsx`
+      );
+    },
+    /** 上传Excel解析并进入预览 */
+    uploadPriceExcel(options) {
+      if (!this.priceImport.customerId) {
+        this.$modal.msgWarning("请先选择客户再上传Excel");
+        return;
+      }
+      const formData = new FormData();
+      formData.append("file", options.file);
+      formData.append("customerId", this.priceImport.customerId);
+      this.priceImport.uploading = true;
+      previewQuoteImportExcel(formData)
+        .then((response) => {
+          this.priceImport.rows = response.data || [];
+          if (!this.priceImport.rows.length) {
+            this.$modal.msgWarning("Excel中未解析到有效数据行");
+            return;
+          }
+          this.priceImport.step = 2;
+        })
+        .finally(() => {
+          this.priceImport.uploading = false;
+        });
+    },
+    /** 解析价格表并自动匹配 */
+    parsePriceImport() {
+      if (!this.priceImport.customerId) {
+        this.$modal.msgWarning("请先选择客户");
+        return;
+      }
+      if (!this.priceImport.text.trim()) {
+        this.$modal.msgWarning("请先粘贴价格表");
+        return;
+      }
+      this.priceImport.submitting = true;
+      previewQuoteImport({
+        customerId: this.priceImport.customerId,
+        text: this.priceImport.text,
+      })
+        .then((response) => {
+          this.priceImport.rows = response.data || [];
+          if (!this.priceImport.rows.length) {
+            this.$modal.msgWarning("未解析到有效行，请检查格式");
+            return;
+          }
+          this.priceImport.step = 2;
+        })
+        .finally(() => {
+          this.priceImport.submitting = false;
+        });
+    },
+    /** 行内 SKU 单位展示（跟随改选结果） */
+    skuUnitOf(row) {
+      const sku = this.allSkuOptions.find((s) => s.id === row.skuId);
+      return sku ? sku.unit : row.skuUnit || "-";
+    },
+    skuSpecOf(row) {
+      const sku = this.allSkuOptions.find((s) => s.id === row.skuId);
+      return sku ? sku.specName : row.skuSpec || "-";
+    },
+    /** 确认导入：生成报价单草稿 + 未匹配转临时 */
+    submitPriceImport() {
+      const rows = this.priceImport.rows
+        .filter((r) => !r.error && r.price != null)
+        .map((r) => ({ rawName: r.rawName, skuId: r.skuId, price: r.price, unit: r.unit || null }));
+      if (!rows.length) {
+        this.$modal.msgWarning("没有可导入的行");
+        return;
+      }
+      this.priceImport.submitting = true;
+      confirmQuoteImport({
+        customerId: this.priceImport.customerId,
+        unmatchedToTemp: this.priceImport.unmatchedToTemp,
+        rows,
+      })
+        .then((response) => {
+          this.priceImport.open = false;
+          this.$alert(
+            "<div style='overflow: auto;max-height: 70vh;padding: 10px 20px 0;'>" +
+              response.msg +
+              "</div>",
+            "导入结果",
+            { dangerouslyUseHTMLString: true }
+          );
+          this.getList();
+        })
+        .finally(() => {
+          this.priceImport.submitting = false;
+        });
     },
     /** 下载模板操作 */
     importTemplate() {
