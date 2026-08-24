@@ -36,6 +36,10 @@ docs/
 
 配套 SQL：[sql/r1_basicinfo_redesign.sql](../sql/r1_basicinfo_redesign.sql)、[sql/r1_frontend_menu.sql](../sql/r1_frontend_menu.sql)
 
+> 📌 **菜单迁移**：v1.2 对基础信息菜单做了更名（商品信息→商品规格）与排序调整，
+> 迁移到其他项目时执行可移植脚本 [sql/s9_menu_product_ia.sql](../sql/s9_menu_product_ia.sql)
+> （按 parent_id=4 + component 路径定位，不依赖 menu_id）。
+
 ## 03-ui-optimization — 交互与 UI 优化
 
 | 文档 | 说明 |
