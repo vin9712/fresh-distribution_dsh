@@ -93,7 +93,27 @@ directive(app)
 app.use(ElementPlus, {
   locale: locale,
   // 支持 large、default、small
-  size: Cookies.get('size') || 'default'
+  size: Cookies.get('size') || 'default',
+  // 所有弹窗默认可拖拽（注意：el-dialog 的全局配置嵌套在 dialog 对象下）
+  dialog: {
+    draggable: true
+  }
+})
+
+// 所有弹窗每次打开时居中：清除上一次拖动留下的偏移
+app.mixin({
+  mounted() {
+    if (this.$options.name === 'ElDialog') {
+      this.$watch(
+        () => this.visible,
+        (val) => {
+          if (val && this.dialogRef && this.dialogRef.value) {
+            this.dialogRef.value.style.transform = ''
+          }
+        }
+      )
+    }
+  },
 })
 
 app.mount('#app')

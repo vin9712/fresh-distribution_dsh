@@ -40,10 +40,59 @@
     font-size: 12px;
   }
 
+  /* 单元格内的下拉触发器（如“更多”）与相邻链接按钮对齐，不再凸出 */
+  .vxe-grid .vxe-cell .el-dropdown {
+    vertical-align: middle;
+    margin-left: 4px;
+
+    > .el-button.is-link {
+      height: auto;
+    }
+  }
+
+  /* 工具栏内下拉（如“关联商品库”）与相邻按钮保持默认间距 */
+  .vxe-grid .vxe-toolbar .vxe-buttons .el-dropdown {
+    margin-left: 12px;
+  }
+
   /* 行号/勾选列文字居中 */
   .vxe-grid .vxe-cell--seq,
   .vxe-grid .vxe-cell--checkbox {
     justify-content: center;
+  }
+}
+
+/* 工具栏（表格上方操作按钮区）：留出呼吸空间，不再贴边、贴表头 */
+.quick-table {
+  .vxe-grid .vxe-toolbar {
+    padding: 10px 12px;
+
+    /* 左侧操作按钮区：垂直居中 */
+    .vxe-buttons {
+      display: flex;
+      align-items: center;
+    }
+
+    /* 右侧工具区（刷新/快捷键）垂直居中 */
+    .vxe-tools--wrapper,
+    .vxe-tools {
+      display: flex;
+      align-items: center;
+    }
+  }
+}
+
+/* 页面导视：一句话说明本页定位 */
+.quick-page-hint {
+  margin-bottom: 8px;
+  padding: 6px 12px;
+  font-size: 12px;
+  color: var(--el-text-color-secondary, #909399);
+  background: var(--el-fill-color-lighter, #fafafa);
+  border-radius: 4px;
+
+  b {
+    color: var(--el-text-color-regular, #606266);
   }
 }
 

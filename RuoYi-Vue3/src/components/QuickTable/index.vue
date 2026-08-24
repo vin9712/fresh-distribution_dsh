@@ -23,9 +23,6 @@
         >搜索</el-button>
         <el-button size="small" :icon="Refresh" @click="emitReset">重置</el-button>
       </div>
-      <div class="quick-search-toggle" :title="searchVisible ? '收起搜索' : '展开搜索'" @click="searchVisible = !searchVisible">
-        <el-icon><ArrowUp v-if="searchVisible" /><ArrowDown v-else /></el-icon>
-      </div>
     </div>
 
     <!-- 表格区（vxe-grid） -->
@@ -115,7 +112,7 @@
 </template>
 
 <script>
-import { Search, Refresh, Close, ArrowUp, ArrowDown } from '@element-plus/icons-vue'
+import { Search, Refresh, Close } from '@element-plus/icons-vue'
 
 /**
  * 快捷列表页核心组件（deepseek_ui_redesign.md §2/§3/§4/§5）
@@ -163,7 +160,7 @@ export default {
     'batch-action', 'menu-click', 'row-dblclick',
   ],
   setup() {
-    return { Search, Refresh, Close, ArrowUp, ArrowDown }
+    return { Search, Refresh, Close }
   },
   data() {
     return {
@@ -503,22 +500,6 @@ export default {
       display: flex;
       align-items: center;
       gap: 6px;
-    }
-    .quick-search-toggle {
-      flex-shrink: 0;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      width: 24px;
-      height: 24px;
-      margin-top: 2px;
-      cursor: pointer;
-      border-radius: 3px;
-      color: var(--el-text-color-secondary, #909399);
-      &:hover {
-        background: var(--el-fill-color-light, #f5f7fa);
-        color: var(--el-color-primary, #409eff);
-      }
     }
   }
 
