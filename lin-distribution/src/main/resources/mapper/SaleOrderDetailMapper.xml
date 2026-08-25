@@ -237,6 +237,17 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
           and d.is_deleted = 0
           and d.sku_id is not null
           and d.create_time &gt;= #{startTime}
+        <!-- 配送点白名单：通用池∪本点专属（dept_id空=通用）；未传配送点时仅显示通用商品，避免泄漏他点专属 -->
+        and exists (select 1 from customers_sku cs
+                    where cs.customer_id = o.customer_id
+                      and cs.sku_id = d.sku_id
+                      and cs.status = 1
+                    <if test="deliveryPointId != null">
+                      and (cs.dept_id is null or cs.dept_id = #{deliveryPointId})
+                    </if>
+                    <if test="deliveryPointId == null">
+                      and cs.dept_id is null
+                    </if>)
         group by d.sku_id
         order by order_count desc, last_order_time desc
         limit #{limit}

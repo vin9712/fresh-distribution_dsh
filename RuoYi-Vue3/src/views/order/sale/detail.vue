@@ -740,6 +740,10 @@ export default {
     "orderForm.customerId"(val) {
       this.loadFrequentProducts();
     },
+    "orderForm.customerDeptId"() {
+      // 送货单位变化：常用商品按新配送点白名单重新过滤
+      this.loadFrequentProducts();
+    },
   },
   methods: {
     /** 查询最近订单列表 */
@@ -1586,18 +1590,21 @@ export default {
     },
 
     /* ========== 常用商品面板（Phase 1.2） ========== */
-    /** 加载近30天下单频率 Top20（当前客户） */
+    /** 加载近30天下单频率 Top20（当前客户+当前配送点白名单） */
     loadFrequentProducts() {
       const customerId = this.orderForm.customerId;
       if (!customerId) {
         this.frequentList = [];
         return;
       }
-      frequentSaleDetail({ customerId, days: 30, limit: 20 }).then(
-        (response) => {
-          this.frequentList = response.data || [];
-        }
-      );
+      frequentSaleDetail({
+        customerId,
+        days: 30,
+        limit: 20,
+        deliveryPointId: this.orderForm.customerDeptId || undefined,
+      }).then((response) => {
+        this.frequentList = response.data || [];
+      });
     },
     /** 点击常用商品：插入明细行（末尾）→ 取价 → 光标落数量列 */
     addFrequentProduct(item) {

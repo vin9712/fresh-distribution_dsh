@@ -38,27 +38,30 @@ class SaleOrderDetailServiceImplTest {
         org.mockito.Mockito.lenient()
                 .when(saleOrderDetailMapper.selectFrequentSkuList(org.mockito.ArgumentMatchers.anyLong(),
                         org.mockito.ArgumentMatchers.any(LocalDateTime.class),
-                        org.mockito.ArgumentMatchers.anyInt()))
+                        org.mockito.ArgumentMatchers.anyInt(),
+                        org.mockito.ArgumentMatchers.any()))
                 .thenReturn(java.util.Collections.emptyList());
     }
 
     @Test
     void 客户为空时不查库直接返回空() {
-        assertTrue(saleOrderDetailService.selectFrequentSkuList(null, 30, 20).isEmpty());
+        assertTrue(saleOrderDetailService.selectFrequentSkuList(null, 30, 20, null).isEmpty());
         verify(saleOrderDetailMapper, never()).selectFrequentSkuList(
                 org.mockito.ArgumentMatchers.anyLong(),
                 org.mockito.ArgumentMatchers.any(LocalDateTime.class),
-                org.mockito.ArgumentMatchers.anyInt());
+                org.mockito.ArgumentMatchers.anyInt(),
+                org.mockito.ArgumentMatchers.any());
     }
 
     @Test
     void 默认参数为30天20条且起始时间为零点() {
-        saleOrderDetailService.selectFrequentSkuList(CUSTOMER_ID, null, null);
+        saleOrderDetailService.selectFrequentSkuList(CUSTOMER_ID, null, null, null);
 
         ArgumentCaptor<Long> idCap = ArgumentCaptor.forClass(Long.class);
         ArgumentCaptor<LocalDateTime> timeCap = ArgumentCaptor.forClass(LocalDateTime.class);
         ArgumentCaptor<Integer> limitCap = ArgumentCaptor.forClass(Integer.class);
-        verify(saleOrderDetailMapper).selectFrequentSkuList(idCap.capture(), timeCap.capture(), limitCap.capture());
+        verify(saleOrderDetailMapper).selectFrequentSkuList(idCap.capture(), timeCap.capture(), limitCap.capture(),
+                org.mockito.ArgumentMatchers.isNull());
 
         assertEquals(CUSTOMER_ID, idCap.getValue());
         assertEquals(20, limitCap.getValue());
@@ -67,12 +70,13 @@ class SaleOrderDetailServiceImplTest {
 
     @Test
     void 自定义天数与条数透传() {
-        saleOrderDetailService.selectFrequentSkuList(CUSTOMER_ID, 7, 5);
+        saleOrderDetailService.selectFrequentSkuList(CUSTOMER_ID, 7, 5, null);
 
         ArgumentCaptor<LocalDateTime> timeCap = ArgumentCaptor.forClass(LocalDateTime.class);
         ArgumentCaptor<Integer> limitCap = ArgumentCaptor.forClass(Integer.class);
         verify(saleOrderDetailMapper).selectFrequentSkuList(
-                org.mockito.ArgumentMatchers.eq(CUSTOMER_ID), timeCap.capture(), limitCap.capture());
+                org.mockito.ArgumentMatchers.eq(CUSTOMER_ID), timeCap.capture(), limitCap.capture(),
+                org.mockito.ArgumentMatchers.isNull());
 
         assertEquals(5, limitCap.getValue());
         assertEquals(LocalDate.now().minusDays(7).atStartOfDay(), timeCap.getValue());
@@ -80,12 +84,13 @@ class SaleOrderDetailServiceImplTest {
 
     @Test
     void 超出上限时封顶90天50条() {
-        saleOrderDetailService.selectFrequentSkuList(CUSTOMER_ID, 365, 999);
+        saleOrderDetailService.selectFrequentSkuList(CUSTOMER_ID, 365, 999, null);
 
         ArgumentCaptor<LocalDateTime> timeCap = ArgumentCaptor.forClass(LocalDateTime.class);
         ArgumentCaptor<Integer> limitCap = ArgumentCaptor.forClass(Integer.class);
         verify(saleOrderDetailMapper).selectFrequentSkuList(
-                org.mockito.ArgumentMatchers.eq(CUSTOMER_ID), timeCap.capture(), limitCap.capture());
+                org.mockito.ArgumentMatchers.eq(CUSTOMER_ID), timeCap.capture(), limitCap.capture(),
+                org.mockito.ArgumentMatchers.isNull());
 
         assertEquals(50, limitCap.getValue());
         assertEquals(LocalDate.now().minusDays(90).atStartOfDay(), timeCap.getValue());

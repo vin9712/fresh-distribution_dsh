@@ -65,8 +65,9 @@ public class SaleOrderDetailController extends BaseController {
     @GetMapping("/frequent")
     public AjaxResult frequent(@RequestParam Long customerId,
                                @RequestParam(defaultValue = "30") Integer days,
-                               @RequestParam(defaultValue = "20") Integer limit) {
-        return success(saleOrderDetailService.selectFrequentSkuList(customerId, days, limit));
+                               @RequestParam(defaultValue = "20") Integer limit,
+                               @RequestParam(required = false) Long deliveryPointId) {
+        return success(saleOrderDetailService.selectFrequentSkuList(customerId, days, limit, deliveryPointId));
     }
 
     /**

@@ -93,4 +93,8 @@ public class CustomerSku implements Serializable {
     /** 查询参数：下单时传入的配送点ID，用于过滤可见商品池 */
     @TableField(exist = false)
     private Long deliveryPointId;
+
+    /** 查询参数：true=按配送点精确匹配（管理页）；空/false=白名单并集（通用池∪本点专属，下单用） */
+    @TableField(exist = false)
+    private Boolean deptExactFilter;
 }

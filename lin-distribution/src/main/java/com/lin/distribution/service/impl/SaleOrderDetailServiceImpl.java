@@ -97,13 +97,13 @@ public class SaleOrderDetailServiceImpl implements SaleOrderDetailService {
      * 常用商品统计：近 N 天下单频率最高的 SKU（录单页"常用"面板）
      */
     @Override
-    public List<SaleOrderDetail> selectFrequentSkuList(Long customerId, Integer days, Integer limit) {
+    public List<SaleOrderDetail> selectFrequentSkuList(Long customerId, Integer days, Integer limit, Long deliveryPointId) {
         if (customerId == null) {
             return Collections.emptyList();
         }
         int d = (days == null || days <= 0) ? 30 : Math.min(days, 90);
         int lim = (limit == null || limit <= 0) ? 20 : Math.min(limit, 50);
         LocalDateTime startTime = LocalDate.now().minusDays(d).atStartOfDay();
-        return saleOrderDetailMapper.selectFrequentSkuList(customerId, startTime, lim);
+        return saleOrderDetailMapper.selectFrequentSkuList(customerId, startTime, lim, deliveryPointId);
     }
 }

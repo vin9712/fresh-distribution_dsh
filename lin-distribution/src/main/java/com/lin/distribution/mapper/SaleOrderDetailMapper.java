@@ -109,5 +109,6 @@ public interface SaleOrderDetailMapper {
      */
     List<SaleOrderDetail> selectFrequentSkuList(@Param("customerId") Long customerId,
                                                 @Param("startTime") LocalDateTime startTime,
-                                                @Param("limit") Integer limit);
+                                                @Param("limit") Integer limit,
+                                                @Param("deliveryPointId") Long deliveryPointId);
 }

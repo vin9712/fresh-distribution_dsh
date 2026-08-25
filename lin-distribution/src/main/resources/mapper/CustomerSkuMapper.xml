@@ -70,8 +70,9 @@
         <where>
             <if test="customerId != null">and cs.customer_id = #{customerId}</if>
             <if test="skuId != null">and cs.sku_id = #{skuId}</if>
-            <!-- 配送点白名单：通用池 ∪ 本点专属池；不传则不过滤（管理视图） -->
-            <if test="deliveryPointId != null">and (cs.dept_id is null or cs.dept_id = #{deliveryPointId})</if>
+            <!-- 配送点过滤：精确匹配（管理页 deptExactFilter=true）或白名单并集（下单：通用池∪本点专属）；不传则不过滤 -->
+            <if test="deliveryPointId != null and (deptExactFilter == null or !deptExactFilter)">and (cs.dept_id is null or cs.dept_id = #{deliveryPointId})</if>
+            <if test="deliveryPointId != null and deptExactFilter != null and deptExactFilter">and cs.dept_id = #{deliveryPointId}</if>
             <if test="status != null">and cs.status = #{status}</if>
             <if test="keyword != null and keyword != ''">
                 and ( sku.name like concat('%', #{keyword}, '%')

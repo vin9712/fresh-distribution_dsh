@@ -65,7 +65,8 @@ public interface SaleOrderDetailService {
      * @param customerId 客户ID（必填）
      * @param days       统计天数（默认 30，上限 90）
      * @param limit      返回条数（默认 20，上限 50）
+     * @param deliveryPointId 配送点ID（白名单过滤：通用池∪本点专属；空=仅通用商品）
      * @return 按下单次数倒序的 SKU 列表
      */
-    List<SaleOrderDetail> selectFrequentSkuList(Long customerId, Integer days, Integer limit);
+    List<SaleOrderDetail> selectFrequentSkuList(Long customerId, Integer days, Integer limit, Long deliveryPointId);
 }
