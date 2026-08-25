@@ -58,3 +58,4 @@ application-prod.yml
 !*/build/*.xml
 # r1 tmp
 .r1_*
+.DS_Store
