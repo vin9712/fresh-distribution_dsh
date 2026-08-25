@@ -407,7 +407,7 @@ export default {
       columns: [
         { field: "customerCode", title: "材料编号", width: 100, align: "center", sortable: true },
         { field: "skuName", title: "商品名", minWidth: 160, align: "left", fixed: "left" },
-        { field: "skuUnit", title: "单位", width: 55, align: "center" },
+        { field: "skuUnit", title: "单位", width: 70, align: "center" },
         { field: "skuSpecName", title: "规格", width: 110, align: "center", showOverflow: true },
         { field: "alias", title: "别名", width: 120, align: "center", slots: { default: "col_alias" } },
         { field: "deptName", title: "限定配送点", width: 110, align: "center", slots: { default: "col_dept" } },
