@@ -8,6 +8,7 @@
         <result property="id" column="id"/>
         <result property="customerId" column="customer_id"/>
         <result property="skuId" column="sku_id"/>
+        <result property="deptId" column="dept_id"/>
         <result property="alias" column="alias"/>
         <result property="customerCode" column="customer_code"/>
         <result property="unit" column="unit"/>
@@ -33,6 +34,7 @@
         select cs.id,
         cs.customer_id,
         cs.sku_id,
+        cs.dept_id,
         cs.alias,
         cs.customer_code,
         cs.unit,
@@ -65,12 +67,11 @@
     <select id="selectCustomerSkuList" parameterType="com.lin.distribution.domain.CustomerSku"
             resultMap="CustomerSkuResult">
         <include refid="selectCustomerSkuVo"/>
-        <if test="deliveryPointId != null">
-            left join delivery_sku_override dso on dso.sku_id = sku.id and dso.delivery_point_id = #{deliveryPointId}
-        </if>
         <where>
             <if test="customerId != null">and cs.customer_id = #{customerId}</if>
             <if test="skuId != null">and cs.sku_id = #{skuId}</if>
+            <!-- 配送点白名单：通用池 ∪ 本点专属池；不传则不过滤（管理视图） -->
+            <if test="deliveryPointId != null">and (cs.dept_id is null or cs.dept_id = #{deliveryPointId})</if>
             <if test="status != null">and cs.status = #{status}</if>
             <if test="keyword != null and keyword != ''">
                 and ( sku.name like concat('%', #{keyword}, '%')
@@ -79,9 +80,6 @@
                       or cs.customer_code like concat('%', #{keyword}, '%')
                       or sku.id in (select sku_id from product_alias where alias like concat('%', #{keyword}, '%'))
                       or sku.id in (select sku_id from customer_sku_mapping where customer_id = cs.customer_id and customer_alias like concat('%', #{keyword}, '%'))
-                      <if test="deliveryPointId != null">
-                      or dso.alias_override like concat('%', #{keyword}, '%')
-                      </if>
                     )
             </if>
         </where>
@@ -120,6 +118,7 @@
         <trim prefix="(" suffix=")" suffixOverrides=",">
             <if test="customerId != null">customer_id,</if>
             <if test="skuId != null">sku_id,</if>
+            <if test="deptId != null">dept_id,</if>
             <if test="alias != null">alias,</if>
             <if test="customerCode != null and customerCode != ''">customer_code,</if>
             <if test="unit != null and unit != ''">unit,</if>
@@ -132,6 +131,7 @@
         <trim prefix="values (" suffix=")" suffixOverrides=",">
             <if test="customerId != null">#{customerId},</if>
             <if test="skuId != null">#{skuId},</if>
+            <if test="deptId != null">#{deptId},</if>
             <if test="alias != null">#{alias},</if>
             <if test="customerCode != null and customerCode != ''">#{customerCode},</if>
             <if test="unit != null and unit != ''">#{unit},</if>
@@ -153,6 +153,7 @@
             <if test="isFollowDefault != null">is_follow_default = #{isFollowDefault},</if>
             <if test="sourceTemplateId != null">source_template_id = #{sourceTemplateId},</if>
             <if test="status != null">status = #{status},</if>
+            <if test="deptId != null">dept_id = #{deptId},</if>
         </trim>
         where id = #{id}
     </update>

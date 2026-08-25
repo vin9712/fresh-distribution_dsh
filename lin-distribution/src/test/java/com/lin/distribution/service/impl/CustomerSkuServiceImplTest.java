@@ -2,10 +2,8 @@ package com.lin.distribution.service.impl;
 
 import com.lin.common.exception.ServiceException;
 import com.lin.distribution.domain.CustomerSku;
-import com.lin.distribution.domain.DeliverySkuOverride;
 import com.lin.distribution.domain.ProductSku;
 import com.lin.distribution.mapper.CustomerSkuMapper;
-import com.lin.distribution.mapper.DeliverySkuOverrideMapper;
 import com.lin.distribution.mapper.ProductSkuMapper;
 import com.lin.distribution.service.BizCodeService;
 import org.junit.jupiter.api.Test;
@@ -33,8 +31,6 @@ class CustomerSkuServiceImplTest {
     private CustomerSkuMapper customerSkuMapper;
     @Mock
     private ProductSkuMapper productSkuMapper;
-    @Mock
-    private DeliverySkuOverrideMapper deliverySkuOverrideMapper;
     @Mock
     private BizCodeService bizCodeService;
 
@@ -71,48 +67,26 @@ class CustomerSkuServiceImplTest {
     }
 
     @Test
-    void 客户商品列表合并配送点覆盖_隐藏SKU被移除() {
-        CustomerSku cs1 = new CustomerSku();
-        cs1.setSkuId(10L);
-        CustomerSku cs2 = new CustomerSku();
-        cs2.setSkuId(20L);
-        CustomerSku query = new CustomerSku();
-        query.setCustomerId(1L);
-        when(customerSkuMapper.selectCustomerSkuList(any())).thenReturn(new java.util.ArrayList<>(Arrays.asList(cs1, cs2)));
-
-        DeliverySkuOverride hide = new DeliverySkuOverride();
-        hide.setSkuId(10L);
-        hide.setIsAvailable(0);
-        when(deliverySkuOverrideMapper.selectByPoint(200L)).thenReturn(Arrays.asList(hide));
+    void 客户商品列表按配送点白名单过滤() {
+        // 白名单过滤已下推到 CustomerSkuMapper.xml（dept_id is null or dept_id = 配送点），
+        // 服务层只负责透传查询参数，这里验证透传行为。
+        CustomerSku cs = new CustomerSku();
+        cs.setSkuId(10L);
+        final CustomerSku[] captured = new CustomerSku[1];
+        when(customerSkuMapper.selectCustomerSkuList(any())).thenAnswer(inv -> {
+            captured[0] = inv.getArgument(0);
+            return new java.util.ArrayList<>(java.util.Collections.singletonList(cs));
+        });
 
         List<CustomerSku> result = customerSkuService.listCustomerProducts(1L, 200L, null);
 
         assertEquals(1, result.size());
-        assertEquals(20L, result.get(0).getSkuId());
+        assertEquals(200L, captured[0].getDeliveryPointId());
+        assertEquals(1L, captured[0].getCustomerId());
     }
 
     @Test
-    void 客户商品列表合并配送点覆盖_别名价格覆盖() {
-        CustomerSku cs = new CustomerSku();
-        cs.setSkuId(10L);
-        when(customerSkuMapper.selectCustomerSkuList(any())).thenReturn(Arrays.asList(cs));
-
-        DeliverySkuOverride ov = new DeliverySkuOverride();
-        ov.setSkuId(10L);
-        ov.setIsAvailable(1);
-        ov.setAliasOverride("客户叫法X");
-        ov.setPriceOverride(new java.math.BigDecimal("5.5"));
-        when(deliverySkuOverrideMapper.selectByPoint(200L)).thenReturn(Arrays.asList(ov));
-
-        List<CustomerSku> result = customerSkuService.listCustomerProducts(1L, 200L, null);
-
-        assertEquals("客户叫法X", result.get(0).getAlias());
-        assertEquals(0, new java.math.BigDecimal("5.5").compareTo(result.get(0).getPriceOverride()));
-        assertEquals(200L, result.get(0).getDeliveryPointId());
-    }
-
-    @Test
-    void 无配送点时不做覆盖合并() {
+    void 无配送点时不过滤商品池() {
         CustomerSku cs = new CustomerSku();
         cs.setSkuId(10L);
         when(customerSkuMapper.selectCustomerSkuList(any())).thenReturn(Arrays.asList(cs));
@@ -123,7 +97,7 @@ class CustomerSkuServiceImplTest {
     }
 
     @Test
-    void 关键字搜索时把配送点透传给Mapper以匹配覆盖别名() {
+    void 关键字搜索时把配送点透传给Mapper用于白名单过滤() {
         CustomerSku cs = new CustomerSku();
         cs.setSkuId(10L);
         // 捕获传给 mapper 的查询条件
@@ -132,7 +106,6 @@ class CustomerSkuServiceImplTest {
             captured[0] = inv.getArgument(0);
             return Arrays.asList(cs);
         });
-        when(deliverySkuOverrideMapper.selectByPoint(200L)).thenReturn(new java.util.ArrayList<>());
 
         customerSkuService.listCustomerProducts(1L, 200L, "洋柿子");
 

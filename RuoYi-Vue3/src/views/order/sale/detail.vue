@@ -759,7 +759,7 @@ export default {
       this.resetForm("recentOrderForm");
       this.handleRecentQuery();
     },
-    /** 获取当前客户的商品选项列表（客户商品池+配送点覆盖+临时商品） */
+    /** 获取当前客户的商品选项列表（客户商品池按配送点白名单过滤+临时商品） */
     async getSkuQuoteDetailList(keyword) {
       const customerId = this.orderForm.customerId;
       if (!customerId) {
@@ -774,7 +774,7 @@ export default {
         }),
         listTemp({ customerId, name: keyword || undefined }),
       ]);
-      // 客户商品池：覆盖后的别名/展示价格，交易价仍走取价引擎
+      // 客户商品池：已按配送点白名单过滤（通用池∪本点专属），别名/展示价取自池条目，交易价仍走取价引擎
       const pool = (poolRes.data || []).map((item) => ({
         skuId: item.skuId,
         productName: item.alias || item.skuName,
@@ -1257,7 +1257,7 @@ export default {
           // 临时商品：使用默认单价，不参与取价
           this.calcAmount(parentRow);
         } else {
-          // 正式SKU：三层取价覆盖（配送点覆盖 > 客户报价 > 客户模板），未命中提示人工填写
+          // 正式SKU：两层取价（客户报价 > 客户模板），未命中提示人工填写
           this.applyPriceQuery(parentRow);
         }
 
@@ -1273,7 +1273,7 @@ export default {
         }
       }
     },
-    /** 三层取价：选中商品后按 配送点>客户>模板 覆盖价格；未命中清空价格并提示人工填写 */
+    /** 取价：选中商品后按 客户报价>客户模板 取当期有效价；未命中清空价格并提示人工填写 */
     applyPriceQuery(parentRow) {
       const params = {
         customerId: this.orderForm.customerId,

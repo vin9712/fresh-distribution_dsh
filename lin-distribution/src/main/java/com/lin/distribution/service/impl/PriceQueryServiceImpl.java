@@ -1,11 +1,9 @@
 package com.lin.distribution.service.impl;
 
-import com.lin.distribution.domain.DeliverySkuOverride;
 import com.lin.distribution.domain.PriceQueryResult;
 import com.lin.distribution.domain.PriceTemplate;
 import com.lin.distribution.domain.PriceTemplateSku;
 import com.lin.distribution.domain.ProductSkuQuoteDetail;
-import com.lin.distribution.mapper.DeliverySkuOverrideMapper;
 import com.lin.distribution.mapper.PriceTemplateMapper;
 import com.lin.distribution.mapper.PriceTemplateSkuMapper;
 import com.lin.distribution.mapper.ProductSkuQuoteDetailMapper;
@@ -25,26 +23,13 @@ import java.time.LocalDate;
 @RequiredArgsConstructor
 public class PriceQueryServiceImpl implements PriceQueryService {
 
-    private final DeliverySkuOverrideMapper deliverySkuOverrideMapper;
     private final ProductSkuQuoteDetailMapper productSkuQuoteDetailMapper;
     private final PriceTemplateMapper priceTemplateMapper;
     private final PriceTemplateSkuMapper priceTemplateSkuMapper;
 
     @Override
     public PriceQueryResult queryPrice(Long customerId, Long deliveryPointId, Long skuId, LocalDate deliveryDate) {
-        // 1. 配送点覆盖价（delivery_sku_override.price_override）
-        if (deliveryPointId != null) {
-            DeliverySkuOverride override = deliverySkuOverrideMapper.selectActiveByPointAndSku(deliveryPointId, skuId, deliveryDate);
-            if (override != null && override.getPriceOverride() != null) {
-                return PriceQueryResult.builder()
-                        .skuId(skuId)
-                        .price(override.getPriceOverride())
-                        .source(1)
-                        .sourceId(override.getId())
-                        .build();
-            }
-        }
-        // 2. 客户报价（已发布 + 有效期区间内最新）
+        // 1. 客户报价（已发布 + 有效期区间内最新；原「配送点覆盖价」已随 delivery_sku_override 废弃，见 sql/s11）
         if (customerId != null) {
             ProductSkuQuoteDetail customerPrice = productSkuQuoteDetailMapper.selectActivePriceByCustomerAndSku(customerId, skuId, deliveryDate);
             if (customerPrice != null && customerPrice.getPrice() != null) {

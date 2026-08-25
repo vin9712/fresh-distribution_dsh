@@ -29,7 +29,7 @@
               filterable
               clearable
               style="width: 220px"
-              @change="handleQuery"
+              @change="handleCustomerChange"
             >
               <el-option
                 v-for="item in customerOptions"
@@ -47,6 +47,18 @@
               style="width: 200px"
               @keyup.enter="handleQuery"
             />
+          </el-form-item>
+          <el-form-item label="限定配送点" prop="deliveryPointId">
+            <el-select
+              v-model="queryParams.deliveryPointId"
+              placeholder="全部配送点"
+              clearable
+              :disabled="!queryParams.customerId || deptOptions.length === 0"
+              style="width: 150px"
+              @change="handleQuery"
+            >
+              <el-option v-for="d in deptOptions" :key="d.id" :label="d.name" :value="d.id" />
+            </el-select>
           </el-form-item>
           <el-form-item label="状态" prop="status">
             <el-select v-model="queryParams.status" placeholder="全部" clearable style="width: 110px">
@@ -78,6 +90,10 @@
         <el-tag :type="row.status == 1 ? 'success' : 'danger'" size="small">
           {{ row.status == 1 ? "可用" : "停用" }}
         </el-tag>
+      </template>
+      <template #col_dept="{ row }">
+        <el-tag v-if="row.deptId" type="warning" size="small">{{ deptNameOf(row.deptId) }}</el-tag>
+        <span v-else class="text-muted">通用</span>
       </template>
       <template #col_follow="{ row }">
         <el-tag :type="row.isFollowDefault == 1 ? 'info' : 'warning'" size="small">
@@ -166,6 +182,12 @@
             </el-option>
           </el-select>
         </el-form-item>
+        <el-form-item label="限定配送点" prop="deptId">
+          <el-select v-model="form.deptId" placeholder="空=客户通用（全部配送点可见）" clearable style="width: 100%" :disabled="!form.customerId || deptOptions.length === 0">
+            <el-option v-for="d in deptOptions" :key="d.id" :label="d.name" :value="d.id" />
+          </el-select>
+          <div style="font-size:12px;color:#9093a6;line-height:1.4">选定后该商品仅在该配送点下单时可见，其他配送点看不到</div>
+        </el-form-item>
         <el-form-item label="客户别名" prop="alias">
           <el-input v-model="form.alias" placeholder="客户对该商品的叫法（可空）" />
         </el-form-item>
@@ -192,6 +214,11 @@
         </el-form-item>
         <el-form-item label="客户别名" prop="alias">
           <el-input v-model="editForm.alias" placeholder="客户对该商品的叫法（可空）" />
+        </el-form-item>
+        <el-form-item label="限定配送点" prop="deptId">
+          <el-select v-model="editForm.deptId" placeholder="空=客户通用（全部配送点可见）" clearable style="width: 100%">
+            <el-option v-for="d in deptOptions" :key="d.id" :label="d.name" :value="d.id" />
+          </el-select>
         </el-form-item>
         <el-form-item label="最小起订量" prop="minOrderQty">
           <el-input-number v-model="editForm.minOrderQty" :min="0" :precision="2" :step="1" style="width: 100%" />
@@ -334,6 +361,7 @@ import {
 } from "@/api/product/customerSku";
 import { listSku } from "@/api/product/sku";
 import { listCustomer } from "@/api/partner/customer";
+import { listCustomerDept } from "@/api/partner/customerDept";
 import { Search, Refresh, Plus, Delete, Edit, Promotion, Switch, Connection } from "@element-plus/icons-vue";
 import quickTableMixin from "@/components/QuickTable/quickTableMixin";
 
@@ -362,7 +390,10 @@ export default {
         customerId: null,
         keyword: null,
         status: null,
+        deliveryPointId: null,
       },
+      // 当前客户的配送点选项（限定配送点用）
+      deptOptions: [],
       // 快速同步参数
       syncImport: {
         open: false,
@@ -379,6 +410,7 @@ export default {
         { field: "skuCode", title: "标准编码", width: 110, align: "center" },
         { field: "skuSpecName", title: "规格", width: 110, align: "center", showOverflow: true },
         { field: "skuUnit", title: "单位", width: 70, align: "center" },
+        { field: "deptName", title: "限定配送点", width: 110, align: "center", slots: { default: "col_dept" } },
         { field: "minOrderQty", title: "起订量", width: 80, align: "right" },
         { field: "orderStep", title: "步长", width: 70, align: "right" },
         { field: "status", title: "状态", width: 80, align: "center", slots: { default: "col_status" } },
@@ -460,6 +492,9 @@ export default {
   created() {
     this.getCustomerOptions();
     this.getTemplateOptions();
+    if (this.queryParams.customerId) {
+      this.getDeptOptions();
+    }
     this.getList();
   },
   methods: {
@@ -529,6 +564,26 @@ export default {
         this.customerOptions = response.data || [];
       });
     },
+    /** 客户下拉变化：重置配送点过滤并加载该客户的配送点选项 */
+    handleCustomerChange() {
+      this.queryParams.deliveryPointId = null;
+      this.deptOptions = [];
+      this.getDeptOptions();
+      this.handleQuery();
+    },
+    /** 加载当前客户的配送点选项 */
+    getDeptOptions() {
+      this.deptOptions = [];
+      if (!this.queryParams.customerId) return;
+      listCustomerDept({ customerId: this.queryParams.customerId }).then((response) => {
+        this.deptOptions = (response.data || []).filter((d) => !d.isDeleted);
+      });
+    },
+    /** 配送点名称 */
+    deptNameOf(deptId) {
+      const d = this.deptOptions.find((x) => x.id === deptId);
+      return d ? d.name : "配送点" + deptId;
+    },
     /** 模板下拉 */
     getTemplateOptions() {
       listDefaultSkuTemplate({}).then((response) => {
@@ -562,6 +617,7 @@ export default {
       this.form = {
         customerId: this.queryParams.customerId,
         skuId: null,
+        deptId: null,
         alias: null,
         minOrderQty: 1,
         orderStep: 1,
@@ -592,6 +648,7 @@ export default {
           skuName: data.skuName,
           skuSpecName: data.skuSpecName,
           alias: data.alias,
+          deptId: data.deptId || null,
           minOrderQty: data.minOrderQty,
           orderStep: data.orderStep,
           status: data.status,

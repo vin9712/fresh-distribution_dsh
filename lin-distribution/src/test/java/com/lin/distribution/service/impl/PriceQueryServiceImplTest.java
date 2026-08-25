@@ -1,11 +1,9 @@
 package com.lin.distribution.service.impl;
 
-import com.lin.distribution.domain.DeliverySkuOverride;
 import com.lin.distribution.domain.PriceQueryResult;
 import com.lin.distribution.domain.PriceTemplate;
 import com.lin.distribution.domain.PriceTemplateSku;
 import com.lin.distribution.domain.ProductSkuQuoteDetail;
-import com.lin.distribution.mapper.DeliverySkuOverrideMapper;
 import com.lin.distribution.mapper.PriceTemplateMapper;
 import com.lin.distribution.mapper.PriceTemplateSkuMapper;
 import com.lin.distribution.mapper.ProductSkuQuoteDetailMapper;
@@ -32,13 +30,12 @@ import static org.mockito.Mockito.when;
 
 /**
  * 取价优先级自动化测试（DESIGN.md 验收标准 1）
- * 配送点报价 > 客户报价 > 客户关联报价模板；未命中返回空价（不得免费/零价）。
+ * 客户报价 > 客户关联报价模板；未命中返回空价（不得免费/零价）。
+ * （原「配送点覆盖价」优先级已随 delivery_sku_override 废弃移除，见 sql/s11）
  */
 @ExtendWith(MockitoExtension.class)
 class PriceQueryServiceImplTest {
 
-    @Mock
-    private DeliverySkuOverrideMapper deliverySkuOverrideMapper;
     @Mock
     private ProductSkuQuoteDetailMapper productSkuQuoteDetailMapper;
     @Mock
@@ -56,44 +53,8 @@ class PriceQueryServiceImplTest {
 
     @BeforeEach
     void setUp() {
-        lenient().when(deliverySkuOverrideMapper.selectActiveByPointAndSku(POINT_ID, SKU_ID, DATE)).thenReturn(null);
         lenient().when(productSkuQuoteDetailMapper.selectActivePriceByCustomerAndSku(CUSTOMER_ID, SKU_ID, DATE)).thenReturn(null);
         lenient().when(priceTemplateMapper.selectTemplateByCustomerId(CUSTOMER_ID)).thenReturn(null);
-    }
-
-    @Test
-    void 配送点覆盖价命中时优先返回() {
-        DeliverySkuOverride override = new DeliverySkuOverride();
-        override.setId(1L);
-        override.setPriceOverride(new BigDecimal("9.50"));
-        when(deliverySkuOverrideMapper.selectActiveByPointAndSku(POINT_ID, SKU_ID, DATE)).thenReturn(override);
-
-        PriceQueryResult result = priceQueryService.queryPrice(CUSTOMER_ID, POINT_ID, SKU_ID, DATE);
-
-        assertNotNull(result.getPrice());
-        assertEquals(0, new BigDecimal("9.50").compareTo(result.getPrice()));
-        assertEquals(1, result.getSource());
-        assertEquals(1L, result.getSourceId());
-        // 不再查询客户报价
-        verify(productSkuQuoteDetailMapper, never()).selectActivePriceByCustomerAndSku(any(), any(), any());
-    }
-
-    @Test
-    void 配送点覆盖存在但无价格时回退客户报价() {
-        DeliverySkuOverride override = new DeliverySkuOverride();
-        override.setId(1L);
-        override.setPriceOverride(null);
-        when(deliverySkuOverrideMapper.selectActiveByPointAndSku(POINT_ID, SKU_ID, DATE)).thenReturn(override);
-
-        ProductSkuQuoteDetail customerPrice = new ProductSkuQuoteDetail();
-        customerPrice.setId(2L);
-        customerPrice.setPrice(new BigDecimal("11.00"));
-        when(productSkuQuoteDetailMapper.selectActivePriceByCustomerAndSku(CUSTOMER_ID, SKU_ID, DATE)).thenReturn(customerPrice);
-
-        PriceQueryResult result = priceQueryService.queryPrice(CUSTOMER_ID, POINT_ID, SKU_ID, DATE);
-
-        assertEquals(0, new BigDecimal("11.00").compareTo(result.getPrice()));
-        assertEquals(2, result.getSource());
     }
 
     @Test
@@ -138,8 +99,7 @@ class PriceQueryServiceImplTest {
     void 查询顺序严格按优先级() {
         priceQueryService.queryPrice(CUSTOMER_ID, POINT_ID, SKU_ID, DATE);
 
-        InOrder inOrder = inOrder(deliverySkuOverrideMapper, productSkuQuoteDetailMapper, priceTemplateMapper);
-        inOrder.verify(deliverySkuOverrideMapper).selectActiveByPointAndSku(POINT_ID, SKU_ID, DATE);
+        InOrder inOrder = inOrder(productSkuQuoteDetailMapper, priceTemplateMapper);
         inOrder.verify(productSkuQuoteDetailMapper).selectActivePriceByCustomerAndSku(CUSTOMER_ID, SKU_ID, DATE);
         inOrder.verify(priceTemplateMapper).selectTemplateByCustomerId(CUSTOMER_ID);
     }

@@ -29,6 +29,9 @@ public class CustomerSku implements Serializable {
     @Excel(name = "SKU ID")
     private Long skuId;
 
+    /** 限定配送点ID(t_customer_dept.id)，空=客户通用 */
+    private Long deptId;
+
     /** 客户自定义商品别名 */
     @Excel(name = "客户商品别名")
     private String alias;
@@ -87,9 +90,7 @@ public class CustomerSku implements Serializable {
     @TableField(exist = false)
     private String categoryName;
 
-    /** 配送点覆盖展示字段（非表字段） */
+    /** 查询参数：下单时传入的配送点ID，用于过滤可见商品池 */
     @TableField(exist = false)
     private Long deliveryPointId;
-    @TableField(exist = false)
-    private java.math.BigDecimal priceOverride;
 }

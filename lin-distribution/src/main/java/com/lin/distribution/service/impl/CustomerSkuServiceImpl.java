@@ -2,11 +2,9 @@ package com.lin.distribution.service.impl;
 
 import com.lin.common.exception.ServiceException;
 import com.lin.distribution.domain.CustomerSku;
-import com.lin.distribution.domain.DeliverySkuOverride;
 import com.lin.distribution.domain.ProductSku;
 import com.lin.distribution.domain.TempProduct;
 import com.lin.distribution.mapper.CustomerSkuMapper;
-import com.lin.distribution.mapper.DeliverySkuOverrideMapper;
 import com.lin.distribution.mapper.ProductSkuMapper;
 import com.lin.distribution.mapper.TempProductMapper;
 import com.lin.distribution.service.BizCodeService;
@@ -33,7 +31,6 @@ public class CustomerSkuServiceImpl implements CustomerSkuService {
 
     private final CustomerSkuMapper customerSkuMapper;
     private final ProductSkuMapper productSkuMapper;
-    private final DeliverySkuOverrideMapper deliverySkuOverrideMapper;
     private final BizCodeService bizCodeService;
     private final TempProductMapper tempProductMapper;
 
@@ -237,30 +234,8 @@ public class CustomerSkuServiceImpl implements CustomerSkuService {
         CustomerSku query = new CustomerSku();
         query.setCustomerId(customerId);
         query.setKeyword(keyword);
+        // 配送点白名单过滤：通用池 ∪ 本点专属池（dept_id 为空=通用，见 sql/s11_customer_sku_dept_scoping.sql）
         query.setDeliveryPointId(deliveryPointId);
-        List<CustomerSku> list = customerSkuMapper.selectCustomerSkuList(query);
-
-        // 合并配送点覆盖（deepseek_redesign.md §5.2）
-        if (CollectionUtils.isNotEmpty(list) && deliveryPointId != null) {
-            List<DeliverySkuOverride> overrides = deliverySkuOverrideMapper.selectByPoint(deliveryPointId);
-            Map<Long, DeliverySkuOverride> overrideMap = overrides.stream()
-                    .collect(Collectors.toMap(DeliverySkuOverride::getSkuId, o -> o, (a, b) -> a));
-            list.removeIf(cs -> {
-                DeliverySkuOverride ov = overrideMap.get(cs.getSkuId());
-                return ov != null && ov.getIsAvailable() != null && ov.getIsAvailable() == 0;
-            });
-            for (CustomerSku cs : list) {
-                DeliverySkuOverride ov = overrideMap.get(cs.getSkuId());
-                if (ov != null) {
-                    // 价格/别名覆盖（仅用于展示；交易价仍走取价引擎）
-                    if (ov.getAliasOverride() != null) {
-                        cs.setAlias(ov.getAliasOverride());
-                    }
-                    cs.setPriceOverride(ov.getPriceOverride());
-                    cs.setDeliveryPointId(deliveryPointId);
-                }
-            }
-        }
-        return list;
+        return customerSkuMapper.selectCustomerSkuList(query);
     }
 }
