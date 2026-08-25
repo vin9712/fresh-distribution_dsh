@@ -32,7 +32,10 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.BooleanUtils;
 import org.apache.commons.lang3.StringUtils;
+import com.lin.distribution.dto.ProductCreationDTO;
 import com.lin.distribution.service.BizCodeService;
+import com.lin.distribution.service.ProductCreationService;
+import com.lin.distribution.service.TempProductService;
 import org.springframework.stereotype.Service;
 import com.lin.distribution.mapper.ProductSkuQuoteMapper;
 import com.lin.distribution.domain.ProductSkuQuote;
@@ -57,6 +60,7 @@ public class ProductSkuQuoteServiceImpl implements ProductSkuQuoteService {
     private final TempProductMapper tempProductMapper;
     private final ProductAliasMapper productAliasMapper;
     private final CustomerSkuMappingMapper customerSkuMappingMapper;
+    private final ProductCreationService productCreationService;
 
     /**
      * 查询商品报价
@@ -674,9 +678,47 @@ public class ProductSkuQuoteServiceImpl implements ProductSkuQuoteService {
         int tempCreated = 0;
         int tempSkipped = 0;
         int unmatchedKept = 0;
+        int batchCreated = 0;      // 批量建品成功条数
+        int skuCreatedCount = 0;   // 其中新建 SKU 条数
+        int mappingConflict = 0;   // 映射冲突（别名已指向其他SKU，未覆盖）条数
         for (QuotePriceImportConfirmDTO.Row row : dto.getRows()) {
             if (row.getSkuId() == null) {
-                // 未匹配行
+                // 未匹配行 —— 分支一：批量建品（createFlag=true 且标准名/分类齐全）
+                if (Boolean.TRUE.equals(row.getCreateFlag())
+                        && StringUtils.isNotBlank(row.getStandardName())
+                        && row.getCategoryId() != null && row.getCategoryId() > 0) {
+                    ProductCreationDTO cd = new ProductCreationDTO();
+                    cd.setCustomerId(dto.getCustomerId());
+                    cd.setStandardName(row.getStandardName().trim());
+                    cd.setAlias(StringUtils.isNotBlank(row.getRawName()) ? row.getRawName().trim() : null);
+                    cd.setCategoryId(row.getCategoryId());
+                    cd.setUnit(row.getUnit());
+                    cd.setPrice(row.getPrice());
+                    ProductCreationService.CreationResult cr = productCreationService.createOrReuseWithResult(cd);
+                    if (cr.mappingSkippedConflict) {
+                        mappingConflict++;
+                    }
+                    if (cr.skuCreated) {
+                        skuCreatedCount++;
+                    }
+                    batchCreated++;
+                    // 建好的 SKU 直接进入本张报价单
+                    ProductSku createdSku = productSkuMapper.selectProductSkuById(cr.skuId);
+                    ProductSkuQuoteDetail ndetail = new ProductSkuQuoteDetail();
+                    ndetail.setCustomerId(dto.getCustomerId());
+                    ndetail.setSkuId(createdSku.getId());
+                    ndetail.setPrice(row.getPrice());
+                    ndetail.setProductName(createdSku.getName());
+                    ndetail.setProductUnit(StringUtils.isNotBlank(row.getUnit()) ? row.getUnit() : createdSku.getUnit());
+                    ndetail.setProductSpec(createdSku.getSpecName());
+                    ndetail.setProductCode(createdSku.getCode());
+                    ndetail.setProductMnemonicCode(createdSku.getMnemonicCode());
+                    ndetail.setCategoryId(createdSku.getCategoryId());
+                    ndetail.setCategoryName(createdSku.getCategoryName());
+                    detailMap.put(createdSku.getId(), ndetail);
+                    continue;
+                }
+                // 未匹配行 —— 分支二：现状逻辑（转临时 / 跳过）
                 if (!toTemp) {
                     unmatchedKept++;
                     continue;
@@ -738,6 +780,8 @@ public class ProductSkuQuoteServiceImpl implements ProductSkuQuoteService {
                 .build());
 
         return "<b>导入完成：生成报价单 1 张（" + detailMap.size() + " 行定价）</b>"
+                + (batchCreated > 0 ? "<br/>批量建品 " + batchCreated + " 条（新建 SKU " + skuCreatedCount + "、复用 " + (batchCreated - skuCreatedCount) + "）"
+                        + (mappingConflict > 0 ? "，映射冲突跳过 " + mappingConflict + " 条（别名已指向其他SKU，未覆盖）" : "") : "")
                 + "<br/>转临时商品 " + tempCreated + " 条，已有相同临时商品跳过 " + tempSkipped + " 条"
                 + (unmatchedKept > 0 ? "<br/>未处理未匹配行 " + unmatchedKept + " 条" : "");
     }

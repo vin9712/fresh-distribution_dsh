@@ -254,9 +254,13 @@
       <template v-else>
         <div style="margin-bottom: 8px; display: flex; align-items: center; gap: 12px">
           <span style="font-size: 13px; color: #909399">
-            共 {{ priceImport.rows.length }} 行：已匹配 {{ matchedRowCount }} 条，未匹配 {{ unmatchedRows.length }} 条；未匹配行可直接改选SKU，或
+            共 {{ priceImport.rows.length }} 行：已匹配 {{ matchedRowCount }} 条，未匹配 {{ unmatchedRows.length }} 条；已匹配行可直接改选SKU；未匹配行处理方式：
           </span>
-          <el-checkbox v-model="priceImport.unmatchedToTemp">转临时商品</el-checkbox>
+          <el-radio-group v-model="priceImport.unmatchedMode" size="small">
+            <el-radio-button value="batchCreate">批量建品</el-radio-button>
+            <el-radio-button value="toTemp">转临时商品</el-radio-button>
+            <el-radio-button value="skip">跳过</el-radio-button>
+          </el-radio-group>
         </div>
         <el-table :data="previewRows" height="380" size="small" border>
           <el-table-column label="行号" prop="lineNo" width="55" align="center" />
@@ -273,6 +277,34 @@
               </el-select>
             </template>
           </el-table-column>
+          <el-table-column v-if="priceImport.unmatchedMode === 'batchCreate'" label="标准名" min-width="130">
+            <template #default="{ row }">
+              <el-input
+                v-if="!row.skuId && !row.error"
+                v-model="row.standardName"
+                size="small"
+                placeholder="建品标准名"
+              />
+              <span v-else>-</span>
+            </template>
+          </el-table-column>
+          <el-table-column v-if="priceImport.unmatchedMode === 'batchCreate'" label="分类" min-width="150">
+            <template #default="{ row }">
+              <el-tree-select
+                v-if="!row.skuId && !row.error"
+                v-model="row.categoryId"
+                :data="categoryOptions"
+                :props="{ value: 'id', label: 'name', children: 'children' }"
+                value-key="id"
+                size="small"
+                filterable
+                check-strictly
+                placeholder="选择分类"
+                style="width: 100%"
+              />
+              <span v-else>-</span>
+            </template>
+          </el-table-column>
           <el-table-column label="单位" width="70" align="center">
             <template #default="{ row }">{{ row.unit || skuUnitOf(row) }}</template>
           </el-table-column>
@@ -284,7 +316,13 @@
             <template #default="{ row }">
               <el-tag v-if="row.error" type="danger" size="small">{{ row.error }}</el-tag>
               <el-tag v-else-if="row.skuId" type="success" size="small">已匹配（{{ row.matchType }}）</el-tag>
-              <el-tag v-else type="info" size="small">{{ priceImport.unmatchedToTemp ? "转临时商品" : "跳过" }}</el-tag>
+              <el-tag v-else type="info" size="small">{{
+                priceImport.unmatchedMode === "batchCreate"
+                  ? "批量建品"
+                  : priceImport.unmatchedMode === "toTemp"
+                  ? "转临时商品"
+                  : "跳过"
+              }}</el-tag>
             </template>
           </el-table-column>
         </el-table>
@@ -316,6 +354,7 @@ import {
 } from "@/api/product/quote";
 import { listCustomer } from "@/api/partner/customer";
 import { listSku } from "@/api/product/sku";
+import { listCategory } from "@/api/product/category";
 import { getToken } from "@/utils/auth";
 import quickTableMixin from "@/components/QuickTable/quickTableMixin";
 import {
@@ -403,11 +442,13 @@ export default {
         step: 1,
         customerId: null,
         text: "",
-        unmatchedToTemp: true,
+        unmatchedMode: "batchCreate", // batchCreate=批量建品 | toTemp=转临时 | skip=跳过
         rows: [],
         uploading: false,
         submitting: false,
       },
+      // 商品分类树（批量建品时选择分类用）
+      categoryOptions: [],
       // 全部标准SKU（价格表导入时改选用）
       allSkuOptions: [],
       // 查询参数
@@ -756,13 +797,21 @@ export default {
       this.priceImport.text = "";
       this.priceImport.rows = [];
       this.priceImport.step = 1;
-      this.priceImport.unmatchedToTemp = true;
+      this.priceImport.unmatchedMode = "batchCreate";
       if (this.allSkuOptions.length === 0) {
         listSku({}).then((response) => {
           this.allSkuOptions = response.data || [];
         });
       }
+      this.loadCategoryOptions();
       this.priceImport.open = true;
+    },
+    /** 加载商品分类树（批量建品选择分类用，带缓存） */
+    loadCategoryOptions() {
+      if (this.categoryOptions.length > 0) return;
+      listCategory().then((response) => {
+        this.categoryOptions = this.handleTree(response.data || []);
+      });
     },
     /** 下载价格表导入模板 */
     downloadPriceTemplate() {
@@ -784,7 +833,7 @@ export default {
       this.priceImport.uploading = true;
       previewQuoteImportExcel(formData)
         .then((response) => {
-          this.priceImport.rows = response.data || [];
+          this.setImportRows(response.data || []);
           if (!this.priceImport.rows.length) {
             this.$modal.msgWarning("Excel中未解析到有效数据行");
             return;
@@ -811,7 +860,7 @@ export default {
         text: this.priceImport.text,
       })
         .then((response) => {
-          this.priceImport.rows = response.data || [];
+          this.setImportRows(response.data || []);
           if (!this.priceImport.rows.length) {
             this.$modal.msgWarning("未解析到有效行，请检查格式");
             return;
@@ -822,6 +871,12 @@ export default {
           this.priceImport.submitting = false;
         });
     },
+    /** 设置导入预览行：为未匹配行初始化批量建品字段（标准名默认=原始叫法） */
+    setImportRows(rows) {
+      this.priceImport.rows = rows.map((r) =>
+        r.matched || r.error ? r : { ...r, standardName: r.standardName ?? r.rawName, categoryId: r.categoryId ?? null }
+      );
+    },
     /** 行内 SKU 单位展示（跟随改选结果） */
     skuUnitOf(row) {
       const sku = this.allSkuOptions.find((s) => s.id === row.skuId);
@@ -831,11 +886,31 @@ export default {
       const sku = this.allSkuOptions.find((s) => s.id === row.skuId);
       return sku ? sku.specName : row.skuSpec || "-";
     },
-    /** 确认导入：生成报价单草稿 + 未匹配转临时 */
+    /** 确认导入：已匹配/建品行生成报价单，未匹配行按模式处理 */
     submitPriceImport() {
+      const mode = this.priceImport.unmatchedMode;
+      // 批量建品模式下校验未匹配行的标准名与分类
+      if (mode === "batchCreate") {
+        const bad = this.priceImport.rows.filter(
+          (r) => !r.error && r.price != null && !r.skuId && (!r.standardName || !r.standardName.trim() || !r.categoryId)
+        );
+        if (bad.length) {
+          this.$modal.msgWarning(`有 ${bad.length} 条未匹配行未填写标准名或分类（行号：${bad.map((r) => r.lineNo).join("、")}），请补全后重试`);
+          return;
+        }
+      }
       const rows = this.priceImport.rows
         .filter((r) => !r.error && r.price != null)
-        .map((r) => ({ rawName: r.rawName, skuId: r.skuId, price: r.price, unit: r.unit || null }));
+        .map((r) => ({
+          rawName: r.rawName,
+          skuId: r.skuId,
+          price: r.price,
+          unit: r.unit || null,
+          // 未匹配行 + 批量建品模式：携带建品信息
+          createFlag: mode === "batchCreate" && !r.skuId ? true : undefined,
+          standardName: mode === "batchCreate" && !r.skuId ? (r.standardName || "").trim() : undefined,
+          categoryId: mode === "batchCreate" && !r.skuId ? r.categoryId : undefined,
+        }));
       if (!rows.length) {
         this.$modal.msgWarning("没有可导入的行");
         return;
@@ -843,7 +918,7 @@ export default {
       this.priceImport.submitting = true;
       confirmQuoteImport({
         customerId: this.priceImport.customerId,
-        unmatchedToTemp: this.priceImport.unmatchedToTemp,
+        unmatchedToTemp: mode === "toTemp",
         rows,
       })
         .then((response) => {

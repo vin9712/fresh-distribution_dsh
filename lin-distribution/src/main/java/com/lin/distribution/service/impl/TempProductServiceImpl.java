@@ -4,13 +4,17 @@ import com.lin.common.exception.ServiceException;
 import com.lin.common.utils.DateUtils;
 import com.lin.common.utils.PinYinConvertUtils;
 import com.lin.distribution.domain.CustomerSku;
+import com.lin.distribution.domain.CustomerSkuMapping;
 import com.lin.distribution.domain.ProductSku;
 import com.lin.distribution.domain.TempProduct;
+import com.lin.distribution.dto.ProductCreationDTO;
 import com.lin.distribution.dto.TempProductConvertDTO;
 import com.lin.distribution.mapper.CustomerSkuMapper;
+import com.lin.distribution.mapper.CustomerSkuMappingMapper;
 import com.lin.distribution.mapper.ProductSkuMapper;
 import com.lin.distribution.mapper.TempProductMapper;
 import com.lin.distribution.service.BizCodeService;
+import com.lin.distribution.service.ProductCreationService;
 import com.lin.distribution.service.TempProductService;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -41,6 +45,12 @@ public class TempProductServiceImpl implements TempProductService
 
     @Autowired
     private BizCodeService bizCodeService;
+
+    @Autowired
+    private CustomerSkuMappingMapper customerSkuMappingMapper;
+
+    @Autowired
+    private ProductCreationService productCreationService;
 
     /**
      * 查询临时商品
@@ -188,7 +198,32 @@ public class TempProductServiceImpl implements TempProductService
             customerSkuMapper.insertCustomerSku(customerSku);
         }
 
-        // 3. 回写转正标记
+        // 3. 补写客户别名与客户映射（转正后下次订单/导入可直接四级匹配命中，不再重复产生临时商品）
+        String aliasName = tempProduct.getName();
+        if (StringUtils.isNotBlank(aliasName)) {
+            // 3a. customer_sku_mapping upsert（同别名已指向其他SKU时跳过不覆盖）
+            CustomerSkuMapping mq = new CustomerSkuMapping();
+            mq.setCustomerId(customerId);
+            CustomerSkuMapping existMapping = customerSkuMappingMapper.selectCustomerSkuMappingList(mq).stream()
+                    .filter(m -> aliasName.equals(m.getCustomerAlias())).findFirst().orElse(null);
+            if (existMapping == null) {
+                CustomerSkuMapping mapping = new CustomerSkuMapping();
+                mapping.setCustomerId(customerId);
+                mapping.setCustomerAlias(aliasName);
+                mapping.setSkuId(skuId);
+                customerSkuMappingMapper.insertCustomerSkuMapping(mapping);
+            }
+            // 3b. customers_sku.alias 补写（历史条目缺别名）
+            CustomerSku csForAlias = customerSkuMapper.selectByCustomerAndSku(customerId, skuId);
+            if (csForAlias != null && StringUtils.isBlank(csForAlias.getAlias())) {
+                CustomerSku updCs = new CustomerSku();
+                updCs.setId(csForAlias.getId());
+                updCs.setAlias(aliasName);
+                customerSkuMapper.updateCustomerSku(updCs);
+            }
+        }
+
+        // 4. 回写转正标记
         TempProduct update = new TempProduct();
         update.setId(tempProduct.getId());
         update.setConvertedSkuId(skuId);

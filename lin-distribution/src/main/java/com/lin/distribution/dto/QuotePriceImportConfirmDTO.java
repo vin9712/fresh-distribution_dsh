@@ -46,5 +46,14 @@ public class QuotePriceImportConfirmDTO implements Serializable {
 
         /** 价格 */
         private BigDecimal price;
+
+        /** 是否批量建品（未匹配行专用）：true 时忽略 unmatchedToTemp，直接建 SPU→SKU→客户商品→映射 */
+        private Boolean createFlag;
+
+        /** 建品标准名（人工确认的规范名称；createFlag=true 时必填） */
+        private String standardName;
+
+        /** 商品分类ID（createFlag=true 时必填） */
+        private Long categoryId;
     }
 }
