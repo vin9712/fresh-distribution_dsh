@@ -406,10 +406,10 @@ export default {
       // 表格列配置
       columns: [
         { field: "customerCode", title: "材料编号", width: 100, align: "center", sortable: true },
-        { field: "skuName", title: "标准SKU", minWidth: 140, align: "center", fixed: "left" },
-        { field: "alias", title: "别名", width: 120, align: "center", slots: { default: "col_alias" } },
+        { field: "skuName", title: "商品名", minWidth: 160, align: "left", fixed: "left" },
+        { field: "skuUnit", title: "单位", width: 55, align: "center" },
         { field: "skuSpecName", title: "规格", width: 110, align: "center", showOverflow: true },
-        { field: "skuUnit", title: "单位", width: 70, align: "center" },
+        { field: "alias", title: "别名", width: 120, align: "center", slots: { default: "col_alias" } },
         { field: "deptName", title: "限定配送点", width: 110, align: "center", slots: { default: "col_dept" } },
         { field: "status", title: "状态", width: 80, align: "center", slots: { default: "col_status" } },
         { field: "isFollowDefault", title: "个性化", width: 90, align: "center", slots: { default: "col_follow" } },
