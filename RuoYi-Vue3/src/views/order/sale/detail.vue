@@ -247,13 +247,14 @@
                 title="单价"
                 cell-type="number"
                 :formatter="decimalFormatter('productPrice')"
+                :class-name="priceCellClass"
                 :edit-render="{ name: '$input', autoselect: true }"
               >
                 <template #edit="{ row }">
                   <vxe-input
                     v-model="row.productPrice"
                     type="text"
-                    @change="calcAmount(row)"
+                    @change="handlePriceChange(row)"
                   ></vxe-input>
                 </template>
               </vxe-column>
@@ -1137,6 +1138,8 @@ export default {
         num: "0.00",
         productPrice: "0.00",
         amount: "0.00",
+        refPrice: null,
+        priceChanged: false,
       };
 
       const index =
@@ -1254,6 +1257,8 @@ export default {
         parentRow.productUnit = row.productUnit;
         parentRow.productSpec = row.productSpec;
         parentRow.productPrice = row.price;
+        parentRow.refPrice = row.price;
+        parentRow.priceChanged = false;
         parentRow.skuId = row.skuId;
         parentRow.isTemp = row.isTemp ? 1 : 0;
 
@@ -1293,6 +1298,9 @@ export default {
           const result = response.data || {};
           if (result.price != null) {
             parentRow.productPrice = result.price;
+            // 记录取价引擎参考价，用于改价提醒比对
+            parentRow.refPrice = result.price;
+            parentRow.priceChanged = false;
             this.calcAmount(parentRow);
           } else {
             parentRow.productPrice = "";
@@ -1305,6 +1313,33 @@ export default {
         .catch(() => {
           // 取价失败不阻塞录单，保留报价明细默认价
         });
+    },
+    /** 单价变更：计算金额 + 与当期参考价比对，不一致则单元格提醒 */
+    handlePriceChange(row) {
+      this.calcAmount(row);
+      const price = XEUtils.toNumber(row.productPrice);
+      if (row.refPrice == null) {
+        row.priceChanged = false;
+        return;
+      }
+      const ref = XEUtils.toNumber(row.refPrice);
+      const changed = Math.abs(price - ref) > 0.005;
+      if (changed && !row.priceChanged) {
+        this.$modal.msgWarning(
+          "商品【" +
+            row.productName +
+            "】单价 " +
+            price.toFixed(2) +
+            " 与当期报价 " +
+            ref.toFixed(2) +
+            " 不一致，请确认"
+        );
+      }
+      row.priceChanged = changed;
+    },
+    /** 单价与参考价不一致的单元格高亮 */
+    priceCellClass({ row }) {
+      return row.priceChanged ? "col-price-changed" : "";
     },
     /** 商品名称下拉容器-初始化数据（服务端按关键字检索客户商品池+临时商品） */
     initPulldownData(value) {
@@ -1619,6 +1654,8 @@ export default {
       // 带出客户商品池展示价（若有），交易价仍走取价引擎
       const pool = this.skuQuoteDetails.find((q) => q.skuId === item.skuId);
       row.productPrice = pool ? pool.price : "0.00";
+      row.refPrice = pool ? pool.price : null;
+      row.priceChanged = false;
       row.amount = "0.00";
       this.applyPriceQuery(row);
       // 光标跳至数量列
@@ -1821,5 +1858,20 @@ export default {
   .prod-source-tag {
     margin-left: 6px;
   }
+}
+/* 改价提醒：单价与当期报价不一致的单元格高亮 + "改"角标 */
+:deep(.col-price-changed) {
+  background-color: #fdf6ec !important;
+}
+:deep(.col-price-changed .vxe-cell)::after {
+  content: "改";
+  display: inline-block;
+  margin-left: 6px;
+  padding: 0 5px;
+  font-size: 12px;
+  line-height: 18px;
+  color: #e6a23c;
+  border: 1px solid #e6a23c;
+  border-radius: 3px;
 }
 </style>
