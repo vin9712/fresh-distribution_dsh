@@ -391,6 +391,7 @@ export default {
         keyword: null,
         status: null,
         deliveryPointId: null,
+        deptExactFilter: true, // 管理页按配送点精确匹配（区别于下单时的白名单并集）
       },
       // 当前客户的配送点选项（限定配送点用）
       deptOptions: [],
@@ -571,11 +572,11 @@ export default {
       this.getDeptOptions();
       this.handleQuery();
     },
-    /** 加载当前客户的配送点选项 */
+    /** 加载当前客户的配送点选项（排除父级客户节点） */
     getDeptOptions() {
       this.deptOptions = [];
       if (!this.queryParams.customerId) return;
-      listCustomerDept({ customerId: this.queryParams.customerId }).then((response) => {
+      listCustomerDept({ customerId: this.queryParams.customerId, params: { hideParent: "true" } }).then((response) => {
         this.deptOptions = (response.data || []).filter((d) => !d.isDeleted);
       });
     },
