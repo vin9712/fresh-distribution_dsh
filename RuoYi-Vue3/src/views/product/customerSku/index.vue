@@ -42,7 +42,7 @@
           <el-form-item label="关键字" prop="keyword">
             <el-input
               v-model="queryParams.keyword"
-              placeholder="商品名/助记码/别名/客户编码"
+              placeholder="商品名/助记码/别名/材料编号"
               clearable
               style="width: 200px"
               @keyup.enter="handleQuery"
@@ -405,15 +405,12 @@ export default {
       },
       // 表格列配置
       columns: [
-        { field: "customerCode", title: "客户商品编码", width: 120, align: "center", sortable: true },
+        { field: "customerCode", title: "材料编号", width: 100, align: "center", sortable: true },
+        { field: "skuName", title: "标准SKU", minWidth: 140, align: "center", fixed: "left" },
         { field: "alias", title: "别名", width: 120, align: "center", slots: { default: "col_alias" } },
-        { field: "skuName", title: "标准SKU", minWidth: 140, fixed: "left" },
-        { field: "skuCode", title: "标准编码", width: 110, align: "center" },
         { field: "skuSpecName", title: "规格", width: 110, align: "center", showOverflow: true },
         { field: "skuUnit", title: "单位", width: 70, align: "center" },
         { field: "deptName", title: "限定配送点", width: 110, align: "center", slots: { default: "col_dept" } },
-        { field: "minOrderQty", title: "起订量", width: 80, align: "right" },
-        { field: "orderStep", title: "步长", width: 70, align: "right" },
         { field: "status", title: "状态", width: 80, align: "center", slots: { default: "col_status" } },
         { field: "isFollowDefault", title: "个性化", width: 90, align: "center", slots: { default: "col_follow" } },
         { field: "op", title: "操作", width: 130, fixed: "right", align: "center", slots: { default: "col_op" } },
