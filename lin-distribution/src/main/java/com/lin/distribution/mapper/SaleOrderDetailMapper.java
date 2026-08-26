@@ -111,4 +111,21 @@ public interface SaleOrderDetailMapper {
                                                 @Param("startTime") LocalDateTime startTime,
                                                 @Param("limit") Integer limit,
                                                 @Param("deliveryPointId") Long deliveryPointId);
+
+    /**
+     * 写入单行实收数据（草稿保存 / 确认验收共用，服务层按行循环）
+     * 仅更新 actual_num / loss_reason / actual_amount。
+     *
+     * @param item 含 id + actualNum + lossReason(+actualAmount) 的明细
+     * @return 影响行数
+     */
+    int updateActualBatch(@Param("item") SaleOrderDetail item);
+
+    /**
+     * 清空订单全部实收数据（撤销验收，回退 3→2 时默认清空）
+     *
+     * @param orderId 销售订单ID
+     * @return 影响行数
+     */
+    int clearActualByOrderId(@Param("orderId") Long orderId);
 }

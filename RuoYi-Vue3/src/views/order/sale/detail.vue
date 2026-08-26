@@ -429,7 +429,7 @@
                 <el-col :span="9">
                   <el-form-item label="查询天数" prop="days">
                     <el-select
-                      v-model="recentQuery.days"
+                      v-model="recentQuery.recentDays"
                       placeholder="请选择查询天数"
                       @change="handleRecentQuery"
                       style="width: 100%"
@@ -674,7 +674,7 @@ export default {
       recentQuery: {
         customerId: null,
         keyword: null,
-        days: 3,
+        recentDays: 3,
       },
       // 最近订单表格列
       recentTableColumns: [
@@ -1189,6 +1189,18 @@ export default {
               };
             }
           );
+
+          // 校验订单总金额：为 0 不允许保存
+          const totalAmount = this.orderForm.orderDetails.reduce(
+            (sum, item) => sum + (XEUtils.toNumber(item.amount) || 0),
+            0
+          );
+          if (totalAmount <= 0) {
+            this.$modal.msgWarning(
+              "订单金额为 0，不允许保存，请检查商品单价或数量"
+            );
+            return;
+          }
 
           // save or update order
           if (this.orderForm.orderId) {

@@ -699,6 +699,16 @@ export default {
             }
           );
 
+          // 订单总金额为 0 时不允许提交
+          const totalAmount = this.orderForm.orderDetails.reduce(
+            (sum, item) => sum + (Number(item.amount) || 0),
+            0
+          );
+          if (totalAmount <= 0) {
+            this.$modal.msgError("订单金额为 0，不允许提交订单，请检查订单明细！");
+            return;
+          }
+
           // save or update order
           if (this.orderForm.orderId) {
             updateSaleOrder(this.orderForm).then((response) => {

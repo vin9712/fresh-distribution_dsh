@@ -1940,14 +1940,14 @@ INSERT INTO sys_dict_data (dict_code, dict_sort, dict_label, dict_value, dict_ty
 
 -- 菜单
 INSERT INTO sys_menu (menu_id, menu_name, parent_id, order_num, path, component, query, route_name, is_frame, is_cache, menu_type, visible, status, perms, icon, create_by, create_time, update_by, update_time, remark) VALUES
-(2081, '验收单', 5, 3, 'acceptance', 'order/acceptance/index', NULL, '', 1, 0, 'C', '0', '0', 'acceptance:list', 'post', 'admin', sysdate(), '', NULL, '验收单菜单');
+(2081, '验收单', 5, 3, 'acceptance', 'order/acceptance/index', NULL, '', 1, 0, 'C', '1', '1', 'acceptance:list', 'post', 'admin', sysdate(), '', NULL, '已下线：验收改在销售订单页完成（见 s12）');
 
 INSERT INTO sys_menu (menu_id, menu_name, parent_id, order_num, path, component, query, route_name, is_frame, is_cache, menu_type, visible, status, perms, icon, create_by, create_time, update_by, update_time, remark) VALUES
-(2082, '验收单查询', 2081, 1, '#', '', NULL, '', 1, 0, 'F', '0', '0', 'acceptance:query', '#', 'admin', sysdate(), '', NULL, ''),
-(2083, '验收单新增', 2081, 2, '#', '', NULL, '', 1, 0, 'F', '0', '0', 'acceptance:add', '#', 'admin', sysdate(), '', NULL, ''),
-(2084, '验收单修改', 2081, 3, '#', '', NULL, '', 1, 0, 'F', '0', '0', 'acceptance:edit', '#', 'admin', sysdate(), '', NULL, ''),
-(2085, '验收单删除', 2081, 4, '#', '', NULL, '', 1, 0, 'F', '0', '0', 'acceptance:remove', '#', 'admin', sysdate(), '', NULL, ''),
-(2086, '验收单提交', 2081, 5, '#', '', NULL, '', 1, 0, 'F', '0', '0', 'acceptance:submit', '#', 'admin', sysdate(), '', NULL, '');
+(2082, '验收单查询', 2081, 1, '#', '', NULL, '', 1, 0, 'F', '1', '1', 'acceptance:query', '#', 'admin', sysdate(), '', NULL, ''),
+(2083, '验收单新增', 2081, 2, '#', '', NULL, '', 1, 0, 'F', '1', '1', 'acceptance:add', '#', 'admin', sysdate(), '', NULL, ''),
+(2084, '验收单修改', 2081, 3, '#', '', NULL, '', 1, 0, 'F', '1', '1', 'acceptance:edit', '#', 'admin', sysdate(), '', NULL, ''),
+(2085, '验收单删除', 2081, 4, '#', '', NULL, '', 1, 0, 'F', '1', '1', 'acceptance:remove', '#', 'admin', sysdate(), '', NULL, ''),
+(2086, '验收单提交', 2081, 5, '#', '', NULL, '', 1, 0, 'F', '1', '1', 'acceptance:submit', '#', 'admin', sysdate(), '', NULL, '');
 
 -- ============================================================
 -- [19] 菜单/权限：报表中心  | 源: s6_1_report_menu.sql

@@ -94,6 +94,11 @@ public class SaleOrderDetail extends BaseEntity {
     private BigDecimal expectAmount;
 
     /**
+     * 损耗原因（字典 biz_loss_reason，实收 < 下单数时必填）
+     */
+    private String lossReason;
+
+    /**
      * 验收商品单价
      */
     @Excel(name = "验收商品单价")

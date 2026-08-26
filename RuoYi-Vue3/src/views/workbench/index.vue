@@ -47,7 +47,7 @@ export default {
         { key: "draftOrders", title: "待录/待确认订单", icon: "EditPen", color: "#409eff", path: "/order/sale" },
         { key: "pendingPurchase", title: "待生成采购单", icon: "ShoppingCart", color: "#67c23a", path: "/order/sale" },
         { key: "pendingPrint", title: "待打印送货单", icon: "Printer", color: "#e6a23c", path: "/order/delivery" },
-        { key: "pendingAcceptance", title: "待验收", icon: "Box", color: "#f56c6c", path: "/order/delivery" },
+        { key: "pendingAcceptance", title: "待验收", icon: "Box", color: "#f56c6c", path: "/order/sale", query: { status: "2" } },
         { key: "pendingAdjust", title: "待处理加退换", icon: "RefreshLeft", color: "#909399", path: "/order/sale" },
       ],
     };
@@ -68,7 +68,8 @@ export default {
         });
     },
     goTo(item) {
-      this.$router.push(item.path);
+      // query：可选过滤条件（如待验收卡 → 订单页并筛选「已配送」）
+      this.$router.push({ path: item.path, query: item.query });
     },
   },
 };

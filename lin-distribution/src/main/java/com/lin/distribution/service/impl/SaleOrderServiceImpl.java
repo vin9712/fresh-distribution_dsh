@@ -135,16 +135,8 @@ public class SaleOrderServiceImpl implements SaleOrderService {
         Long customerDeptId = request.getCustomerDeptId();
         String orderCode = request.getOrderCode();
         List<SaleOrderDetail> orderDetails = request.getOrderDetails();
-        // calc amount
-        BigDecimal amount = orderDetails.stream().map(it -> {
-            BigDecimal productNum = Optional.ofNullable(it.getNum()).orElse(BigDecimal.ZERO);
-            BigDecimal productPrice = Optional.ofNullable(it.getProductPrice()).orElse(BigDecimal.ZERO);
-            BigDecimal expectAmount = NumberUtils.toScaledBigDecimal(productNum.multiply(productPrice), 2, RoundingMode.HALF_UP);
-            // set expectAmount
-            it.setExpectAmount(expectAmount);
-            // return to calc sum amount
-            return expectAmount;
-        }).reduce(BigDecimal.ZERO, BigDecimal::add);
+        // calc amount (校验订单金额不得为 0)
+        BigDecimal amount = calcAndValidateOrderAmount(orderDetails);
 
         // insert order
         SaleOrder order = SaleOrder.builder()
@@ -193,16 +185,8 @@ public class SaleOrderServiceImpl implements SaleOrderService {
         Long customerDeptId = request.getCustomerDeptId();
         String orderCode = request.getOrderCode();
         List<SaleOrderDetail> orderDetails = request.getOrderDetails();
-        // calc amount
-        BigDecimal amount = orderDetails.stream().map(it -> {
-            BigDecimal productNum = Optional.ofNullable(it.getNum()).orElse(BigDecimal.ZERO);
-            BigDecimal productPrice = Optional.ofNullable(it.getProductPrice()).orElse(BigDecimal.ZERO);
-            BigDecimal expectAmount = NumberUtils.toScaledBigDecimal(productNum.multiply(productPrice), 2, RoundingMode.HALF_UP);
-            // set expectAmount
-            it.setExpectAmount(expectAmount);
-            // return to calc sum amount
-            return expectAmount;
-        }).reduce(BigDecimal.ZERO, BigDecimal::add);
+        // calc amount (校验订单金额不得为 0)
+        BigDecimal amount = calcAndValidateOrderAmount(orderDetails);
 
         SaleOrder order = saleOrderMapper.selectSaleOrderById(orderId);
 
@@ -282,6 +266,26 @@ public class SaleOrderServiceImpl implements SaleOrderService {
         }
     }
 
+    /**
+     * 计算订单总金额，并校验订单金额不得为 0（不允许提交 0 金额订单）
+     */
+    private BigDecimal calcAndValidateOrderAmount(List<SaleOrderDetail> orderDetails) {
+        BigDecimal amount = orderDetails.stream().map(it -> {
+            BigDecimal productNum = Optional.ofNullable(it.getNum()).orElse(BigDecimal.ZERO);
+            BigDecimal productPrice = Optional.ofNullable(it.getProductPrice()).orElse(BigDecimal.ZERO);
+            BigDecimal expectAmount = NumberUtils.toScaledBigDecimal(productNum.multiply(productPrice), 2, RoundingMode.HALF_UP);
+            // set expectAmount
+            it.setExpectAmount(expectAmount);
+            // return to calc sum amount
+            return expectAmount;
+        }).reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        if (amount.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new ServiceException("订单金额为 0，不允许提交订单");
+        }
+        return amount;
+    }
+
     private void checkCreateOrUpdateOrderRequest(SaleOrderCreateDTO request) {
         List<SaleOrderDetail> orderDetails = request.getOrderDetails();
         if (CollectionUtils.isEmpty(orderDetails)) {
@@ -313,10 +317,16 @@ public class SaleOrderServiceImpl implements SaleOrderService {
         if (StringUtils.equals(peekCode, currentCode)) {
             return peekCode;
         }
-        if (BooleanUtils.isTrue(refresh)) {
-            return bizCodeService.nextDailyCode("saleOrder", "XD", 4);
+        if (!BooleanUtils.isTrue(refresh)) {
+            return peekCode;
         }
-        return peekCode;
+        // 刷新：取下一个号；若已被 t_sale_order 占用（含逻辑删除行），继续跳号直到可用
+        String code = bizCodeService.nextDailyCode("saleOrder", "XD", 4);
+        int guard = 0;
+        while (saleOrderMapper.selectSaleOrderByCode(code) != null && guard++ < 100) {
+            code = bizCodeService.nextDailyCode("saleOrder", "XD", 4);
+        }
+        return code;
     }
 
     /**

@@ -68,6 +68,7 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
             <if test="status != null "> and so.status = #{status}</if>
             <if test="deliveryDate != null "> and so.delivery_date = #{deliveryDate}</if>
         </where>
+        order by so.create_time desc, so.id desc
     </select>
 
     <select id="selectSaleOrderById" parameterType="Long" resultMap="SaleOrderResult">

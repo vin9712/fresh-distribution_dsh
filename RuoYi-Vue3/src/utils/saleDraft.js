@@ -89,7 +89,7 @@ export function syncDraftToServer(payload) {
     return saveSaleOrderDraft({
       draftKey: draftKey(payload.orderId, payload.customerDeptId),
       payload: JSON.stringify(payload),
-    })
+    }).catch(() => null)
   } catch (e) {
     return Promise.resolve(null)
   }
@@ -116,7 +116,7 @@ export async function fetchDraftFromServer(orderId, customerDeptId) {
 /** 删除后端草稿（提交成功/确认放弃时调用） */
 export function removeDraftFromServer(orderId, customerDeptId) {
   try {
-    return removeSaleOrderDraft(draftKey(orderId, customerDeptId))
+    return removeSaleOrderDraft(draftKey(orderId, customerDeptId)).catch(() => null)
   } catch (e) {
     return Promise.resolve(null)
   }

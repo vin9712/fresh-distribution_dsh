@@ -3,6 +3,7 @@ package com.lin.distribution.service;
 import java.util.List;
 
 import com.lin.distribution.domain.SaleOrderDetail;
+import com.lin.distribution.dto.SaleOrderActualDraftDTO;
 
 /**
  * 销售订单详情Service接口
@@ -69,4 +70,29 @@ public interface SaleOrderDetailService {
      * @return 按下单次数倒序的 SKU 列表
      */
     List<SaleOrderDetail> selectFrequentSkuList(Long customerId, Integer days, Integer limit, Long deliveryPointId);
+
+    /**
+     * 批量保存实收草稿（仅写 actual_num / loss_reason，不改变订单状态）
+     *
+     * @param request 订单ID + 明细实收行
+     * @return 影响行数
+     */
+    int saveActualDraft(SaleOrderActualDraftDTO request);
+
+    /**
+     * 批量确认验收：空实收行按下单数计；实收<下单数必填损耗原因；
+     * 写入 actual_price / actual_amount 后整批置为已验收(3)。±20% 阈值仅前端提示非阻断。
+     *
+     * @param orderIds 已配送状态的订单ID集合
+     * @return 成功验收的订单数
+     */
+    int confirmAcceptance(List<Long> orderIds);
+
+    /**
+     * 撤销验收：状态回退 3→2 并清空实收数据；已结算订单禁止回退
+     *
+     * @param orderIds 已验收状态的订单ID集合
+     * @return 成功撤销的订单数
+     */
+    int revokeAcceptance(List<Long> orderIds);
 }
