@@ -122,87 +122,85 @@
           >新增明细</el-button
         >
       </el-col>
-      <el-col :span="1.5">
-        <vxe-button
-          icon="vxe-icon-edit"
-          size="mini"
-          :disabled="multiple"
-          transfer
-          placement="bottom"
-        >
-          <template #default>批量处理</template>
-          <template #dropdowns>
-            <vxe-button
-              mode="button"
-              status="success"
-              icon="vxe-icon-check"
-              :disabled="multiple"
-              content="批量确认"
-              @click="handleOrderApproval"
-            ></vxe-button>
-            <vxe-button
-              mode="button"
-              class="check-order-btn"
-              icon="vxe-icon-check"
-              :disabled="multiple"
-              content="批量验收"
-              @click="handleOrderCheck"
-            ></vxe-button>
-            <vxe-button
-              mode="button"
-              status="primary"
-              icon="vxe-icon-check"
-              :disabled="multiple"
-              content="批量月结"
-              v-hasPermi="['order:sale:settle']"
-              @click="handleOrderSettle"
-            ></vxe-button>
-            <vxe-button
-              mode="button"
-              status="info"
-              icon="vxe-icon-undo"
-              :disabled="multiple"
-              content="批量还原"
-              @click="handleOrderRestore"
-            ></vxe-button>
-            <vxe-button
-              mode="button"
-              status="danger"
-              icon="vxe-icon-delete"
-              :disabled="multiple"
-              content="批量删除"
-              @click="handleDelete"
-            ></vxe-button>
-          </template>
-        </vxe-button>
-      </el-col>
-      <el-col :span="1.5">
-        <el-button
-          type="warning"
-          plain
-          :icon="ShoppingBag"
-          size="small"
-          @click="handleBuildPurchase"
-          >生成采购单</el-button
-        >
-      </el-col>
-      <el-col :span="1.5">
-        <el-button
-          type="success"
-          plain
-          :icon="Van"
-          size="small"
-          @click="handleBuildDelivery"
-          >生成送货单</el-button
-        >
-      </el-col>
       <right-toolbar
         v-model:showSearch="showSearch"
         @queryTable="getPageList"
       ></right-toolbar>
     </el-row>
 
+    <!-- 批量操作条：勾选订单后浮现，汇聚全部批量动作 -->
+    <div v-if="formSelectedOptions.length > 0" class="batch-action-bar">
+      <div class="batch-action-info">
+        <span class="batch-action-count"
+          >已选 <b>{{ formSelectedOptions.length }}</b> 条</span
+        >
+        <el-button link type="primary" :icon="Close" @click="clearSelection"
+          >清空选择</el-button
+        >
+      </div>
+      <div class="batch-action-btns">
+        <el-button
+          type="success"
+          size="small"
+          plain
+          :icon="Check"
+          @click="handleOrderApproval"
+          >批量确认</el-button
+        >
+        <el-button
+          type="primary"
+          size="small"
+          plain
+          :icon="Check"
+          @click="handleOrderCheck"
+          >批量验收</el-button
+        >
+        <el-button
+          v-hasPermi="['order:sale:settle']"
+          type="primary"
+          size="small"
+          plain
+          :icon="Check"
+          @click="handleOrderSettle"
+          >批量月结</el-button
+        >
+        <el-button
+          type="info"
+          size="small"
+          plain
+          :icon="RefreshLeft"
+          @click="handleOrderRestore"
+          >批量还原</el-button
+        >
+        <el-button
+          type="danger"
+          size="small"
+          plain
+          :icon="Delete"
+          @click="handleDelete"
+          >批量删除</el-button
+        >
+        <el-button
+          type="warning"
+          size="small"
+          plain
+          :icon="ShoppingBag"
+          @click="handleBuildPurchase"
+          >生成采购单</el-button
+        >
+        <el-button
+          type="success"
+          size="small"
+          plain
+          :icon="Van"
+          @click="handleBuildDelivery"
+          >生成送货单</el-button
+        >
+      </div>
+    </div>
+
     <el-table
+      ref="tableRef"
       v-loading="loading"
       :data="saleList"
       @row-dblclick="handleRowDblClick"
@@ -741,13 +739,16 @@ import {
   Edit,
   Delete,
   Operation,
+  Check,
+  RefreshLeft,
+  Close,
 } from "@element-plus/icons-vue";
 
 export default {
   name: "Sale",
   dicts: ["t_sale_order_status", "t_sale_order_type", "t_sale_order_source"],
   setup() {
-    return { Search, Refresh, Plus, ShoppingBag, Van, Edit, Delete, Operation };
+    return { Search, Refresh, Plus, ShoppingBag, Van, Edit, Delete, Operation, Check, RefreshLeft, Close };
   },
   data() {
     return {
@@ -995,6 +996,10 @@ export default {
       this.ids = selection.map((item) => item.id);
       this.single = selection.length !== 1;
       this.multiple = !selection.length;
+    },
+    /** 清空表格勾选 */
+    clearSelection() {
+      this.$refs["tableRef"] && this.$refs["tableRef"].clearSelection();
     },
     /** 新增按钮操作 */
     handleAdd() {
@@ -1480,6 +1485,44 @@ export default {
 </script>
 
 <style lang="scss" scoped>
+/* 批量操作条：勾选订单后浮现 */
+.batch-action-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 10px;
+  padding: 8px 12px;
+  background: #ecf5ff;
+  border: 1px solid #d9ecff;
+  border-radius: 4px;
+
+  .batch-action-info {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 13px;
+    color: #409eff;
+
+    .batch-action-count {
+      b {
+        color: #f56c6c;
+        font-size: 15px;
+      }
+    }
+  }
+
+  .batch-action-btns {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+
+    .el-button + .el-button {
+      margin-left: 0;
+    }
+  }
+}
 /* 草稿恢复横幅 */
 .draft-recover-banner {
   margin-bottom: 10px;
@@ -1566,31 +1609,5 @@ export default {
 }
 .build-drawer-footer {
   text-align: right;
-}
-.check-order-btn {
-  background-color: #625ceb;
-  color: #fff;
-  border: none;
-  padding: 10px 20px;
-  transition: all 0.3s ease; /* 添加过渡效果 */
-}
-
-.check-order-btn:hover {
-  background-color: lighten(#625ceb, 15%); /* 悬停时颜色变淡 */
-  color: #fff !important;
-  cursor: pointer;
-}
-
-.check-order-btn:active {
-  background-color: darken(#625ceb, 10%); /* 激活时颜色加深 */
-  color: #fff; /* 确保文本颜色始终为白色 */
-}
-
-.check-order-btn:disabled {
-  background-color: lighten(#625ceb, 20%); /* 禁用时背景颜色 */
-  color: #fff; /* 禁用时文本颜色 */
-  cursor: not-allowed; /* 改变鼠标指针形状 */
-  opacity: 0.65; /* 降低透明度以显示禁用状态 */
-  pointer-events: none; /* 禁止所有鼠标事件 */
 }
 </style>
