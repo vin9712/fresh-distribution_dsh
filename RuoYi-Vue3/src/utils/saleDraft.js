@@ -7,6 +7,8 @@
 const KEY_PREFIX = 'saleDraft:'
 const MAX_AGE = 24 * 60 * 60 * 1000 // 24 小时
 
+import { getSaleOrderDraft, saveSaleOrderDraft, removeSaleOrderDraft } from '@/api/order/saleDraft'
+
 function draftKey(orderId, customerDeptId) {
   const id = orderId ? `order:${orderId}` : `new:${customerDeptId || 'nodept'}`
   return KEY_PREFIX + id
@@ -77,4 +79,45 @@ export function restoreDraft(key) {
   if (!raw) return null
   const draft = parseDraft(key, raw)
   return draft ? { key, ...draft } : null
+}
+
+/* ========== 后端草稿双写（录单页交互细化设计 §3.3：后端为主、本地兜底断网） ========== */
+
+/** 草稿写入后端（fire-and-forget，失败静默由 localStorage 兜底） */
+export function syncDraftToServer(payload) {
+  try {
+    return saveSaleOrderDraft({
+      draftKey: draftKey(payload.orderId, payload.customerDeptId),
+      payload: JSON.stringify(payload),
+    })
+  } catch (e) {
+    return Promise.resolve(null)
+  }
+}
+
+/** 从后端读取草稿载荷；不存在返回 null */
+export async function fetchDraftFromServer(orderId, customerDeptId) {
+  try {
+    const res = await getSaleOrderDraft(draftKey(orderId, customerDeptId))
+    const payloadStr = res.data && res.data.payload
+    if (!payloadStr) return null
+    const draft = JSON.parse(payloadStr)
+    if (!draft || !draft.savedAt) return null
+    if (Date.now() - new Date(draft.savedAt).getTime() > MAX_AGE) {
+      removeDraftFromServer(orderId, customerDeptId)
+      return null
+    }
+    return draft
+  } catch (e) {
+    return null
+  }
+}
+
+/** 删除后端草稿（提交成功/确认放弃时调用） */
+export function removeDraftFromServer(orderId, customerDeptId) {
+  try {
+    return removeSaleOrderDraft(draftKey(orderId, customerDeptId))
+  } catch (e) {
+    return Promise.resolve(null)
+  }
 }

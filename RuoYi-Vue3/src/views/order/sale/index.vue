@@ -295,6 +295,14 @@
             >调整</el-button
           >
           <el-button
+            v-if="scope.row.status == 3"
+            size="small"
+            link
+            :icon="RefreshLeft"
+            @click="handleRevokeAcceptance(scope.row)"
+            >撤销验收</el-button
+          >
+          <el-button
             size="small"
             link
             :icon="Edit"
@@ -479,6 +487,46 @@
         <div class="dialog-footer">
           <el-button type="primary" @click="adjustSubmitForm">确 定</el-button>
           <el-button @click="adjustOpen = false">取 消</el-button>
+        </div>
+      </template>
+    </el-dialog>
+
+    <!-- 批量验收确认弹窗：逐单展示行数/空实收/差异/超阈值 -->
+    <el-dialog align-center title="批量验收确认" v-model="checkOpen" width="720px" append-to-body>
+      <el-alert
+        type="warning"
+        :closable="false"
+        show-icon
+        style="margin-bottom: 12px"
+        title="空实收行将按下单数量计；差异超过阈值的行仅提示不阻断，请自行核实后确认"
+      />
+      <el-table :data="checkRows" border size="small">
+        <el-table-column label="订单编号" align="center" prop="code" min-width="130" />
+        <el-table-column label="送货单位" align="center" prop="deliveryName" min-width="120" :show-overflow-tooltip="true" />
+        <el-table-column label="明细行数" align="center" prop="detailCount" width="80" />
+        <el-table-column label="空实收行数" align="center" prop="emptyActualCount" width="90">
+          <template #default="scope">
+            <span :class="{ 'check-warn-text': scope.row.emptyActualCount > 0 }">{{ scope.row.emptyActualCount }}</span>
+          </template>
+        </el-table-column>
+        <el-table-column label="有差异行数" align="center" prop="diffCount" width="90">
+          <template #default="scope">
+            <span :class="{ 'check-warn-text': scope.row.diffCount > 0 }">{{ scope.row.diffCount }}</span>
+          </template>
+        </el-table-column>
+        <el-table-column label="超阈值行数" align="center" prop="overThresholdCount" width="90">
+          <template #default="scope">
+            <span class="check-danger-text">{{ scope.row.overThresholdCount }}</span>
+          </template>
+        </el-table-column>
+      </el-table>
+      <div class="check-summary">
+        本批 {{ checkRows.length }} 单，共 {{ totalCheckDetail }} 行；有差异 {{ totalDiffLines }} 行，超阈值（±{{ checkThreshold }}%）{{ totalOverLines }} 行
+      </div>
+      <template #footer>
+        <div class="dialog-footer">
+          <el-button type="primary" :loading="checkSubmitting" @click="confirmOrderCheck">确认验收</el-button>
+          <el-button @click="checkOpen = false">取 消</el-button>
         </div>
       </template>
     </el-dialog>
@@ -680,7 +728,8 @@ import {
 import { generatePurchaseByOrders } from "@/api/purchase/purchase";
 import { generateDeliveryByOrders } from "@/api/order/delivery";
 import { listCustomerDept } from "@/api/partner/customerDept";
-import { listSaleDetail } from "@/api/order/saleDetail";
+import { listSaleDetail, saveActualDraft, acceptOrders, revokeAcceptance } from "@/api/order/saleDetail";
+import { getConfigKey } from "@/api/system/config";
 import { listDrafts, removeDraft } from "@/utils/saleDraft";
 import { createAdjustment } from "@/api/order/adjustment";
 import {
@@ -793,6 +842,13 @@ export default {
       },
       adjustDetailRows: [],
       adjustNewRows: [],
+      // 批量验收确认弹窗
+      checkOpen: false,
+      checkSubmitting: false,
+      // 待验收订单逐单统计行
+      checkRows: [],
+      // 差异提醒阈值（sys_config order.accept.diff.threshold，默认 20%，仅提示非阻断）
+      checkThreshold: 20,
       // 生成采购单/送货单抽屉
       buildDrawerVisible: false,
       buildMode: "purchase", // purchase | delivery
@@ -822,12 +878,36 @@ export default {
       }
       return true;
     },
+    /** 批量验收弹窗汇总：总行数/差异行/超阈值行 */
+    totalCheckDetail() {
+      return this.checkRows.reduce((s, r) => s + r.detailCount, 0);
+    },
+    totalDiffLines() {
+      return this.checkRows.reduce((s, r) => s + r.diffCount, 0);
+    },
+    totalOverLines() {
+      return this.checkRows.reduce((s, r) => s + r.overThresholdCount, 0);
+    },
   },
   created() {
     this.getTreeselect();
+    // 工作台卡片跳转携带的过滤条件（如待验收卡 → status=已配送）
+    const routeStatus = this.$route.query.status;
+    if (routeStatus !== undefined && routeStatus !== "") {
+      this.queryParams.status = routeStatus;
+    }
     this.getPageList();
     // 检测未完成订单草稿，展示恢复横幅
     this.refreshDrafts();
+    // 差异提醒阈值（仅提示非阻断）
+    getConfigKey("order.accept.diff.threshold")
+      .then((response) => {
+        const value = parseFloat(response.msg);
+        if (!isNaN(value) && value > 0) {
+          this.checkThreshold = value;
+        }
+      })
+      .catch(() => {});
   },
   methods: {
     /** 刷新草稿列表（新单页恢复横幅用） */
@@ -983,13 +1063,90 @@ export default {
     handleOrderCheck(row) {
       // 获取选中的订单
       const orderList = row && row.status ? [row] : this.formSelectedOptions;
-      // 校验是否全为送货状态的订单
+      // 校验是否全为已配送状态的订单
       const valid = orderList.some((item) => item.status !== 2);
       if (valid) {
-        this.$modal.msgError("请选择送货状态的订单");
+        this.$modal.msgError("请选择已配送状态的订单");
         return;
       }
-      const orderIds = orderList.map((item) => item.id);
+      // 拉取各单明细，逐单统计行数/空实收/差异/超阈值，弹窗二次确认
+      this.loading = true;
+      Promise.all(
+        orderList.map((o) => listSaleDetail({ orderId: o.id }))
+      )
+        .then((responses) => {
+          this.checkRows = responses.map((res, idx) => {
+            const details = res.data || [];
+            let emptyActualCount = 0;
+            let diffCount = 0;
+            let overThresholdCount = 0;
+            details.forEach((d) => {
+              const num = Number(d.num) || 0;
+              const actual =
+                d.actualNum === null || d.actualNum === undefined
+                  ? num
+                  : Number(d.actualNum);
+              if (d.actualNum === null || d.actualNum === undefined) {
+                emptyActualCount++;
+              }
+              if (Math.abs(actual - num) > 0.005) {
+                diffCount++;
+                if (
+                  num > 0 &&
+                  Math.abs(actual - num) > (num * this.checkThreshold) / 100
+                ) {
+                  overThresholdCount++;
+                }
+              }
+            });
+            return {
+              id: orderList[idx].id,
+              code: orderList[idx].code,
+              deliveryName: orderList[idx].deliveryName,
+              detailCount: details.length,
+              emptyActualCount,
+              diffCount,
+              overThresholdCount,
+            };
+          });
+          this.checkOpen = true;
+        })
+        .finally(() => {
+          this.loading = false;
+        });
+    },
+    /** 确认批量验收（整批置为已验收） */
+    confirmOrderCheck() {
+      this.checkSubmitting = true;
+      acceptOrders({ orderIds: this.checkRows.map((r) => r.id) })
+        .then(() => {
+          this.$modal.msgSuccess(
+            "已验收 " + this.checkRows.length + " 条订单"
+          );
+          this.checkOpen = false;
+          this.getPageList();
+        })
+        .catch(() => {})
+        .finally(() => {
+          this.checkSubmitting = false;
+        });
+    },
+    /** 撤销验收（已验收回退已配送并清空实收数据；已结算由后端拦截） */
+    handleRevokeAcceptance(row) {
+      this.$modal
+        .confirm(
+          "是否确认撤销订单【" +
+            row.code +
+            "】的验收？实收数据将清空并回退到已配送状态。"
+        )
+        .then(function () {
+          return revokeAcceptance({ orderIds: [row.id] });
+        })
+        .then(() => {
+          this.$modal.msgSuccess("已撤销验收");
+          this.getPageList();
+        })
+        .catch(() => {});
     },
     /** 批量完成订单状态 */
     handleOrderFinish(row) {
@@ -1347,6 +1504,21 @@ export default {
 }
 .doc-empty {
   color: #c0c4cc;
+}
+/* 批量验收弹窗统计高亮 */
+.check-warn-text {
+  color: #e6a23c;
+  font-weight: 600;
+}
+.check-danger-text {
+  color: #f56c6c;
+  font-weight: 600;
+}
+.check-summary {
+  margin-top: 10px;
+  text-align: right;
+  font-size: 13px;
+  color: #606266;
 }
 /* 生成单据抽屉 */
 .build-orders-summary {

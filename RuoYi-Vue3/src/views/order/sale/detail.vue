@@ -1,5 +1,20 @@
 <template>
   <div class="app-container">
+    <!-- 浏览模式横幅：查看历史订单时常驻「返回我的新单」入口 -->
+    <el-alert
+      v-if="browseMode"
+      type="info"
+      :closable="false"
+      show-icon
+      class="browse-banner"
+    >
+      <template #title>
+        <span class="draft-banner-title">
+          浏览模式：正在查看历史订单【{{ browsedOrder ? browsedOrder.code : '' }}】，数据只读、自动保存已暂停
+          <el-button type="primary" size="small" @click="exitBrowseMode">← 返回我的新单</el-button>
+        </span>
+      </template>
+    </el-alert>
     <!-- 草稿恢复提示条（新单页，检测到未完成草稿时显示） -->
     <el-alert
       v-if="showDraftBanner && availableDrafts.length"
@@ -37,25 +52,28 @@
               inline
               label-width="100px"
             >
-              <el-form-item prop="customerDeptId">
-                <template #label>
-                  送货单位
-                  <el-tooltip
-                    content="查看或新增明细时不可修改"
-                    placement="top"
+              <el-form-item label="送货单位" prop="customerDeptId">
+                <div class="dept-cascader-line">
+                  <el-cascader
+                    ref="deptCascader"
+                    v-model="selectedCustomerDepts"
+                    placeholder="请选择送货单位"
+                    :disabled="customerDeptLocked || browseMode"
+                    :options="customerDeptOptions"
+                    @change="handleFormOptionsChanged"
+                    :props="{ expandTrigger: 'hover' }"
+                    filterable
+                  />
+                  <!-- 整体锁定后的重开新单入口：清明细、重取价、重新分配编号 -->
+                  <el-button
+                    v-if="showReopenNewBtn"
+                    link
+                    type="danger"
+                    class="reopen-new-btn"
+                    @click="reopenNewOrder"
+                    >重开新单</el-button
                   >
-                    <el-icon><QuestionFilled /></el-icon>
-                  </el-tooltip>
-                </template>
-                <el-cascader
-                  v-model="selectedCustomerDepts"
-                  placeholder="请选择送货单位"
-                  :disabled="customerDeptDisabled"
-                  :options="customerDeptOptions"
-                  @change="handleFormOptionsChanged"
-                  :props="{ expandTrigger: 'hover' }"
-                  filterable
-                />
+                </div>
               </el-form-item>
               <el-form-item label="配送日期" prop="deliveryDate">
                 <el-date-picker
@@ -64,12 +82,14 @@
                   value-format="YYYY-MM-DD"
                   placeholder="请选择配送日期"
                   clearable
+                  :disabled="orderInfoReadonly"
                 ></el-date-picker>
               </el-form-item>
               <el-form-item prop="orderCode">
                 <template #label>
                   订单编号
                   <el-icon
+                    v-if="!orderInfoReadonly"
                     @click="refreshOrderCode"
                     style="cursor: pointer"
                   >
@@ -87,6 +107,7 @@
                 <el-input
                   v-model="orderForm.remark"
                   placeholder="请输入订单备注"
+                  :disabled="orderInfoReadonly"
                 >
                 </el-input>
               </el-form-item>
@@ -129,8 +150,8 @@
               @cell-mouseenter="cellMouseenterEvent"
               @cell-mouseleave="cellMouseleaveEvent"
             >
-              <!-- 操作列 -->
-              <vxe-column field="operate" width="63">
+              <!-- 操作列（浏览/验收态隐藏增删拖拽） -->
+              <vxe-column v-if="canEditOrder" field="operate" width="63">
                 <template #default="{ row, rowIndex }">
                   <!-- 拖动 -->
                   <span v-if="currentHoverRow === row" class="drag-btn">
@@ -166,8 +187,8 @@
                         v-model="parentRow.productName"
                         placeholder="请输入商品名称"
                         clearable
-                        @keyup="keyupProductNameEvent"
-                        @focus="focusProductNameEvent"
+                        @keyup="keyupProductNameEvent({ parentRow, value: $event.value })"
+                        @focus="focusProductNameEvent({ parentRow, value: $event.value })"
                         @blur="
                           blurProductNameEvent({
                             parentRow,
@@ -259,6 +280,59 @@
                 </template>
               </vxe-column>
               <vxe-column field="amount" title="金额"> </vxe-column>
+              <!-- 实收区：订单状态≥已配送 时展示；已配送可编辑并防抖自动保存，已验收后只读 -->
+              <vxe-column
+                v-if="showActualColumns"
+                field="actualNum"
+                title="实收数量"
+                cell-type="number"
+                width="100"
+                :formatter="decimalFormatter('actualNum')"
+                :class-name="actualCellClass"
+                :edit-render="acceptMode ? { name: '$input', autoselect: true } : undefined"
+              >
+                <template v-if="acceptMode" #edit="{ row }">
+                  <vxe-input
+                    v-model="row.actualNum"
+                    type="text"
+                    placeholder="默认=下单数"
+                    @change="markActualChanged(row)"
+                  ></vxe-input>
+                </template>
+              </vxe-column>
+              <vxe-column
+                v-if="showActualColumns"
+                field="lossReason"
+                title="损耗原因"
+                width="120"
+                :class-name="actualCellClass"
+                :edit-render="acceptMode ? { name: 'default' } : undefined"
+              >
+                <template #default="{ row }">
+                  <dict-tag
+                    v-if="row.lossReason"
+                    :options="dict.type.biz_loss_reason"
+                    :value="row.lossReason"
+                  />
+                </template>
+                <template v-if="acceptMode" #edit="{ row }">
+                  <el-select
+                    v-model="row.lossReason"
+                    placeholder="损耗原因"
+                    clearable
+                    filterable
+                    size="small"
+                    style="width: 100%"
+                  >
+                    <el-option
+                      v-for="d in dict.type.biz_loss_reason"
+                      :key="d.value"
+                      :label="d.label"
+                      :value="d.value"
+                    />
+                  </el-select>
+                </template>
+              </vxe-column>
               <vxe-column
                 field="productSpec"
                 title="规格"
@@ -272,13 +346,26 @@
             </vxe-table>
           </div>
 
+          <!-- 验收差异汇总条：本单 N 行有差异，超阈值 M 行 -->
+          <div v-if="acceptMode" class="accept-summary-bar" :class="acceptOverCount > 0 ? 'has-over' : ''">
+            {{ acceptDiffText }}
+          </div>
+
           <!-- 底部工具栏 -->
           <el-form class="order-footer" label-width="100px">
             <el-form-item
               style="text-align: center; margin-left: -100px; margin-top: 10px"
             >
-              <el-button @click="resetOrderForm()">重置</el-button>
-              <el-button type="primary" @click="submitForm()">保存</el-button>
+              <el-button v-if="canEditOrder" @click="resetOrderForm()">重置</el-button>
+              <el-button v-if="canEditOrder" type="primary" @click="submitForm()">保存</el-button>
+              <!-- 已配送订单：在明细内直接确认验收（批量验收的单选特例） -->
+              <el-button
+                v-if="acceptMode"
+                type="success"
+                :loading="acceptSubmitting"
+                @click="confirmAcceptance()"
+                >确认验收</el-button
+              >
               <el-button @click="close()">返回</el-button>
             </el-form-item>
           </el-form>
@@ -412,6 +499,24 @@
                 </el-col>
               </el-row>
             </el-form>
+            <!-- 浏览模式工具条：复制为新单（仅底层录入工作区为空时可用） -->
+            <div v-if="browseMode" class="copy-as-new-bar">
+              <el-tooltip
+                :disabled="canCopyAsNew"
+                content="请先完成并提交当前订单，再复制历史订单"
+                placement="top"
+              >
+                <span>
+                  <el-button
+                    type="warning"
+                    size="small"
+                    :disabled="!canCopyAsNew"
+                    @click="copyAsNew"
+                    >复制为新单</el-button
+                  >
+                </span>
+              </el-tooltip>
+            </div>
             <!-- 最近订单列表 -->
             <div
               class="recent-order-table-container"
@@ -438,14 +543,15 @@
 
 <script>
 import { pageSaleOrder, getSaleOrder, genOrderCode, createSaleOrder, updateSaleOrder, recentSaleOrder } from "@/api/order/sale";
-import { listSaleDetail, frequentSaleDetail } from "@/api/order/saleDetail";
-import { listDrafts, saveDraft, removeDraft, restoreDraft } from "@/utils/saleDraft";
+import { listSaleDetail, frequentSaleDetail, saveActualDraft, acceptOrders } from "@/api/order/saleDetail";
+import { listDrafts, saveDraft, removeDraft, restoreDraft, syncDraftToServer, fetchDraftFromServer, removeDraftFromServer } from "@/utils/saleDraft";
+import { getConfigKey } from "@/api/system/config";
 import { listCustomerSku } from "@/api/product/customerSku";
 import { listTemp } from "@/api/product/temp";
 import { queryPrice } from "@/api/price/query";
 import { listCustomer } from "@/api/partner/customer";
 import { listCustomerDept } from "@/api/partner/customerDept";
-import { QuestionFilled, Refresh, Rank, Plus, Minus, Search } from "@element-plus/icons-vue";
+import { Refresh, Rank, Plus, Minus, Search } from "@element-plus/icons-vue";
 
 import XEUtils from "xe-utils";
 import Sortable from "sortablejs";
@@ -541,13 +647,29 @@ function deepEqual(obj1, obj2, path = '') {
 
 export default {
   name: "SaleDetail",
+  // 损耗原因固定字典（验收实收差异行必选）
+  dicts: ["biz_loss_reason"],
   setup() {
-    return { QuestionFilled, Refresh, Rank, Plus, Minus, Search };
+    return { Refresh, Rank, Plus, Minus, Search };
   },
   data() {
     return {
       // 默认订单id
       defaultOrderId: null,
+      // 当前加载订单的状态（null=新单；2=已配送进入验收态；3+只读）
+      orderStatus: null,
+      // 浏览模式：查看历史订单（收起/恢复模型，不覆盖录入工作区）
+      browseMode: false,
+      browsedOrder: null,
+      // 浏览前收起的录入工作区快照
+      stashedWorkspace: null,
+      stashWasEmpty: true,
+      // 验收确认提交中
+      acceptSubmitting: false,
+      // 差异提醒阈值（sys_config order.accept.diff.threshold，仅提示非阻断）
+      acceptThreshold: 20,
+      // 明细区门禁提示节流标记
+      _gateWarnAt: 0,
       // 最近订单查询条件
       recentQuery: {
         customerId: null,
@@ -709,6 +831,92 @@ export default {
       const cur = { orderId, orderCode, customerId, customerDeptId, deliveryDate, remark };
       return JSON.stringify(cur) !== JSON.stringify(this.originalOrderForm);
     },
+    /* ========== 录单页交互细化（客户锁定 / 浏览模式 / 验收态） ========== */
+    /** 客户+配送点整体锁定：编辑已有单、浏览态；或新单已录入商品后（未录商品前允许直接改选配送点） */
+    customerDeptLocked() {
+      if (this.browseMode || !!this.orderForm.orderId) return true;
+      return !!this.orderForm.customerDeptId && this.hasDetailContent;
+    },
+    /** 重开新单入口：新单录入中且已因录入商品而锁定 */
+    showReopenNewBtn() {
+      return !this.browseMode && !this.orderForm.orderId && !!this.orderForm.customerDeptId && this.hasDetailContent;
+    },
+    /** 是否处于可编辑的录单态（非浏览、非验收、非已验收只读） */
+    canEditOrder() {
+      return !this.browseMode && !this.acceptMode && !this.viewOnlyMode;
+    },
+    /** 订单信息是否只读（浏览/验收/只读查看模式下，表头信息不可修改） */
+    orderInfoReadonly() {
+      return !this.canEditOrder;
+    },
+    /** 验收模式：已配送订单，实收可编辑 */
+    acceptMode() {
+      return !this.browseMode && !!this.orderForm.orderId && this.orderStatus === 2;
+    },
+    /** 只读查看：已验收/已结算订单 */
+    viewOnlyMode() {
+      return !this.browseMode && !!this.orderForm.orderId && this.orderStatus != null && this.orderStatus >= 3;
+    },
+    /** 实收列展示：订单状态≥已配送 */
+    showActualColumns() {
+      return (
+        (!this.browseMode && !!this.orderForm.orderId && this.orderStatus != null && this.orderStatus >= 2) ||
+        (this.browseMode && !!this.browsedOrder && Number(this.browsedOrder.status) >= 2)
+      );
+    },
+    /** 有效商品行：商品名+单位齐全 且 数量>0（页面默认空白行不算） */
+    hasValidProductRow() {
+      return (this.orderDetailList || []).some(
+        (row) => row.productName && row.productUnit && XEUtils.toNumber(row.num) > 0
+      );
+    },
+    /** 明细已录入内容：任一行有商品/数量/单价/备注（默认空白行不算），用于配送点锁定判定 */
+    hasDetailContent() {
+      return (this.orderDetailList || []).some(
+        (row) =>
+          row.productName ||
+          row.remark ||
+          XEUtils.toNumber(row.num) > 0 ||
+          XEUtils.toNumber(row.productPrice) > 0
+      );
+    },
+    /** 空工作区判定（§3.6）：没有有效商品行 或 没有选配送点，任一满足即视为空 */
+    isWorkspaceEmpty() {
+      return !this.hasValidProductRow || !this.orderForm.customerDeptId;
+    },
+    /** 复制为新单准入：浏览模式下底层录入工作区为空，且不是从已有单进入 */
+    canCopyAsNew() {
+      return this.browseMode && this.stashWasEmpty && !this.defaultOrderId;
+    },
+    /** 验收差异统计：{diffCount, overCount, diffNum}（空实收行按下单数计） */
+    acceptDiffStats() {
+      const stats = { diffCount: 0, overCount: 0, diffNum: 0 };
+      (this.orderDetailList || []).forEach((row) => {
+        const num = XEUtils.toNumber(row.num) || 0;
+        const actual = row.actualNum === null || row.actualNum === undefined || row.actualNum === ""
+          ? num
+          : XEUtils.toNumber(row.actualNum);
+        const diff = actual - num;
+        if (Math.abs(diff) > 0.005) {
+          stats.diffCount++;
+          stats.diffNum += diff;
+          if (num > 0 && Math.abs(diff) > (num * this.acceptThreshold) / 100) {
+            stats.overCount++;
+          }
+        }
+      });
+      return stats;
+    },
+    /** 超阈值行数（汇总条红显） */
+    acceptOverCount() {
+      return this.acceptDiffStats.overCount;
+    },
+    /** 汇总条文案 */
+    acceptDiffText() {
+      const s = this.acceptDiffStats;
+      const dir = s.diffNum > 0 ? "多" : s.diffNum < 0 ? "少" : "";
+      return `本单 ${s.diffCount} 行有差异${dir ? "，合计" + dir + Math.abs(s.diffNum).toFixed(2) : ""}；超阈值 ${s.overCount} 行（阈值 ±${this.acceptThreshold}%，仅提示不阻断）`;
+    },
   },
   created() {
     // 从路由获取参数
@@ -724,6 +932,16 @@ export default {
 
     // 草稿：列表页跳转（query.draft）自动恢复；新单页展示恢复横幅
     this.checkDraftOnEnter();
+
+    // 差异提醒阈值（sys_config，仅提示非阻断）
+    getConfigKey("order.accept.diff.threshold")
+      .then((response) => {
+        const value = parseFloat(response.msg);
+        if (!isNaN(value) && value > 0) {
+          this.acceptThreshold = value;
+        }
+      })
+      .catch(() => {});
   },
   watch: {
     orderForm: {
@@ -810,6 +1028,11 @@ export default {
     },
     /** 初始化订单明细页 */
     initOrderDetailPage(orderId) {
+      // 重置浏览模式与订单状态标记
+      this.browseMode = false;
+      this.browsedOrder = null;
+      this.stashedWorkspace = null;
+      this.orderStatus = null;
       if (orderId) {
         // 获取当前 order 信息
         getSaleOrder(orderId)
@@ -820,6 +1043,8 @@ export default {
               orderId: orderData.id,
               orderCode: orderData.code,
             };
+            // 记录状态：2=已配送（验收态），≥3 只读
+            this.orderStatus = orderData.status != null ? Number(orderData.status) : null;
             // 初始化送货单位下拉列表
             this.customerDeptDisabled = true;
             this.selectedCustomerDepts = this.fillWithParentCustomerDeptId(
@@ -831,7 +1056,7 @@ export default {
             // 初始化订单表格
             listSaleDetail({ orderId: orderId }).then((response) => {
               const responseOrderDetails = response.data.map((item) => {
-                return {
+                const row = {
                   ...item,
                   productPrice: XEUtils.commafy(item.productPrice, {
                     digits: 2,
@@ -843,6 +1068,11 @@ export default {
                     digits: 2,
                   }),
                 };
+                // 实收列：已配送及之后状态展示
+                if (item.actualNum !== null && item.actualNum !== undefined) {
+                  row.actualNum = XEUtils.commafy(item.actualNum, { digits: 2 });
+                }
+                return row;
               });
               this.orderDetailList =
                 this.deepCloneOrderDetailList(responseOrderDetails);
@@ -907,11 +1137,13 @@ export default {
       // 初始化最近订单列表
       this.handleRecentQuery();
     },
-    /** 刷新订单编号 */
+    /** 刷新订单编号（补传 currentCode：相同则保持，被占用才 +1，避免浪费号段） */
     refreshOrderCode() {
-      genOrderCode({ refresh: true }).then((response) => {
-        this.orderForm.orderCode = response.msg;
-      });
+      genOrderCode({ refresh: true, currentCode: this.orderForm.orderCode || undefined }).then(
+        (response) => {
+          this.orderForm.orderCode = response.msg;
+        }
+      );
     },
     /** 重置订单表单 */
     resetOrderForm() {
@@ -963,8 +1195,9 @@ export default {
             updateSaleOrder(this.orderForm).then((response) => {
               if (response.code === 200) {
                 this.$modal.msgSuccess("修改成功");
-                // 已保存订单：清除对应草稿
+                // 已保存订单：清除对应草稿（本地 + 后端）
                 removeDraft("saleDraft:order:" + this.orderForm.orderId);
+                removeDraftFromServer(this.orderForm.orderId, this.orderForm.customerDeptId);
                 this.refreshDraftBanner();
                 const orderId = this.isContinueAdd
                   ? null
@@ -976,8 +1209,9 @@ export default {
             createSaleOrder(this.orderForm).then((response) => {
               if (response.code === 200) {
                 this.$modal.msgSuccess("新增成功");
-                // 新单已保存：清除对应草稿
+                // 新单已保存：清除对应草稿（本地 + 后端）
                 removeDraft("saleDraft:new:" + this.orderForm.customerDeptId);
+                removeDraftFromServer(null, this.orderForm.customerDeptId);
                 this.refreshDraftBanner();
                 const orderId = this.isContinueAdd ? null : response.data.id;
                 this.initOrderDetailPage(orderId);
@@ -1075,6 +1309,8 @@ export default {
             return this.sumNum(data, "num");
           } else if (column.property === "amount") {
             return this.sumNum(data, "amount");
+          } else if (column.property === "actualNum") {
+            return this.sumNum(data, "actualNum");
           }
           return "";
         }),
@@ -1099,8 +1335,25 @@ export default {
         return row.productName;
       }
     },
-    /** vxe表格-全局禁用编辑 */
+    /** vxe表格-编辑门禁：未选送货单位禁录；浏览/只读全禁；验收态仅放开实收两列 */
     checkTableActive({ row, column }) {
+      // 浏览模式与已验收/已结算订单：全部只读
+      if (this.browseMode || this.viewOnlyMode) {
+        return false;
+      }
+      // 验收模式：仅实收数量/损耗原因可编辑，下单数据锁定
+      if (this.acceptMode) {
+        return column && (column.field === "actualNum" || column.field === "lossReason");
+      }
+      // 录单态明细区门禁：未选定客户(+配送点)前禁止编辑，引导先选送货单位
+      if (!this.orderForm.customerDeptId) {
+        const now = Date.now();
+        if (now - this._gateWarnAt > 2000) {
+          this._gateWarnAt = now;
+          this.$modal.msgWarning("请先选择送货单位");
+        }
+        return false;
+      }
       return true;
     },
     /** 行拖拽 */
@@ -1128,8 +1381,17 @@ export default {
         }
       );
     },
-    /** 添加行 */
+    /** 添加行（明细区门禁：浏览/验收态禁加行；未选送货单位时仅保留默认空行，禁止加行） */
     handleAddRow(rowIndex) {
+      if ((this.browseMode || this.acceptMode) && (this.orderDetailList || []).length >= 1) return;
+      if (!this.orderForm.customerDeptId && (this.orderDetailList || []).length >= 1) {
+        const now = Date.now();
+        if (now - this._gateWarnAt > 2000) {
+          this._gateWarnAt = now;
+          this.$modal.msgWarning("请先选择送货单位");
+        }
+        return;
+      }
       if (!this.orderDetailList) {
         this.orderDetailList = [];
       }
@@ -1154,6 +1416,8 @@ export default {
     /** 减少行 */
     handleRemoveRow(row) {
       if (!row) return;
+      // 浏览/验收态只读，禁止删行
+      if (this.browseMode || this.acceptMode) return;
       const index = this.orderDetailList.indexOf(row);
       this.$confirm("确定要删除第【" + (index + 1) + "】行数据吗?", "提示", {
         confirmButtonText: "确定",
@@ -1191,16 +1455,16 @@ export default {
       this.currentHoverRow = null;
     },
     /** 商品名称输入框-聚焦事件 */
-    focusProductNameEvent({ value }) {
+    focusProductNameEvent({ parentRow, value }) {
       const $pulldown = this.$refs.pulldownRef;
       if ($pulldown) {
-        this.initPulldownData("");
+        this.initPulldownData(value, parentRow);
         $pulldown.showPanel();
       }
     },
     /** 商品名称输入框-键盘按下事件（服务端按关键字检索，防抖） */
-    keyupProductNameEvent({ value }) {
-      this.initPulldownData(value);
+    keyupProductNameEvent({ parentRow, value }) {
+      this.initPulldownData(value, parentRow);
     },
     /** 商品名称输入框-值变更事件 */
     blurProductNameEvent({ parentRow, value }) {
@@ -1244,8 +1508,9 @@ export default {
       parentRow.productPrice = "0.00";
       parentRow.amount = "0.00";
 
-      // 重设列表
-      this.pulldownTableData = this.skuQuoteDetails;
+      // 重设列表（过滤掉其它行已添加的 SKU）
+      this._pulldownExcludeRow = parentRow;
+      this.pulldownTableData = this.filterAddedSku(this.skuQuoteDetails);
     },
     /** 商品名称下拉容器-选中元素事件 */
     pulldownCellClickEvent({ parentRow, row }) {
@@ -1257,16 +1522,18 @@ export default {
         parentRow.productUnit = row.productUnit;
         parentRow.productSpec = row.productSpec;
         parentRow.productPrice = row.price;
-        parentRow.refPrice = row.price;
         parentRow.priceChanged = false;
         parentRow.skuId = row.skuId;
         parentRow.isTemp = row.isTemp ? 1 : 0;
 
         if (row.isTemp) {
-          // 临时商品：使用默认单价，不参与取价
+          // 临时商品：使用默认单价，不参与取价（以默认单价作为参考价）
+          parentRow.refPrice = row.price;
           this.calcAmount(parentRow);
         } else {
-          // 正式SKU：两层取价（客户报价 > 客户模板），未命中提示人工填写
+          // 正式SKU：两层取价（客户报价 > 客户模板），未命中提示人工填写。
+          // 参考价待取价引擎返回后再设置，避免用展示价误触发改价提醒。
+          parentRow.refPrice = null;
           this.applyPriceQuery(parentRow);
         }
 
@@ -1303,8 +1570,11 @@ export default {
             parentRow.priceChanged = false;
             this.calcAmount(parentRow);
           } else {
+            // 未命中有效报价：清空价格，并重置参考价，避免用初始展示价误触发改价提醒
             parentRow.productPrice = "";
             parentRow.amount = "0.00";
+            parentRow.refPrice = null;
+            parentRow.priceChanged = false;
             this.$modal.msgWarning(
               "商品【" + parentRow.productName + "】无有效报价，请人工填写价格"
             );
@@ -1342,20 +1612,52 @@ export default {
       return row.priceChanged ? "col-price-changed" : "";
     },
     /** 商品名称下拉容器-初始化数据（服务端按关键字检索客户商品池+临时商品） */
-    initPulldownData(value) {
+    initPulldownData(value, excludeRow) {
       // 记录关键词供下拉单元格高亮
       this.pulldownKeyword = value || "";
+      // 记录当前编辑行，用于过滤「已在其它行添加」的 SKU
+      this._pulldownExcludeRow = excludeRow || null;
       if (this._pulldownTimer) {
         clearTimeout(this._pulldownTimer);
       }
       this._pulldownTimer = setTimeout(() => {
         this.getSkuQuoteDetailList(value || "").then(() => {
-          this.pulldownTableData = this.skuQuoteDetails;
+          this.pulldownTableData = this.filterAddedSku(this.skuQuoteDetails);
         });
       }, 200);
     },
+    /** 行或候选的 SKU 标识键（有 skuId 用 sku，临时商品用名称） */
+    skuRowKey(row) {
+      if (!row) return null;
+      if (row.skuId != null && row.skuId !== "") return "sku:" + row.skuId;
+      return row.productName ? "name:" + row.productName : null;
+    },
+    /** 过滤掉已在订单明细其它行添加过的 SKU，候选列表不重复展示 */
+    filterAddedSku(list) {
+      const excludeRow = this._pulldownExcludeRow || null;
+      const added = new Set();
+      (this.orderDetailList || []).forEach((row) => {
+        if (row === excludeRow) return;
+        const key = this.skuRowKey(row);
+        if (key) added.add(key);
+      });
+      // 当前行自身已有商品始终保留（避免编辑本行时把当前商品也过滤掉）
+      const selfKey = this.skuRowKey(excludeRow);
+      return (list || []).filter((c) => {
+        const key = this.skuRowKey(c);
+        if (!key) return true;
+        if (selfKey && key === selfKey) return true;
+        return !added.has(key);
+      });
+    },
     /** 选择送货单位树回调 */
     handleFormOptionsChanged(value) {
+      // Element Plus 的 togglePopperVisible 在 disabled 状态下会早退（无法关面板），
+      // 而选定送货单位后组件立即锁定，故必须在置值锁定前先手动收起下拉面板
+      const cascader = this.$refs.deptCascader;
+      if (cascader && cascader.togglePopperVisible) {
+        cascader.togglePopperVisible(false);
+      }
       // init table item
       this.orderDetailList = [];
       this.throttledAddRow();
@@ -1442,39 +1744,215 @@ export default {
         row.skuId = null;
       }
     },
-    /** 更新送货单位下拉选择器状态 */
+    /** 更新送货单位下拉选择器状态（客户+配送点整体锁定的兼容入口） */
     updateCustomerDeptStatus() {
-      const orderId = this.orderForm.orderId;
-      if (orderId) {
-        this.customerDeptDisabled = true;
-        return;
-      }
-
-      // 只有 orderDetailList 为空或只有一条数据时才为 false
-      if (this.orderDetailList.length > 1) {
-        this.customerDeptDisabled = true;
-      } else {
-        this.customerDeptDisabled = false;
-      }
+      // 整体锁定规则由 computed customerDeptLocked 控制，此处仅同步旧字段
+      this.customerDeptDisabled =
+        !!this.orderForm.orderId || !!this.orderForm.customerDeptId;
     },
-    /** 最近订单行变更事件 */
+    /* ========== 浏览模式（收起/恢复模型） ========== */
+    /** 最近订单行点击：非空工作区先确认收起，再进入浏览模式 */
     handleRecentOrderRowChange(event) {
       if (!event || !event.row) return;
       const orderId = event.row.id;
-      const isUpdated = this.checkTableUpdted();
-      if (isUpdated) {
+      if (this.browseMode) {
+        // 已在浏览中：直接切换目标订单
+        this.loadBrowseOrder(orderId);
+        return;
+      }
+      const workspaceEmpty = this.isWorkspaceEmpty;
+      const proceed = () => {
+        this.enterBrowseMode(orderId, workspaceEmpty);
+      };
+      if (!workspaceEmpty) {
         this.$modal
-          .confirm("当前订单明细有改动，是否确认变更？")
-          .then(() => {
-            this.initOrderDetailPage(orderId);
-          })
+          .confirm("当前正在录入的新单将暂时收起，进入浏览模式？")
+          .then(proceed)
           .catch(() => {
-            // 取消选中当前行
             this.$refs.recentOrderTable.clearCurrentRow();
           });
       } else {
-        this.initOrderDetailPage(orderId);
+        proceed();
       }
+    },
+    /** 收起当前工作区并载入历史订单浏览 */
+    enterBrowseMode(orderId, wasEmpty) {
+      this.stashCurrentWorkspace(wasEmpty);
+      this.loadBrowseOrder(orderId);
+    },
+    /** 快照当前录入工作区（表头+明细+级联选中），供返回时原样恢复 */
+    stashCurrentWorkspace(wasEmpty) {
+      this.stashWasEmpty = !!wasEmpty;
+      this.stashedWorkspace = {
+        orderForm: JSON.parse(JSON.stringify(this.orderForm)),
+        orderDetailList: this.deepCloneOrderDetailList(this.orderDetailList),
+        originalOrderDetailList: this.deepCloneOrderDetailList(
+          this.originalOrderDetailList
+        ),
+        selectedCustomerDepts: [...(this.selectedCustomerDepts || [])],
+        originalOrderForm: this.originalOrderForm
+          ? JSON.parse(JSON.stringify(this.originalOrderForm))
+          : null,
+        orderStatus: this.orderStatus,
+      };
+    },
+    /** 载入历史订单到只读浏览态 */
+    loadBrowseOrder(orderId) {
+      getSaleOrder(orderId).then((response) => {
+        const orderData = response.data;
+        this.browsedOrder = orderData;
+        // 更新订单信息（表头）到当前浏览的历史订单，否则上方表单不会跟随刷新
+        this.orderForm = {
+          ...orderData,
+          orderId: orderData.id,
+          orderCode: orderData.code,
+        };
+        this.orderStatus =
+          orderData.status != null ? Number(orderData.status) : null;
+        this.customerDeptDisabled = true;
+        this.selectedCustomerDepts = this.orderForm.customerDeptId
+          ? this.fillWithParentCustomerDeptId(
+              this.customerDeptOptions,
+              this.orderForm.customerDeptId.toString()
+            )
+          : [];
+        this.snapshotOriginalOrderForm();
+      });
+      listSaleDetail({ orderId }).then((response) => {
+        const details = (response.data || []).map((item) => ({
+          ...item,
+          productPrice: XEUtils.commafy(item.productPrice, { digits: 2 }),
+          num: XEUtils.commafy(item.num, { digits: 2 }),
+          amount: XEUtils.commafy(item.expectAmount, { digits: 2 }),
+          actualNum:
+            item.actualNum !== null && item.actualNum !== undefined
+              ? XEUtils.commafy(item.actualNum, { digits: 2 })
+              : item.actualNum,
+        }));
+        // 直接替换展示列表；浏览态自动保存已暂停，不污染草稿
+        this.orderDetailList = details;
+        this.originalOrderDetailList = this.deepCloneOrderDetailList(details);
+      });
+      this.browseMode = true;
+    },
+    /** 返回我的新单：原样恢复收起的录入工作区 */
+    exitBrowseMode() {
+      const stash = this.stashedWorkspace;
+      if (stash) {
+        this.orderForm = stash.orderForm;
+        this.orderDetailList = stash.orderDetailList.map((r) => ({ ...r }));
+        this.originalOrderDetailList = stash.originalOrderDetailList;
+        this.selectedCustomerDepts = stash.selectedCustomerDepts;
+        this.originalOrderForm = stash.originalOrderForm;
+        this.orderStatus = stash.orderStatus;
+      }
+      this.browseMode = false;
+      this.browsedOrder = null;
+      this.stashedWorkspace = null;
+      // 清除右侧最近订单的当前行高亮
+      this.$nextTick(() => {
+        if (this.$refs.recentOrderTable) {
+          this.$refs.recentOrderTable.clearCurrentRow();
+        }
+      });
+    },
+    /* ========== 复制为新单 ========== */
+    /** 历史订单 → 新单：商品+数量灌入；单价按当前执行价逐行重取；日期/编号重新分配 */
+    copyAsNew() {
+      if (!this.canCopyAsNew || !this.browsedOrder) return;
+      const sourceOrderId = this.browsedOrder.id;
+      // 同步订单信息中的送货单位（客户 + 配送点）
+      const sourceCustomerId = this.browsedOrder.customerId;
+      const sourceDeptId = this.browsedOrder.customerDeptId;
+      listSaleDetail({ orderId: sourceOrderId }).then((response) => {
+        const sourceRows = (response.data || []).filter(
+          (d) => d.isDeleted === false || d.isDeleted === 0 || d.isDeleted == null
+        );
+        if (!sourceRows.length) {
+          this.$modal.msgWarning("该历史订单没有有效商品行");
+          return;
+        }
+        // 重置为新单工作区
+        this.browseMode = false;
+        this.browsedOrder = null;
+        this.stashedWorkspace = null;
+        this.orderForm = {
+          orderId: null,
+          orderCode: null,
+          customerId: sourceCustomerId,
+          customerDeptId: sourceDeptId,
+          deliveryDate: null,
+          remark: "",
+        };
+        // 同步送货单位：构造级联选中路径（有配送点用配送点，否则用客户）
+        this.selectedCustomerDepts = sourceDeptId
+          ? this.fillWithParentCustomerDeptId(
+              this.customerDeptOptions,
+              sourceDeptId.toString()
+            )
+          : sourceCustomerId
+            ? this.fillWithParentCustomerDeptId(
+                this.customerDeptOptions,
+                sourceCustomerId.toString()
+              )
+            : [];
+        // 送货日期重算：15 点前=今天，之后=明天
+        const today = new Date();
+        const tomorrow = new Date(today);
+        tomorrow.setDate(today.getDate() + 1);
+        const fmt = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+        this.orderForm.deliveryDate = today.getHours() < 15 ? fmt(today) : fmt(tomorrow);
+        // 订单号按 §3.2 重新分配
+        genOrderCode({ refresh: false }).then((res) => {
+          this.orderForm.orderCode = res.msg;
+        });
+        // 商品+数量灌入，单价清零待取价引擎回填
+        this.orderDetailList = sourceRows.map((d) => ({
+          productName: d.productName,
+          productUnit: d.productUnit || "斤",
+          productSpec: d.productSpec || "",
+          skuId: d.skuId,
+          isTemp: 0,
+          num: XEUtils.commafy(d.num, { digits: 2 }),
+          productPrice: "0.00",
+          refPrice: null,
+          priceChanged: false,
+          amount: "0.00",
+          remark: "",
+        }));
+        this.originalOrderDetailList = this.deepCloneOrderDetailList(
+          this.orderDetailList
+        );
+        this.snapshotOriginalOrderForm();
+        this.draftStatusText = "";
+        // 刷新商品池与常用商品，使下拉/报价按复制的客户+配送点生效
+        this.getSkuQuoteDetailList();
+        this.loadFrequentProducts();
+        this.$modal.msgSuccess("已复制商品清单，单价正在按当前执行价重新获取");
+        // 逐行按 配送点覆盖价 > 客户报价 > 报价模板 重取价
+        this.$nextTick(() => {
+          this.orderDetailList.forEach((row) => {
+            if (row.skuId) {
+              this.applyPriceQuery(row);
+            }
+          });
+        });
+      });
+    },
+    /* ========== 重开新单（客户+配送点整体换选入口） ========== */
+    reopenNewOrder() {
+      const deptName = this.deptNameOf(this.orderForm.customerDeptId);
+      this.$modal
+        .confirm(
+          "重开新单将清空当前明细并重新分配订单编号" +
+            (deptName ? "（当前送货单位【" + deptName + "】）" : "") +
+          "，是否继续？"
+        )
+        .then(() => {
+          this.initOrderDetailPage(null);
+          this.$modal.msgSuccess("已重开新单，请重新选择送货单位");
+        })
+        .catch(() => {});
     },
 
     /* ========== 草稿自动保存（Phase 1.1） ========== */
@@ -1483,13 +1961,25 @@ export default {
       const draftKey = this.$route.query.draft;
       if (draftKey) {
         const draft = restoreDraft(draftKey);
-        if (draft && !this.defaultOrderId) {
-          this.restoreDraftIntoForm(draft);
-        } else {
-          this.$modal.msgWarning("草稿不存在或已过期");
-        }
+        // 后端为主：同 key 后端草稿更新时间更新则优先
+        fetchDraftFromServer(draft.orderId, draft.customerDeptId).then((serverDraft) => {
+          let target = draft;
+          if (serverDraft) {
+            const serverAt = new Date(serverDraft.savedAt).getTime();
+            const localAt = new Date(draft.savedAt).getTime();
+            if (serverAt > localAt + 1000) {
+              target = { key: draft.key, ...serverDraft };
+            }
+          }
+          if (target && !this.defaultOrderId) {
+            this.restoreDraftIntoForm(target);
+          } else {
+            this.$modal.msgWarning("草稿不存在或已过期");
+          }
+        });
         return;
       }
+      // 无指定草稿时，若后端有本配送点的新单草稿也提示恢复（换电脑场景）
       this.refreshDraftBanner();
     },
     /** 刷新草稿横幅（新单页且有未过期草稿时显示） */
@@ -1508,7 +1998,7 @@ export default {
     dismissDraftBanner() {
       this.showDraftBanner = false;
     },
-    /** 将草稿恢复到表单：校验客户/配送点仍存在，恢复后删除草稿 */
+    /** 将草稿恢复到表单：校验客户/配送点仍存在，恢复后清除本地+后端草稿 */
     restoreDraftIntoForm(draft) {
       const deptId = draft.customerDeptId;
       // 客户配送点树已加载时校验存在性
@@ -1541,6 +2031,7 @@ export default {
       this.snapshotOriginalOrderForm();
       this.customerDeptDisabled = true;
       removeDraft(draft.key);
+      removeDraftFromServer(draft.orderId, draft.customerDeptId);
       this.refreshDraftBanner();
       this.getSkuQuoteDetailList();
       this.$modal.msgSuccess("已恢复草稿，请核对后保存");
@@ -1581,8 +2072,13 @@ export default {
       const p = (n) => String(n).padStart(2, "0");
       return `${p(d.getHours())}:${p(d.getMinutes())}`;
     },
-    /** 数据变更后 5s 防抖触发保存（配合 beforeunload 兜底） */
+    /** 数据变更后路由：浏览态暂停；验收态走实收自动保存；录单态走草稿双写 */
     scheduleDraftSave() {
+      if (this.browseMode) return; // 浏览模式暂停草稿写入，防止浏览动作污染新单草稿
+      if (this.acceptMode) {
+        this.scheduleActualSave();
+        return;
+      }
       if (!this.isOrderDirty) return;
       this.draftStatusText = "草稿保存中...";
       this.draftStatusType = "saving";
@@ -1591,9 +2087,9 @@ export default {
         this.saveDraftIfMeaningful();
       }, 5000);
     },
-    /** 保存草稿（有实际内容才保存；恢复/重置后自动清理状态） */
+    /** 保存草稿（有实际内容才保存；后端为主 + localStorage 兜底断网场景） */
     saveDraftIfMeaningful() {
-      if (!this.isOrderDirty) return;
+      if (!this.isOrderDirty || this.browseMode || this.acceptMode) return;
       const deptId = this.orderForm.customerDeptId;
       const hasContent = (this.orderDetailList || []).some(
         (row) =>
@@ -1605,7 +2101,7 @@ export default {
         this.draftStatusType = "idle";
         return;
       }
-      saveDraft({
+      const payload = {
         orderId: this.orderForm.orderId,
         customerId: this.orderForm.customerId,
         customerDeptId: deptId,
@@ -1614,13 +2110,115 @@ export default {
         deliveryDate: this.orderForm.deliveryDate,
         remark: this.orderForm.remark,
         details: this.deepCloneOrderDetailList(this.orderDetailList),
-      });
+        savedAt: new Date().toISOString(),
+      };
+      // 双写：localStorage 兜底断网，后端为主（换电脑可恢复）
+      saveDraft(payload);
+      syncDraftToServer(payload);
       this.draftStatusText = `已于 ${this.formatSavedAt(new Date())} 自动保存`;
       this.draftStatusType = "saved";
     },
-    /** 页面刷新/关闭前立即保存 */
+    /* ========== 实收草稿自动保存（验收态，~1.5s 防抖） ========== */
+    scheduleActualSave() {
+      if (this._actualTimer) clearTimeout(this._actualTimer);
+      this.draftStatusText = "实收保存中...";
+      this.draftStatusType = "saving";
+      this._actualTimer = setTimeout(() => {
+        this.flushActualSave();
+      }, 1500);
+    },
+    /** 实收防抖落库：仅持久化行（有 detailId），空实收行不传由后端按下单数处理 */
+    flushActualSave() {
+      if (!this.acceptMode || !this.orderForm.orderId) return;
+      const items = (this.orderDetailList || [])
+        .filter((row) => row.id && (row.actualNum !== null && row.actualNum !== undefined && row.actualNum !== ""))
+        .map((row) => ({
+          detailId: row.id,
+          actualNum: XEUtils.toNumber(row.actualNum),
+          lossReason: row.lossReason || null,
+        }));
+      saveActualDraft({ orderId: this.orderForm.orderId, items })
+        .then(() => {
+          this.draftStatusText = `实收已于 ${this.formatSavedAt(new Date())} 自动保存`;
+          this.draftStatusType = "saved";
+        })
+        .catch(() => {
+          this.draftStatusText = "实收保存失败";
+          this.draftStatusType = "idle";
+        });
+    },
+    /** 实收变更标记（触发响应式以刷新高亮/汇总） */
+    markActualChanged(row) {
+      const num = XEUtils.toNumber(row.num) || 0;
+      const actual = XEUtils.toNumber(row.actualNum);
+      // 实收 < 下单数时损耗原因必填的行内提示（确认时后端强校验）
+      if (actual < num && !row.lossReason && !row._lossWarned) {
+        row._lossWarned = true;
+        this.$modal.msgWarning(`商品【${row.productName}】实收小于下单数量，请选择损耗原因`);
+      }
+    },
+    /** 实收差异行高亮：黄色=有差异；红色=超阈值 */
+    actualCellClass({ row }) {
+      if (!row || row.actualNum === null || row.actualNum === undefined || row.actualNum === "") {
+        return "";
+      }
+      const num = XEUtils.toNumber(row.num) || 0;
+      const actual = XEUtils.toNumber(row.actualNum);
+      const diff = Math.abs(actual - num);
+      if (diff <= 0.005) return "";
+      if (num > 0 && diff > (num * this.acceptThreshold) / 100) {
+        return "col-actual-over";
+      }
+      return "col-actual-diff";
+    },
+
+    /* ========== 确认验收（单选特例，等价批量验收） ========== */
+    /** 明细内直接确认验收：客户端先校验差异行损耗原因，后端强校验并落结算金额 */
+    confirmAcceptance() {
+      if (!this.acceptMode || !this.orderForm.orderId) return;
+      // 先冲掉未落的防抖保存
+      if (this._actualTimer) clearTimeout(this._actualTimer);
+      const missingReasonRows = (this.orderDetailList || []).filter((row) => {
+        if (!row.id) return false;
+        const num = XEUtils.toNumber(row.num) || 0;
+        const actual =
+          row.actualNum === null || row.actualNum === undefined || row.actualNum === ""
+            ? num
+            : XEUtils.toNumber(row.actualNum);
+        return actual < num && !row.lossReason;
+      });
+      if (missingReasonRows.length) {
+        this.$modal.msgWarning(
+          "有 " + missingReasonRows.length + " 行实收小于下单数量，请先选择损耗原因：" +
+            missingReasonRows.map((r) => r.productName).join("、")
+        );
+        return;
+      }
+      this.acceptSubmitting = true;
+      this.flushActualSave();
+      // 等待最后一次草稿落库完成后再整单确认
+      setTimeout(() => {
+        acceptOrders({ orderIds: [this.orderForm.orderId] })
+          .then(() => {
+            this.$modal.msgSuccess("验收成功");
+            removeDraftFromServer(this.orderForm.orderId, this.orderForm.customerDeptId);
+            removeDraft("saleDraft:order:" + this.orderForm.orderId);
+            // 重载进入只读态
+            this.initOrderDetailPage(this.orderForm.orderId);
+          })
+          .catch(() => {})
+          .finally(() => {
+            this.acceptSubmitting = false;
+          });
+      }, 800);
+    },
+    /** 页面刷新/关闭前立即保存（验收态冲掉实收防抖） */
     handleBeforeUnload() {
       if (this._draftTimer) clearTimeout(this._draftTimer);
+      if (this.acceptMode) {
+        this.flushActualSave();
+        return;
+      }
       this.saveDraftIfMeaningful();
     },
 
@@ -1859,6 +2457,50 @@ export default {
     margin-left: 6px;
   }
 }
+/* 客户+配送点整体锁定的级联行 */
+.dept-cascader-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.reopen-new-btn {
+  padding-left: 4px;
+}
+/* 浏览模式横幅 */
+.browse-banner {
+  margin-bottom: 10px;
+  .draft-banner-title {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+  }
+}
+/* 复制为新单工具条 */
+.copy-as-new-bar {
+  margin-bottom: 8px;
+  text-align: right;
+}
+/* 验收差异汇总条 */
+.accept-summary-bar {
+  margin-top: 8px;
+  padding: 6px 10px;
+  font-size: 13px;
+  color: #e6a23c;
+  background: #fdf6ec;
+  border-radius: 3px;
+  &.has-over {
+    color: #f56c6c;
+    background: #fef0f0;
+  }
+}
+/* 实收差异高亮：黄=有差异；红=超阈值 */
+:deep(.col-actual-diff) {
+  background-color: #fdf6ec !important;
+}
+:deep(.col-actual-over) {
+  background-color: #fef0f0 !important;
+}
+
 /* 改价提醒：单价与当期报价不一致的单元格高亮 + "改"角标 */
 :deep(.col-price-changed) {
   background-color: #fdf6ec !important;
