@@ -150,9 +150,4 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
             #{id}
         </foreach>
     </delete>
-
-    <select id="countByCustomerIdAndDeliveryDate" resultType="int">
-        select count(1) from t_delivery_order
-        where customer_id = #{customerId} and delivery_date = #{deliveryDate} and is_deleted = 0
-    </select>
 </mapper>

@@ -176,21 +176,20 @@ class DeliveryOrderServiceImplTest {
     }
 
     @Test
-    void 送达后同组订单进入已配送() {
+    void 送达后仅回写来源台账命中的订单() {
         DeliveryOrder order = new DeliveryOrder();
         order.setId(9L);
-        order.setCustomerId(CUSTOMER_A);
-        order.setDeliveryPointId(POINT_A1);
-        order.setDeliveryDate(DATE);
         order.setStatus(DeliveryOrderStatus.PRINTED.getCode());
         when(deliveryOrderMapper.selectDeliveryOrderById(9L)).thenReturn(order);
 
         DeliveryOrder result = deliveryOrderService.markDelivered(9L);
 
         assertEquals(DeliveryOrderStatus.DELIVERED.getCode(), result.getStatus());
-        verify(saleOrderMapper).updateStatusByDeliveryGroup(
-                eq(CUSTOMER_A), eq(POINT_A1), eq(DATE),
-                eq(SaleOrderStatus.CONFIRMED.getCode()), eq(SaleOrderStatus.DELIVERED.getCode()));
+        // S14/G2：IN 回写，仅动 source_item 命中的订单（同组未进单订单不受影响）
+        verify(saleOrderMapper).updateStatusByDeliveryId(
+                eq(9L),
+                eq(SaleOrderStatus.CONFIRMED.getCode()),
+                eq(SaleOrderStatus.DELIVERED.getCode()));
     }
 
     @Test
@@ -201,7 +200,7 @@ class DeliveryOrderServiceImplTest {
         when(deliveryOrderMapper.selectDeliveryOrderById(9L)).thenReturn(order);
 
         assertThrows(ServiceException.class, () -> deliveryOrderService.markDelivered(9L));
-        verify(saleOrderMapper, never()).updateStatusByDeliveryGroup(any(), any(), any(), any(), any());
+        verify(saleOrderMapper, never()).updateStatusByDeliveryId(any(), any(), any());
     }
 
     // ================= Phase 2：按勾选订单生成（generateByOrderIds） =================

@@ -128,4 +128,15 @@ public interface SaleOrderDetailMapper {
      * @return 影响行数
      */
     int clearActualByOrderId(@Param("orderId") Long orderId);
+
+    /**
+     * 订单是否存在于有效送货单的来源分配中（S14/G4/G6 统一判定，附录 A）
+     *
+     * <p>有效 = 来源分配未软删 且 所属送货单未软删且未作废（VOIDED）。
+     * 作废释放（source_item 软删）或单据作废后即返回 false，订单解锁可撤回/可编辑。</p>
+     *
+     * @param orderId 销售订单ID
+     * @return true=已被有效送货单占用
+     */
+    boolean existsValidAllocation(@Param("orderId") Long orderId);
 }

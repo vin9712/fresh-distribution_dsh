@@ -91,18 +91,17 @@ public interface SaleOrderMapper {
                                           @Param("createEndTime") LocalDateTime createEndTime);
 
     /**
-     * 同组（客户+配送点+配送日）订单批量改状态：送货送达 CONFIRMED→DELIVERED、验收提交 DELIVERED→ACCEPTED
+     * 按送货单来源回写订单状态（S14/G2/G3 修复：只动来源订单，废除按客户+日期推断）
      *
-     * @param customerId    客户ID
-     * @param customerDeptId 配送点ID（可为空）
-     * @param deliveryDate  配送日期
-     * @param fromStatus    原状态
-     * @param toStatus      目标状态
+     * <p>影响面 = t_delivery_source_item 中该送货单的有效分配去重后的订单集合（DESIGN.md §4.2 回写矩阵）。
+     * 同客户同日未进单的订单不会被误更新。</p>
+     *
+     * @param deliveryId 送货单ID
+     * @param fromStatus 原状态（仅该状态会被更新）
+     * @param toStatus   目标状态
      * @return 更新行数
      */
-    int updateStatusByDeliveryGroup(@Param("customerId") Long customerId,
-                                    @Param("customerDeptId") Long customerDeptId,
-                                    @Param("deliveryDate") java.time.LocalDate deliveryDate,
-                                    @Param("fromStatus") Integer fromStatus,
-                                    @Param("toStatus") Integer toStatus);
+    int updateStatusByDeliveryId(@Param("deliveryId") Long deliveryId,
+                                 @Param("fromStatus") Integer fromStatus,
+                                 @Param("toStatus") Integer toStatus);
 }

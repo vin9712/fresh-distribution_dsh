@@ -311,7 +311,7 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
     }
 
     /**
-     * 标记送达：状态 → 已送达，同组已确认订单 → DELIVERED
+     * 标记送达：状态 → 已送达，仅回写来源台账中的订单（S14/G2：IN 子查询，替代同组推断）
      */
     @Override
     @Transactional
@@ -327,11 +327,9 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
         deliveryOrder.setUpdateTime(DateUtils.getNowDate());
         deliveryOrderMapper.updateDeliveryOrder(deliveryOrder);
 
-        // 送货单标记送达 → 同组订单进入 DELIVERED（DESIGN.md §7.1）
-        saleOrderMapper.updateStatusByDeliveryGroup(
-                deliveryOrder.getCustomerId(),
-                deliveryOrder.getDeliveryPointId(),
-                deliveryOrder.getDeliveryDate(),
+        // 仅回写本单来源分配命中的订单（DESIGN.md §4.2 回写矩阵）；同客户同日未进单订单不受影响
+        saleOrderMapper.updateStatusByDeliveryId(
+                id,
                 SaleOrderStatus.CONFIRMED.getCode(),
                 SaleOrderStatus.DELIVERED.getCode());
         return deliveryOrder;

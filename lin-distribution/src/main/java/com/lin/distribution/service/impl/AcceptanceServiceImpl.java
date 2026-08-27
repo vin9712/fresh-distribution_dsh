@@ -201,16 +201,11 @@ public class AcceptanceServiceImpl implements AcceptanceService {
         update.setUpdateTime(DateUtils.getNowDate());
         acceptanceMapper.updateAcceptance(update);
 
-        // 同组已配送订单 → ACCEPTED（DESIGN.md §7.1）
-        DeliveryOrder deliveryOrder = deliveryOrderMapper.selectDeliveryOrderById(acceptance.getDeliveryOrderId());
-        if (deliveryOrder != null) {
-            saleOrderMapper.updateStatusByDeliveryGroup(
-                    deliveryOrder.getCustomerId(),
-                    deliveryOrder.getDeliveryPointId(),
-                    deliveryOrder.getDeliveryDate(),
-                    SaleOrderStatus.DELIVERED.getCode(),
-                    SaleOrderStatus.ACCEPTED.getCode());
-        }
+        // 仅回写本验收单对应送货单的来源订单（S14/G3：IN 子查询，替代同组推断，DESIGN.md §4.2）
+        saleOrderMapper.updateStatusByDeliveryId(
+                acceptance.getDeliveryOrderId(),
+                SaleOrderStatus.DELIVERED.getCode(),
+                SaleOrderStatus.ACCEPTED.getCode());
         acceptance.setStatus(AcceptanceStatus.SUBMITTED.getCode());
         return acceptance;
     }

@@ -205,16 +205,17 @@ class AcceptanceServiceImplTest {
     }
 
     @Test
-    void 提交后状态变更且同组订单进入已验收() {
+    void 提交后状态变更且来源订单进入已验收() {
         when(acceptanceMapper.selectAcceptanceById(1L)).thenReturn(draftAcceptance());
-        when(deliveryOrderMapper.selectDeliveryOrderById(DELIVERY_ID)).thenReturn(deliveredOrder());
 
         Acceptance result = acceptanceService.submit(1L);
 
         assertEquals(AcceptanceStatus.SUBMITTED.getCode(), result.getStatus());
-        verify(saleOrderMapper).updateStatusByDeliveryGroup(
-                eq(CUSTOMER), eq(POINT), eq(DATE),
-                eq(SaleOrderStatus.DELIVERED.getCode()), eq(SaleOrderStatus.ACCEPTED.getCode()));
+        // S14/G3：IN 回写，仅动来源台账命中的订单（同组未进单订单不受影响）
+        verify(saleOrderMapper).updateStatusByDeliveryId(
+                eq(DELIVERY_ID),
+                eq(SaleOrderStatus.DELIVERED.getCode()),
+                eq(SaleOrderStatus.ACCEPTED.getCode()));
     }
 
     @Test
@@ -223,7 +224,7 @@ class AcceptanceServiceImplTest {
         acceptance.setStatus(AcceptanceStatus.SUBMITTED.getCode());
         when(acceptanceMapper.selectAcceptanceById(1L)).thenReturn(acceptance);
         assertThrows(ServiceException.class, () -> acceptanceService.submit(1L));
-        verify(saleOrderMapper, never()).updateStatusByDeliveryGroup(any(), any(), any(), any(), any());
+        verify(saleOrderMapper, never()).updateStatusByDeliveryId(any(), any(), any());
     }
 
     @Test

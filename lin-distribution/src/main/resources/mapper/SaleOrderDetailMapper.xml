@@ -284,4 +284,17 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         order by order_count desc, last_order_time desc
         limit #{limit}
     </select>
+
+    <!-- 订单是否被有效送货单占用（S14/G4/G6 统一判定：si 未软删 + d 未软删 + d 非作废） -->
+    <select id="existsValidAllocation" resultType="boolean">
+        select exists(
+            select 1
+            from t_delivery_source_item si
+            join t_delivery_order d on d.id = si.delivery_id
+            where si.sale_order_id = #{orderId}
+              and si.is_deleted = 0
+              and d.is_deleted = 0
+              and d.status != 3
+        )
+    </select>
 </mapper>

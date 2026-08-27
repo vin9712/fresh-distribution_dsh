@@ -178,13 +178,16 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         </foreach>
     </select>
 
-    <update id="updateStatusByDeliveryGroup">
+    <!-- 按送货单来源回写订单状态（S14/G2/G3：只动来源订单，同组未进单订单不受影响） -->
+    <update id="updateStatusByDeliveryId">
         update t_sale_order
         set status = #{toStatus}, update_time = now()
         where status = #{fromStatus}
-          and customer_id = #{customerId}
-          and delivery_date = #{deliveryDate}
           and is_deleted = 0
-        <if test="customerDeptId != null">and customer_dept_id = #{customerDeptId}</if>
+          and id in (
+              select distinct si.sale_order_id
+              from t_delivery_source_item si
+              where si.delivery_id = #{deliveryId} and si.is_deleted = 0
+          )
     </update>
 </mapper>

@@ -8,9 +8,10 @@ import com.lin.distribution.domain.SaleOrderDetail;
 import com.lin.distribution.dto.SaleGeneratePreviewVO;
 import com.lin.distribution.dto.SaleOrderCreateDTO;
 import com.lin.distribution.dto.SaleOrderUpdateStatusDTO;
-import com.lin.distribution.mapper.DeliveryOrderMapper;
 import com.lin.distribution.mapper.SaleOrderDetailMapper;
 import com.lin.distribution.mapper.SaleOrderMapper;
+import com.lin.distribution.service.BizCodeService;
+import com.lin.distribution.service.BizCodeService;
 import com.lin.distribution.service.DeliveryOrderService;
 import com.lin.distribution.service.SaleOrderService;
 import lombok.RequiredArgsConstructor;
@@ -19,7 +20,6 @@ import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.BooleanUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.math.NumberUtils;
-import com.lin.distribution.service.BizCodeService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -48,7 +48,6 @@ import java.util.stream.Collectors;
 public class SaleOrderServiceImpl implements SaleOrderService {
     private final SaleOrderMapper saleOrderMapper;
     private final SaleOrderDetailMapper saleOrderDetailMapper;
-    private final DeliveryOrderMapper deliveryOrderMapper;
     private final DeliveryOrderService deliveryOrderService;
     private final BizCodeService bizCodeService;
 
@@ -189,6 +188,11 @@ public class SaleOrderServiceImpl implements SaleOrderService {
         BigDecimal amount = calcAndValidateOrderAmount(orderDetails);
 
         SaleOrder order = saleOrderMapper.selectSaleOrderById(orderId);
+        if (order == null) {
+            throw new ServiceException("销售订单不存在");
+        }
+        // 编辑护栏（S14/G6，DESIGN.md §5.5）：状态机+是否已分配送货单双重拦截
+        checkOrderEditable(order);
 
         // update order
         order.setDeliveryDate(request.getDeliveryDate());
@@ -249,12 +253,12 @@ public class SaleOrderServiceImpl implements SaleOrderService {
             throw new ServiceException("check new order status error");
         }
 
-        // 撤回（DRAFT）：已生成送货单的订单不可撤回（DESIGN.md §7.1）
+        // 撤回（DRAFT）：仅当订单仍被有效送货单占用时拒绝（S14/G4 精确化：EXISTS source_item 分配，
+        // 作废释放/未进单的同组订单不影响；替代旧的 countByCustomerIdAndDeliveryDate 客户+日期推断）
         if (newStatus == SaleOrderStatus.DRAFT) {
             for (SaleOrder order : orders) {
-                if (order.getDeliveryDate() != null
-                        && deliveryOrderMapper.countByCustomerIdAndDeliveryDate(order.getCustomerId(), order.getDeliveryDate()) > 0) {
-                    throw new ServiceException("已生成送货单的订单不可撤回");
+                if (saleOrderDetailMapper.existsValidAllocation(order.getId())) {
+                    throw new ServiceException("已生成送货单的订单不可撤回：" + order.getCode());
                 }
             }
         }
@@ -299,11 +303,30 @@ public class SaleOrderServiceImpl implements SaleOrderService {
             if (saleOrder != null) {
                 throw new ServiceException("销售订单编号已存在");
             }
-        } else {
-            SaleOrder saleOrder = saleOrderMapper.selectSaleOrderById(orderId);
-            if (!SaleOrderStatus.DRAFT.getCode().equals(saleOrder.getStatus())) {
-                throw new ServiceException("order status must be NEW");
-            }
+        }
+        // 更新分支的状态护栏由 checkOrderEditable 统一处理（S14/G6：DRAFT/未分配 CONFIRMED 可改，
+        // 其余按状态与分配情况拒绝）
+    }
+
+    /**
+     * 订单编辑护栏（S14/G6 修复，DESIGN.md §5.5 / §七 操作可行性矩阵）：
+     * DELIVERED/ACCEPTED → 拒改（配送后的调整用新增销售订单/退货单）；
+     * SETTLED → 拒改；
+     * CONFIRMED + 已进有效送货单 → 拒改（提示先作废送货单）；
+     * DRAFT / CONFIRMED 未分配 → 允许。
+     */
+    private void checkOrderEditable(SaleOrder order) {
+        Integer status = order.getStatus();
+        if (SaleOrderStatus.DELIVERED.getCode().equals(status)
+                || SaleOrderStatus.ACCEPTED.getCode().equals(status)) {
+            throw new ServiceException("配送后的订单不可修改，如需调整请使用新增销售订单/退货单：" + order.getCode());
+        }
+        if (SaleOrderStatus.SETTLED.getCode().equals(status)) {
+            throw new ServiceException("已结算订单禁止修改：" + order.getCode());
+        }
+        if (SaleOrderStatus.CONFIRMED.getCode().equals(status)
+                && saleOrderDetailMapper.existsValidAllocation(order.getId())) {
+            throw new ServiceException("订单已生成送货单，请先作废对应送货单：" + order.getCode());
         }
     }
 
