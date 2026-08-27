@@ -4,12 +4,12 @@
 -- ============================================================
 
 -- 验收单状态字典（0草稿 1已提交）
-INSERT INTO sys_dict_type (dict_id, dict_name, dict_type, status, create_by, create_time, update_by, update_time, remark)
-VALUES (109, '验收单状态', 't_acceptance_status', '0', 'admin', sysdate(), '', NULL, '验收单状态');
+INSERT INTO sys_dict_type (dict_name, dict_type, status, create_by, create_time, update_by, update_time, remark)
+VALUES ('验收单状态', 't_acceptance_status', '0', 'admin', sysdate(), '', NULL, '验收单状态');
 
-INSERT INTO sys_dict_data (dict_code, dict_sort, dict_label, dict_value, dict_type, css_class, list_class, is_default, status, create_by, create_time, update_by, update_time, remark) VALUES
-(48, 0, '草稿',   '0', 't_acceptance_status', '', 'info',    'N', '0', 'admin', sysdate(), '', NULL, '验收单状态-草稿'),
-(49, 1, '已提交', '1', 't_acceptance_status', '', 'success', 'N', '0', 'admin', sysdate(), '', NULL, '验收单状态-已提交');
+INSERT INTO sys_dict_data (dict_sort, dict_label, dict_value, dict_type, css_class, list_class, is_default, status, create_by, create_time, update_by, update_time, remark) VALUES
+(0, '草稿',   '0', 't_acceptance_status', '', 'info',    'N', '0', 'admin', sysdate(), '', NULL, '验收单状态-草稿'),
+(1, '已提交', '1', 't_acceptance_status', '', 'success', 'N', '0', 'admin', sysdate(), '', NULL, '验收单状态-已提交');
 
 -- 菜单
 INSERT INTO sys_menu (menu_id, menu_name, parent_id, order_num, path, component, query, route_name, is_frame, is_cache, menu_type, visible, status, perms, icon, create_by, create_time, update_by, update_time, remark) VALUES

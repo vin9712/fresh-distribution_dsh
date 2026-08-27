@@ -1750,7 +1750,230 @@ ALTER TABLE `t_print_template`
   ADD COLUMN `is_default`    char(1)       NOT NULL DEFAULT '0' COMMENT '是否全局默认模板（0否 1是）' AFTER `copies`;
 
 -- ============================================================
--- [08] 菜单/权限：别名与映射  | 源: s1_2_alias_mapping_menu.sql
+-- ============================================================
+-- [08] 基础信息模块重构表结构（SKU去客户化/客户商品池/默认模板，幂等ALTER）  | 源: r1_basicinfo_redesign.sql
+-- ============================================================
+
+-- ============================================================
+-- r1 基础信息模块重构（deepseek_redesign.md）
+-- 核心变化：SKU 去客户化（t_product_sku 移除 customer_id），
+--           新增 customers_sku（客户商品池）、customer_group（客户分组）、
+--           delivery_sku_override（配送点覆盖）、default_sku_template（批量赋值模板）
+-- 前置条件：项目未上线，允许重建 t_product_sku（旧数据已确认量级极小，不迁移）
+-- 说明：旧 t_product_sku 数据（2 条）+ delivery_point_price（1 条）不再迁移，
+--       重新录入标准 SKU；delivery_point_price 表在服务层切换后废弃。
+-- ============================================================
+
+-- ------------------------------------------------------------
+-- 1. 重建 t_product_sku：移除 customer_id，SKU 成为标准商品单元
+--    code 全局唯一：S + 8 位数字（S00000001）
+--    唯一约束：(category_id, name, spec_name, unit)
+-- ------------------------------------------------------------
+DROP TABLE IF EXISTS `t_product_sku`;
+CREATE TABLE `t_product_sku` (
+    `id`              bigint(20)     NOT NULL AUTO_INCREMENT COMMENT '主键',
+    `spu_id`          bigint(20)              DEFAULT NULL COMMENT '所属SPU（可空）',
+    `category_id`     bigint(20)     NOT NULL COMMENT '分类ID',
+    `code`            varchar(32)    NOT NULL COMMENT '全局唯一编码（S+8位数字）',
+    `name`            varchar(200)   NOT NULL COMMENT '商品名称',
+    `mnemonic_code`   varchar(128)            DEFAULT NULL COMMENT '助记码（拼音首字母）',
+    `spec_name`       varchar(200)            DEFAULT NULL COMMENT '规格描述（如“大果”“5斤/箱”）',
+    `unit`            varchar(20)    NOT NULL COMMENT '固定单位（箱/斤）',
+    `is_weighted`     tinyint(1)     NOT NULL DEFAULT '0' COMMENT '是否称重商品（1=称重，0=非称重）',
+    `base_unit`       varchar(20)             DEFAULT NULL COMMENT '基础单位（可选，跨SKU汇总用）',
+    `conversion_rate` decimal(10,4)           DEFAULT NULL COMMENT '与基础单位的换算率',
+    `sale_price`      decimal(10,2) NOT NULL DEFAULT '0.00' COMMENT '参考售价（仅展示，非交易价格）',
+    `saleable`        tinyint(1)     NOT NULL DEFAULT '1' COMMENT '是否上架',
+    `valid`           tinyint(1)     NOT NULL DEFAULT '1' COMMENT '是否有效',
+    `is_deleted`      tinyint(1)     NOT NULL DEFAULT '0' COMMENT '逻辑删除',
+    `create_by`       varchar(64)              DEFAULT '' COMMENT '创建者',
+    `create_time`     timestamp      NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    `update_by`       varchar(64)              DEFAULT '' COMMENT '更新者',
+    `update_time`     datetime                DEFAULT NULL COMMENT '更新时间',
+    `remark`          varchar(500)            DEFAULT NULL COMMENT '备注',
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uk_code` (`code`),
+    UNIQUE KEY `uk_category_name_spec_unit` (`category_id`, `name`, `spec_name`, `unit`),
+    KEY `idx_spu_id` (`spu_id`),
+    KEY `idx_category_id` (`category_id`),
+    KEY `idx_saleable` (`saleable`),
+    KEY `idx_valid` (`valid`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='标准商品SKU表（客户无关）';
+
+-- ------------------------------------------------------------
+-- 2. 新增 customers_sku：客户商品池（客户对标准SKU的个性化）
+--    唯一约束：(customer_id, sku_id)；customer_code 全局唯一
+-- ------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS `customers_sku` (
+    `id`                bigint(20)     NOT NULL AUTO_INCREMENT COMMENT '主键',
+    `customer_id`       bigint(20)     NOT NULL COMMENT '客户ID',
+    `sku_id`            bigint(20)     NOT NULL COMMENT '标准SKU ID',
+    `alias`             varchar(200)            DEFAULT NULL COMMENT '客户自定义商品别名',
+    `customer_code`     varchar(64)    NOT NULL COMMENT '客户商品编码（C{客户ID}+6位自增）',
+    `unit`              varchar(20)             DEFAULT NULL COMMENT '客户下单单位（默认同SKU单位）',
+    `min_order_qty`     decimal(10,2)  NOT NULL DEFAULT '1.00' COMMENT '最小起订量',
+    `order_step`        decimal(10,2)  NOT NULL DEFAULT '1.00' COMMENT '下单步长',
+    `is_follow_default` tinyint(1)     NOT NULL DEFAULT '1' COMMENT '是否跟随默认模板（1=是，0=已个性化）',
+    `source_template_id` bigint(20)             DEFAULT NULL COMMENT '来源模板ID',
+    `status`            tinyint(1)     NOT NULL DEFAULT '1' COMMENT '状态（1可用 0停用）',
+    `created_at`        datetime       NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    `updated_at`        datetime                DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uk_customer_sku` (`customer_id`, `sku_id`),
+    UNIQUE KEY `uk_customer_code` (`customer_code`),
+    KEY `idx_sku_id` (`sku_id`),
+    KEY `idx_customer_status` (`customer_id`, `status`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='客户商品表（客户对SKU的个性化与商品池）';
+
+-- ------------------------------------------------------------
+-- 3. 新增 customer_group：客户分组（默认模板按分组适配）
+-- ------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS `customer_group` (
+    `id`          bigint(20)   NOT NULL AUTO_INCREMENT COMMENT '主键',
+    `name`        varchar(50)  NOT NULL COMMENT '分组名称（如“批发”“食堂”）',
+    `is_deleted`  tinyint(1)   NOT NULL DEFAULT '0' COMMENT '逻辑删除',
+    `create_by`   varchar(64)  DEFAULT '' COMMENT '创建者',
+    `create_time` datetime     DEFAULT NULL COMMENT '创建时间',
+    `update_by`   varchar(64)  DEFAULT '' COMMENT '更新者',
+    `update_time` datetime     DEFAULT NULL COMMENT '更新时间',
+    `remark`      varchar(500) DEFAULT NULL COMMENT '备注',
+    PRIMARY KEY (`id`),
+    KEY `idx_name` (`name`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='客户分组表';
+
+-- t_customer 增加 group_id（可空，现有客户无分组）；幂等处理（MySQL 5.7 无 ADD COLUMN IF NOT EXISTS）
+DROP PROCEDURE IF EXISTS `r1_add_customer_group_id`;
+DELIMITER $$
+CREATE PROCEDURE `r1_add_customer_group_id`()
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 't_customer' AND COLUMN_NAME = 'group_id') THEN
+        ALTER TABLE `t_customer` ADD COLUMN `group_id` bigint(20) DEFAULT NULL COMMENT '客户分组ID（关联 customer_group.id）' AFTER `alias`;
+        ALTER TABLE `t_customer` ADD KEY `idx_group_id` (`group_id`);
+    END IF;
+END$$
+DELIMITER ;
+CALL `r1_add_customer_group_id`();
+DROP PROCEDURE `r1_add_customer_group_id`;
+
+-- ------------------------------------------------------------
+-- 4. 新增 delivery_sku_override：配送点级覆盖（价格/别名/可见性）
+--    整合原 delivery_point_price；唯一 (delivery_point_id, sku_id)，
+--    生效/失效日期管理有效期，取价取最新生效
+-- ------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS `delivery_sku_override` (
+    `id`               bigint(20)    NOT NULL AUTO_INCREMENT COMMENT '主键',
+    `delivery_point_id` bigint(20)   NOT NULL COMMENT '配送点ID（关联 t_customer_dept.id）',
+    `sku_id`           bigint(20)    NOT NULL COMMENT '标准SKU ID',
+    `is_available`     tinyint(1)    NOT NULL DEFAULT '1' COMMENT '是否可用（1=可见，0=隐藏）',
+    `price_override`   decimal(10,2)          DEFAULT NULL COMMENT '价格覆盖（空则继承客户级价格）',
+    `alias_override`   varchar(200)           DEFAULT NULL COMMENT '别名覆盖（可空）',
+    `effective_date`   date                   DEFAULT NULL COMMENT '生效日期（可空）',
+    `expire_date`      date                   DEFAULT NULL COMMENT '失效日期（可空）',
+    `created_at`       datetime      NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    `updated_at`       datetime               DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uk_delivery_sku` (`delivery_point_id`, `sku_id`),
+    KEY `idx_sku_id` (`sku_id`),
+    KEY `idx_available` (`is_available`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='配送点商品覆盖表（价格/别名/可见性）';
+
+-- ------------------------------------------------------------
+-- 5. 新增 default_sku_template + default_sku_template_item：批量赋值默认SKU模板
+-- ------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS `default_sku_template` (
+    `id`                bigint(20)  NOT NULL AUTO_INCREMENT COMMENT '主键',
+    `name`              varchar(100) NOT NULL COMMENT '模板名称（如“食堂常用商品”）',
+    `customer_group_id` bigint(20)  DEFAULT NULL COMMENT '适用客户分组（可空=全部）',
+    `status`            tinyint(1)  NOT NULL DEFAULT '1' COMMENT '状态（1启用 0停用）',
+    `created_at`        datetime    NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    `updated_at`        datetime             DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    PRIMARY KEY (`id`),
+    KEY `idx_customer_group` (`customer_group_id`),
+    KEY `idx_status` (`status`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='默认SKU模板（批量赋值用，不含价格）';
+
+CREATE TABLE IF NOT EXISTS `default_sku_template_item` (
+    `id`          bigint(20) NOT NULL AUTO_INCREMENT COMMENT '主键',
+    `template_id` bigint(20) NOT NULL COMMENT '模板ID',
+    `sku_id`      bigint(20) NOT NULL COMMENT '标准SKU ID',
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uk_template_sku` (`template_id`, `sku_id`),
+    KEY `idx_sku_id` (`sku_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='默认SKU模板明细';
+
+-- ------------------------------------------------------------
+-- 6. temp_product 增强：支持客户专用临时商品 + 转正标记（幂等）
+-- ------------------------------------------------------------
+DROP PROCEDURE IF EXISTS `r1_add_temp_product_cols`;
+DELIMITER $$
+CREATE PROCEDURE `r1_add_temp_product_cols`()
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'temp_product' AND COLUMN_NAME = 'customer_id') THEN
+        ALTER TABLE `temp_product`
+            ADD COLUMN `customer_id` bigint(20) DEFAULT NULL COMMENT '关联客户ID（可空=全局临时商品）' AFTER `id`,
+            ADD COLUMN `converted_sku_id` bigint(20) DEFAULT NULL COMMENT '转正后标准SKU ID（可空=未转正）' AFTER `customer_id`,
+            ADD KEY `idx_customer_id` (`customer_id`),
+            ADD KEY `idx_converted_sku` (`converted_sku_id`);
+    END IF;
+END$$
+DELIMITER ;
+CALL `r1_add_temp_product_cols`();
+DROP PROCEDURE `r1_add_temp_product_cols`;
+
+-- ============================================================
+-- [09] 基础信息重构菜单（客户商品/默认SKU模板，DELETE+INSERT 幂等）  | 源: r1_frontend_menu.sql
+-- ============================================================
+
+-- ============================================================
+-- R1 阶段4 前端配套：菜单/权限/字典
+-- 1) 菜单 2090 起（现有最大值 2089）
+-- 2) 配送点报价(2064) 改名为"配送点覆盖"，权限 price:point:* → price:delivery-override:*
+-- 3) 补齐 t_sku_unit / biz_yes_no 字典数据（字典类型已存在但无数据）
+-- 幂等：可重复执行（先删后插）
+-- ============================================================
+
+-- ---------- 1. 配送点报价 → 配送点覆盖（改名 + 换权限） ----------
+UPDATE `sys_menu` SET menu_name = '配送点覆盖', perms = 'price:delivery-override:list', remark = '配送点覆盖菜单（替代原配送点报价）' WHERE menu_id = 2064;
+UPDATE `sys_menu` SET menu_name = '配送点覆盖新增', perms = 'price:delivery-override:add' WHERE menu_id = 2068;
+UPDATE `sys_menu` SET menu_name = '配送点覆盖修改', perms = 'price:delivery-override:edit' WHERE menu_id = 2069;
+UPDATE `sys_menu` SET menu_name = '配送点覆盖删除', perms = 'price:delivery-override:remove' WHERE menu_id = 2070;
+
+-- ---------- 2. 客户商品菜单（挂"基础信息" parent=4） ----------
+DELETE FROM `sys_menu` WHERE menu_id BETWEEN 2090 AND 2094;
+INSERT INTO `sys_menu` (`menu_id`, `menu_name`, `parent_id`, `order_num`, `path`, `component`, `query`, `route_name`, `is_frame`, `is_cache`, `menu_type`, `visible`, `status`, `perms`, `icon`, `create_by`, `create_time`, `update_by`, `update_time`, `remark`) VALUES (2090, '客户商品', 4, 5, 'customerSku', 'product/customerSku/index', NULL, '', 1, 0, 'C', '0', '0', 'product:customer-sku:list', '#', 'admin', sysdate(), '', NULL, '客户商品池与个性化');
+INSERT INTO `sys_menu` (`menu_id`, `menu_name`, `parent_id`, `order_num`, `path`, `component`, `query`, `route_name`, `is_frame`, `is_cache`, `menu_type`, `visible`, `status`, `perms`, `icon`, `create_by`, `create_time`, `update_by`, `update_time`, `remark`) VALUES (2091, '客户商品新增', 2090, 1, '#', '', NULL, '', 1, 0, 'F', '0', '0', 'product:customer-sku:add', '#', 'admin', sysdate(), '', NULL, '');
+INSERT INTO `sys_menu` (`menu_id`, `menu_name`, `parent_id`, `order_num`, `path`, `component`, `query`, `route_name`, `is_frame`, `is_cache`, `menu_type`, `visible`, `status`, `perms`, `icon`, `create_by`, `create_time`, `update_by`, `update_time`, `remark`) VALUES (2092, '客户商品修改', 2090, 2, '#', '', NULL, '', 1, 0, 'F', '0', '0', 'product:customer-sku:edit', '#', 'admin', sysdate(), '', NULL, '');
+INSERT INTO `sys_menu` (`menu_id`, `menu_name`, `parent_id`, `order_num`, `path`, `component`, `query`, `route_name`, `is_frame`, `is_cache`, `menu_type`, `visible`, `status`, `perms`, `icon`, `create_by`, `create_time`, `update_by`, `update_time`, `remark`) VALUES (2093, '客户商品删除', 2090, 3, '#', '', NULL, '', 1, 0, 'F', '0', '0', 'product:customer-sku:remove', '#', 'admin', sysdate(), '', NULL, '');
+INSERT INTO `sys_menu` (`menu_id`, `menu_name`, `parent_id`, `order_num`, `path`, `component`, `query`, `route_name`, `is_frame`, `is_cache`, `menu_type`, `visible`, `status`, `perms`, `icon`, `create_by`, `create_time`, `update_by`, `update_time`, `remark`) VALUES (2094, '客户商品批量赋值', 2090, 4, '#', '', NULL, '', 1, 0, 'F', '0', '0', 'product:customer-sku:assign', '#', 'admin', sysdate(), '', NULL, '');
+
+-- ---------- 3. 默认SKU模板菜单 ----------
+DELETE FROM `sys_menu` WHERE menu_id BETWEEN 2095 AND 2099;
+INSERT INTO `sys_menu` (`menu_id`, `menu_name`, `parent_id`, `order_num`, `path`, `component`, `query`, `route_name`, `is_frame`, `is_cache`, `menu_type`, `visible`, `status`, `perms`, `icon`, `create_by`, `create_time`, `update_by`, `update_time`, `remark`) VALUES (2095, '默认SKU模板', 4, 6, 'defaultSkuTemplate', 'product/defaultSkuTemplate/index', NULL, '', 1, 0, 'C', '0', '0', 'product:default-sku-template:list', '#', 'admin', sysdate(), '', NULL, '批量赋值默认SKU模板');
+INSERT INTO `sys_menu` (`menu_id`, `menu_name`, `parent_id`, `order_num`, `path`, `component`, `query`, `route_name`, `is_frame`, `is_cache`, `menu_type`, `visible`, `status`, `perms`, `icon`, `create_by`, `create_time`, `update_by`, `update_time`, `remark`) VALUES (2096, '模板查询', 2095, 1, '#', '', NULL, '', 1, 0, 'F', '0', '0', 'product:default-sku-template:query', '#', 'admin', sysdate(), '', NULL, '');
+INSERT INTO `sys_menu` (`menu_id`, `menu_name`, `parent_id`, `order_num`, `path`, `component`, `query`, `route_name`, `is_frame`, `is_cache`, `menu_type`, `visible`, `status`, `perms`, `icon`, `create_by`, `create_time`, `update_by`, `update_time`, `remark`) VALUES (2097, '模板新增', 2095, 2, '#', '', NULL, '', 1, 0, 'F', '0', '0', 'product:default-sku-template:add', '#', 'admin', sysdate(), '', NULL, '');
+INSERT INTO `sys_menu` (`menu_id`, `menu_name`, `parent_id`, `order_num`, `path`, `component`, `query`, `route_name`, `is_frame`, `is_cache`, `menu_type`, `visible`, `status`, `perms`, `icon`, `create_by`, `create_time`, `update_by`, `update_time`, `remark`) VALUES (2098, '模板修改', 2095, 3, '#', '', NULL, '', 1, 0, 'F', '0', '0', 'product:default-sku-template:edit', '#', 'admin', sysdate(), '', NULL, '');
+INSERT INTO `sys_menu` (`menu_id`, `menu_name`, `parent_id`, `order_num`, `path`, `component`, `query`, `route_name`, `is_frame`, `is_cache`, `menu_type`, `visible`, `status`, `perms`, `icon`, `create_by`, `create_time`, `update_by`, `update_time`, `remark`) VALUES (2099, '模板删除', 2095, 4, '#', '', NULL, '', 1, 0, 'F', '0', '0', 'product:default-sku-template:remove', '#', 'admin', sysdate(), '', NULL, '');
+
+-- ---------- 4. 字典数据补齐（幂等：先删后插） ----------
+-- biz_yes_no（业务是否）：0=否 1=是
+DELETE FROM `sys_dict_data` WHERE dict_type = 'biz_yes_no';
+INSERT INTO `sys_dict_data` (`dict_code`, `dict_sort`, `dict_label`, `dict_value`, `dict_type`, `css_class`, `list_class`, `is_default`, `status`, `create_by`, `create_time`, `remark`) VALUES (52, 1, '是', '1', 'biz_yes_no', '', 'primary', 'N', '0', 'admin', sysdate(), '');
+INSERT INTO `sys_dict_data` (`dict_code`, `dict_sort`, `dict_label`, `dict_value`, `dict_type`, `css_class`, `list_class`, `is_default`, `status`, `create_by`, `create_time`, `remark`) VALUES (53, 2, '否', '0', 'biz_yes_no', '', 'danger', 'N', '0', 'admin', sysdate(), '');
+-- t_sku_unit（商品单位）
+DELETE FROM `sys_dict_data` WHERE dict_type = 't_sku_unit';
+INSERT INTO `sys_dict_data` (`dict_code`, `dict_sort`, `dict_label`, `dict_value`, `dict_type`, `css_class`, `list_class`, `is_default`, `status`, `create_by`, `create_time`, `remark`) VALUES
+(54, 1, '斤', '斤', 't_sku_unit', '', '', 'N', '0', 'admin', sysdate(), ''),
+(55, 2, '公斤', '公斤', 't_sku_unit', '', '', 'N', '0', 'admin', sysdate(), ''),
+(56, 3, '箱', '箱', 't_sku_unit', '', '', 'N', '0', 'admin', sysdate(), ''),
+(57, 4, '袋', '袋', 't_sku_unit', '', '', 'N', '0', 'admin', sysdate(), ''),
+(58, 5, '份', '份', 't_sku_unit', '', '', 'N', '0', 'admin', sysdate(), ''),
+(59, 6, '个', '个', 't_sku_unit', '', '', 'N', '0', 'admin', sysdate(), ''),
+(60, 7, '包', '包', 't_sku_unit', '', '', 'N', '0', 'admin', sysdate(), ''),
+(61, 8, '瓶', '瓶', 't_sku_unit', '', '', 'N', '0', 'admin', sysdate(), ''),
+(62, 9, '件', '件', 't_sku_unit', '', '', 'N', '0', 'admin', sysdate(), ''),
+(63, 10, '捆', '捆', 't_sku_unit', '', '', 'N', '0', 'admin', sysdate(), '');
+
+-- [10] 菜单/权限：别名与映射  | 源: s1_2_alias_mapping_menu.sql
 -- ============================================================
 
 -- ============================================================
@@ -1759,26 +1982,26 @@ ALTER TABLE `t_print_template`
 -- ============================================================
 
 -- 父菜单（C）：别名与映射
-INSERT INTO `fresh-distribution-dsh`.`sys_menu` (`menu_id`, `menu_name`, `parent_id`, `order_num`, `path`, `component`, `query`, `route_name`, `is_frame`, `is_cache`, `menu_type`, `visible`, `status`, `perms`, `icon`, `create_by`, `create_time`, `update_by`, `update_time`, `remark`) VALUES (2050, '别名与映射', 4, 2, 'aliasMapping', 'product/aliasMapping/index', NULL, '', 1, 0, 'C', '0', '0', 'product:aliasMapping:list', '#', 'admin', sysdate(), '', NULL, '别名与映射菜单');
+INSERT INTO `sys_menu` (`menu_id`, `menu_name`, `parent_id`, `order_num`, `path`, `component`, `query`, `route_name`, `is_frame`, `is_cache`, `menu_type`, `visible`, `status`, `perms`, `icon`, `create_by`, `create_time`, `update_by`, `update_time`, `remark`) VALUES (2050, '别名与映射', 4, 2, 'aliasMapping', 'product/aliasMapping/index', NULL, '', 1, 0, 'C', '0', '0', 'product:aliasMapping:list', '#', 'admin', sysdate(), '', NULL, '别名与映射菜单');
 
 -- 按钮（F）：全局别名
-INSERT INTO `fresh-distribution-dsh`.`sys_menu` (`menu_id`, `menu_name`, `parent_id`, `order_num`, `path`, `component`, `query`, `route_name`, `is_frame`, `is_cache`, `menu_type`, `visible`, `status`, `perms`, `icon`, `create_by`, `create_time`, `update_by`, `update_time`, `remark`) VALUES (2051, '别名新增', 2050, 1, '#', '', NULL, '', 1, 0, 'F', '0', '0', 'product:alias:add', '#', 'admin', sysdate(), '', NULL, '');
-INSERT INTO `fresh-distribution-dsh`.`sys_menu` (`menu_id`, `menu_name`, `parent_id`, `order_num`, `path`, `component`, `query`, `route_name`, `is_frame`, `is_cache`, `menu_type`, `visible`, `status`, `perms`, `icon`, `create_by`, `create_time`, `update_by`, `update_time`, `remark`) VALUES (2052, '别名修改', 2050, 2, '#', '', NULL, '', 1, 0, 'F', '0', '0', 'product:alias:edit', '#', 'admin', sysdate(), '', NULL, '');
-INSERT INTO `fresh-distribution-dsh`.`sys_menu` (`menu_id`, `menu_name`, `parent_id`, `order_num`, `path`, `component`, `query`, `route_name`, `is_frame`, `is_cache`, `menu_type`, `visible`, `status`, `perms`, `icon`, `create_by`, `create_time`, `update_by`, `update_time`, `remark`) VALUES (2053, '别名删除', 2050, 3, '#', '', NULL, '', 1, 0, 'F', '0', '0', 'product:alias:remove', '#', 'admin', sysdate(), '', NULL, '');
+INSERT INTO `sys_menu` (`menu_id`, `menu_name`, `parent_id`, `order_num`, `path`, `component`, `query`, `route_name`, `is_frame`, `is_cache`, `menu_type`, `visible`, `status`, `perms`, `icon`, `create_by`, `create_time`, `update_by`, `update_time`, `remark`) VALUES (2051, '别名新增', 2050, 1, '#', '', NULL, '', 1, 0, 'F', '0', '0', 'product:alias:add', '#', 'admin', sysdate(), '', NULL, '');
+INSERT INTO `sys_menu` (`menu_id`, `menu_name`, `parent_id`, `order_num`, `path`, `component`, `query`, `route_name`, `is_frame`, `is_cache`, `menu_type`, `visible`, `status`, `perms`, `icon`, `create_by`, `create_time`, `update_by`, `update_time`, `remark`) VALUES (2052, '别名修改', 2050, 2, '#', '', NULL, '', 1, 0, 'F', '0', '0', 'product:alias:edit', '#', 'admin', sysdate(), '', NULL, '');
+INSERT INTO `sys_menu` (`menu_id`, `menu_name`, `parent_id`, `order_num`, `path`, `component`, `query`, `route_name`, `is_frame`, `is_cache`, `menu_type`, `visible`, `status`, `perms`, `icon`, `create_by`, `create_time`, `update_by`, `update_time`, `remark`) VALUES (2053, '别名删除', 2050, 3, '#', '', NULL, '', 1, 0, 'F', '0', '0', 'product:alias:remove', '#', 'admin', sysdate(), '', NULL, '');
 
 -- 按钮（F）：客户SKU映射
-INSERT INTO `fresh-distribution-dsh`.`sys_menu` (`menu_id`, `menu_name`, `parent_id`, `order_num`, `path`, `component`, `query`, `route_name`, `is_frame`, `is_cache`, `menu_type`, `visible`, `status`, `perms`, `icon`, `create_by`, `create_time`, `update_by`, `update_time`, `remark`) VALUES (2054, '映射新增', 2050, 4, '#', '', NULL, '', 1, 0, 'F', '0', '0', 'product:mapping:add', '#', 'admin', sysdate(), '', NULL, '');
-INSERT INTO `fresh-distribution-dsh`.`sys_menu` (`menu_id`, `menu_name`, `parent_id`, `order_num`, `path`, `component`, `query`, `route_name`, `is_frame`, `is_cache`, `menu_type`, `visible`, `status`, `perms`, `icon`, `create_by`, `create_time`, `update_by`, `update_time`, `remark`) VALUES (2055, '映射修改', 2050, 5, '#', '', NULL, '', 1, 0, 'F', '0', '0', 'product:mapping:edit', '#', 'admin', sysdate(), '', NULL, '');
-INSERT INTO `fresh-distribution-dsh`.`sys_menu` (`menu_id`, `menu_name`, `parent_id`, `order_num`, `path`, `component`, `query`, `route_name`, `is_frame`, `is_cache`, `menu_type`, `visible`, `status`, `perms`, `icon`, `create_by`, `create_time`, `update_by`, `update_time`, `remark`) VALUES (2056, '映射删除', 2050, 6, '#', '', NULL, '', 1, 0, 'F', '0', '0', 'product:mapping:remove', '#', 'admin', sysdate(), '', NULL, '');
+INSERT INTO `sys_menu` (`menu_id`, `menu_name`, `parent_id`, `order_num`, `path`, `component`, `query`, `route_name`, `is_frame`, `is_cache`, `menu_type`, `visible`, `status`, `perms`, `icon`, `create_by`, `create_time`, `update_by`, `update_time`, `remark`) VALUES (2054, '映射新增', 2050, 4, '#', '', NULL, '', 1, 0, 'F', '0', '0', 'product:mapping:add', '#', 'admin', sysdate(), '', NULL, '');
+INSERT INTO `sys_menu` (`menu_id`, `menu_name`, `parent_id`, `order_num`, `path`, `component`, `query`, `route_name`, `is_frame`, `is_cache`, `menu_type`, `visible`, `status`, `perms`, `icon`, `create_by`, `create_time`, `update_by`, `update_time`, `remark`) VALUES (2055, '映射修改', 2050, 5, '#', '', NULL, '', 1, 0, 'F', '0', '0', 'product:mapping:edit', '#', 'admin', sysdate(), '', NULL, '');
+INSERT INTO `sys_menu` (`menu_id`, `menu_name`, `parent_id`, `order_num`, `path`, `component`, `query`, `route_name`, `is_frame`, `is_cache`, `menu_type`, `visible`, `status`, `perms`, `icon`, `create_by`, `create_time`, `update_by`, `update_time`, `remark`) VALUES (2056, '映射删除', 2050, 6, '#', '', NULL, '', 1, 0, 'F', '0', '0', 'product:mapping:remove', '#', 'admin', sysdate(), '', NULL, '');
 
 -- 按钮（F）：临时商品
-INSERT INTO `fresh-distribution-dsh`.`sys_menu` (`menu_id`, `menu_name`, `parent_id`, `order_num`, `path`, `component`, `query`, `route_name`, `is_frame`, `is_cache`, `menu_type`, `visible`, `status`, `perms`, `icon`, `create_by`, `create_time`, `update_by`, `update_time`, `remark`) VALUES (2057, '临时商品新增', 2050, 7, '#', '', NULL, '', 1, 0, 'F', '0', '0', 'product:temp:add', '#', 'admin', sysdate(), '', NULL, '');
-INSERT INTO `fresh-distribution-dsh`.`sys_menu` (`menu_id`, `menu_name`, `parent_id`, `order_num`, `path`, `component`, `query`, `route_name`, `is_frame`, `is_cache`, `menu_type`, `visible`, `status`, `perms`, `icon`, `create_by`, `create_time`, `update_by`, `update_time`, `remark`) VALUES (2058, '临时商品修改', 2050, 8, '#', '', NULL, '', 1, 0, 'F', '0', '0', 'product:temp:edit', '#', 'admin', sysdate(), '', NULL, '');
-INSERT INTO `fresh-distribution-dsh`.`sys_menu` (`menu_id`, `menu_name`, `parent_id`, `order_num`, `path`, `component`, `query`, `route_name`, `is_frame`, `is_cache`, `menu_type`, `visible`, `status`, `perms`, `icon`, `create_by`, `create_time`, `update_by`, `update_time`, `remark`) VALUES (2059, '临时商品删除', 2050, 9, '#', '', NULL, '', 1, 0, 'F', '0', '0', 'product:temp:remove', '#', 'admin', sysdate(), '', NULL, '');
-INSERT INTO `fresh-distribution-dsh`.`sys_menu` (`menu_id`, `menu_name`, `parent_id`, `order_num`, `path`, `component`, `query`, `route_name`, `is_frame`, `is_cache`, `menu_type`, `visible`, `status`, `perms`, `icon`, `create_by`, `create_time`, `update_by`, `update_time`, `remark`) VALUES (2060, '临时商品转正', 2050, 10, '#', '', NULL, '', 1, 0, 'F', '0', '0', 'product:temp:convert', '#', 'admin', sysdate(), '', NULL, '');
+INSERT INTO `sys_menu` (`menu_id`, `menu_name`, `parent_id`, `order_num`, `path`, `component`, `query`, `route_name`, `is_frame`, `is_cache`, `menu_type`, `visible`, `status`, `perms`, `icon`, `create_by`, `create_time`, `update_by`, `update_time`, `remark`) VALUES (2057, '临时商品新增', 2050, 7, '#', '', NULL, '', 1, 0, 'F', '0', '0', 'product:temp:add', '#', 'admin', sysdate(), '', NULL, '');
+INSERT INTO `sys_menu` (`menu_id`, `menu_name`, `parent_id`, `order_num`, `path`, `component`, `query`, `route_name`, `is_frame`, `is_cache`, `menu_type`, `visible`, `status`, `perms`, `icon`, `create_by`, `create_time`, `update_by`, `update_time`, `remark`) VALUES (2058, '临时商品修改', 2050, 8, '#', '', NULL, '', 1, 0, 'F', '0', '0', 'product:temp:edit', '#', 'admin', sysdate(), '', NULL, '');
+INSERT INTO `sys_menu` (`menu_id`, `menu_name`, `parent_id`, `order_num`, `path`, `component`, `query`, `route_name`, `is_frame`, `is_cache`, `menu_type`, `visible`, `status`, `perms`, `icon`, `create_by`, `create_time`, `update_by`, `update_time`, `remark`) VALUES (2059, '临时商品删除', 2050, 9, '#', '', NULL, '', 1, 0, 'F', '0', '0', 'product:temp:remove', '#', 'admin', sysdate(), '', NULL, '');
+INSERT INTO `sys_menu` (`menu_id`, `menu_name`, `parent_id`, `order_num`, `path`, `component`, `query`, `route_name`, `is_frame`, `is_cache`, `menu_type`, `visible`, `status`, `perms`, `icon`, `create_by`, `create_time`, `update_by`, `update_time`, `remark`) VALUES (2060, '临时商品转正', 2050, 10, '#', '', NULL, '', 1, 0, 'F', '0', '0', 'product:temp:convert', '#', 'admin', sysdate(), '', NULL, '');
 
 -- ============================================================
--- [09] 菜单/权限：导入按钮  | 源: s1_3_import_menu.sql
+-- [11] 菜单/权限：导入按钮  | 源: s1_3_import_menu.sql
 -- ============================================================
 
 -- ============================================================
@@ -1790,7 +2013,7 @@ INSERT INTO sys_menu (menu_id, menu_name, parent_id, order_num, path, component,
 (2062, '报价导入', 2024, 6, '', '', NULL, '', 1, 0, 'F', '0', '0', 'product:quote:import', '#', 'admin', sysdate(), '', NULL, '');
 
 -- ============================================================
--- [10] 菜单/权限：报价模板、配送点报价  | 源: s2_2_price_menu.sql
+-- [12] 菜单/权限：报价模板、配送点报价  | 源: s2_2_price_menu.sql
 -- ============================================================
 
 -- ============================================================
@@ -1799,23 +2022,23 @@ INSERT INTO sys_menu (menu_id, menu_name, parent_id, order_num, path, component,
 -- ============================================================
 
 -- 父菜单（C）：报价模板
-INSERT INTO `fresh-distribution-dsh`.`sys_menu` (`menu_id`, `menu_name`, `parent_id`, `order_num`, `path`, `component`, `query`, `route_name`, `is_frame`, `is_cache`, `menu_type`, `visible`, `status`, `perms`, `icon`, `create_by`, `create_time`, `update_by`, `update_time`, `remark`) VALUES (2063, '报价模板', 4, 3, 'priceTemplate', 'price/template/index', NULL, '', 1, 0, 'C', '0', '0', 'price:template:list', '#', 'admin', sysdate(), '', NULL, '报价模板菜单');
+INSERT INTO `sys_menu` (`menu_id`, `menu_name`, `parent_id`, `order_num`, `path`, `component`, `query`, `route_name`, `is_frame`, `is_cache`, `menu_type`, `visible`, `status`, `perms`, `icon`, `create_by`, `create_time`, `update_by`, `update_time`, `remark`) VALUES (2063, '报价模板', 4, 3, 'priceTemplate', 'price/template/index', NULL, '', 1, 0, 'C', '0', '0', 'price:template:list', '#', 'admin', sysdate(), '', NULL, '报价模板菜单');
 
 -- 按钮（F）：报价模板
-INSERT INTO `fresh-distribution-dsh`.`sys_menu` (`menu_id`, `menu_name`, `parent_id`, `order_num`, `path`, `component`, `query`, `route_name`, `is_frame`, `is_cache`, `menu_type`, `visible`, `status`, `perms`, `icon`, `create_by`, `create_time`, `update_by`, `update_time`, `remark`) VALUES (2065, '模板新增', 2063, 1, '#', '', NULL, '', 1, 0, 'F', '0', '0', 'price:template:add', '#', 'admin', sysdate(), '', NULL, '');
-INSERT INTO `fresh-distribution-dsh`.`sys_menu` (`menu_id`, `menu_name`, `parent_id`, `order_num`, `path`, `component`, `query`, `route_name`, `is_frame`, `is_cache`, `menu_type`, `visible`, `status`, `perms`, `icon`, `create_by`, `create_time`, `update_by`, `update_time`, `remark`) VALUES (2066, '模板修改', 2063, 2, '#', '', NULL, '', 1, 0, 'F', '0', '0', 'price:template:edit', '#', 'admin', sysdate(), '', NULL, '');
-INSERT INTO `fresh-distribution-dsh`.`sys_menu` (`menu_id`, `menu_name`, `parent_id`, `order_num`, `path`, `component`, `query`, `route_name`, `is_frame`, `is_cache`, `menu_type`, `visible`, `status`, `perms`, `icon`, `create_by`, `create_time`, `update_by`, `update_time`, `remark`) VALUES (2067, '模板删除', 2063, 3, '#', '', NULL, '', 1, 0, 'F', '0', '0', 'price:template:remove', '#', 'admin', sysdate(), '', NULL, '');
+INSERT INTO `sys_menu` (`menu_id`, `menu_name`, `parent_id`, `order_num`, `path`, `component`, `query`, `route_name`, `is_frame`, `is_cache`, `menu_type`, `visible`, `status`, `perms`, `icon`, `create_by`, `create_time`, `update_by`, `update_time`, `remark`) VALUES (2065, '模板新增', 2063, 1, '#', '', NULL, '', 1, 0, 'F', '0', '0', 'price:template:add', '#', 'admin', sysdate(), '', NULL, '');
+INSERT INTO `sys_menu` (`menu_id`, `menu_name`, `parent_id`, `order_num`, `path`, `component`, `query`, `route_name`, `is_frame`, `is_cache`, `menu_type`, `visible`, `status`, `perms`, `icon`, `create_by`, `create_time`, `update_by`, `update_time`, `remark`) VALUES (2066, '模板修改', 2063, 2, '#', '', NULL, '', 1, 0, 'F', '0', '0', 'price:template:edit', '#', 'admin', sysdate(), '', NULL, '');
+INSERT INTO `sys_menu` (`menu_id`, `menu_name`, `parent_id`, `order_num`, `path`, `component`, `query`, `route_name`, `is_frame`, `is_cache`, `menu_type`, `visible`, `status`, `perms`, `icon`, `create_by`, `create_time`, `update_by`, `update_time`, `remark`) VALUES (2067, '模板删除', 2063, 3, '#', '', NULL, '', 1, 0, 'F', '0', '0', 'price:template:remove', '#', 'admin', sysdate(), '', NULL, '');
 
 -- 父菜单（C）：配送点覆盖
-INSERT INTO `fresh-distribution-dsh`.`sys_menu` (`menu_id`, `menu_name`, `parent_id`, `order_num`, `path`, `component`, `query`, `route_name`, `is_frame`, `is_cache`, `menu_type`, `visible`, `status`, `perms`, `icon`, `create_by`, `create_time`, `update_by`, `update_time`, `remark`) VALUES (2064, '配送点覆盖', 4, 4, 'pointPrice', 'price/pointPrice/index', NULL, '', 1, 0, 'C', '0', '0', 'price:delivery-override:list', '#', 'admin', sysdate(), '', NULL, '配送点覆盖菜单（替代原配送点报价）');
+INSERT INTO `sys_menu` (`menu_id`, `menu_name`, `parent_id`, `order_num`, `path`, `component`, `query`, `route_name`, `is_frame`, `is_cache`, `menu_type`, `visible`, `status`, `perms`, `icon`, `create_by`, `create_time`, `update_by`, `update_time`, `remark`) VALUES (2064, '配送点覆盖', 4, 4, 'pointPrice', 'price/pointPrice/index', NULL, '', 1, 0, 'C', '0', '0', 'price:delivery-override:list', '#', 'admin', sysdate(), '', NULL, '配送点覆盖菜单（替代原配送点报价）');
 
 -- 按钮（F）：配送点覆盖
-INSERT INTO `fresh-distribution-dsh`.`sys_menu` (`menu_id`, `menu_name`, `parent_id`, `order_num`, `path`, `component`, `query`, `route_name`, `is_frame`, `is_cache`, `menu_type`, `visible`, `status`, `perms`, `icon`, `create_by`, `create_time`, `update_by`, `update_time`, `remark`) VALUES (2068, '配送点覆盖新增', 2064, 1, '#', '', NULL, '', 1, 0, 'F', '0', '0', 'price:delivery-override:add', '#', 'admin', sysdate(), '', NULL, '');
-INSERT INTO `fresh-distribution-dsh`.`sys_menu` (`menu_id`, `menu_name`, `parent_id`, `order_num`, `path`, `component`, `query`, `route_name`, `is_frame`, `is_cache`, `menu_type`, `visible`, `status`, `perms`, `icon`, `create_by`, `create_time`, `update_by`, `update_time`, `remark`) VALUES (2069, '配送点覆盖修改', 2064, 2, '#', '', NULL, '', 1, 0, 'F', '0', '0', 'price:delivery-override:edit', '#', 'admin', sysdate(), '', NULL, '');
-INSERT INTO `fresh-distribution-dsh`.`sys_menu` (`menu_id`, `menu_name`, `parent_id`, `order_num`, `path`, `component`, `query`, `route_name`, `is_frame`, `is_cache`, `menu_type`, `visible`, `status`, `perms`, `icon`, `create_by`, `create_time`, `update_by`, `update_time`, `remark`) VALUES (2070, '配送点覆盖删除', 2064, 3, '#', '', NULL, '', 1, 0, 'F', '0', '0', 'price:delivery-override:remove', '#', 'admin', sysdate(), '', NULL, '');
+INSERT INTO `sys_menu` (`menu_id`, `menu_name`, `parent_id`, `order_num`, `path`, `component`, `query`, `route_name`, `is_frame`, `is_cache`, `menu_type`, `visible`, `status`, `perms`, `icon`, `create_by`, `create_time`, `update_by`, `update_time`, `remark`) VALUES (2068, '配送点覆盖新增', 2064, 1, '#', '', NULL, '', 1, 0, 'F', '0', '0', 'price:delivery-override:add', '#', 'admin', sysdate(), '', NULL, '');
+INSERT INTO `sys_menu` (`menu_id`, `menu_name`, `parent_id`, `order_num`, `path`, `component`, `query`, `route_name`, `is_frame`, `is_cache`, `menu_type`, `visible`, `status`, `perms`, `icon`, `create_by`, `create_time`, `update_by`, `update_time`, `remark`) VALUES (2069, '配送点覆盖修改', 2064, 2, '#', '', NULL, '', 1, 0, 'F', '0', '0', 'price:delivery-override:edit', '#', 'admin', sysdate(), '', NULL, '');
+INSERT INTO `sys_menu` (`menu_id`, `menu_name`, `parent_id`, `order_num`, `path`, `component`, `query`, `route_name`, `is_frame`, `is_cache`, `menu_type`, `visible`, `status`, `perms`, `icon`, `create_by`, `create_time`, `update_by`, `update_time`, `remark`) VALUES (2070, '配送点覆盖删除', 2064, 3, '#', '', NULL, '', 1, 0, 'F', '0', '0', 'price:delivery-override:remove', '#', 'admin', sysdate(), '', NULL, '');
 
 -- ============================================================
--- [11] 报价模板-客户绑定表  | 源: s2_2_price_template_customer.sql
+-- [13] 报价模板-客户绑定表  | 源: s2_2_price_template_customer.sql
 -- ============================================================
 
 -- ============================================================
@@ -1833,7 +2056,7 @@ CREATE TABLE IF NOT EXISTS `price_template_customer` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='报价模板-客户绑定表';
 
 -- ============================================================
--- [12] 菜单/权限：订单撤回、月结  | 源: s3_1_order_status_menu.sql
+-- [14] 菜单/权限：订单撤回、月结  | 源: s3_1_order_status_menu.sql
 -- ============================================================
 
 -- ============================================================
@@ -1845,7 +2068,7 @@ INSERT INTO sys_menu (menu_id, menu_name, parent_id, order_num, path, component,
 
 -- ============================================================
 -- ============================================================
--- [13] 商品初始化（报价demo → 商品库/商品/报价，幂等）  | 源: s7_product_init.sql
+-- [15] 商品初始化（报价demo → 商品库/商品/报价，幂等）  | 源: s7_product_init.sql
 -- ============================================================
 
 -- ============================================================
@@ -3112,7 +3335,7 @@ INSERT INTO biz_code_seq (biz_key, seq) VALUES ('customer_sku_code:10', 90)
 ON DUPLICATE KEY UPDATE seq = GREATEST(seq, 90);
 
 -- ============================================================
--- [14] 采购单采购员字段 + 销售订单抽屉按钮菜单  | 源: s8_purchase_delivery_drawer.sql
+-- [16] 采购单采购员字段 + 销售订单抽屉按钮菜单  | 源: s8_purchase_delivery_drawer.sql
 -- ============================================================
 
 -- ============================================================
@@ -3138,7 +3361,7 @@ EXECUTE stmt;
 DEALLOCATE PREPARE stmt;
 
 -- ============================================================
--- [15] 基础信息菜单信息架构优化（可移植版）  | 源: s9_menu_product_ia.sql
+-- [17] 基础信息菜单信息架构优化（可移植版）  | 源: s9_menu_product_ia.sql
 -- ============================================================
 
 -- ============================================================
@@ -3195,7 +3418,7 @@ UPDATE `sys_menu` SET `order_num` = 10 WHERE `parent_id` = 4 AND `component` = '
 -- ORDER BY order_num;
 
 -- ============================================================
--- [16] Phase5 权限/字典一致性修复  | 源: s9_phase5_perms_dict.sql
+-- [18] Phase5 权限/字典一致性修复  | 源: s9_phase5_perms_dict.sql
 -- ============================================================
 
 -- ============================================================
@@ -3207,59 +3430,59 @@ UPDATE `sys_menu` SET `order_num` = 10 WHERE `parent_id` = 4 AND `component` = '
 -- ============================================================
 
 -- ---------- 1. 配送点页权限（挂载到"客户信息" menu_id=2012 下） ----------
-INSERT IGNORE INTO `fresh-distribution-dsh`.`sys_menu`
+INSERT IGNORE INTO `sys_menu`
 (`menu_id`, `menu_name`, `parent_id`, `order_num`, `path`, `component`, `query`, `route_name`, `is_frame`, `is_cache`, `menu_type`, `visible`, `status`, `perms`, `icon`, `create_by`, `create_time`, `update_by`, `update_time`, `remark`)
 VALUES (2100, '配送点查询', 2012, 5, '#', '', NULL, '', 1, 0, 'F', '0', '0', 'partner:customerDept:query', '#', 'admin', sysdate(), '', NULL, '');
 
-INSERT IGNORE INTO `fresh-distribution-dsh`.`sys_menu`
+INSERT IGNORE INTO `sys_menu`
 (`menu_id`, `menu_name`, `parent_id`, `order_num`, `path`, `component`, `query`, `route_name`, `is_frame`, `is_cache`, `menu_type`, `visible`, `status`, `perms`, `icon`, `create_by`, `create_time`, `update_by`, `update_time`, `remark`)
 VALUES (2101, '配送点新增', 2012, 6, '#', '', NULL, '', 1, 0, 'F', '0', '0', 'partner:customerDept:add', '#', 'admin', sysdate(), '', NULL, '');
 
-INSERT IGNORE INTO `fresh-distribution-dsh`.`sys_menu`
+INSERT IGNORE INTO `sys_menu`
 (`menu_id`, `menu_name`, `parent_id`, `order_num`, `path`, `component`, `query`, `route_name`, `is_frame`, `is_cache`, `menu_type`, `visible`, `status`, `perms`, `icon`, `create_by`, `create_time`, `update_by`, `update_time`, `remark`)
 VALUES (2102, '配送点修改', 2012, 7, '#', '', NULL, '', 1, 0, 'F', '0', '0', 'partner:customerDept:edit', '#', 'admin', sysdate(), '', NULL, '');
 
-INSERT IGNORE INTO `fresh-distribution-dsh`.`sys_menu`
+INSERT IGNORE INTO `sys_menu`
 (`menu_id`, `menu_name`, `parent_id`, `order_num`, `path`, `component`, `query`, `route_name`, `is_frame`, `is_cache`, `menu_type`, `visible`, `status`, `perms`, `icon`, `create_by`, `create_time`, `update_by`, `update_time`, `remark`)
 VALUES (2103, '配送点删除', 2012, 8, '#', '', NULL, '', 1, 0, 'F', '0', '0', 'partner:customerDept:remove', '#', 'admin', sysdate(), '', NULL, '');
 
-INSERT IGNORE INTO `fresh-distribution-dsh`.`sys_menu`
+INSERT IGNORE INTO `sys_menu`
 (`menu_id`, `menu_name`, `parent_id`, `order_num`, `path`, `component`, `query`, `route_name`, `is_frame`, `is_cache`, `menu_type`, `visible`, `status`, `perms`, `icon`, `create_by`, `create_time`, `update_by`, `update_time`, `remark`)
 VALUES (2104, '配送点导出', 2012, 9, '#', '', NULL, '', 1, 0, 'F', '0', '0', 'partner:customerDept:export', '#', 'admin', sysdate(), '', NULL, '');
 
 -- partner:customerDept:list（列表接口权限，供角色分配；配送点页为隐藏路由，无独立 C 菜单）
 -- 说明：配送点页入口走 /basicInfo/customer-dept（partner:customer:list），此处补 list 便于角色细粒度授权
-INSERT IGNORE INTO `fresh-distribution-dsh`.`sys_menu`
+INSERT IGNORE INTO `sys_menu`
 (`menu_id`, `menu_name`, `parent_id`, `order_num`, `path`, `component`, `query`, `route_name`, `is_frame`, `is_cache`, `menu_type`, `visible`, `status`, `perms`, `icon`, `create_by`, `create_time`, `update_by`, `update_time`, `remark`)
 VALUES (2105, '配送点列表', 2012, 10, '#', '', NULL, '', 1, 0, 'F', '0', '0', 'partner:customerDept:list', '#', 'admin', sysdate(), '', NULL, '');
 
 -- ---------- 2. 客户类型字典 t_customer_type 补充数据 ----------
 -- 若已存在该 dict_type+dict_value 则跳过
-INSERT INTO `fresh-distribution-dsh`.`sys_dict_data`
+INSERT INTO `sys_dict_data`
 (`dict_sort`, `dict_label`, `dict_value`, `dict_type`, `css_class`, `list_class`, `is_default`, `status`, `create_by`, `create_time`, `update_by`, `update_time`, `remark`)
 SELECT 1, '餐馆', '1', 't_customer_type', '', 'primary', 'N', '0', 'admin', sysdate(), '', NULL, ''
-WHERE NOT EXISTS (SELECT 1 FROM `fresh-distribution-dsh`.`sys_dict_data` WHERE `dict_type` = 't_customer_type' AND `dict_value` = '1');
+WHERE NOT EXISTS (SELECT 1 FROM `sys_dict_data` WHERE `dict_type` = 't_customer_type' AND `dict_value` = '1');
 
-INSERT INTO `fresh-distribution-dsh`.`sys_dict_data`
+INSERT INTO `sys_dict_data`
 (`dict_sort`, `dict_label`, `dict_value`, `dict_type`, `css_class`, `list_class`, `is_default`, `status`, `create_by`, `create_time`, `update_by`, `update_time`, `remark`)
 SELECT 2, '食堂', '2', 't_customer_type', '', 'success', 'N', '0', 'admin', sysdate(), '', NULL, ''
-WHERE NOT EXISTS (SELECT 1 FROM `fresh-distribution-dsh`.`sys_dict_data` WHERE `dict_type` = 't_customer_type' AND `dict_value` = '2');
+WHERE NOT EXISTS (SELECT 1 FROM `sys_dict_data` WHERE `dict_type` = 't_customer_type' AND `dict_value` = '2');
 
-INSERT INTO `fresh-distribution-dsh`.`sys_dict_data`
+INSERT INTO `sys_dict_data`
 (`dict_sort`, `dict_label`, `dict_value`, `dict_type`, `css_class`, `list_class`, `is_default`, `status`, `create_by`, `create_time`, `update_by`, `update_time`, `remark`)
 SELECT 3, '商超', '3', 't_customer_type', '', 'warning', 'N', '0', 'admin', sysdate(), '', NULL, ''
-WHERE NOT EXISTS (SELECT 1 FROM `fresh-distribution-dsh`.`sys_dict_data` WHERE `dict_type` = 't_customer_type' AND `dict_value` = '3');
+WHERE NOT EXISTS (SELECT 1 FROM `sys_dict_data` WHERE `dict_type` = 't_customer_type' AND `dict_value` = '3');
 
-INSERT INTO `fresh-distribution-dsh`.`sys_dict_data`
+INSERT INTO `sys_dict_data`
 (`dict_sort`, `dict_label`, `dict_value`, `dict_type`, `css_class`, `list_class`, `is_default`, `status`, `create_by`, `create_time`, `update_by`, `update_time`, `remark`)
 SELECT 4, '商户', '4', 't_customer_type', '', 'info', 'N', '0', 'admin', sysdate(), '', NULL, ''
-WHERE NOT EXISTS (SELECT 1 FROM `fresh-distribution-dsh`.`sys_dict_data` WHERE `dict_type` = 't_customer_type' AND `dict_value` = '4');
+WHERE NOT EXISTS (SELECT 1 FROM `sys_dict_data` WHERE `dict_type` = 't_customer_type' AND `dict_value` = '4');
 
 -- ---------- 3. 清理 price:point:* 旧权限残留（已被 price:delivery-override:* 取代） ----------
-DELETE FROM `fresh-distribution-dsh`.`sys_menu` WHERE `perms` LIKE 'price:point:%';
+DELETE FROM `sys_menu` WHERE `perms` LIKE 'price:point:%';
 
 -- ============================================================
--- [17] 客户类型字典补充工厂/酒店  | 源: s10_customer_type_add_factory_hotel.sql
+-- [19] 客户类型字典补充工厂/酒店  | 源: s10_customer_type_add_factory_hotel.sql
 -- ============================================================
 
 -- s10_customer_type_add_factory_hotel.sql
@@ -3279,7 +3502,7 @@ SELECT 6, '酒店', '6', 't_customer_type', '', 'primary', 'N', '0', 'admin', sy
 WHERE NOT EXISTS (SELECT 1 FROM sys_dict_data WHERE dict_type = 't_customer_type' AND dict_value = '6');
 
 -- ============================================================
--- [18] 客户商品池配送点限定（白名单模型）  | 源: s11_customer_sku_dept_scoping.sql
+-- [20] 客户商品池配送点限定（白名单模型）  | 源: s11_customer_sku_dept_scoping.sql
 -- ============================================================
 
 -- s11_customer_sku_dept_scoping.sql
@@ -3320,7 +3543,7 @@ DELETE FROM sys_menu WHERE component = 'price/pointPrice/index';
 DELETE FROM sys_menu WHERE perms LIKE 'price:delivery-override:%';
 
 -- ============================================================
--- [19] 订单页实收与验收 + 录单页后端草稿  | 源: s12_order_acceptance_actual.sql
+-- [21] 订单页实收与验收 + 录单页后端草稿  | 源: s12_order_acceptance_actual.sql
 -- ============================================================
 
 -- ============================================================
@@ -3432,7 +3655,7 @@ UPDATE `sys_menu`
 SET `visible` = '1', `status` = '1', `remark` = '已下线：验收改在销售订单页完成（见 s12）'
 WHERE `menu_id` BETWEEN 2081 AND 2086;
 
--- [20] 菜单/权限：工作台  | 源: s3_2_workbench_menu.sql
+-- [22] 菜单/权限：工作台  | 源: s3_2_workbench_menu.sql
 -- ============================================================
 
 -- ============================================================
@@ -3442,7 +3665,7 @@ INSERT INTO sys_menu (menu_id, menu_name, parent_id, order_num, path, component,
 (2073, '工作台', 0, 1, 'workbench', 'workbench/index', NULL, '', 1, 0, 'C', '0', '0', '', 'dashboard', 'admin', sysdate(), '', NULL, '文员工作台');
 
 -- ============================================================
--- [21] 菜单/权限：订单调整  | 源: s3_4_adjustment_menu.sql
+-- [23] 菜单/权限：订单调整  | 源: s3_4_adjustment_menu.sql
 -- ============================================================
 
 -- ============================================================
@@ -3450,10 +3673,10 @@ INSERT INTO sys_menu (menu_id, menu_name, parent_id, order_num, path, component,
 -- F 按钮挂在"销售订单"(menu_id=2030) 下
 -- ============================================================
 
-INSERT INTO `fresh-distribution-dsh`.`sys_menu` (`menu_id`, `menu_name`, `parent_id`, `order_num`, `path`, `component`, `query`, `route_name`, `is_frame`, `is_cache`, `menu_type`, `visible`, `status`, `perms`, `icon`, `create_by`, `create_time`, `update_by`, `update_time`, `remark`) VALUES (2074, '订单调整', 2030, 6, '#', '', NULL, '', 1, 0, 'F', '0', '0', 'order:sale:adjust', '#', 'admin', sysdate(), '', NULL, '');
+INSERT INTO `sys_menu` (`menu_id`, `menu_name`, `parent_id`, `order_num`, `path`, `component`, `query`, `route_name`, `is_frame`, `is_cache`, `menu_type`, `visible`, `status`, `perms`, `icon`, `create_by`, `create_time`, `update_by`, `update_time`, `remark`) VALUES (2074, '订单调整', 2030, 6, '#', '', NULL, '', 1, 0, 'F', '0', '0', 'order:sale:adjust', '#', 'admin', sysdate(), '', NULL, '');
 
 -- ============================================================
--- [22] 菜单/权限：采购管理  | 源: s4_purchase_menu.sql
+-- [24] 菜单/权限：采购管理  | 源: s4_purchase_menu.sql
 -- ============================================================
 
 -- ============================================================
@@ -3474,7 +3697,7 @@ INSERT INTO sys_menu (menu_id, menu_name, parent_id, order_num, path, component,
 (2078, '采购单删除', 2075, 3, '', '', NULL, '', 1, 0, 'F', '0', '0', 'purchase:remove', '#', 'admin', sysdate(), '', NULL, '');
 
 -- ============================================================
--- [23] 送货单表结构适配（配送点维度、商品合并）  | 源: s5_1_delivery_alter.sql
+-- [25] 送货单表结构适配（配送点维度、商品合并）  | 源: s5_1_delivery_alter.sql
 -- ============================================================
 
 -- ============================================================
@@ -3497,7 +3720,7 @@ ALTER TABLE `t_delivery_order_detail`
   ADD COLUMN `amount` decimal(12,2) NOT NULL DEFAULT 0 COMMENT '小计（num*price）' AFTER `price`;
 
 -- ============================================================
--- [24] 菜单/权限：送货单打印、送达  | 源: s5_1_delivery_menu.sql
+-- [26] 菜单/权限：送货单打印、送达  | 源: s5_1_delivery_menu.sql
 -- ============================================================
 
 -- ============================================================
@@ -3510,7 +3733,7 @@ INSERT INTO sys_menu (menu_id, menu_name, parent_id, order_num, path, component,
 (2080, '送货单送达', 2036, 7, '#', '', NULL, '', 1, 0, 'F', '0', '0', 'order:delivery:deliver', '#', 'admin', sysdate(), '', NULL, '送货单送达（订单→DELIVERED）');
 
 -- ============================================================
--- [25] 菜单/权限：验收 + 验收状态字典  | 源: s5_2_acceptance_menu.sql
+-- [27] 菜单/权限：验收 + 验收状态字典  | 源: s5_2_acceptance_menu.sql
 -- ============================================================
 
 -- ============================================================
@@ -3519,12 +3742,12 @@ INSERT INTO sys_menu (menu_id, menu_name, parent_id, order_num, path, component,
 -- ============================================================
 
 -- 验收单状态字典（0草稿 1已提交）
-INSERT INTO sys_dict_type (dict_id, dict_name, dict_type, status, create_by, create_time, update_by, update_time, remark)
-VALUES (109, '验收单状态', 't_acceptance_status', '0', 'admin', sysdate(), '', NULL, '验收单状态');
+INSERT INTO sys_dict_type (dict_name, dict_type, status, create_by, create_time, update_by, update_time, remark)
+VALUES ('验收单状态', 't_acceptance_status', '0', 'admin', sysdate(), '', NULL, '验收单状态');
 
-INSERT INTO sys_dict_data (dict_code, dict_sort, dict_label, dict_value, dict_type, css_class, list_class, is_default, status, create_by, create_time, update_by, update_time, remark) VALUES
-(48, 0, '草稿',   '0', 't_acceptance_status', '', 'info',    'N', '0', 'admin', sysdate(), '', NULL, '验收单状态-草稿'),
-(49, 1, '已提交', '1', 't_acceptance_status', '', 'success', 'N', '0', 'admin', sysdate(), '', NULL, '验收单状态-已提交');
+INSERT INTO sys_dict_data (dict_sort, dict_label, dict_value, dict_type, css_class, list_class, is_default, status, create_by, create_time, update_by, update_time, remark) VALUES
+(0, '草稿',   '0', 't_acceptance_status', '', 'info',    'N', '0', 'admin', sysdate(), '', NULL, '验收单状态-草稿'),
+(1, '已提交', '1', 't_acceptance_status', '', 'success', 'N', '0', 'admin', sysdate(), '', NULL, '验收单状态-已提交');
 
 -- 菜单
 INSERT INTO sys_menu (menu_id, menu_name, parent_id, order_num, path, component, query, route_name, is_frame, is_cache, menu_type, visible, status, perms, icon, create_by, create_time, update_by, update_time, remark) VALUES
@@ -3538,7 +3761,7 @@ INSERT INTO sys_menu (menu_id, menu_name, parent_id, order_num, path, component,
 (2086, '验收单提交', 2081, 5, '#', '', NULL, '', 1, 0, 'F', '1', '1', 'acceptance:submit', '#', 'admin', sysdate(), '', NULL, '');
 
 -- ============================================================
--- [26] 菜单/权限：报表中心  | 源: s6_1_report_menu.sql
+-- [28] 菜单/权限：报表中心  | 源: s6_1_report_menu.sql
 -- ============================================================
 
 -- ============================================================
@@ -3555,8 +3778,8 @@ INSERT INTO sys_menu (menu_id, menu_name, parent_id, order_num, path, component,
 
 
 -- ============================================================
--- [27] S14 订单-送货-验收链路重构（三层模型地基）  | 源: s14_delivery_acceptance_redesign.sql
--- 注意: s7~s12 增量已于 2026-08-28 合并为本文件 [13]~[19] 节，全量重建可直接使用
+-- [29] S14 订单-送货-验收链路重构（三层模型地基）  | 源: s14_delivery_acceptance_redesign.sql
+-- 注意: 历史增量（r1/s7~s12）已全部合并入本文件 [08]~[21] 节；全量重建已在测试库验证 0 错误（2026-08-28）
 -- ============================================================
 
 -- ============================================================
