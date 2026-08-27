@@ -37,6 +37,7 @@ CREATE TABLE IF NOT EXISTS `t_delivery_batch` (
     `is_deleted`      tinyint(1) NOT NULL DEFAULT 0,
     `create_by` varchar(64) DEFAULT '', `create_time` datetime,
     `update_by` varchar(64) DEFAULT '', `update_time` datetime,
+    `remark`        varchar(500) DEFAULT NULL COMMENT '备注',
     PRIMARY KEY (`id`),
     UNIQUE KEY `unq_customer_date` (`customer_id`, `delivery_date`, `is_deleted`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='客户每日配送批次(内部配货边界)';
