@@ -73,26 +73,19 @@ public interface SaleOrderDetailMapper {
     int deleteSaleOrderDetailByIds(Long[] ids);
 
     /**
-     * 按配送日期聚合已确认订单明细（送货单生成口径）
-     * 分组：客户 + 配送点 + SKU/品名/单位/规格/单价；数量求和。
+     * 按指定订单ID集合查有效订单行原始明细（S14/T3 统一生成用，不聚合）
      *
-     * @param deliveryDate 配送日期
-     * @return 聚合后的订单明细
-     */
-    List<SaleOrderDetail> selectAggregatedByDeliveryDate(java.time.LocalDate deliveryDate);
-
-    /**
-     * 按指定订单ID集合聚合已确认订单明细（送货单按勾选订单生成口径）
-     * 分组：客户 + 配送点 + SKU/品名/单位/规格/单价；数量求和。
+     * <p>聚合改在 Java 侧完成：需要保留 订单行→订单 映射以落 t_delivery_source_item 台账，
+     * SQL GROUP BY 表达不了这个映射（DESIGN.md §5.1 删除说明）。</p>
      *
      * @param orderIds 销售订单ID集合
-     * @return 聚合后的订单明细
+     * @return 原始订单行（按 order_id, sort, id 排序）
      */
-    List<SaleOrderDetail> selectAggregatedByOrderIds(@Param("orderIds") java.util.Collection<Long> orderIds);
+    List<SaleOrderDetail> selectValidByOrderIdIn(@Param("orderIds") java.util.Collection<Long> orderIds);
 
     /**
-     * 按指定订单ID集合聚合已确认订单明细并关联品类名称（生成单据预览口径）
-     * 分组：品类 + SKU/品名/单位/规格；临时商品（sku_id 空）归"临时商品"品类。
+     * 生成单据预览：按指定订单ID集合聚合已确认订单明细并关联品类名称
+     * 分组：品类 + SKU/品名/单位/规格；临时商品（sku_id 空）归“临时商品”品类。
      *
      * @param orderIds 销售订单ID集合
      * @return 含 categoryName 的聚合明细

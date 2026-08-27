@@ -1,11 +1,9 @@
 package com.lin.distribution.service;
 
-import java.time.LocalDate;
 import java.util.List;
 
 import com.lin.distribution.domain.DeliveryOrder;
 import com.lin.distribution.domain.DeliveryOrderDetail;
-import com.lin.distribution.dto.DeliveryByOrdersDTO;
 
 /**
  * 送货单据Service接口
@@ -69,26 +67,6 @@ public interface DeliveryOrderService {
      * @return 结果
      */
     int deleteDeliveryOrderById(Long id);
-
-    /**
-     * 按配送日期生成送货单（DESIGN.md §7.2）
-     * 粒度：客户 + 配送点 + 配送日期；明细按商品合并（不含订单号）。
-     * 仅包含已确认（CONFIRMED）订单；该日期已存在送货单则拒绝重复生成。
-     *
-     * @param deliveryDate 配送日期
-     * @return 本次生成的送货单列表
-     */
-    List<DeliveryOrder> generateByDeliveryDate(LocalDate deliveryDate);
-
-    /**
-     * 按勾选订单生成送货单（销售订单列表页抽屉，Phase 2）
-     * 粒度：客户 + 配送点；配送日期可调整（默认取订单配送日期）；
-     * 订单不可重复生成（t_delivery_order_detail.order_id 唯一键 + 前置校验）。
-     *
-     * @param dto 生成请求（orderIds + 可空 deliveryDate）
-     * @return 本次生成的送货单列表
-     */
-    List<DeliveryOrder> generateByOrderIds(DeliveryByOrdersDTO dto);
 
     /**
      * 标记打印：print_count + 1，状态 → 已打印（已送达不可打印）

@@ -190,4 +190,41 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
               where si.delivery_id = #{deliveryId} and si.is_deleted = 0
           )
     </update>
+
+    <!-- S14/T3 统一生成：查“遗漏订单” O_missed = CONFIRMED 且未进入任何有效送货单
+         有效判定两路：① 新模型 source_item 有效分配（作废释放/软删即视为遗漏）；
+         ② 历史兼容——S14 前生成的送货单无台账，按 detail.order_id 直挂且所属单未作废判定，
+            防止历史单与新单并存时同一订单被双重配送 -->
+    <select id="selectMissedConfirmedOrders" resultMap="SaleOrderResult">
+        select so.id, so.customer_id, so.customer_dept_id, so.code, so.status, so.delivery_date, so.is_deleted
+        from t_sale_order so
+        where so.is_deleted = 0
+          and so.status = 1
+          and so.delivery_date = #{deliveryDate}
+        <if test="customerId != null">
+          and so.customer_id = #{customerId}
+        </if>
+          and not exists (
+              select 1 from t_delivery_source_item si
+              inner join t_delivery_order d on d.id = si.delivery_id
+              where si.sale_order_id = so.id and si.is_deleted = 0 and d.is_deleted = 0 and d.status != 3
+          )
+          and not exists (
+              select 1 from t_delivery_order_detail dd
+              inner join t_delivery_order d2 on d2.id = dd.delivery_id
+              where dd.order_id = so.id and dd.is_deleted = 0 and d2.is_deleted = 0 and d2.status != 3
+          )
+        order by so.customer_id, so.id
+    </select>
+
+    <!-- S14/T3 作废重建分支（D-022）：该客户当日全部已确认订单（重建覆盖全部已确认遗漏+原订单，而非拼接） -->
+    <select id="selectConfirmedByCustomerAndDate" resultMap="SaleOrderResult">
+        select so.id, so.customer_id, so.customer_dept_id, so.code, so.status, so.delivery_date, so.is_deleted
+        from t_sale_order so
+        where so.is_deleted = 0
+          and so.status = 1
+          and so.customer_id = #{customerId}
+          and so.delivery_date = #{deliveryDate}
+        order by so.id
+    </select>
 </mapper>

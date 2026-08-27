@@ -22,8 +22,10 @@ import com.lin.common.annotation.Log;
 import com.lin.common.core.controller.BaseController;
 import com.lin.common.core.domain.AjaxResult;
 import com.lin.common.enums.BusinessType;
+import com.lin.distribution.constant.DeliveryGenerateTrigger;
 import com.lin.distribution.domain.DeliveryOrder;
 import com.lin.distribution.dto.DeliveryByOrdersDTO;
+import com.lin.distribution.service.DeliveryGenerationService;
 import com.lin.distribution.service.DeliveryOrderService;
 import com.lin.distribution.service.PrintTemplateService;
 import com.lin.common.utils.poi.ExcelUtil;
@@ -41,6 +43,8 @@ import com.lin.common.core.page.TableDataInfo;
 public class DeliveryOrderController extends BaseController {
     @Autowired
     private DeliveryOrderService deliveryOrderService;
+    @Autowired
+    private DeliveryGenerationService deliveryGenerationService;
     @Autowired
     private PrintTemplateService printTemplateService;
 
@@ -146,23 +150,37 @@ public class DeliveryOrderController extends BaseController {
     }
 
     /**
-     * 按配送日期生成送货单（DESIGN.md §7.2，仅汇总已确认订单，按客户+配送点分组、明细按商品合并）
+     * 按配送日期生成送货单（旧入口兼容：内部委托统一生成服务 generateForDate(MANUAL)，
+     * D-025 语义=幂等补齐当日全部遗漏订单，不再整体拒绝重复生成）
      */
     @PreAuthorize("@ss.hasPermi('order:delivery:add')")
     @Log(title = "送货单生成", businessType = BusinessType.INSERT)
     @PostMapping("/generate/{deliveryDate}")
     public AjaxResult generate(@PathVariable("deliveryDate") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate deliveryDate) {
-        return success(deliveryOrderService.generateByDeliveryDate(deliveryDate));
+        return success(deliveryGenerationService.generateForDate(deliveryDate, DeliveryGenerateTrigger.MANUAL));
     }
 
     /**
-     * 按勾选订单生成送货单（销售订单列表页抽屉，配送日期可调整）
+     * 按勾选订单生成送货单（旧入口兼容：D-025 语义=按选中订单定位 客户+配送日期，
+     * 由统一生成服务补齐对应客户当日的全部遗漏订单，已进单订单幂等排除）
      */
     @PreAuthorize("@ss.hasPermi('order:delivery:add')")
     @Log(title = "送货单生成", businessType = BusinessType.INSERT)
     @PostMapping("/generate-by-orders")
     public AjaxResult generateByOrders(@RequestBody @Validated DeliveryByOrdersDTO dto) {
-        return success(deliveryOrderService.generateByOrderIds(dto));
+        return success(deliveryGenerationService.generateForOrders(dto));
+    }
+
+    /**
+     * 按客户+配送日期手工生成/补单（S14/T3 统一生成服务主入口，D-021；
+     * 供录单页「本客户订单已录完」按钮与客户维度补生成调用，幂等可重复触发）
+     */
+    @PreAuthorize("@ss.hasPermi('order:delivery:add')")
+    @Log(title = "送货单生成", businessType = BusinessType.INSERT)
+    @PostMapping("/generate/customer/{customerId}/{deliveryDate}")
+    public AjaxResult generateForCustomer(@PathVariable("customerId") Long customerId,
+                                          @PathVariable("deliveryDate") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate deliveryDate) {
+        return success(deliveryGenerationService.generateForCustomer(customerId, deliveryDate));
     }
 
     /**

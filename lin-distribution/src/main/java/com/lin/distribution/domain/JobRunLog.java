@@ -17,6 +17,13 @@ import java.util.Date;
 public class JobRunLog implements Serializable {
     private static final long serialVersionUID = 1L;
 
+    /** 运行成功 */
+    public static final int STATUS_SUCCESS = 0;
+    /** 运行失败 */
+    public static final int STATUS_FAILED = 1;
+    /** 部分失败（遗漏订单，工作台高优告警） */
+    public static final int STATUS_PARTIAL = 2;
+
     /** 主键 */
     private Long id;
 

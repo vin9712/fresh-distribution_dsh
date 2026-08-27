@@ -1,5 +1,6 @@
 package com.lin.distribution.mapper;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -104,4 +105,29 @@ public interface SaleOrderMapper {
     int updateStatusByDeliveryId(@Param("deliveryId") Long deliveryId,
                                  @Param("fromStatus") Integer fromStatus,
                                  @Param("toStatus") Integer toStatus);
+
+    /**
+     * 查“遗漏订单”集 O_missed（S14/T3 统一生成服务，DESIGN.md §5.1 步骤① / 附录 A）
+     *
+     * <p>口径：CONFIRMED 且未进入任何有效送货单。有效判定两路：
+     * ① 新模型——t_delivery_source_item 有效分配（作废释放/软删即视为遗漏）；
+     * ② 历史兼容——S14 前生成的送货单无台账，按 t_delivery_order_detail.order_id 直挂且所属单未作废判定。
+     * 判定②防止历史单与新单并存时同一订单被双重配送。</p>
+     *
+     * @param customerId   客户ID（可空=null 时不限客户，generateForDate 全日期扫描用）
+     * @param deliveryDate 配送日期（必填）
+     * @return 遗漏订单集合
+     */
+    List<SaleOrder> selectMissedConfirmedOrders(@Param("customerId") Long customerId,
+                                                @Param("deliveryDate") LocalDate deliveryDate);
+
+    /**
+     * 查该客户当日全部已确认订单（S14/T3 作废重建分支 D-022：重建覆盖全部已确认遗漏+原订单，而非拼接）
+     *
+     * @param customerId   客户ID
+     * @param deliveryDate 配送日期
+     * @return 已确认订单集合
+     */
+    List<SaleOrder> selectConfirmedByCustomerAndDate(@Param("customerId") Long customerId,
+                                                     @Param("deliveryDate") LocalDate deliveryDate);
 }

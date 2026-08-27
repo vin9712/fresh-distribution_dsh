@@ -65,6 +65,17 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         </foreach>
     </select>
 
+    <!-- S14/T3 统一生成：该客户当日未作废的有效送货单（含 batch_id 为空的历史单，平滑迁移；
+         状态 3=已作废，作废单不参与三态分支判定） -->
+    <select id="selectActiveByCustomerAndDate" resultMap="DeliveryOrderResult">
+        <include refid="selectDeliveryOrderVo"/>
+        where o.is_deleted = 0
+          and o.status != 3
+          and o.customer_id = #{customerId}
+          and o.delivery_date = #{deliveryDate}
+        order by o.id
+    </select>
+
     <insert id="insertDeliveryOrder" parameterType="com.lin.distribution.domain.DeliveryOrder" useGeneratedKeys="true" keyProperty="id">
         insert into t_delivery_order
         <trim prefix="(" suffix=")" suffixOverrides=",">

@@ -56,6 +56,16 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         limit 1
     </select>
 
+    <!-- S14/T3 统一生成：同上但 FOR UPDATE 锁行，UPSERT 批次防并发重复建批次 -->
+    <select id="selectByCustomerAndDateForUpdate" resultMap="DeliveryBatchResult">
+        <include refid="selectDeliveryBatchVo"/>
+        where b.customer_id = #{customerId}
+          and b.delivery_date = #{deliveryDate}
+          and b.is_deleted = 0
+        limit 1
+        for update
+    </select>
+
     <insert id="insertDeliveryBatch" parameterType="com.lin.distribution.domain.DeliveryBatch" useGeneratedKeys="true" keyProperty="id">
         insert into t_delivery_batch
         <trim prefix="(" suffix=")" suffixOverrides=",">

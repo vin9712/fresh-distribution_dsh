@@ -182,51 +182,26 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         delete from t_sale_order_detail where order_id = #{orderId}
     </delete>
 
-    <select id="selectAggregatedByDeliveryDate" parameterType="java.time.LocalDate" resultMap="SaleOrderDetailResult">
-        select d.customer_id,
-               d.customer_dept_id,
-               d.sku_id,
-               d.product_name,
-               d.product_unit,
-               d.product_spec,
-               d.product_price,
-               sum(d.num) as num,
-               sum(d.num * d.product_price) as expect_amount
-        from t_sale_order_detail d
-        inner join t_sale_order o on o.id = d.order_id
-        where o.delivery_date = #{deliveryDate}
-          and o.status = 1
-          and o.is_deleted = 0
-          and d.is_deleted = 0
-        group by d.customer_id, d.customer_dept_id, d.sku_id, d.product_name, d.product_unit, d.product_spec, d.product_price
-        order by d.customer_id, d.customer_dept_id, d.product_name
-    </select>
-
-    <!-- 常用商品统计：近N天下单频率最高的 SKU（录单页"常用"面板）
-         仅统计已确认及后续状态的订单（排除制单草稿），临时商品(sku_id 为空)不参与 -->
-    <select id="selectAggregatedByOrderIds" resultMap="SaleOrderDetailResult">
-        select d.order_id,
+    <!-- S14/T3 统一生成：按订单查有效订单行原始明细（不聚合；聚合移 Java 侧，保留 行→单 映射落 source_item 台账） -->
+    <select id="selectValidByOrderIdIn" resultMap="SaleOrderDetailResult">
+        select d.id,
+               d.order_id,
                d.customer_id,
                d.customer_dept_id,
-               d.order_code,
                d.sku_id,
+               d.order_code,
                d.product_name,
                d.product_unit,
-               d.product_spec,
                d.product_price,
-               sum(d.num) as num,
-               sum(d.num * d.product_price) as expect_amount
+               d.product_spec,
+               d.num
         from t_sale_order_detail d
-        inner join t_sale_order o on o.id = d.order_id
-        where o.id in
+        where d.is_deleted = 0
+          and d.order_id in
         <foreach item="orderId" collection="orderIds" open="(" separator="," close=")">
             #{orderId}
         </foreach>
-          and o.status = 1
-          and o.is_deleted = 0
-          and d.is_deleted = 0
-        group by d.order_id, d.customer_id, d.customer_dept_id, d.order_code, d.sku_id, d.product_name, d.product_unit, d.product_spec, d.product_price
-        order by d.customer_id, d.customer_dept_id, d.product_name
+        order by d.order_id, d.sort, d.id
     </select>
 
     <!-- 生成单据预览：按品类分组汇总（临时商品归"临时商品"） -->

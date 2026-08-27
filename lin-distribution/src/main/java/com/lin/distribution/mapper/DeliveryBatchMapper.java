@@ -1,5 +1,7 @@
 package com.lin.distribution.mapper;
 
+import java.time.LocalDate;
+
 import java.util.List;
 
 import com.lin.distribution.domain.DeliveryBatch;
@@ -36,6 +38,15 @@ public interface DeliveryBatchMapper {
      * @return 配送批次（无则 null）
      */
     DeliveryBatch selectByCustomerAndDate(@Param("customerId") Long customerId, @Param("deliveryDate") String deliveryDate);
+
+    /**
+     * 按客户+配送日期查有效批次并锁行（S14/T3 生成服务 UPSERT 批次防并发，§5.1 步骤③ FOR UPDATE）
+     *
+     * @param customerId   客户ID
+     * @param deliveryDate 配送日期
+     * @return 配送批次（无则 null）
+     */
+    DeliveryBatch selectByCustomerAndDateForUpdate(@Param("customerId") Long customerId, @Param("deliveryDate") LocalDate deliveryDate);
 
     /**
      * 新增配送批次
