@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+"http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.lin.distribution.mapper.AcceptanceRevokeLogMapper">
+
+    <resultMap type="com.lin.distribution.domain.AcceptanceRevokeLog" id="AcceptanceRevokeLogResult">
+        <result property="id"    column="id"    />
+        <result property="acceptanceId"    column="acceptance_id"    />
+        <result property="snapshotJson"    column="snapshot_json"    />
+        <result property="reason"    column="reason"    />
+        <result property="revokedBy"    column="revoked_by"    />
+        <result property="revokedTime"    column="revoked_time"    />
+    </resultMap>
+
+    <sql id="selectAcceptanceRevokeLogVo">
+        select id, acceptance_id, snapshot_json, reason, revoked_by, revoked_time
+        from t_acceptance_revoke_log
+    </sql>
+
+    <select id="selectAcceptanceRevokeLogList" parameterType="com.lin.distribution.domain.AcceptanceRevokeLog" resultMap="AcceptanceRevokeLogResult">
+        <include refid="selectAcceptanceRevokeLogVo"/>
+        <where>
+            <if test="acceptanceId != null "> and acceptance_id = #{acceptanceId}</if>
+            <if test="revokedBy != null  and revokedBy != ''"> and revoked_by = #{revokedBy}</if>
+        </where>
+        order by revoked_time desc
+    </select>
+
+    <select id="selectAcceptanceRevokeLogById" parameterType="Long" resultMap="AcceptanceRevokeLogResult">
+        <include refid="selectAcceptanceRevokeLogVo"/>
+        where id = #{id}
+    </select>
+
+    <insert id="insertAcceptanceRevokeLog" parameterType="com.lin.distribution.domain.AcceptanceRevokeLog" useGeneratedKeys="true" keyProperty="id">
+        insert into t_acceptance_revoke_log
+        <trim prefix="(" suffix=")" suffixOverrides=",">
+            <if test="acceptanceId != null">acceptance_id,</if>
+            <if test="snapshotJson != null">snapshot_json,</if>
+            <if test="reason != null">reason,</if>
+            <if test="revokedBy != null">revoked_by,</if>
+            <if test="revokedTime != null">revoked_time,</if>
+         </trim>
+        <trim prefix="values (" suffix=")" suffixOverrides=",">
+            <if test="acceptanceId != null">#{acceptanceId},</if>
+            <if test="snapshotJson != null">#{snapshotJson},</if>
+            <if test="reason != null">#{reason},</if>
+            <if test="revokedBy != null">#{revokedBy},</if>
+            <if test="revokedTime != null">#{revokedTime},</if>
+         </trim>
+    </insert>
+</mapper>

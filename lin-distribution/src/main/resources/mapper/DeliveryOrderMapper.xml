@@ -8,9 +8,16 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         <result property="id"    column="id"    />
         <result property="customerId"    column="customer_id"    />
         <result property="deliveryPointId"    column="delivery_point_id"    />
+        <result property="batchId"    column="batch_id"    />
+        <result property="scopeType"    column="scope_type"    />
+        <result property="docKind"    column="doc_kind"    />
+        <result property="predecessorId"    column="predecessor_id"    />
         <result property="code"    column="code"    />
         <result property="status"    column="status"    />
         <result property="printCount"    column="print_count"    />
+        <result property="voidReason"    column="void_reason"    />
+        <result property="voidBy"    column="void_by"    />
+        <result property="voidTime"    column="void_time"    />
         <result property="deliveryDate"    column="delivery_date"    />
         <result property="isDeleted"    column="is_deleted"    />
         <result property="version"    column="version"    />
@@ -24,7 +31,8 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
     </resultMap>
 
     <sql id="selectDeliveryOrderVo">
-        select o.id, o.customer_id, o.delivery_point_id, o.code, o.status, o.print_count, o.delivery_date,
+        select o.id, o.customer_id, o.delivery_point_id, o.batch_id, o.scope_type, o.doc_kind, o.predecessor_id,
+               o.code, o.status, o.print_count, o.void_reason, o.void_by, o.void_time, o.delivery_date,
                o.is_deleted, o.version, o.create_by, o.create_time, o.update_by, o.update_time, o.remark,
                coalesce(customer.alias, customer.name) as customerName,
                cd.name as customerDeptName
@@ -62,9 +70,16 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         <trim prefix="(" suffix=")" suffixOverrides=",">
             <if test="customerId != null">customer_id,</if>
             <if test="deliveryPointId != null">delivery_point_id,</if>
+            <if test="batchId != null">batch_id,</if>
+            <if test="scopeType != null and scopeType != ''">scope_type,</if>
+            <if test="docKind != null">doc_kind,</if>
+            <if test="predecessorId != null">predecessor_id,</if>
             <if test="code != null and code != ''">code,</if>
             <if test="status != null">status,</if>
             <if test="printCount != null">print_count,</if>
+            <if test="voidReason != null">void_reason,</if>
+            <if test="voidBy != null">void_by,</if>
+            <if test="voidTime != null">void_time,</if>
             <if test="deliveryDate != null">delivery_date,</if>
             <if test="isDeleted != null">is_deleted,</if>
             <if test="version != null">version,</if>
@@ -77,9 +92,16 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         <trim prefix="values (" suffix=")" suffixOverrides=",">
             <if test="customerId != null">#{customerId},</if>
             <if test="deliveryPointId != null">#{deliveryPointId},</if>
+            <if test="batchId != null">#{batchId},</if>
+            <if test="scopeType != null and scopeType != ''">#{scopeType},</if>
+            <if test="docKind != null">#{docKind},</if>
+            <if test="predecessorId != null">#{predecessorId},</if>
             <if test="code != null and code != ''">#{code},</if>
             <if test="status != null">#{status},</if>
             <if test="printCount != null">#{printCount},</if>
+            <if test="voidReason != null">#{voidReason},</if>
+            <if test="voidBy != null">#{voidBy},</if>
+            <if test="voidTime != null">#{voidTime},</if>
             <if test="deliveryDate != null">#{deliveryDate},</if>
             <if test="isDeleted != null">#{isDeleted},</if>
             <if test="version != null">#{version},</if>
@@ -96,9 +118,16 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         <trim prefix="SET" suffixOverrides=",">
             <if test="customerId != null">customer_id = #{customerId},</if>
             <if test="deliveryPointId != null">delivery_point_id = #{deliveryPointId},</if>
+            <if test="batchId != null">batch_id = #{batchId},</if>
+            <if test="scopeType != null and scopeType != ''">scope_type = #{scopeType},</if>
+            <if test="docKind != null">doc_kind = #{docKind},</if>
+            <if test="predecessorId != null">predecessor_id = #{predecessorId},</if>
             <if test="code != null and code != ''">code = #{code},</if>
             <if test="status != null">status = #{status},</if>
             <if test="printCount != null">print_count = #{printCount},</if>
+            <if test="voidReason != null">void_reason = #{voidReason},</if>
+            <if test="voidBy != null">void_by = #{voidBy},</if>
+            <if test="voidTime != null">void_time = #{voidTime},</if>
             <if test="deliveryDate != null">delivery_date = #{deliveryDate},</if>
             <if test="isDeleted != null">is_deleted = #{isDeleted},</if>
             <if test="version != null">version = #{version},</if>

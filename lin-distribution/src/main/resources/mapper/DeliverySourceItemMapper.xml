@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+"http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.lin.distribution.mapper.DeliverySourceItemMapper">
+
+    <resultMap type="com.lin.distribution.domain.DeliverySourceItem" id="DeliverySourceItemResult">
+        <result property="id"    column="id"    />
+        <result property="deliveryId"    column="delivery_id"    />
+        <result property="deliveryDetailId"    column="delivery_detail_id"    />
+        <result property="saleOrderId"    column="sale_order_id"    />
+        <result property="saleOrderDetailId"    column="sale_order_detail_id"    />
+        <result property="customerDeptId"    column="customer_dept_id"    />
+        <result property="skuId"    column="sku_id"    />
+        <result property="productName"    column="product_name"    />
+        <result property="allocatedQuantity"    column="allocated_quantity"    />
+        <result property="unitPrice"    column="unit_price"    />
+        <result property="isDeleted"    column="is_deleted"    />
+        <result property="createTime"    column="create_time"    />
+        <result property="createBy"    column="create_by"    />
+    </resultMap>
+
+    <sql id="selectDeliverySourceItemVo">
+        select si.id, si.delivery_id, si.delivery_detail_id, si.sale_order_id, si.sale_order_detail_id,
+               si.customer_dept_id, si.sku_id, si.product_name, si.allocated_quantity, si.unit_price,
+               si.is_deleted, si.create_time, si.create_by
+        from t_delivery_source_item si
+    </sql>
+
+    <select id="selectDeliverySourceItemList" parameterType="com.lin.distribution.domain.DeliverySourceItem" resultMap="DeliverySourceItemResult">
+        <include refid="selectDeliverySourceItemVo"/>
+        <where>
+            si.is_deleted = 0
+            <if test="deliveryId != null "> and si.delivery_id = #{deliveryId}</if>
+            <if test="deliveryDetailId != null "> and si.delivery_detail_id = #{deliveryDetailId}</if>
+            <if test="saleOrderId != null "> and si.sale_order_id = #{saleOrderId}</if>
+            <if test="saleOrderDetailId != null "> and si.sale_order_detail_id = #{saleOrderDetailId}</if>
+            <if test="customerDeptId != null "> and si.customer_dept_id = #{customerDeptId}</if>
+        </where>
+        order by si.id
+    </select>
+
+    <select id="selectDeliverySourceItemById" parameterType="Long" resultMap="DeliverySourceItemResult">
+        <include refid="selectDeliverySourceItemVo"/>
+        where si.id = #{id} and si.is_deleted = 0
+    </select>
+
+    <select id="selectListByDeliveryId" parameterType="Long" resultMap="DeliverySourceItemResult">
+        <include refid="selectDeliverySourceItemVo"/>
+        where si.delivery_id = #{deliveryId} and si.is_deleted = 0
+        order by si.id
+    </select>
+
+    <insert id="batchInsertDeliverySourceItem" useGeneratedKeys="true" keyProperty="id">
+        insert into t_delivery_source_item
+            (delivery_id, delivery_detail_id, sale_order_id, sale_order_detail_id, customer_dept_id,
+             sku_id, product_name, allocated_quantity, unit_price, is_deleted, create_time, create_by)
+        values
+        <foreach item="item" collection="list" separator=",">
+            (#{item.deliveryId}, #{item.deliveryDetailId}, #{item.saleOrderId}, #{item.saleOrderDetailId}, #{item.customerDeptId},
+             #{item.skuId}, #{item.productName}, #{item.allocatedQuantity}, #{item.unitPrice}, 0, #{item.createTime}, #{item.createBy})
+        </foreach>
+    </insert>
+
+    <update id="updateDeliverySourceItem" parameterType="com.lin.distribution.domain.DeliverySourceItem">
+        update t_delivery_source_item
+        <trim prefix="SET" suffixOverrides=",">
+            <if test="deliveryId != null">delivery_id = #{deliveryId},</if>
+            <if test="deliveryDetailId != null">delivery_detail_id = #{deliveryDetailId},</if>
+            <if test="saleOrderId != null">sale_order_id = #{saleOrderId},</if>
+            <if test="saleOrderDetailId != null">sale_order_detail_id = #{saleOrderDetailId},</if>
+            <if test="customerDeptId != null">customer_dept_id = #{customerDeptId},</if>
+            <if test="skuId != null">sku_id = #{skuId},</if>
+            <if test="productName != null and productName != ''">product_name = #{productName},</if>
+            <if test="allocatedQuantity != null">allocated_quantity = #{allocatedQuantity},</if>
+            <if test="unitPrice != null">unit_price = #{unitPrice},</if>
+            <if test="isDeleted != null">is_deleted = #{isDeleted},</if>
+        </trim>
+        where id = #{id}
+    </update>
+
+    <!-- 作废释放：按送货单逻辑删除来源分配（软删保审计，is_deleted 参与唯一键以便重建） -->
+    <update id="deleteByDeliveryId" parameterType="Long">
+        update t_delivery_source_item set is_deleted = 1
+        where delivery_id = #{deliveryId} and is_deleted = 0
+    </update>
+</mapper>

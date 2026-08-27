@@ -101,7 +101,7 @@ public class AcceptanceServiceImpl implements AcceptanceService {
             item.setDeliveredQuantity(delivered);
             item.setActualQuantity(delivered); // 默认实收=送货，可超送在录入时改
             item.setUnitPrice(price);
-            item.setLossQuantity(BigDecimal.ZERO);
+            item.setDifferenceQuantity(BigDecimal.ZERO);
             item.setActualAmount(scale(price.multiply(delivered)));
             item.setSort(sort++);
             items.add(item);
@@ -167,7 +167,7 @@ public class AcceptanceServiceImpl implements AcceptanceService {
             AcceptanceItem update = new AcceptanceItem();
             update.setId(item.getId());
             update.setActualQuantity(actual);
-            update.setLossQuantity(loss);
+            update.setDifferenceQuantity(loss);
             // 负损耗保留原因；非负损耗清空原因避免脏数据
             update.setLossReason(loss.compareTo(BigDecimal.ZERO) < 0 ? lossReason : null);
             update.setActualAmount(scale(price.multiply(actual)));

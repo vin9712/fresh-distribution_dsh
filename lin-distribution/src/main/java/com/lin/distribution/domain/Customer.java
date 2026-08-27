@@ -68,6 +68,16 @@ public class Customer extends BaseEntity {
      */
     private Boolean isDeleted;
 
+    /**
+     * 组单策略（S14/D-015：CUSTOMER_DATE 客户总单 / DELIVERY_POINT_DATE 按点成单，客户级配置）
+     */
+    private String docScopeType;
+
+    /**
+     * 相同商品合并成行（客户级配置，总单打印时同商品多订单行合并）
+     */
+    private Boolean docMergeSameItem;
+
 
     @Override
     public String toString() {
@@ -80,6 +90,8 @@ public class Customer extends BaseEntity {
                 .append("address" , getAddress())
                 .append("valid" , getValid())
                 .append("isDeleted" , getIsDeleted())
+                .append("docScopeType" , getDocScopeType())
+                .append("docMergeSameItem" , getDocMergeSameItem())
                 .append("createBy" , getCreateBy())
                 .append("createTime" , getCreateTime())
                 .append("updateBy" , getUpdateBy())

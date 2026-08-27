@@ -1,0 +1,113 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+"http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.lin.distribution.mapper.DeliveryBatchMapper">
+
+    <resultMap type="com.lin.distribution.domain.DeliveryBatch" id="DeliveryBatchResult">
+        <result property="id"    column="id"    />
+        <result property="customerId"    column="customer_id"    />
+        <result property="deliveryDate"    column="delivery_date"    />
+        <result property="scopeType"    column="scope_type"    />
+        <result property="mergeSameItem"    column="merge_same_item"    />
+        <result property="templateId"    column="template_id"    />
+        <result property="layoutJson"    column="layout_json"    />
+        <result property="status"    column="status"    />
+        <result property="version"    column="version"    />
+        <result property="isDeleted"    column="is_deleted"    />
+        <result property="createBy"    column="create_by"    />
+        <result property="createTime"    column="create_time"    />
+        <result property="updateBy"    column="update_by"    />
+        <result property="updateTime"    column="update_time"    />
+        <result property="remark"    column="remark"    />
+        <result property="customerName"    column="customerName"    />
+    </resultMap>
+
+    <sql id="selectDeliveryBatchVo">
+        select b.id, b.customer_id, b.delivery_date, b.scope_type, b.merge_same_item, b.template_id,
+               b.layout_json, b.status, b.version, b.is_deleted, b.create_by, b.create_time, b.update_by, b.update_time, b.remark,
+               coalesce(customer.alias, customer.name) as customerName
+        from t_delivery_batch b
+        left join t_customer customer on customer.id = b.customer_id
+    </sql>
+
+    <select id="selectDeliveryBatchList" parameterType="com.lin.distribution.domain.DeliveryBatch" resultMap="DeliveryBatchResult">
+        <include refid="selectDeliveryBatchVo"/>
+        <where>
+            b.is_deleted = 0
+            <if test="customerId != null "> and b.customer_id = #{customerId}</if>
+            <if test="deliveryDate != null "> and b.delivery_date = #{deliveryDate}</if>
+            <if test="scopeType != null  and scopeType != ''"> and b.scope_type = #{scopeType}</if>
+            <if test="status != null "> and b.status = #{status}</if>
+        </where>
+        order by b.delivery_date desc, b.id desc
+    </select>
+
+    <select id="selectDeliveryBatchById" parameterType="Long" resultMap="DeliveryBatchResult">
+        <include refid="selectDeliveryBatchVo"/>
+        where b.id = #{id} and b.is_deleted = 0
+    </select>
+
+    <select id="selectByCustomerAndDate" resultMap="DeliveryBatchResult">
+        <include refid="selectDeliveryBatchVo"/>
+        where b.customer_id = #{customerId}
+          and b.delivery_date = #{deliveryDate}
+          and b.is_deleted = 0
+        limit 1
+    </select>
+
+    <insert id="insertDeliveryBatch" parameterType="com.lin.distribution.domain.DeliveryBatch" useGeneratedKeys="true" keyProperty="id">
+        insert into t_delivery_batch
+        <trim prefix="(" suffix=")" suffixOverrides=",">
+            <if test="customerId != null">customer_id,</if>
+            <if test="deliveryDate != null">delivery_date,</if>
+            <if test="scopeType != null and scopeType != ''">scope_type,</if>
+            <if test="mergeSameItem != null">merge_same_item,</if>
+            <if test="templateId != null">template_id,</if>
+            <if test="layoutJson != null">layout_json,</if>
+            <if test="status != null">status,</if>
+            <if test="version != null">version,</if>
+            <if test="isDeleted != null">is_deleted,</if>
+            <if test="createBy != null">create_by,</if>
+            <if test="createTime != null">create_time,</if>
+            <if test="updateBy != null">update_by,</if>
+            <if test="updateTime != null">update_time,</if>
+            <if test="remark != null">remark,</if>
+         </trim>
+        <trim prefix="values (" suffix=")" suffixOverrides=",">
+            <if test="customerId != null">#{customerId},</if>
+            <if test="deliveryDate != null">#{deliveryDate},</if>
+            <if test="scopeType != null and scopeType != ''">#{scopeType},</if>
+            <if test="mergeSameItem != null">#{mergeSameItem},</if>
+            <if test="templateId != null">#{templateId},</if>
+            <if test="layoutJson != null">#{layoutJson},</if>
+            <if test="status != null">#{status},</if>
+            <if test="version != null">#{version},</if>
+            <if test="isDeleted != null">#{isDeleted},</if>
+            <if test="createBy != null">#{createBy},</if>
+            <if test="createTime != null">#{createTime},</if>
+            <if test="updateBy != null">#{updateBy},</if>
+            <if test="updateTime != null">#{updateTime},</if>
+            <if test="remark != null">#{remark},</if>
+         </trim>
+    </insert>
+
+    <update id="updateDeliveryBatch" parameterType="com.lin.distribution.domain.DeliveryBatch">
+        update t_delivery_batch
+        <trim prefix="SET" suffixOverrides=",">
+            <if test="customerId != null">customer_id = #{customerId},</if>
+            <if test="deliveryDate != null">delivery_date = #{deliveryDate},</if>
+            <if test="scopeType != null and scopeType != ''">scope_type = #{scopeType},</if>
+            <if test="mergeSameItem != null">merge_same_item = #{mergeSameItem},</if>
+            <if test="templateId != null">template_id = #{templateId},</if>
+            <if test="layoutJson != null">layout_json = #{layoutJson},</if>
+            <if test="status != null">status = #{status},</if>
+            <if test="version != null">version = #{version},</if>
+            <if test="isDeleted != null">is_deleted = #{isDeleted},</if>
+            <if test="updateBy != null">update_by = #{updateBy},</if>
+            <if test="updateTime != null">update_time = #{updateTime},</if>
+            <if test="remark != null">remark = #{remark},</if>
+        </trim>
+        where id = #{id}
+    </update>
+</mapper>

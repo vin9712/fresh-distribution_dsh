@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+"http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.lin.distribution.mapper.JobRunLogMapper">
+
+    <resultMap type="com.lin.distribution.domain.JobRunLog" id="JobRunLogResult">
+        <result property="id"    column="id"    />
+        <result property="jobName"    column="job_name"    />
+        <result property="bizDate"    column="biz_date"    />
+        <result property="status"    column="status"    />
+        <result property="message"    column="message"    />
+        <result property="warningCount"    column="warning_count"    />
+        <result property="runTime"    column="run_time"    />
+    </resultMap>
+
+    <sql id="selectJobRunLogVo">
+        select id, job_name, biz_date, status, message, warning_count, run_time
+        from t_job_run_log
+    </sql>
+
+    <select id="selectJobRunLogList" parameterType="com.lin.distribution.domain.JobRunLog" resultMap="JobRunLogResult">
+        <include refid="selectJobRunLogVo"/>
+        <where>
+            <if test="jobName != null  and jobName != ''"> and job_name = #{jobName}</if>
+            <if test="bizDate != null "> and biz_date = #{bizDate}</if>
+            <if test="status != null "> and status = #{status}</if>
+        </where>
+        order by run_time desc
+    </select>
+
+    <select id="selectJobRunLogById" parameterType="Long" resultMap="JobRunLogResult">
+        <include refid="selectJobRunLogVo"/>
+        where id = #{id}
+    </select>
+
+    <insert id="insertJobRunLog" parameterType="com.lin.distribution.domain.JobRunLog" useGeneratedKeys="true" keyProperty="id">
+        insert into t_job_run_log
+        <trim prefix="(" suffix=")" suffixOverrides=",">
+            <if test="jobName != null">job_name,</if>
+            <if test="bizDate != null">biz_date,</if>
+            <if test="status != null">status,</if>
+            <if test="message != null">message,</if>
+            <if test="warningCount != null">warning_count,</if>
+            <if test="runTime != null">run_time,</if>
+         </trim>
+        <trim prefix="values (" suffix=")" suffixOverrides=",">
+            <if test="jobName != null">#{jobName},</if>
+            <if test="bizDate != null">#{bizDate},</if>
+            <if test="status != null">#{status},</if>
+            <if test="message != null">#{message},</if>
+            <if test="warningCount != null">#{warningCount},</if>
+            <if test="runTime != null">#{runTime},</if>
+         </trim>
+    </insert>
+</mapper>

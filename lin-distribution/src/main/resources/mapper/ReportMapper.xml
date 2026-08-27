@@ -19,7 +19,7 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         <result property="productSpec"    column="product_spec"    />
         <result property="productUnit"    column="product_unit"    />
         <result property="actualQuantity"    column="actual_quantity"    />
-        <result property="lossQuantity"    column="loss_quantity"    />
+        <result property="lossQuantity"    column="difference_quantity"    />
         <result property="unitPrice"    column="unit_price"    />
         <result property="actualAmount"    column="actual_amount"    />
         <result property="sort"    column="sort"    />
@@ -40,7 +40,7 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
                ai.product_spec,
                ai.product_unit,
                ai.actual_quantity,
-               ai.loss_quantity,
+               ai.difference_quantity,
                ai.unit_price,
                ai.actual_amount,
                ai.sort

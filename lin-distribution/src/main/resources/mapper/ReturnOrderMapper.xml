@@ -1,0 +1,143 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+"http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.lin.distribution.mapper.ReturnOrderMapper">
+
+    <resultMap type="com.lin.distribution.domain.ReturnOrder" id="ReturnOrderResult">
+        <result property="id"    column="id"    />
+        <result property="code"    column="code"    />
+        <result property="customerId"    column="customer_id"    />
+        <result property="customerDeptId"    column="customer_dept_id"    />
+        <result property="deliveryId"    column="delivery_id"    />
+        <result property="acceptanceId"    column="acceptance_id"    />
+        <result property="returnDate"    column="return_date"    />
+        <result property="totalAmount"    column="total_amount"    />
+        <result property="status"    column="status"    />
+        <result property="inspectedBy"    column="inspected_by"    />
+        <result property="inspectedTime"    column="inspected_time"    />
+        <result property="settleScope"    column="settle_scope"    />
+        <result property="version"    column="version"    />
+        <result property="isDeleted"    column="is_deleted"    />
+        <result property="createBy"    column="create_by"    />
+        <result property="createTime"    column="create_time"    />
+        <result property="updateBy"    column="update_by"    />
+        <result property="updateTime"    column="update_time"    />
+        <result property="remark"    column="remark"    />
+        <result property="customerName"    column="customerName"    />
+        <result property="customerDeptName"    column="customerDeptName"    />
+        <result property="acceptanceCode"    column="acceptanceCode"    />
+    </resultMap>
+
+    <sql id="selectReturnOrderVo">
+        select ro.id, ro.code, ro.customer_id, ro.customer_dept_id, ro.delivery_id, ro.acceptance_id,
+               ro.return_date, ro.total_amount, ro.status, ro.inspected_by, ro.inspected_time, ro.settle_scope,
+               ro.version, ro.is_deleted, ro.create_by, ro.create_time, ro.update_by, ro.update_time, ro.remark,
+               coalesce(customer.alias, customer.name) as customerName,
+               cd.name as customerDeptName,
+               acc.code as acceptanceCode
+        from t_return_order ro
+        left join t_customer customer on customer.id = ro.customer_id
+        left join t_customer_dept cd on cd.id = ro.customer_dept_id
+        left join acceptance acc on acc.id = ro.acceptance_id
+    </sql>
+
+    <select id="selectReturnOrderList" parameterType="com.lin.distribution.domain.ReturnOrder" resultMap="ReturnOrderResult">
+        <include refid="selectReturnOrderVo"/>
+        <where>
+            ro.is_deleted = 0
+            <if test="code != null  and code != ''"> and ro.code = #{code}</if>
+            <if test="customerId != null "> and ro.customer_id = #{customerId}</if>
+            <if test="customerDeptId != null "> and ro.customer_dept_id = #{customerDeptId}</if>
+            <if test="deliveryId != null "> and ro.delivery_id = #{deliveryId}</if>
+            <if test="acceptanceId != null "> and ro.acceptance_id = #{acceptanceId}</if>
+            <if test="returnDate != null "> and ro.return_date = #{returnDate}</if>
+            <if test="status != null "> and ro.status = #{status}</if>
+            <if test="settleScope != null "> and ro.settle_scope = #{settleScope}</if>
+        </where>
+        order by ro.return_date desc, ro.id desc
+    </select>
+
+    <select id="selectReturnOrderById" parameterType="Long" resultMap="ReturnOrderResult">
+        <include refid="selectReturnOrderVo"/>
+        where ro.id = #{id} and ro.is_deleted = 0
+    </select>
+
+    <insert id="insertReturnOrder" parameterType="com.lin.distribution.domain.ReturnOrder" useGeneratedKeys="true" keyProperty="id">
+        insert into t_return_order
+        <trim prefix="(" suffix=")" suffixOverrides=",">
+            <if test="code != null and code != ''">code,</if>
+            <if test="customerId != null">customer_id,</if>
+            <if test="customerDeptId != null">customer_dept_id,</if>
+            <if test="deliveryId != null">delivery_id,</if>
+            <if test="acceptanceId != null">acceptance_id,</if>
+            <if test="returnDate != null">return_date,</if>
+            <if test="totalAmount != null">total_amount,</if>
+            <if test="status != null">status,</if>
+            <if test="inspectedBy != null">inspected_by,</if>
+            <if test="inspectedTime != null">inspected_time,</if>
+            <if test="settleScope != null">settle_scope,</if>
+            <if test="version != null">version,</if>
+            <if test="isDeleted != null">is_deleted,</if>
+            <if test="createBy != null">create_by,</if>
+            <if test="createTime != null">create_time,</if>
+            <if test="updateBy != null">update_by,</if>
+            <if test="updateTime != null">update_time,</if>
+            <if test="remark != null">remark,</if>
+         </trim>
+        <trim prefix="values (" suffix=")" suffixOverrides=",">
+            <if test="code != null and code != ''">#{code},</if>
+            <if test="customerId != null">#{customerId},</if>
+            <if test="customerDeptId != null">#{customerDeptId},</if>
+            <if test="deliveryId != null">#{deliveryId},</if>
+            <if test="acceptanceId != null">#{acceptanceId},</if>
+            <if test="returnDate != null">#{returnDate},</if>
+            <if test="totalAmount != null">#{totalAmount},</if>
+            <if test="status != null">#{status},</if>
+            <if test="inspectedBy != null">#{inspectedBy},</if>
+            <if test="inspectedTime != null">#{inspectedTime},</if>
+            <if test="settleScope != null">#{settleScope},</if>
+            <if test="version != null">#{version},</if>
+            <if test="isDeleted != null">#{isDeleted},</if>
+            <if test="createBy != null">#{createBy},</if>
+            <if test="createTime != null">#{createTime},</if>
+            <if test="updateBy != null">#{updateBy},</if>
+            <if test="updateTime != null">#{updateTime},</if>
+            <if test="remark != null">#{remark},</if>
+         </trim>
+    </insert>
+
+    <update id="updateReturnOrder" parameterType="com.lin.distribution.domain.ReturnOrder">
+        update t_return_order
+        <trim prefix="SET" suffixOverrides=",">
+            <if test="code != null and code != ''">code = #{code},</if>
+            <if test="customerId != null">customer_id = #{customerId},</if>
+            <if test="customerDeptId != null">customer_dept_id = #{customerDeptId},</if>
+            <if test="deliveryId != null">delivery_id = #{deliveryId},</if>
+            <if test="acceptanceId != null">acceptance_id = #{acceptanceId},</if>
+            <if test="returnDate != null">return_date = #{returnDate},</if>
+            <if test="totalAmount != null">total_amount = #{totalAmount},</if>
+            <if test="status != null">status = #{status},</if>
+            <if test="inspectedBy != null">inspected_by = #{inspectedBy},</if>
+            <if test="inspectedTime != null">inspected_time = #{inspectedTime},</if>
+            <if test="settleScope != null">settle_scope = #{settleScope},</if>
+            <if test="version != null">version = #{version},</if>
+            <if test="isDeleted != null">is_deleted = #{isDeleted},</if>
+            <if test="updateBy != null">update_by = #{updateBy},</if>
+            <if test="updateTime != null">update_time = #{updateTime},</if>
+            <if test="remark != null">remark = #{remark},</if>
+        </trim>
+        where id = #{id}
+    </update>
+
+    <delete id="deleteReturnOrderById" parameterType="Long">
+        delete from t_return_order where id = #{id}
+    </delete>
+
+    <delete id="deleteReturnOrderByIds" parameterType="String">
+        delete from t_return_order where id in
+        <foreach item="id" collection="array" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+    </delete>
+</mapper>

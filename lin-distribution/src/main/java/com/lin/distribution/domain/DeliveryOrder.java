@@ -40,21 +40,57 @@ public class DeliveryOrder extends BaseEntity {
     private Long deliveryPointId;
 
     /**
+     * 所属配送批次（S14：t_delivery_batch.id）
+     */
+    private Long batchId;
+
+    /**
+     * 本单组单范围快照（总单时=CUSTOMER_DATE，默认 DELIVERY_POINT_DATE）
+     */
+    private String scopeType;
+
+    /**
+     * 单据种类：0正常单 1补充单(遗漏订单单独成单)
+     */
+    private Integer docKind;
+
+    /**
+     * 作废重建来源单ID（predecessor 链）
+     */
+    private Long predecessorId;
+
+    /**
+     * 打印次数
+     */
+    private Integer printCount;
+
+    /**
+     * 作废原因（S14：状态=已作废时必填）
+     */
+    private String voidReason;
+
+    /**
+     * 作废人
+     */
+    private String voidBy;
+
+    /**
+     * 作废时间
+     */
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
+    private Date voidTime;
+
+    /**
      * 送货单编号
      */
     @Excel(name = "送货单编号")
     private String code;
 
     /**
-     * 送货单状态：0待打印,1已打印,2已送达
+     * 送货单状态：0待打印,1已打印,2已送达,3已作废
      */
-    @Excel(name = "送货单状态：0待打印,1已打印,2已送达")
+    @Excel(name = "送货单状态：0待打印,1已打印,2已送达,3已作废")
     private Integer status;
-
-    /**
-     * 打印次数
-     */
-    private Integer printCount;
 
     /**
      * 配送日期

@@ -7,6 +7,7 @@ import lombok.Data;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.Date;
 
 /**
  * 验收单对象 acceptance（DESIGN.md §9：一单一验，验收总额为结算依据）
@@ -48,6 +49,16 @@ public class Acceptance extends BaseEntity {
     /** 状态：0草稿 1已提交 */
     @Excel(name = "状态", readConverterExp = "0=草稿,1=已提交")
     private Integer status;
+
+    /** 撤回原因（S14：撤回后回填，作为已提交→草稿的审计线索） */
+    private String revokeReason;
+
+    /** 撤回人 */
+    private String revokedBy;
+
+    /** 撤回时间 */
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
+    private Date revokedTime;
 
     /** 送货单编号（列表展示用，查询时关联填充） */
     private String deliveryCode;

@@ -8,7 +8,10 @@ import java.math.BigDecimal;
 
 /**
  * 验收单明细对象 acceptance_item
- * 实收金额=actual_quantity×unit_price（后端重算）；损耗=实收−送货（可为负，负值必填原因）
+ * 实收金额=actual_quantity×unit_price（后端重算）；
+ * 差异=实收−送货（正超收/负短收，双向差异均必填原因，S14 v1.1 修订）。
+ * S14：loss_quantity 更名 difference_quantity，实体字段同步更名为 differenceQuantity，
+ *      保留 @Deprecated getLossQuantity()/setLossQuantity() 转发一个版本以兼容旧 JSON 报文。
  *
  * @author dsh
  */
@@ -26,6 +29,12 @@ public class AcceptanceItem implements Serializable {
     /** 送货单明细ID */
     @Excel(name = "送货单明细ID")
     private Long deliveryItemId;
+
+    /** 明细所属配送点（S14：A类总单按点展开录入即归属，B/C类也填） */
+    private Long customerDeptId;
+
+    /** 配送点名称（列表展示用，查询时关联填充，非表字段） */
+    private String customerDeptName;
 
     /** SKU（临时商品可空） */
     @Excel(name = "SKU ID")
@@ -59,12 +68,15 @@ public class AcceptanceItem implements Serializable {
     @Excel(name = "单价")
     private BigDecimal unitPrice;
 
-    /** 损耗数量（实收-送货，可为负） */
-    @Excel(name = "损耗数量")
-    private BigDecimal lossQuantity;
+    /** 验收差异 = 实收−送货（正超收/负短收） */
+    @Excel(name = "差异数量")
+    private BigDecimal differenceQuantity;
 
-    /** 负损耗原因（损耗为负必填） */
-    @Excel(name = "损耗原因")
+    /** 差异原因类型：1短收(acceptance_shortfall_reason) 2超收(acceptance_overage_reason) */
+    private Integer reasonType;
+
+    /** 差异原因（短收/超收字典值） */
+    @Excel(name = "差异原因")
     private String lossReason;
 
     /** 实收金额（实收×单价） */
@@ -74,4 +86,20 @@ public class AcceptanceItem implements Serializable {
     /** 排序 */
     @Excel(name = "排序")
     private Integer sort;
+
+    /**
+     * @deprecated S14 已更名 {@link #differenceQuantity}，保留一个版本兼容旧 JSON/调用方
+     */
+    @Deprecated
+    public BigDecimal getLossQuantity() {
+        return differenceQuantity;
+    }
+
+    /**
+     * @deprecated S14 已更名 {@link #differenceQuantity}，保留一个版本兼容旧 JSON/调用方
+     */
+    @Deprecated
+    public void setLossQuantity(BigDecimal lossQuantity) {
+        this.differenceQuantity = lossQuantity;
+    }
 }
