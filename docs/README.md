@@ -20,6 +20,9 @@ docs/
 | 文档 | 说明 |
 |---|---|
 | [DESIGN.md](01-design/DESIGN.md) | **唯一权威设计**，禁止 Agent 修改，变更设计须先经用户确认 |
+| [../销售订单与送货单关系设计.md](../销售订单与送货单关系设计.md) | 订单→送货→验收业务关系基线（As-Is / To-Be，决策 D-001~D-037）|
+| [订单-送货-验收链路详细设计.md](01-design/订单-送货-验收链路详细设计.md) | 链路详细设计：库表 / 服务 / 接口 / 页面改造与实施切片（依据上述基线） |
+| [订单-送货-验收链路开发进度.md](01-design/订单-送货-验收链路开发进度.md) | **进度看板**：决策浓缩 / 库表变更清单 / T1~T8 勾选清单 / 进度日志 |
 | [DEVELOPMENT.md](01-design/DEVELOPMENT.md) | 开发文档：领域模型、表结构、接口契约、页面规划、实施阶段 |
 | [agent-development-brief.md](01-design/agent-development-brief.md) | Agent 任务切片规则、验收协议与报告格式 |
 | [DEV-ENV-NOTES.md](01-design/DEV-ENV-NOTES.md) | 开发环境已验证规则（Node/npm/git、编码陷阱、E2E 工具） |
