@@ -34,4 +34,12 @@ public interface JobRunLogMapper {
      * @return 影响行数
      */
     int insertJobRunLog(JobRunLog jobRunLog);
+
+    /**
+     * 查询指定任务最近一次运行记录（工作台生成异常告警数据源，Q36/D-037）
+     *
+     * @param jobName 任务名（DELIVERY_GENERATE）
+     * @return 最近一次运行记录（无则 null）
+     */
+    JobRunLog selectLatestByJobName(String jobName);
 }

@@ -120,4 +120,40 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         </trim>
         where id = #{id}
     </update>
+
+    <!-- 客户日总表（S14/D-027/28）：source_item 台账聚合，标准品名=coalesce(sku.name, 快照品名)，不拆价不显价 -->
+    <select id="selectBatchViewRowsBySource" resultType="com.lin.distribution.vo.DeliveryBatchViewVO$Row">
+        select si.sku_id                                          as skuId,
+               coalesce(sku.name, si.product_name)                as productName,
+               si.customer_dept_id                                as deptId,
+               cd.name                                            as deptName,
+               sum(si.allocated_quantity)                         as quantity
+        from t_delivery_source_item si
+        join t_delivery_order o on o.id = si.delivery_id and o.is_deleted = 0 and o.status != 3
+        left join t_product_sku sku on sku.id = si.sku_id
+        left join t_customer_dept cd on cd.id = si.customer_dept_id
+        where si.is_deleted = 0
+          and o.customer_id = #{customerId}
+          and o.delivery_date = #{deliveryDate}
+        group by si.sku_id, coalesce(sku.name, si.product_name), si.customer_dept_id, cd.name
+        order by productName, deptName
+    </select>
+
+    <!-- 客户日总表历史回退：无台账历史单按送货明细行聚合，配送点回退单据 delivery_point_id -->
+    <select id="selectBatchViewRowsByDetail" resultType="com.lin.distribution.vo.DeliveryBatchViewVO$Row">
+        select dod.sku_id                                         as skuId,
+               coalesce(sku.name, dod.product_name)               as productName,
+               coalesce(dod.customer_dept_id, o.delivery_point_id) as deptId,
+               cd.name                                            as deptName,
+               sum(dod.num)                                       as quantity
+        from t_delivery_order_detail dod
+        join t_delivery_order o on o.id = dod.delivery_id and o.is_deleted = 0 and o.status != 3
+        left join t_product_sku sku on sku.id = dod.sku_id
+        left join t_customer_dept cd on cd.id = coalesce(dod.customer_dept_id, o.delivery_point_id)
+        where dod.is_deleted = 0
+          and o.customer_id = #{customerId}
+          and o.delivery_date = #{deliveryDate}
+        group by dod.sku_id, coalesce(sku.name, dod.product_name), coalesce(dod.customer_dept_id, o.delivery_point_id), cd.name
+        order by productName, deptName
+    </select>
 </mapper>

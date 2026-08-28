@@ -1,10 +1,12 @@
 package com.lin.distribution.domain;
 
 import com.lin.common.annotation.Excel;
+import com.lin.distribution.vo.DeliverySourceVO;
 import lombok.Data;
 
 import java.io.Serializable;
 import java.math.BigDecimal;
+import java.util.List;
 
 /**
  * 验收单明细对象 acceptance_item
@@ -86,6 +88,12 @@ public class AcceptanceItem implements Serializable {
     /** 排序 */
     @Excel(name = "排序")
     private Integer sort;
+
+    /** 来源对照（S14 §八：来源订单号/下单数量/下单单价，join t_delivery_source_item；历史单为空列表，前端展示"—历史数据—"）——非持久化字段 */
+    private transient List<DeliverySourceVO.SourceRow> sources;
+
+    /** 累计已退数量（退货单页面可退量=实收−累计已退，含草稿/已提交占用；status=3 已完成不占用）——非持久化字段 */
+    private transient BigDecimal returnedQuantity;
 
     /**
      * @deprecated S14 已更名 {@link #differenceQuantity}，保留一个版本兼容旧 JSON/调用方

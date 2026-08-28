@@ -34,6 +34,13 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         where id = #{id}
     </select>
 
+    <select id="selectLatestByJobName" parameterType="String" resultMap="JobRunLogResult">
+        <include refid="selectJobRunLogVo"/>
+        where job_name = #{jobName}
+        order by id desc
+        limit 1
+    </select>
+
     <insert id="insertJobRunLog" parameterType="com.lin.distribution.domain.JobRunLog" useGeneratedKeys="true" keyProperty="id">
         insert into t_job_run_log
         <trim prefix="(" suffix=")" suffixOverrides=",">

@@ -7,3 +7,11 @@ export function getWorkbenchSummary() {
     method: 'get'
   })
 }
+
+// 送货单生成异常告警（S14/Q36：最近一次 DELIVERY_GENERATE 失败/部分失败时返回记录，正常返回 null）
+export function getJobAlert() {
+  return request({
+    url: '/workbench/job-alert',
+    method: 'get'
+  })
+}

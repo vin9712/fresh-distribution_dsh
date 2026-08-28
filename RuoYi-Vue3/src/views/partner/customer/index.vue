@@ -212,6 +212,17 @@
             >
           </el-radio-group>
         </el-form-item>
+        <el-form-item label="组单策略" prop="docScopeType">
+          <el-select v-model="form.docScopeType" placeholder="请选择组单策略" style="width: 100%">
+            <el-option label="每配送点一张单" value="DELIVERY_POINT_DATE" />
+            <el-option label="跨点总单（按客户日合并）" value="CUSTOMER_DATE" />
+          </el-select>
+          <div class="scope-hint">生成送货单时的单据范围：默认每配送点一张；跨点总单适合统一配送的客户</div>
+        </el-form-item>
+        <el-form-item label="相同商品合并" prop="docMergeSameItem">
+          <el-switch v-model="form.docMergeSameItem" />
+          <span class="scope-hint">开：同一客户多张订单的相同商品合并为一行（不同价必拆行）；关：一订单行一行</span>
+        </el-form-item>
         <el-form-item label="备注" prop="remark">
           <el-input
             v-model="form.remark"
@@ -389,6 +400,8 @@ export default {
         tel: null,
         address: null,
         valid: 1,
+        docScopeType: "DELIVERY_POINT_DATE",
+        docMergeSameItem: true,
         isDeleted: 0,
         createBy: null,
         createTime: null,
@@ -512,3 +525,12 @@ export default {
   },
 };
 </script>
+
+<style scoped>
+.scope-hint {
+  font-size: 12px;
+  color: #909399;
+  line-height: 1.4;
+  margin-top: 2px;
+}
+</style>

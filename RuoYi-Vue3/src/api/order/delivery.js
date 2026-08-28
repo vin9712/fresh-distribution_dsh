@@ -109,6 +109,15 @@ export function listDeliverySources(id) {
   })
 }
 
+// 客户日总表（S14/D-027/28：标准品名+总量+各点小计，无价格，内部配货/采购视图）
+export function batchView(customerId, date) {
+  return request({
+    url: '/order/delivery/batch/view',
+    method: 'get',
+    params: { customerId: customerId, date: date }
+  })
+}
+
 // 新增送货单
 export function addDelivery(data) {
   return request({

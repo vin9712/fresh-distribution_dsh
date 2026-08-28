@@ -1,5 +1,20 @@
 <template>
   <div class="app-container">
+    <!-- 送货单生成异常高优告警（S14/Q36/D-037：定时窗口失败/部分失败时置顶提示） -->
+    <el-alert
+      v-if="jobAlert"
+      type="error"
+      :closable="false"
+      show-icon
+      class="job-alert"
+    >
+      <template #title>
+        <span class="job-alert-title">
+          {{ jobAlertText }}
+          <el-button link type="primary" @click="goTo({ path: '/order/delivery' })">去送货单页检查</el-button>
+        </span>
+      </template>
+    </el-alert>
     <el-row :gutter="16">
       <el-col
         v-for="item in cards"
@@ -23,7 +38,7 @@
 </template>
 
 <script>
-import { getWorkbenchSummary } from "@/api/workbench";
+import { getWorkbenchSummary, getJobAlert } from "@/api/workbench";
 import {
   EditPen,
   Checked,
@@ -43,17 +58,20 @@ export default {
     return {
       loading: false,
       summary: {},
+      // 最近一次送货单生成任务异常记录（null = 无告警）
+      jobAlert: null,
       cards: [
         { key: "draftOrders", title: "待录/待确认订单", icon: "EditPen", color: "#409eff", path: "/order/sale" },
         { key: "pendingPurchase", title: "待生成采购单", icon: "ShoppingCart", color: "#67c23a", path: "/order/sale" },
         { key: "pendingPrint", title: "待打印送货单", icon: "Printer", color: "#e6a23c", path: "/order/delivery" },
-        { key: "pendingAcceptance", title: "待验收", icon: "Box", color: "#f56c6c", path: "/order/sale", query: { status: "2" } },
+        { key: "pendingAcceptance", title: "待验收", icon: "Box", color: "#f56c6c", path: "/order/acceptance" },
         { key: "pendingAdjust", title: "待处理加退换", icon: "RefreshLeft", color: "#909399", path: "/order/sale" },
       ],
     };
   },
   created() {
     this.getSummary();
+    this.refreshJobAlert();
   },
   methods: {
     getSummary() {
@@ -67,6 +85,23 @@ export default {
           this.loading = false;
         });
     },
+    /** 拉取最近一次 DELIVERY_GENERATE 运行结果（失败/部分失败→高优告警） */
+    refreshJobAlert() {
+      getJobAlert()
+        .then((response) => {
+          this.jobAlert = response.data || null;
+        })
+        .catch(() => {});
+    },
+    jobAlertText() {
+      const a = this.jobAlert || {};
+      const kind = a.status === 2 ? "部分失败（存在遗漏订单）" : "失败";
+      const warn = a.warningCount ? "，遗漏订单 " + a.warningCount + " 个" : "";
+      return (
+        "送货单定时生成" + kind + "：业务日期 " + (a.bizDate || "—") + warn +
+        (a.message ? "（" + a.message + "）" : "")
+      );
+    },
     goTo(item) {
       // query：可选过滤条件（如待验收卡 → 订单页并筛选「已配送」）
       this.$router.push({ path: item.path, query: item.query });
@@ -76,6 +111,15 @@ export default {
 </script>
 
 <style lang="scss" scoped>
+.job-alert {
+  margin-bottom: 16px;
+  .job-alert-title {
+    font-weight: 600;
+    .el-button {
+      margin-left: 8px;
+    }
+  }
+}
 .workbench-card {
   cursor: pointer;
   margin-bottom: 16px;

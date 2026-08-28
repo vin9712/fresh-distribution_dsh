@@ -8,6 +8,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -27,6 +28,7 @@ import com.lin.distribution.domain.DeliveryOrder;
 import com.lin.distribution.dto.DeliveryByOrdersDTO;
 import com.lin.distribution.dto.DeliveryNoPrintDTO;
 import com.lin.distribution.dto.DeliveryVoidDTO;
+import com.lin.distribution.service.DeliveryBatchService;
 import com.lin.distribution.service.DeliveryGenerationService;
 import com.lin.distribution.service.DeliveryOrderService;
 import com.lin.distribution.service.PrintTemplateService;
@@ -47,6 +49,8 @@ public class DeliveryOrderController extends BaseController {
     private DeliveryOrderService deliveryOrderService;
     @Autowired
     private DeliveryGenerationService deliveryGenerationService;
+    @Autowired
+    private DeliveryBatchService deliveryBatchService;
     @Autowired
     private PrintTemplateService printTemplateService;
 
@@ -108,6 +112,17 @@ public class DeliveryOrderController extends BaseController {
     @GetMapping(value = "/{id}/sources")
     public AjaxResult sources(@PathVariable("id") Long id) {
         return success(deliveryOrderService.selectDeliverySources(id));
+    }
+
+    /**
+     * 客户日总表（S14 §6.1/§八，D-027/28）：标准品名+总量+各配送点小计，
+     * 无价格、不因价格拆行；内部配货/采购视图，历史单回退明细行聚合。
+     */
+    @PreAuthorize("@ss.hasPermi('order:delivery:batch')")
+    @GetMapping("/batch/view")
+    public AjaxResult batchView(@RequestParam("customerId") Long customerId,
+                                @RequestParam("date") String date) {
+        return success(deliveryBatchService.selectBatchView(customerId, date));
     }
 
     /**

@@ -63,4 +63,26 @@ public interface DeliveryBatchMapper {
      * @return 影响行数
      */
     int updateDeliveryBatch(DeliveryBatch deliveryBatch);
+
+    /**
+     * 客户日总表（S14 §6.1 / D-027/28）：按 source_item 台账聚合 标准品名×配送点 数量（无价格），
+     * 返回扁平行由服务层聚合。仅统计有效送货单（status != 3 且 is_deleted = 0）。
+     *
+     * @param customerId   客户ID
+     * @param deliveryDate 配送日期
+     * @return 品名×配送点粒度扁平行
+     */
+    List<com.lin.distribution.vo.DeliveryBatchViewVO.Row> selectBatchViewRowsBySource(@Param("customerId") Long customerId,
+                                                                                     @Param("deliveryDate") String deliveryDate);
+
+    /**
+     * 客户日总表历史回退：无 source_item 台账的历史单按送货明细行聚合
+     * （配送点回退 order.delivery_point_id），返回扁平行由服务层聚合。
+     *
+     * @param customerId   客户ID
+     * @param deliveryDate 配送日期
+     * @return 品名×配送点粒度扁平行
+     */
+    List<com.lin.distribution.vo.DeliveryBatchViewVO.Row> selectBatchViewRowsByDetail(@Param("customerId") Long customerId,
+                                                                                      @Param("deliveryDate") String deliveryDate);
 }

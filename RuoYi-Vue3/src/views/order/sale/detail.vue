@@ -25,7 +25,7 @@
     >
       <template #title>
         <span class="draft-banner-title">
-          该订单已进入配送/验收流程，明细为生成送货单时的冻结快照；配送后的调整请使用「调整」或新增销售订单/退货单
+          该订单已进入配送/验收流程，明细为生成送货单时的冻结快照；配送后的真实退货请使用退货单，补货请新增销售订单
         </span>
       </template>
     </el-alert>
@@ -337,6 +337,15 @@
             >
               <el-button v-if="canEditOrder" @click="resetOrderForm()">重置</el-button>
               <el-button v-if="canEditOrder" type="primary" @click="submitForm()">保存</el-button>
+              <el-button
+                v-if="canEditOrder"
+                type="success"
+                plain
+                :icon="Van"
+                @click="handleFinishGenerate()"
+                v-hasPermi="['order:delivery:generateCustomer']"
+                >本客户订单已录完·出送货单</el-button
+              >
               <el-button @click="close()">返回</el-button>
             </el-form-item>
           </el-form>
@@ -521,7 +530,8 @@ import { listTemp } from "@/api/product/temp";
 import { queryPrice } from "@/api/price/query";
 import { listCustomer } from "@/api/partner/customer";
 import { listCustomerDept } from "@/api/partner/customerDept";
-import { Refresh, Rank, Plus, Minus, Search } from "@element-plus/icons-vue";
+import { Refresh, Rank, Plus, Minus, Search, Van } from "@element-plus/icons-vue";
+import { generateDeliveryForCustomer } from "@/api/order/delivery";
 
 import XEUtils from "xe-utils";
 import Sortable from "sortablejs";
@@ -620,7 +630,7 @@ export default {
   // 损耗原因固定字典（验收实收差异行必选）
   dicts: ["biz_loss_reason"],
   setup() {
-    return { Refresh, Rank, Plus, Minus, Search };
+    return { Refresh, Rank, Plus, Minus, Search, Van };
   },
   data() {
     return {
@@ -1164,6 +1174,41 @@ export default {
           }
         }
       });
+    },
+    /**
+     * 本客户订单已录完·出送货单（S14 §6.1 入口①，手工生成为主路径）：
+     * 按当前订单的 客户+配送日期 调统一生成服务，幂等补齐全部已确认订单（D-025）。 
+     */
+    handleFinishGenerate() {
+      if (!this.orderForm.customerId || !this.orderForm.deliveryDate) {
+        this.$modal.msgWarning("请先选择送货单位与配送日期");
+        return;
+      }
+      if (!this.orderForm.orderId) {
+        this.$modal.msgWarning("当前订单尚未保存，请先保存订单再出送货单");
+        return;
+      }
+      if (this.isOrderDirty) {
+        this.$modal.msgWarning("当前订单有未保存的改动，请先保存");
+        return;
+      }
+      this.$modal
+        .confirm(
+          "将按【客户 + 配送日期 " + this.orderForm.deliveryDate + "】生成/补齐送货单：" +
+            "已生成过的订单自动幂等跳过；未打印的既有单将被作废重建，已打印的走补充单。是否继续？"
+        )
+        .then(() => generateDeliveryForCustomer(this.orderForm.customerId, this.orderForm.deliveryDate))
+        .then((response) => {
+          const data = response.data || {};
+          const created = (data.createdOrders || []).map((d) => d.code).filter(Boolean);
+          const skipped = data.skippedReasons || [];
+          let msg = "送货单生成完成";
+          if (created.length) msg += "：新出单 " + created.join("、");
+          if (skipped.length) msg += "；跳过 " + skipped.length + " 项（幂等）";
+          if (!created.length && !skipped.length) msg += "：无遗漏订单，未产生新单据";
+          this.$modal.msgSuccess(msg);
+        })
+        .catch(() => {});
     },
     /** 返回按钮 */
     close() {

@@ -14,6 +14,7 @@ import com.lin.distribution.domain.AcceptanceRevokeLog;
 import com.lin.distribution.domain.DeliveryOrder;
 import com.lin.distribution.domain.DeliveryOrderDetail;
 import com.lin.distribution.domain.DeliverySourceItem;
+import com.lin.distribution.domain.ReturnItem;
 import com.lin.distribution.domain.SaleOrder;
 import com.lin.distribution.domain.SaleOrderDetail;
 import com.lin.distribution.dto.AcceptanceUpdateDTO;
@@ -23,10 +24,12 @@ import com.lin.distribution.mapper.AcceptanceRevokeLogMapper;
 import com.lin.distribution.mapper.DeliveryOrderDetailMapper;
 import com.lin.distribution.mapper.DeliveryOrderMapper;
 import com.lin.distribution.mapper.DeliverySourceItemMapper;
+import com.lin.distribution.mapper.ReturnItemMapper;
 import com.lin.distribution.mapper.SaleOrderDetailMapper;
 import com.lin.distribution.mapper.SaleOrderMapper;
 import com.lin.distribution.service.AcceptanceService;
 import com.lin.distribution.vo.AcceptanceByOrderVO;
+import com.lin.distribution.vo.DeliverySourceVO;
 import com.lin.distribution.service.BizCodeService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -72,6 +75,7 @@ public class AcceptanceServiceImpl implements AcceptanceService {
     private final DeliverySourceItemMapper deliverySourceItemMapper;
     private final SaleOrderMapper saleOrderMapper;
     private final SaleOrderDetailMapper saleOrderDetailMapper;
+    private final ReturnItemMapper returnItemMapper;
     private final BizCodeService bizCodeService;
 
     @Override
@@ -86,7 +90,92 @@ public class AcceptanceServiceImpl implements AcceptanceService {
 
     @Override
     public List<AcceptanceItem> selectItemListByAcceptanceId(Long acceptanceId) {
-        return acceptanceItemMapper.selectListByAcceptanceId(acceptanceId);
+        List<AcceptanceItem> items = acceptanceItemMapper.selectListByAcceptanceId(acceptanceId);
+        fillSources(items);
+        fillReturnedQuantity(items);
+        return items;
+    }
+
+    /**
+     * 来源对照列（S14 §八）：按验收行的 (delivery_detail_id, customer_dept_id) 匹配 source_item 分配行，
+     * 附来源订单号/下单数量（=分配量，一订单行只送一次全量分配）/下单单价快照；
+     * 历史单无台账 → sources 为空列表，前端展示"—历史数据—"。
+     */
+    private void fillSources(List<AcceptanceItem> items) {
+        if (items == null || items.isEmpty()) {
+            return;
+        }
+        Long deliveryOrderId = null;
+        for (AcceptanceItem item : items) {
+            if (item.getDeliveryItemId() != null && item.getAcceptanceId() != null) {
+                deliveryOrderId = findDeliveryOrderId(item.getAcceptanceId());
+                break;
+            }
+        }
+        if (deliveryOrderId == null) {
+            return;
+        }
+        List<DeliverySourceItem> sources = deliverySourceItemMapper.selectListByDeliveryId(deliveryOrderId);
+        if (sources.isEmpty()) {
+            return;
+        }
+        // 批量回填来源订单号（防 N+1，同 DeliveryOrderServiceImpl.selectDeliverySources 惯例）
+        List<Long> orderIds = sources.stream()
+                .map(DeliverySourceItem::getSaleOrderId).distinct().collect(Collectors.toList());
+        Map<Long, String> orderCodeMap = saleOrderMapper.selectSaleOrderByIdIn(orderIds).stream()
+                .collect(Collectors.toMap(SaleOrder::getId, SaleOrder::getCode, (a, b) -> a));
+
+        Map<String, List<DeliverySourceVO.SourceRow>> byItemKey = sources.stream()
+                .collect(Collectors.groupingBy(
+                        si -> si.getDeliveryDetailId() + "|" + si.getCustomerDeptId(),
+                        LinkedHashMap::new,
+                        Collectors.collectingAndThen(Collectors.toList(), list -> {
+                            List<DeliverySourceVO.SourceRow> rows = new ArrayList<>();
+                            for (DeliverySourceItem si : list) {
+                                DeliverySourceVO.SourceRow row = new DeliverySourceVO.SourceRow();
+                                row.setSaleOrderId(si.getSaleOrderId());
+                                row.setOrderCode(orderCodeMap.get(si.getSaleOrderId()));
+                                row.setCustomerDeptId(si.getCustomerDeptId());
+                                row.setAllocatedQuantity(si.getAllocatedQuantity());
+                                row.setUnitPrice(si.getUnitPrice());
+                                rows.add(row);
+                            }
+                            return rows;
+                        })));
+        for (AcceptanceItem item : items) {
+            List<DeliverySourceVO.SourceRow> rows =
+                    byItemKey.get(item.getDeliveryItemId() + "|" + item.getCustomerDeptId());
+            if (rows != null) {
+                item.setSources(rows);
+            }
+        }
+    }
+
+    /** 查验收单所属送货单ID（fillSources 用） */
+    private Long findDeliveryOrderId(Long acceptanceId) {
+        Acceptance acceptance = acceptanceMapper.selectAcceptanceById(acceptanceId);
+        return acceptance == null ? null : acceptance.getDeliveryOrderId();
+    }
+
+    /**
+     * 累计已退回填（退货单页面可退量=实收−累计已退）：
+     * 含草稿/已提交退货单占用，仅 status=3 已完成释放（同 ReturnOrderServiceImpl 口径）。
+     */
+    private void fillReturnedQuantity(List<AcceptanceItem> items) {
+        if (items == null || items.isEmpty()) {
+            return;
+        }
+        List<Long> itemIds = items.stream()
+                .map(AcceptanceItem::getId).filter(Objects::nonNull).collect(Collectors.toList());
+        if (itemIds.isEmpty()) {
+            return;
+        }
+        Map<Long, BigDecimal> returnedMap = returnItemMapper.sumReturnedByAcceptanceItemIds(itemIds, null).stream()
+                .filter(ri -> ri.getAcceptanceItemId() != null)
+                .collect(Collectors.toMap(ReturnItem::getAcceptanceItemId, ReturnItem::getReturnQuantity, (a, b) -> a));
+        for (AcceptanceItem item : items) {
+            item.setReturnedQuantity(returnedMap.getOrDefault(item.getId(), BigDecimal.ZERO));
+        }
     }
 
     /**
