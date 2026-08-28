@@ -7,12 +7,14 @@ import com.lin.common.core.page.TableDataInfo;
 import com.lin.common.enums.BusinessType;
 import com.lin.distribution.domain.Acceptance;
 import com.lin.distribution.dto.AcceptanceCreateDTO;
+import com.lin.distribution.dto.AcceptanceRevokeDTO;
 import com.lin.distribution.dto.AcceptanceUpdateDTO;
 import com.lin.distribution.service.AcceptanceService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -101,7 +103,7 @@ public class AcceptanceController extends BaseController {
     }
 
     /**
-     * 提交验收单：同组订单 → ACCEPTED
+     * 提交验收单：来源订单 → ACCEPTED，同步 actual_* 镜像
      */
     @Operation(summary = "提交验收单")
     @PreAuthorize("@ss.hasPermi('acceptance:submit')")
@@ -109,6 +111,19 @@ public class AcceptanceController extends BaseController {
     @PutMapping("/{id}/submit")
     public AjaxResult submit(@PathVariable("id") Long id) {
         return success(acceptanceService.submit(id));
+    }
+
+    /**
+     * 撤销验收（S14/T5）：已提交→草稿，原因必填，撤回前完整快照落审计；
+     * 来源订单回退已配送；任一来源订单已结算时拒绝
+     */
+    @Operation(summary = "撤销验收单")
+    @PreAuthorize("@ss.hasPermi('acceptance:revoke')")
+    @Log(title = "验收单撤销", businessType = BusinessType.UPDATE)
+    @PostMapping("/{id}/revoke")
+    public AjaxResult revoke(@PathVariable("id") Long id,
+                             @RequestBody @Validated AcceptanceRevokeDTO dto) {
+        return success(acceptanceService.revoke(id, dto.getReason()));
     }
 
     /**

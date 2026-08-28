@@ -21,8 +21,6 @@ import com.lin.common.core.controller.BaseController;
 import com.lin.common.core.domain.AjaxResult;
 import com.lin.common.enums.BusinessType;
 import com.lin.distribution.domain.SaleOrderDetail;
-import com.lin.distribution.dto.SaleOrderAcceptDTO;
-import com.lin.distribution.dto.SaleOrderActualDraftDTO;
 import com.lin.distribution.service.SaleOrderDetailService;
 import com.lin.common.utils.poi.ExcelUtil;
 import com.lin.common.core.page.TableDataInfo;
@@ -124,38 +122,8 @@ public class SaleOrderDetailController extends BaseController {
         return toAjax(saleOrderDetailService.deleteSaleOrderDetailByIds(ids));
     }
 
-    /* ========== 订单页实收与验收（验收回归订单本体，废弃独立验收单） ========== */
-
-    /**
-     * 批量保存实收草稿：仅写 actual_num / loss_reason，不改订单状态。
-     * 供明细区实收列防抖自动保存调用。
+    /* ========== 订单页实收快速验收接口已下线（S14/T5/C1 定稿）==========
+     * 实收数据归验收单所有（/acceptance），订单行 actual_* 降级只读镜像列
+     * （验收提交时同步，禁止业务直写）；前端入口改为状态=已配送行「去验收」跳转。
      */
-    @PreAuthorize("@ss.hasPermi('order:saleDetail:edit')")
-    @Log(title = "订单实收草稿", businessType = BusinessType.UPDATE)
-    @PostMapping("/actual/draft")
-    public AjaxResult saveActualDraft(@RequestBody @Validated SaleOrderActualDraftDTO request) {
-        return success(saleOrderDetailService.saveActualDraft(request));
-    }
-
-    /**
-     * 批量确认验收：空实收行按下单数计；实收<下单数必填损耗原因；
-     * 整批置为已验收。±20% 差异阈值仅前端提示、非阻断。
-     */
-    @PreAuthorize("@ss.hasPermi('order:saleDetail:edit')")
-    @Log(title = "订单批量验收", businessType = BusinessType.UPDATE)
-    @PostMapping("/actual/accept")
-    public AjaxResult acceptOrders(@RequestBody @Validated SaleOrderAcceptDTO request) {
-        return success(saleOrderDetailService.confirmAcceptance(request.getOrderIds()));
-    }
-
-    /**
-     * 撤销验收：已验收(3)回退到已配送(2)，并清空本次验收产生的实收数据；
-     * 已结算订单禁止回退。
-     */
-    @PreAuthorize("@ss.hasPermi('order:saleDetail:edit')")
-    @Log(title = "订单撤销验收", businessType = BusinessType.UPDATE)
-    @PostMapping("/actual/revoke")
-    public AjaxResult revokeAcceptance(@RequestBody @Validated SaleOrderAcceptDTO request) {
-        return success(saleOrderDetailService.revokeAcceptance(request.getOrderIds()));
-    }
 }

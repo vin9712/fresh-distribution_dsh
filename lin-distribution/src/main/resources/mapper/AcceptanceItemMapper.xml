@@ -104,14 +104,15 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         </foreach>
     </insert>
 
+    <!-- S14/T5：reason_type/loss_reason 无条件写（无差异时需清空，避免残留脏数据） -->
     <update id="updateAcceptanceItem" parameterType="com.lin.distribution.domain.AcceptanceItem">
         update acceptance_item
         <trim prefix="SET" suffixOverrides=",">
             <if test="actualQuantity != null">actual_quantity = #{actualQuantity},</if>
             <if test="customerDeptId != null">customer_dept_id = #{customerDeptId},</if>
             <if test="differenceQuantity != null">difference_quantity = #{differenceQuantity},</if>
-            <if test="reasonType != null">reason_type = #{reasonType},</if>
-            <if test="lossReason != null">loss_reason = #{lossReason},</if>
+            reason_type = #{reasonType},
+            loss_reason = #{lossReason},
             <if test="actualAmount != null">actual_amount = #{actualAmount},</if>
         </trim>
         where id = #{id}

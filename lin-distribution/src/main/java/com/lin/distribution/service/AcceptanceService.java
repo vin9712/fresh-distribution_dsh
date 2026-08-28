@@ -61,6 +61,17 @@ public interface AcceptanceService {
     Acceptance submit(Long id);
 
     /**
+     * 撤销验收（S14/T5，DESIGN.md §5.4/Q16/D-014）：已提交→草稿，原因必填，
+     * 撤回前主表+明细完整快照落 t_acceptance_revoke_log；来源订单 ACCEPTED→DELIVERED；
+     * 任一来源订单 SETTLED → 拒绝。
+     *
+     * @param id     验收单主键
+     * @param reason 撤销原因（必填）
+     * @return 验收单
+     */
+    Acceptance revoke(Long id, String reason);
+
+    /**
      * 批量删除验收单（仅草稿）
      *
      * @param ids 验收单主键集合
