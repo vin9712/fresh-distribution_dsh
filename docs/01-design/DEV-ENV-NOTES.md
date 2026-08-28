@@ -42,6 +42,8 @@ git log | ForEach-Object { $_ }   # 管道捕获也正常
 ## 3. 项目启动
 
 - 后端（Java 17, Spring Boot）：profile=local，端口 **8090**，入口模块 `lin-entry`。
+- ⚠️ **陈旧 jar 坑（2026-08-28 实测踩坑）**：`dev.sh` 非首次启动直接 `mvn -pl lin-entry spring-boot:run`，lin-distribution 等兄弟模块从 `~/.m2` 本地仓库解析——若后端改了代码但未 `mvn install`，跑的是**旧包**（新接口全部 404，表象如 `No static resource order/return/page`）。**后端代码变更后重启前必须先 `./dev.sh build`（= mvn install -DskipTests）**；页面级 E2E 冒烟（`node tests/e2e-smoke.mjs`）可快速暴露此类契约断裂。
+- macOS 本机 JDK：`export JAVA_HOME=$(/usr/libexec/java_home -v 17)`（默认 JAVA_HOME 可能是 JDK 8，编译报「无效的目标发行版: 17」即此因）。
 - ruoyi-ui（vue2 旧前端，迁移源）：
   ```powershell
   cd ruoyi-ui

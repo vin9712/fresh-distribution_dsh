@@ -224,9 +224,8 @@
         <el-table-column label="金额" align="center" prop="amount" width="90" />
         <el-table-column label="质检结论" align="center" width="120">
           <template #default="scope">
-            <el-tag v-if="scope.row.qualityResult === 1" type="success" size="small">可再售(入库)</el-tag>
-            <el-tag v-else-if="scope.row.qualityResult === 2" type="danger" size="small">不可再售(报损)</el-tag>
-            <span v-else>未质检</span>
+            <span v-if="scope.row.qualityResult == null">未质检</span>
+            <dict-tag v-else :options="dict.type.return_quality_result" :value="scope.row.qualityResult" />
           </template>
         </el-table-column>
         <el-table-column label="质检备注" align="center" prop="qualityNote" :show-overflow-tooltip="true" />
@@ -249,8 +248,12 @@
         <el-table-column label="质检结论" align="center" width="160">
           <template #default="scope">
             <el-select v-model="scope.row.qualityResult" placeholder="请选择结论" style="width: 100%">
-              <el-option label="可再售(入库)" :value="1" />
-              <el-option label="不可再售(报损)" :value="2" />
+              <el-option
+                v-for="d in dict.type.return_quality_result"
+                :key="d.value"
+                :label="d.label"
+                :value="Number(d.value)"
+              />
             </el-select>
           </template>
         </el-table-column>
@@ -289,6 +292,7 @@ const STATUS_TAG = { 0: "info", 1: "warning", 2: "success", 3: "success" };
 
 export default {
   name: "ReturnOrder",
+  dicts: ["return_quality_result"],
   setup() {
     return { Search, Refresh, Plus, Delete, Edit, Check, View, Stamp };
   },

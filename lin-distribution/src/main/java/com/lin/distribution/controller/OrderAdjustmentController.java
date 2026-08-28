@@ -26,8 +26,14 @@ public class OrderAdjustmentController extends BaseController {
 
     /**
      * 创建订单调整
+     *
+     * @deprecated 订单-送货-验收链路重构（C1/D-030 定稿，2026-08-28）后不再直接改原销售订单：
+     *             配送后补货 = 新增销售订单；验收后退货 = 退货单（/order/return）。
+     *             前端写入口已下线（T7 第二轮）、菜单按钮已停用（s14d）；
+     *             本接口按退役节奏 R2（详细设计 §5.6）标废弃并观察，R3 下大版本随无关代码一并清理（不删历史数据）。
      */
-    @Operation(summary = "创建订单调整")
+    @Deprecated
+    @Operation(summary = "创建订单调整（已废弃：改用新增销售订单/退货单）")
     @PreAuthorize("@ss.hasPermi('order:sale:adjust')")
     @Log(title = "订单调整", businessType = BusinessType.UPDATE)
     @PostMapping

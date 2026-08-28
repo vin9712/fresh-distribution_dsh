@@ -4095,11 +4095,11 @@ SELECT '退货质检结果', 'return_quality_result', '0', 'admin', sysdate(), '
 WHERE NOT EXISTS (SELECT 1 FROM `sys_dict_type` WHERE `dict_type` = 'return_quality_result');
 
 INSERT INTO `sys_dict_data` (`dict_sort`, `dict_label`, `dict_value`, `dict_type`, `css_class`, `list_class`, `is_default`, `status`, `create_by`, `create_time`, `remark`)
-SELECT 1, '可再售(入库)', 'reusable', 'return_quality_result', '', 'success', 'N', '0', 'admin', sysdate(), ''
-WHERE NOT EXISTS (SELECT 1 FROM `sys_dict_data` WHERE `dict_type` = 'return_quality_result' AND `dict_value` = 'reusable');
+SELECT 1, '可再售(入库)', '1', 'return_quality_result', '', 'success', 'N', '0', 'admin', sysdate(), ''
+WHERE NOT EXISTS (SELECT 1 FROM `sys_dict_data` WHERE `dict_type` = 'return_quality_result' AND `dict_value` = '1');
 INSERT INTO `sys_dict_data` (`dict_sort`, `dict_label`, `dict_value`, `dict_type`, `css_class`, `list_class`, `is_default`, `status`, `create_by`, `create_time`, `remark`)
-SELECT 2, '不可再售(报损)', 'damaged', 'return_quality_result', '', 'danger', 'N', '0', 'admin', sysdate(), ''
-WHERE NOT EXISTS (SELECT 1 FROM `sys_dict_data` WHERE `dict_type` = 'return_quality_result' AND `dict_value` = 'damaged');
+SELECT 2, '不可再售(报损)', '2', 'return_quality_result', '', 'danger', 'N', '0', 'admin', sysdate(), ''
+WHERE NOT EXISTS (SELECT 1 FROM `sys_dict_data` WHERE `dict_type` = 'return_quality_result' AND `dict_value` = '2');
 
 -- ---------- 3.5 送货单状态字典补"已作废(3)"（dict_type 107 = t_delivery_order_status） ----------
 INSERT INTO `sys_dict_data` (`dict_sort`, `dict_label`, `dict_value`, `dict_type`, `css_class`, `list_class`, `is_default`, `status`, `create_by`, `create_time`, `remark`)
