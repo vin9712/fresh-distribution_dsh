@@ -15,6 +15,20 @@
         </span>
       </template>
     </el-alert>
+    <!-- 配送/验收冻结提示条：已进入配送流程的订单明细为生成时快照，不可改单（S14/G6 护栏） -->
+    <el-alert
+      v-if="frozenBannerVisible"
+      type="info"
+      :closable="false"
+      show-icon
+      class="browse-banner"
+    >
+      <template #title>
+        <span class="draft-banner-title">
+          该订单已进入配送/验收流程，明细为生成送货单时的冻结快照；配送后的调整请使用「调整」或新增销售订单/退货单
+        </span>
+      </template>
+    </el-alert>
     <!-- 草稿恢复提示条（新单页，检测到未完成草稿时显示） -->
     <el-alert
       v-if="showDraftBanner && availableDrafts.length"
@@ -280,7 +294,7 @@
                 </template>
               </vxe-column>
               <vxe-column field="amount" title="金额"> </vxe-column>
-              <!-- 实收区：订单状态≥已配送 时展示；已配送可编辑并防抖自动保存，已验收后只读 -->
+              <!-- 实收区（只读镜像）：实收数据归验收单（C1），此处仅展示验收提交同步的 actual_* 镜像值 -->
               <vxe-column
                 v-if="showActualColumns"
                 field="actualNum"
@@ -288,25 +302,12 @@
                 cell-type="number"
                 width="100"
                 :formatter="decimalFormatter('actualNum')"
-                :class-name="actualCellClass"
-                :edit-render="acceptMode ? { name: '$input', autoselect: true } : undefined"
-              >
-                <template v-if="acceptMode" #edit="{ row }">
-                  <vxe-input
-                    v-model="row.actualNum"
-                    type="text"
-                    placeholder="默认=下单数"
-                    @change="markActualChanged(row)"
-                  ></vxe-input>
-                </template>
-              </vxe-column>
+              />
               <vxe-column
                 v-if="showActualColumns"
                 field="lossReason"
-                title="损耗原因"
+                title="差异原因"
                 width="120"
-                :class-name="actualCellClass"
-                :edit-render="acceptMode ? { name: 'default' } : undefined"
               >
                 <template #default="{ row }">
                   <dict-tag
@@ -314,23 +315,6 @@
                     :options="dict.type.biz_loss_reason"
                     :value="row.lossReason"
                   />
-                </template>
-                <template v-if="acceptMode" #edit="{ row }">
-                  <el-select
-                    v-model="row.lossReason"
-                    placeholder="损耗原因"
-                    clearable
-                    filterable
-                    size="small"
-                    style="width: 100%"
-                  >
-                    <el-option
-                      v-for="d in dict.type.biz_loss_reason"
-                      :key="d.value"
-                      :label="d.label"
-                      :value="d.value"
-                    />
-                  </el-select>
                 </template>
               </vxe-column>
               <vxe-column
@@ -346,11 +330,6 @@
             </vxe-table>
           </div>
 
-          <!-- 验收差异汇总条：本单 N 行有差异，超阈值 M 行 -->
-          <div v-if="acceptMode" class="accept-summary-bar" :class="acceptOverCount > 0 ? 'has-over' : ''">
-            {{ acceptDiffText }}
-          </div>
-
           <!-- 底部工具栏 -->
           <el-form class="order-footer" label-width="100px">
             <el-form-item
@@ -358,14 +337,6 @@
             >
               <el-button v-if="canEditOrder" @click="resetOrderForm()">重置</el-button>
               <el-button v-if="canEditOrder" type="primary" @click="submitForm()">保存</el-button>
-              <!-- 已配送订单：在明细内直接确认验收（批量验收的单选特例） -->
-              <el-button
-                v-if="acceptMode"
-                type="success"
-                :loading="acceptSubmitting"
-                @click="confirmAcceptance()"
-                >确认验收</el-button
-              >
               <el-button @click="close()">返回</el-button>
             </el-form-item>
           </el-form>
@@ -543,9 +514,8 @@
 
 <script>
 import { pageSaleOrder, getSaleOrder, genOrderCode, createSaleOrder, updateSaleOrder, recentSaleOrder } from "@/api/order/sale";
-import { listSaleDetail, frequentSaleDetail, saveActualDraft, acceptOrders } from "@/api/order/saleDetail";
+import { listSaleDetail, frequentSaleDetail } from "@/api/order/saleDetail";
 import { listDrafts, saveDraft, removeDraft, restoreDraft, syncDraftToServer, fetchDraftFromServer, removeDraftFromServer } from "@/utils/saleDraft";
-import { getConfigKey } from "@/api/system/config";
 import { listCustomerSku } from "@/api/product/customerSku";
 import { listTemp } from "@/api/product/temp";
 import { queryPrice } from "@/api/price/query";
@@ -664,10 +634,6 @@ export default {
       // 浏览前收起的录入工作区快照
       stashedWorkspace: null,
       stashWasEmpty: true,
-      // 验收确认提交中
-      acceptSubmitting: false,
-      // 差异提醒阈值（sys_config order.accept.diff.threshold，仅提示非阻断）
-      acceptThreshold: 20,
       // 明细区门禁提示节流标记
       _gateWarnAt: 0,
       // 最近订单查询条件
@@ -841,21 +807,26 @@ export default {
     showReopenNewBtn() {
       return !this.browseMode && !this.orderForm.orderId && !!this.orderForm.customerDeptId && this.hasDetailContent;
     },
-    /** 是否处于可编辑的录单态（非浏览、非验收、非已验收只读） */
+    /** 是否处于可编辑的录单态（非浏览、非只读）；实收编辑已下线（C1：数据归验收单） */
     canEditOrder() {
-      return !this.browseMode && !this.acceptMode && !this.viewOnlyMode;
+      return !this.browseMode && !this.viewOnlyMode;
     },
-    /** 订单信息是否只读（浏览/验收/只读查看模式下，表头信息不可修改） */
+    /** 订单信息是否只读（浏览/只读查看模式下，表头信息不可修改） */
     orderInfoReadonly() {
       return !this.canEditOrder;
-    },
-    /** 验收模式：已配送订单，实收可编辑 */
-    acceptMode() {
-      return !this.browseMode && !!this.orderForm.orderId && this.orderStatus === 2;
     },
     /** 只读查看：已验收/已结算订单 */
     viewOnlyMode() {
       return !this.browseMode && !!this.orderForm.orderId && this.orderStatus != null && this.orderStatus >= 3;
+    },
+    /** 冻结提示条：已配送及之后状态的订单，明细为生成送货单时的快照 */
+    frozenBannerVisible() {
+      return (
+        !this.browseMode &&
+        !!this.orderForm.orderId &&
+        this.orderStatus != null &&
+        this.orderStatus >= 2
+      );
     },
     /** 实收列展示：订单状态≥已配送 */
     showActualColumns() {
@@ -888,35 +859,6 @@ export default {
     canCopyAsNew() {
       return this.browseMode && this.stashWasEmpty && !this.defaultOrderId;
     },
-    /** 验收差异统计：{diffCount, overCount, diffNum}（空实收行按下单数计） */
-    acceptDiffStats() {
-      const stats = { diffCount: 0, overCount: 0, diffNum: 0 };
-      (this.orderDetailList || []).forEach((row) => {
-        const num = XEUtils.toNumber(row.num) || 0;
-        const actual = row.actualNum === null || row.actualNum === undefined || row.actualNum === ""
-          ? num
-          : XEUtils.toNumber(row.actualNum);
-        const diff = actual - num;
-        if (Math.abs(diff) > 0.005) {
-          stats.diffCount++;
-          stats.diffNum += diff;
-          if (num > 0 && Math.abs(diff) > (num * this.acceptThreshold) / 100) {
-            stats.overCount++;
-          }
-        }
-      });
-      return stats;
-    },
-    /** 超阈值行数（汇总条红显） */
-    acceptOverCount() {
-      return this.acceptDiffStats.overCount;
-    },
-    /** 汇总条文案 */
-    acceptDiffText() {
-      const s = this.acceptDiffStats;
-      const dir = s.diffNum > 0 ? "多" : s.diffNum < 0 ? "少" : "";
-      return `本单 ${s.diffCount} 行有差异${dir ? "，合计" + dir + Math.abs(s.diffNum).toFixed(2) : ""}；超阈值 ${s.overCount} 行（阈值 ±${this.acceptThreshold}%，仅提示不阻断）`;
-    },
   },
   created() {
     // 从路由获取参数
@@ -932,16 +874,6 @@ export default {
 
     // 草稿：列表页跳转（query.draft）自动恢复；新单页展示恢复横幅
     this.checkDraftOnEnter();
-
-    // 差异提醒阈值（sys_config，仅提示非阻断）
-    getConfigKey("order.accept.diff.threshold")
-      .then((response) => {
-        const value = parseFloat(response.msg);
-        if (!isNaN(value) && value > 0) {
-          this.acceptThreshold = value;
-        }
-      })
-      .catch(() => {});
   },
   watch: {
     orderForm: {
@@ -1347,15 +1279,11 @@ export default {
         return row.productName;
       }
     },
-    /** vxe表格-编辑门禁：未选送货单位禁录；浏览/只读全禁；验收态仅放开实收两列 */
+    /** vxe表格-编辑门禁：未选送货单位禁录；浏览/只读全禁（实收编辑已下线 C1） */
     checkTableActive({ row, column }) {
       // 浏览模式与已验收/已结算订单：全部只读
       if (this.browseMode || this.viewOnlyMode) {
         return false;
-      }
-      // 验收模式：仅实收数量/损耗原因可编辑，下单数据锁定
-      if (this.acceptMode) {
-        return column && (column.field === "actualNum" || column.field === "lossReason");
       }
       // 录单态明细区门禁：未选定客户(+配送点)前禁止编辑，引导先选送货单位
       if (!this.orderForm.customerDeptId) {
@@ -1393,9 +1321,9 @@ export default {
         }
       );
     },
-    /** 添加行（明细区门禁：浏览/验收态禁加行；未选送货单位时仅保留默认空行，禁止加行） */
+    /** 添加行（明细区门禁：浏览态禁加行；未选送货单位时仅保留默认空行，禁止加行） */
     handleAddRow(rowIndex) {
-      if ((this.browseMode || this.acceptMode) && (this.orderDetailList || []).length >= 1) return;
+      if (this.browseMode && (this.orderDetailList || []).length >= 1) return;
       if (!this.orderForm.customerDeptId && (this.orderDetailList || []).length >= 1) {
         const now = Date.now();
         if (now - this._gateWarnAt > 2000) {
@@ -1428,8 +1356,8 @@ export default {
     /** 减少行 */
     handleRemoveRow(row) {
       if (!row) return;
-      // 浏览/验收态只读，禁止删行
-      if (this.browseMode || this.acceptMode) return;
+      // 浏览态只读，禁止删行
+      if (this.browseMode) return;
       const index = this.orderDetailList.indexOf(row);
       this.$confirm("确定要删除第【" + (index + 1) + "】行数据吗?", "提示", {
         confirmButtonText: "确定",
@@ -2084,13 +2012,9 @@ export default {
       const p = (n) => String(n).padStart(2, "0");
       return `${p(d.getHours())}:${p(d.getMinutes())}`;
     },
-    /** 数据变更后路由：浏览态暂停；验收态走实收自动保存；录单态走草稿双写 */
+    /** 数据变更后路由：浏览态暂停；录单态走草稿双写（实收自动保存已下线 C1） */
     scheduleDraftSave() {
       if (this.browseMode) return; // 浏览模式暂停草稿写入，防止浏览动作污染新单草稿
-      if (this.acceptMode) {
-        this.scheduleActualSave();
-        return;
-      }
       if (!this.isOrderDirty) return;
       this.draftStatusText = "草稿保存中...";
       this.draftStatusType = "saving";
@@ -2101,7 +2025,7 @@ export default {
     },
     /** 保存草稿（有实际内容才保存；后端为主 + localStorage 兜底断网场景） */
     saveDraftIfMeaningful() {
-      if (!this.isOrderDirty || this.browseMode || this.acceptMode) return;
+      if (!this.isOrderDirty || this.browseMode) return;
       const deptId = this.orderForm.customerDeptId;
       const hasContent = (this.orderDetailList || []).some(
         (row) =>
@@ -2130,107 +2054,9 @@ export default {
       this.draftStatusText = `已于 ${this.formatSavedAt(new Date())} 自动保存`;
       this.draftStatusType = "saved";
     },
-    /* ========== 实收草稿自动保存（验收态，~1.5s 防抖） ========== */
-    scheduleActualSave() {
-      if (this._actualTimer) clearTimeout(this._actualTimer);
-      this.draftStatusText = "实收保存中...";
-      this.draftStatusType = "saving";
-      this._actualTimer = setTimeout(() => {
-        this.flushActualSave();
-      }, 1500);
-    },
-    /** 实收防抖落库：仅持久化行（有 detailId），空实收行不传由后端按下单数处理 */
-    flushActualSave() {
-      if (!this.acceptMode || !this.orderForm.orderId) return;
-      const items = (this.orderDetailList || [])
-        .filter((row) => row.id && (row.actualNum !== null && row.actualNum !== undefined && row.actualNum !== ""))
-        .map((row) => ({
-          detailId: row.id,
-          actualNum: XEUtils.toNumber(row.actualNum),
-          lossReason: row.lossReason || null,
-        }));
-      saveActualDraft({ orderId: this.orderForm.orderId, items })
-        .then(() => {
-          this.draftStatusText = `实收已于 ${this.formatSavedAt(new Date())} 自动保存`;
-          this.draftStatusType = "saved";
-        })
-        .catch(() => {
-          this.draftStatusText = "实收保存失败";
-          this.draftStatusType = "idle";
-        });
-    },
-    /** 实收变更标记（触发响应式以刷新高亮/汇总） */
-    markActualChanged(row) {
-      const num = XEUtils.toNumber(row.num) || 0;
-      const actual = XEUtils.toNumber(row.actualNum);
-      // 实收 < 下单数时损耗原因必填的行内提示（确认时后端强校验）
-      if (actual < num && !row.lossReason && !row._lossWarned) {
-        row._lossWarned = true;
-        this.$modal.msgWarning(`商品【${row.productName}】实收小于下单数量，请选择损耗原因`);
-      }
-    },
-    /** 实收差异行高亮：黄色=有差异；红色=超阈值 */
-    actualCellClass({ row }) {
-      if (!row || row.actualNum === null || row.actualNum === undefined || row.actualNum === "") {
-        return "";
-      }
-      const num = XEUtils.toNumber(row.num) || 0;
-      const actual = XEUtils.toNumber(row.actualNum);
-      const diff = Math.abs(actual - num);
-      if (diff <= 0.005) return "";
-      if (num > 0 && diff > (num * this.acceptThreshold) / 100) {
-        return "col-actual-over";
-      }
-      return "col-actual-diff";
-    },
-
-    /* ========== 确认验收（单选特例，等价批量验收） ========== */
-    /** 明细内直接确认验收：客户端先校验差异行损耗原因，后端强校验并落结算金额 */
-    confirmAcceptance() {
-      if (!this.acceptMode || !this.orderForm.orderId) return;
-      // 先冲掉未落的防抖保存
-      if (this._actualTimer) clearTimeout(this._actualTimer);
-      const missingReasonRows = (this.orderDetailList || []).filter((row) => {
-        if (!row.id) return false;
-        const num = XEUtils.toNumber(row.num) || 0;
-        const actual =
-          row.actualNum === null || row.actualNum === undefined || row.actualNum === ""
-            ? num
-            : XEUtils.toNumber(row.actualNum);
-        return actual < num && !row.lossReason;
-      });
-      if (missingReasonRows.length) {
-        this.$modal.msgWarning(
-          "有 " + missingReasonRows.length + " 行实收小于下单数量，请先选择损耗原因：" +
-            missingReasonRows.map((r) => r.productName).join("、")
-        );
-        return;
-      }
-      this.acceptSubmitting = true;
-      this.flushActualSave();
-      // 等待最后一次草稿落库完成后再整单确认
-      setTimeout(() => {
-        acceptOrders({ orderIds: [this.orderForm.orderId] })
-          .then(() => {
-            this.$modal.msgSuccess("验收成功");
-            removeDraftFromServer(this.orderForm.orderId, this.orderForm.customerDeptId);
-            removeDraft("saleDraft:order:" + this.orderForm.orderId);
-            // 重载进入只读态
-            this.initOrderDetailPage(this.orderForm.orderId);
-          })
-          .catch(() => {})
-          .finally(() => {
-            this.acceptSubmitting = false;
-          });
-      }, 800);
-    },
-    /** 页面刷新/关闭前立即保存（验收态冲掉实收防抖） */
+    /** 页面刷新/关闭前立即保存 */
     handleBeforeUnload() {
       if (this._draftTimer) clearTimeout(this._draftTimer);
-      if (this.acceptMode) {
-        this.flushActualSave();
-        return;
-      }
       this.saveDraftIfMeaningful();
     },
 
@@ -2491,26 +2317,6 @@ export default {
 .copy-as-new-bar {
   margin-bottom: 8px;
   text-align: right;
-}
-/* 验收差异汇总条 */
-.accept-summary-bar {
-  margin-top: 8px;
-  padding: 6px 10px;
-  font-size: 13px;
-  color: #e6a23c;
-  background: #fdf6ec;
-  border-radius: 3px;
-  &.has-over {
-    color: #f56c6c;
-    background: #fef0f0;
-  }
-}
-/* 实收差异高亮：黄=有差异；红=超阈值 */
-:deep(.col-actual-diff) {
-  background-color: #fdf6ec !important;
-}
-:deep(.col-actual-over) {
-  background-color: #fef0f0 !important;
 }
 
 /* 改价提醒：单价与当期报价不一致的单元格高亮 + "改"角标 */

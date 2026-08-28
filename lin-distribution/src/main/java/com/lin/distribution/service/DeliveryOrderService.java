@@ -5,6 +5,7 @@ import java.util.List;
 import com.lin.distribution.domain.DeliveryOrder;
 import com.lin.distribution.domain.DeliveryOrderDetail;
 import com.lin.distribution.dto.DeliveryNoPrintDTO;
+import com.lin.distribution.vo.DeliverySourceVO;
 
 /**
  * 送货单据Service接口
@@ -28,6 +29,16 @@ public interface DeliveryOrderService {
      * @return 送货单明细集合
      */
     List<DeliveryOrderDetail> selectDetailListByDeliveryId(Long deliveryId);
+
+    /**
+     * 送货单来源视图（S14 §6.1/§八）：聚合行 + 展开的来源订单/行/分配量。
+     *
+     * <p>历史单（无 source_item 台账）返回聚合行、sources 为空列表，前端展示“—历史数据—”。</p>
+     *
+     * @param deliveryId 送货单主键
+     * @return 来源视图集合（每聚合行一条）
+     */
+    List<DeliverySourceVO> selectDeliverySources(Long deliveryId);
 
     /**
      * 查询送货单据列表

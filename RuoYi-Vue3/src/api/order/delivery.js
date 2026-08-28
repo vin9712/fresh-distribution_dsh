@@ -67,11 +67,45 @@ export function printInfoDelivery(id) {
   })
 }
 
-// 标记送达（同组已确认订单 → DELIVERED）
+// 标记送达（旧入口：未打印单送达会被拒绝，请改用 deliveredDelivery）
 export function deliverDelivery(id) {
   return request({
     url: '/order/delivery/' + id + '/deliver',
     method: 'put'
+  })
+}
+
+// 标记送达（S14：未打印 PENDING 送达时必传免纸原因 {noPrint: {reasonCode, remark}}）
+export function deliveredDelivery(id, data) {
+  return request({
+    url: '/order/delivery/' + id + '/delivered',
+    method: 'put',
+    data: data
+  })
+}
+
+// 作废送货单（S14/T4：PENDING/PRINTED 可作废，原因必填，来源分配释放）
+export function voidDelivery(id, data) {
+  return request({
+    url: '/order/delivery/' + id + '/void',
+    method: 'post',
+    data: data
+  })
+}
+
+// 按客户+日期生成/补单（S14/T3 统一生成：三态自动分支，返回 GenerateResultVO）
+export function generateDeliveryForCustomer(customerId, deliveryDate) {
+  return request({
+    url: '/order/delivery/generate/customer/' + customerId + '/' + deliveryDate,
+    method: 'post'
+  })
+}
+
+// 来源视图：聚合行 + 展开的来源订单/行/分配量（历史单 sources 为空）
+export function listDeliverySources(id) {
+  return request({
+    url: '/order/delivery/' + id + '/sources',
+    method: 'get'
   })
 }
 

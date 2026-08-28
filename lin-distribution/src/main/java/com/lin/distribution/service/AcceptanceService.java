@@ -5,6 +5,7 @@ import java.util.List;
 import com.lin.distribution.domain.Acceptance;
 import com.lin.distribution.domain.AcceptanceItem;
 import com.lin.distribution.dto.AcceptanceUpdateDTO;
+import com.lin.distribution.vo.AcceptanceByOrderVO;
 
 /**
  * 验收单Service接口（DESIGN.md §9：一单一验、后端重算实收与损耗）
@@ -35,6 +36,18 @@ public interface AcceptanceService {
      * @return 验收单明细集合
      */
     List<AcceptanceItem> selectItemListByAcceptanceId(Long acceptanceId);
+
+    /**
+     * 「去验收」定位（S14 §6.1/§八：订单列表已配送行跳转）。
+     *
+     * <p>按来源订单反查其所在的有效送货单与验收单：优先走 source_item 有效分配台账，
+     * S14 前的历史单回退送货明细行 order_id；已作废单排除；一单分布在多张有效单
+     * （补充单场景）时优先返回已建验收单的最新一张，都没有则定位最新单引导创建草稿。</p>
+     *
+     * @param orderId 来源销售订单ID
+     * @return 定位结果（未进入任何有效送货单时仅回显 orderId）
+     */
+    AcceptanceByOrderVO locateBySaleOrder(Long orderId);
 
     /**
      * 按送货单生成验收单草稿（一单一验，明细由送货单明细复制）

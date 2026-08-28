@@ -102,6 +102,15 @@ public class DeliveryOrderController extends BaseController {
     }
 
     /**
+     * 来源视图（S14 §6.1/§八）：聚合行 + 展开的来源订单/行/分配量（历史单 sources 为空）
+     */
+    @PreAuthorize("@ss.hasPermi('order:delivery:query')")
+    @GetMapping(value = "/{id}/sources")
+    public AjaxResult sources(@PathVariable("id") Long id) {
+        return success(deliveryOrderService.selectDeliverySources(id));
+    }
+
+    /**
      * 打印信息：三级绑定解析模板 + 联数（打印计数由 /{id}/print 记录）
      */
     @PreAuthorize("@ss.hasPermi('order:delivery:print')")

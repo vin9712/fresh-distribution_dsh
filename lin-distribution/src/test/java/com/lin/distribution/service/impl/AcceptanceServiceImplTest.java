@@ -23,6 +23,7 @@ import com.lin.distribution.mapper.DeliverySourceItemMapper;
 import com.lin.distribution.mapper.SaleOrderDetailMapper;
 import com.lin.distribution.mapper.SaleOrderMapper;
 import com.lin.distribution.service.BizCodeService;
+import com.lin.distribution.vo.AcceptanceByOrderVO;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -558,5 +559,116 @@ class AcceptanceServiceImplTest {
         when(acceptanceMapper.selectAcceptanceById(1L)).thenReturn(acceptance);
         assertThrows(ServiceException.class, () -> acceptanceService.deleteByIds(new Long[]{1L}));
         verify(acceptanceMapper, never()).deleteAcceptanceByIds(any(Long[].class));
+    }
+
+    // ==================== 去验收定位（locateBySaleOrder，S14 §6.1） ====================
+
+    @Test
+    void 去验收定位命中送货单与已有验收单() {
+        DeliverySourceItem si = source(DEPT_A, DETAIL_ID, 8001L, "5", "2.50");
+        si.setDeliveryId(DELIVERY_ID);
+        when(deliverySourceItemMapper.selectDeliverySourceItemList(any(DeliverySourceItem.class)))
+                .thenReturn(List.of(si));
+        when(deliveryOrderMapper.selectListByIds(any())).thenReturn(List.of(deliveredOrder()));
+        when(acceptanceMapper.selectAcceptanceList(any(Acceptance.class)))
+                .thenReturn(List.of(draftAcceptance()));
+
+        AcceptanceByOrderVO vo = acceptanceService.locateBySaleOrder(1000L);
+
+        assertEquals(1000L, vo.getOrderId());
+        assertEquals(DELIVERY_ID, vo.getDeliveryId());
+        assertEquals(DeliveryOrderStatus.DELIVERED.getCode(), vo.getDeliveryStatus());
+        assertTrue(vo.getHasAcceptance());
+        assertEquals(1L, vo.getAcceptanceId());
+        assertEquals("YS20260817001", vo.getAcceptanceCode());
+    }
+
+    @Test
+    void 去验收定位无验收单时带送货单引导创建草稿() {
+        DeliverySourceItem si = source(DEPT_A, DETAIL_ID, 8001L, "5", "2.50");
+        si.setDeliveryId(DELIVERY_ID);
+        when(deliverySourceItemMapper.selectDeliverySourceItemList(any(DeliverySourceItem.class)))
+                .thenReturn(List.of(si));
+        when(deliveryOrderMapper.selectListByIds(any())).thenReturn(List.of(deliveredOrder()));
+        when(acceptanceMapper.selectAcceptanceList(any(Acceptance.class))).thenReturn(Collections.emptyList());
+
+        AcceptanceByOrderVO vo = acceptanceService.locateBySaleOrder(1000L);
+
+        assertEquals(DELIVERY_ID, vo.getDeliveryId());
+        assertEquals(Boolean.FALSE, vo.getHasAcceptance());
+        assertNull(vo.getAcceptanceId());
+    }
+
+    @Test
+    void 去验收定位历史单回退送货明细行order_id() {
+        when(deliverySourceItemMapper.selectDeliverySourceItemList(any(DeliverySourceItem.class)))
+                .thenReturn(Collections.emptyList());
+        DeliveryOrderDetail detail = detail(DETAIL_ID, "2.50", "5");
+        detail.setDeliveryId(DELIVERY_ID);
+        detail.setOrderId(1000L);
+        when(deliveryOrderDetailMapper.selectListByOrderIdIn(any())).thenReturn(List.of(detail));
+        when(deliveryOrderMapper.selectListByIds(any())).thenReturn(List.of(deliveredOrder()));
+        when(acceptanceMapper.selectAcceptanceList(any(Acceptance.class))).thenReturn(Collections.emptyList());
+
+        AcceptanceByOrderVO vo = acceptanceService.locateBySaleOrder(1000L);
+
+        assertEquals(DELIVERY_ID, vo.getDeliveryId());
+        verify(deliverySourceItemMapper).selectDeliverySourceItemList(any(DeliverySourceItem.class));
+    }
+
+    @Test
+    void 去验收定位排除已作废送货单() {
+        when(deliverySourceItemMapper.selectDeliverySourceItemList(any(DeliverySourceItem.class)))
+                .thenReturn(Collections.emptyList());
+        DeliveryOrderDetail detail = detail(DETAIL_ID, "2.50", "5");
+        detail.setDeliveryId(DELIVERY_ID);
+        detail.setOrderId(1000L);
+        when(deliveryOrderDetailMapper.selectListByOrderIdIn(any())).thenReturn(List.of(detail));
+        DeliveryOrder voided = deliveredOrder();
+        voided.setStatus(DeliveryOrderStatus.VOIDED.getCode());
+        when(deliveryOrderMapper.selectListByIds(any())).thenReturn(List.of(voided));
+
+        AcceptanceByOrderVO vo = acceptanceService.locateBySaleOrder(1000L);
+
+        assertNull(vo.getDeliveryId());
+        verify(acceptanceMapper, never()).selectAcceptanceList(any(Acceptance.class));
+    }
+
+    @Test
+    void 去验收定位未进入送货单时仅回显订单ID() {
+        when(deliverySourceItemMapper.selectDeliverySourceItemList(any(DeliverySourceItem.class)))
+                .thenReturn(Collections.emptyList());
+        when(deliveryOrderDetailMapper.selectListByOrderIdIn(any())).thenReturn(Collections.emptyList());
+
+        AcceptanceByOrderVO vo = acceptanceService.locateBySaleOrder(1000L);
+
+        assertEquals(1000L, vo.getOrderId());
+        assertNull(vo.getDeliveryId());
+        assertEquals(Boolean.FALSE, vo.getHasAcceptance());
+        verify(deliveryOrderMapper, never()).selectListByIds(any());
+    }
+
+    @Test
+    void 去验收定位补充单场景优先命中已有验收单的最新一张() {
+        DeliverySourceItem siOld = source(DEPT_A, DETAIL_ID, 8001L, "5", "2.50");
+        siOld.setDeliveryId(500L);
+        DeliverySourceItem siNew = source(DEPT_A, DETAIL_ID, 8001L, "5", "2.50");
+        siNew.setDeliveryId(501L);
+        when(deliverySourceItemMapper.selectDeliverySourceItemList(any(DeliverySourceItem.class)))
+                .thenReturn(List.of(siNew, siOld));
+        DeliveryOrder oldOrder = deliveredOrder();
+        oldOrder.setId(500L);
+        DeliveryOrder newOrder = deliveredOrder();
+        newOrder.setId(501L);
+        when(deliveryOrderMapper.selectListByIds(any())).thenReturn(List.of(oldOrder, newOrder));
+        // 先查 501（最新）即命中验收单
+        when(acceptanceMapper.selectAcceptanceList(any(Acceptance.class)))
+                .thenReturn(List.of(draftAcceptance()));
+
+        AcceptanceByOrderVO vo = acceptanceService.locateBySaleOrder(1000L);
+
+        assertEquals(501L, vo.getDeliveryId());
+        assertEquals(List.of(500L, 501L), vo.getDeliveryIds());
+        assertTrue(vo.getHasAcceptance());
     }
 }

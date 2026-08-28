@@ -5,16 +5,20 @@ import com.lin.distribution.constant.AcceptanceStatus;
 import com.lin.distribution.constant.DeliveryOrderStatus;
 import com.lin.distribution.constant.SaleOrderStatus;
 import com.lin.distribution.domain.Acceptance;
+import com.lin.distribution.domain.CustomerDept;
 import com.lin.distribution.domain.DeliveryOrder;
+import com.lin.distribution.domain.DeliveryOrderDetail;
 import com.lin.distribution.domain.DeliverySourceItem;
 import com.lin.distribution.domain.SaleOrder;
 import com.lin.distribution.dto.DeliveryNoPrintDTO;
 import com.lin.distribution.mapper.AcceptanceMapper;
+import com.lin.distribution.mapper.CustomerDeptMapper;
 import com.lin.distribution.mapper.DeliveryOrderDetailMapper;
 import com.lin.distribution.mapper.DeliveryOrderMapper;
 import com.lin.distribution.mapper.DeliverySourceItemMapper;
 import com.lin.distribution.mapper.SaleOrderMapper;
 import com.lin.distribution.service.BizCodeService;
+import com.lin.distribution.vo.DeliverySourceVO;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -22,6 +26,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.math.BigDecimal;
 import java.util.Collections;
 import java.util.List;
 
@@ -53,6 +58,8 @@ class DeliveryOrderServiceImplTest {
     private DeliverySourceItemMapper deliverySourceItemMapper;
     @Mock
     private SaleOrderMapper saleOrderMapper;
+    @Mock
+    private CustomerDeptMapper customerDeptMapper;
     @Mock
     private AcceptanceMapper acceptanceMapper;
     @Mock
@@ -333,5 +340,75 @@ class DeliveryOrderServiceImplTest {
         item.setDeliveryId(deliveryId);
         item.setSaleOrderId(saleOrderId);
         return item;
+    }
+
+    // ==================== 来源视图（selectDeliverySources，S14 §6.1） ====================
+
+    @Test
+    void 来源视图展开来源订单并回填订单号与配送点名() {
+        DeliveryOrderDetail detail = new DeliveryOrderDetail();
+        detail.setId(700L);
+        detail.setProductName("白菜");
+        detail.setNum(new BigDecimal("10"));
+        detail.setPrice(new BigDecimal("2.50"));
+        detail.setAmount(new BigDecimal("25.00"));
+        when(deliveryOrderDetailMapper.selectListByDeliveryId(500L)).thenReturn(List.of(detail));
+
+        DeliverySourceItem siA = sourceItem(500L, 1000L);
+        siA.setId(1L);
+        siA.setDeliveryDetailId(700L);
+        siA.setCustomerDeptId(201L);
+        siA.setAllocatedQuantity(new BigDecimal("4"));
+        siA.setUnitPrice(new BigDecimal("2.50"));
+        DeliverySourceItem siB = sourceItem(500L, 1001L);
+        siB.setId(2L);
+        siB.setDeliveryDetailId(700L);
+        siB.setCustomerDeptId(202L);
+        siB.setAllocatedQuantity(new BigDecimal("6"));
+        siB.setUnitPrice(new BigDecimal("2.50"));
+        when(deliverySourceItemMapper.selectListByDeliveryId(500L)).thenReturn(List.of(siA, siB));
+
+        SaleOrder orderA = new SaleOrder();
+        orderA.setId(1000L);
+        orderA.setCode("XS001");
+        SaleOrder orderB = new SaleOrder();
+        orderB.setId(1001L);
+        orderB.setCode("XS002");
+        when(saleOrderMapper.selectSaleOrderByIdIn(anyList())).thenReturn(List.of(orderA, orderB));
+        CustomerDept deptA = new CustomerDept();
+        deptA.setId(201L);
+        deptA.setName("点一");
+        CustomerDept deptB = new CustomerDept();
+        deptB.setId(202L);
+        deptB.setName("点二");
+        when(customerDeptMapper.selectCustomerDeptById(201L)).thenReturn(deptA);
+        when(customerDeptMapper.selectCustomerDeptById(202L)).thenReturn(deptB);
+
+        List<DeliverySourceVO> result = deliveryOrderService.selectDeliverySources(500L);
+
+        assertEquals(1, result.size());
+        DeliverySourceVO vo = result.get(0);
+        assertEquals(new BigDecimal("10"), vo.getNum());
+        assertEquals(2, vo.getSources().size());
+        assertEquals("XS001", vo.getSources().get(0).getOrderCode());
+        assertEquals("点二", vo.getSources().get(1).getCustomerDeptName());
+        assertEquals(new BigDecimal("6"), vo.getSources().get(1).getAllocatedQuantity());
+    }
+
+    @Test
+    void 来源视图历史单无台账时sources为空但不丢聚合行() {
+        DeliveryOrderDetail detail = new DeliveryOrderDetail();
+        detail.setId(700L);
+        detail.setProductName("土豆");
+        detail.setNum(new BigDecimal("8"));
+        when(deliveryOrderDetailMapper.selectListByDeliveryId(500L)).thenReturn(List.of(detail));
+        when(deliverySourceItemMapper.selectListByDeliveryId(500L)).thenReturn(Collections.emptyList());
+
+        List<DeliverySourceVO> result = deliveryOrderService.selectDeliverySources(500L);
+
+        assertEquals(1, result.size());
+        assertEquals("土豆", result.get(0).getProductName());
+        assertTrue(result.get(0).getSources().isEmpty());
+        verify(saleOrderMapper, never()).selectSaleOrderByIdIn(anyList());
     }
 }

@@ -48,6 +48,7 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
             <if test="deliveryPointId != null "> and o.delivery_point_id = #{deliveryPointId}</if>
             <if test="code != null  and code != ''"> and o.code = #{code}</if>
             <if test="status != null "> and o.status = #{status}</if>
+            <if test="scopeType != null and scopeType != ''"> and o.scope_type = #{scopeType}</if>
             <if test="deliveryDate != null "> and o.delivery_date = #{deliveryDate}</if>
         </where>
     </select>

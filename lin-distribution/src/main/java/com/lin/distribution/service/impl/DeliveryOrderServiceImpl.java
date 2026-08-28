@@ -1,6 +1,9 @@
 package com.lin.distribution.service.impl;
 
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
@@ -12,11 +15,14 @@ import com.lin.distribution.constant.AcceptanceStatus;
 import com.lin.distribution.constant.DeliveryOrderStatus;
 import com.lin.distribution.constant.SaleOrderStatus;
 import com.lin.distribution.domain.Acceptance;
+import com.lin.distribution.domain.CustomerDept;
 import com.lin.distribution.domain.DeliveryOrder;
 import com.lin.distribution.domain.DeliveryOrderDetail;
 import com.lin.distribution.domain.DeliverySourceItem;
 import com.lin.distribution.domain.SaleOrder;
 import com.lin.distribution.dto.DeliveryNoPrintDTO;
+import com.lin.distribution.mapper.CustomerDeptMapper;
+import com.lin.distribution.vo.DeliverySourceVO;
 import com.lin.distribution.mapper.AcceptanceMapper;
 import com.lin.distribution.mapper.DeliveryOrderDetailMapper;
 import com.lin.distribution.mapper.DeliveryOrderMapper;
@@ -51,6 +57,7 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
     private final DeliveryOrderMapper deliveryOrderMapper;
     private final DeliveryOrderDetailMapper deliveryOrderDetailMapper;
     private final DeliverySourceItemMapper deliverySourceItemMapper;
+    private final CustomerDeptMapper customerDeptMapper;
     private final SaleOrderMapper saleOrderMapper;
     private final AcceptanceMapper acceptanceMapper;
 
@@ -74,6 +81,61 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
     @Override
     public List<DeliveryOrderDetail> selectDetailListByDeliveryId(Long deliveryId) {
         return deliveryOrderDetailMapper.selectListByDeliveryId(deliveryId);
+    }
+
+    /**
+     * 送货单来源视图（S14 §6.1/§八）：聚合行 + source_item 展开的来源订单/行/分配量。
+     * 历史单（无台账）sources 为空列表，前端展示“—历史数据—”；
+     * 订单号/配送点名批量回填，避免行级 N+1 查询。
+     */
+    @Override
+    public List<DeliverySourceVO> selectDeliverySources(Long deliveryId) {
+        List<DeliveryOrderDetail> details = deliveryOrderDetailMapper.selectListByDeliveryId(deliveryId);
+        List<DeliverySourceItem> sources = deliverySourceItemMapper.selectListByDeliveryId(deliveryId);
+
+        Map<Long, List<DeliverySourceItem>> byDetail = sources.stream()
+                .collect(Collectors.groupingBy(DeliverySourceItem::getDeliveryDetailId));
+
+        // 批量回填来源订单号与配送点名（无价格担忧：来源订单数/点数均为小量级）
+        List<Long> orderIds = sources.stream()
+                .map(DeliverySourceItem::getSaleOrderId).distinct().collect(Collectors.toList());
+        Map<Long, String> orderCodeMap = orderIds.isEmpty() ? Map.of()
+                : saleOrderMapper.selectSaleOrderByIdIn(orderIds).stream()
+                        .collect(Collectors.toMap(SaleOrder::getId, SaleOrder::getCode, (a, b) -> a));
+        List<Long> deptIds = sources.stream()
+                .map(DeliverySourceItem::getCustomerDeptId).distinct().collect(Collectors.toList());
+        Map<Long, String> deptNameMap = deptIds.isEmpty() ? Map.of()
+                : deptIds.stream()
+                        .map(customerDeptMapper::selectCustomerDeptById)
+                        .filter(Objects::nonNull)
+                        .collect(Collectors.toMap(CustomerDept::getId, CustomerDept::getName, (a, b) -> a));
+
+        List<DeliverySourceVO> result = new ArrayList<>();
+        for (DeliveryOrderDetail detail : details) {
+            DeliverySourceVO vo = new DeliverySourceVO();
+            vo.setDeliveryDetailId(detail.getId());
+            vo.setProductName(detail.getProductName());
+            vo.setProductSpec(detail.getProductSpec());
+            vo.setProductUnit(detail.getProductUnit());
+            vo.setNum(detail.getNum());
+            vo.setPrice(detail.getPrice());
+            vo.setAmount(detail.getAmount());
+            vo.setSources(byDetail.getOrDefault(detail.getId(), List.of()).stream()
+                    .sorted(Comparator.comparing(DeliverySourceItem::getId))
+                    .map(si -> {
+                        DeliverySourceVO.SourceRow row = new DeliverySourceVO.SourceRow();
+                        row.setSaleOrderId(si.getSaleOrderId());
+                        row.setOrderCode(orderCodeMap.get(si.getSaleOrderId()));
+                        row.setCustomerDeptId(si.getCustomerDeptId());
+                        row.setCustomerDeptName(deptNameMap.get(si.getCustomerDeptId()));
+                        row.setAllocatedQuantity(si.getAllocatedQuantity());
+                        row.setUnitPrice(si.getUnitPrice());
+                        return row;
+                    })
+                    .collect(Collectors.toList()));
+            result.add(vo);
+        }
+        return result;
     }
 
     /**

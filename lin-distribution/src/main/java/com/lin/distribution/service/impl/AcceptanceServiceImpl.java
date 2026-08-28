@@ -26,6 +26,7 @@ import com.lin.distribution.mapper.DeliverySourceItemMapper;
 import com.lin.distribution.mapper.SaleOrderDetailMapper;
 import com.lin.distribution.mapper.SaleOrderMapper;
 import com.lin.distribution.service.AcceptanceService;
+import com.lin.distribution.vo.AcceptanceByOrderVO;
 import com.lin.distribution.service.BizCodeService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -38,6 +39,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -85,6 +87,79 @@ public class AcceptanceServiceImpl implements AcceptanceService {
     @Override
     public List<AcceptanceItem> selectItemListByAcceptanceId(Long acceptanceId) {
         return acceptanceItemMapper.selectListByAcceptanceId(acceptanceId);
+    }
+
+    /**
+     * 「去验收」定位（S14 §6.1/§八）：
+     * ① 新模型走 source_item 有效分配反查送货单；② 历史单回退送货明细行 order_id；
+     * ③ 排除已作废单；④ 一单分布在多张有效单（补充单）时优先取已建验收单的最新一张，
+     * 都没有则定位最新单，前端带 deliveryId 引导创建验收草稿。
+     */
+    @Override
+    public AcceptanceByOrderVO locateBySaleOrder(Long orderId) {
+        AcceptanceByOrderVO vo = new AcceptanceByOrderVO();
+        vo.setOrderId(orderId);
+        vo.setHasAcceptance(false);
+
+        // ① 新模型：source_item 有效分配（is_deleted=0，作废释放后不会命中）
+        DeliverySourceItem sourceQuery = new DeliverySourceItem();
+        sourceQuery.setSaleOrderId(orderId);
+        List<Long> deliveryIds = deliverySourceItemMapper.selectDeliverySourceItemList(sourceQuery)
+                .stream()
+                .map(DeliverySourceItem::getDeliveryId)
+                .distinct()
+                .sorted()
+                .collect(Collectors.toList());
+
+        // ② 历史单回退：S14 前生成的送货明细行 order_id（无台账）
+        if (deliveryIds.isEmpty()) {
+            deliveryIds = deliveryOrderDetailMapper.selectListByOrderIdIn(List.of(orderId))
+                    .stream()
+                    .map(DeliveryOrderDetail::getDeliveryId)
+                    .distinct()
+                    .sorted()
+                    .collect(Collectors.toList());
+        }
+        if (deliveryIds.isEmpty()) {
+            return vo;
+        }
+
+        // ③ 过滤已作废（历史单作废无台账软删痕迹，必须按单据状态排除）
+        List<DeliveryOrder> validDeliveries = deliveryOrderMapper.selectListByIds(deliveryIds)
+                .stream()
+                .filter(d -> !Objects.equals(d.getStatus(), DeliveryOrderStatus.VOIDED.getCode()))
+                .sorted(Comparator.comparing(DeliveryOrder::getId))
+                .collect(Collectors.toList());
+        if (validDeliveries.isEmpty()) {
+            return vo;
+        }
+        vo.setDeliveryIds(validDeliveries.stream().map(DeliveryOrder::getId).collect(Collectors.toList()));
+
+        // ④ 从最新单向前找已有验收单的单；都没有则定位最新单引导创建草稿
+        DeliveryOrder hitDelivery = validDeliveries.get(validDeliveries.size() - 1);
+        Acceptance hit = null;
+        for (int i = validDeliveries.size() - 1; i >= 0; i--) {
+            DeliveryOrder candidate = validDeliveries.get(i);
+            Acceptance query = new Acceptance();
+            query.setDeliveryOrderId(candidate.getId());
+            List<Acceptance> accs = acceptanceMapper.selectAcceptanceList(query);
+            if (CollectionUtils.isNotEmpty(accs)) {
+                hit = accs.get(0);
+                hitDelivery = candidate;
+                break;
+            }
+        }
+
+        vo.setDeliveryId(hitDelivery.getId());
+        vo.setDeliveryCode(hitDelivery.getCode());
+        vo.setDeliveryStatus(hitDelivery.getStatus());
+        if (hit != null) {
+            vo.setHasAcceptance(true);
+            vo.setAcceptanceId(hit.getId());
+            vo.setAcceptanceCode(hit.getCode());
+            vo.setAcceptanceStatus(hit.getStatus());
+        }
+        return vo;
     }
 
     /**

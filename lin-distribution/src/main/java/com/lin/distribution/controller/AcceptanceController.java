@@ -81,6 +81,17 @@ public class AcceptanceController extends BaseController {
     }
 
     /**
+     * 「去验收」定位（S14 §6.1/§八）：订单列表已配送行跳转验收页，
+     * 反查该订单所在有效送货单与验收单（无验收单时带 deliveryId 引导创建草稿）
+     */
+    @Operation(summary = "按订单定位验收单")
+    @PreAuthorize("@ss.hasPermi('acceptance:query')")
+    @GetMapping("/by-order/{orderId}")
+    public AjaxResult byOrder(@PathVariable("orderId") Long orderId) {
+        return success(acceptanceService.locateBySaleOrder(orderId));
+    }
+
+    /**
      * 按送货单生成验收单草稿（一单一验）
      */
     @Operation(summary = "按送货单生成验收单")

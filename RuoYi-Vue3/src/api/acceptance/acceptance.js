@@ -60,6 +60,24 @@ export function submitAcceptance(id) {
   })
 }
 
+// 「去验收」定位：按来源订单反查所在有效送货单与验收单
+// （有验收单→跳转验收单；无→带 deliveryId 引导创建草稿）
+export function locateAcceptanceByOrder(orderId) {
+  return request({
+    url: '/acceptance/by-order/' + orderId,
+    method: 'get'
+  })
+}
+
+// 撤销验收（S14/T5：已提交→草稿，原因必填，来源订单回退已配送）
+export function revokeAcceptance(id, reason) {
+  return request({
+    url: '/acceptance/' + id + '/revoke',
+    method: 'post',
+    data: { reason: reason }
+  })
+}
+
 // 删除验收单（仅草稿）
 export function delAcceptance(id) {
   return request({

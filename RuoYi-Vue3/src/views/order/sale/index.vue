@@ -148,14 +148,6 @@
           >批量确认</el-button
         >
         <el-button
-          type="primary"
-          size="small"
-          plain
-          :icon="Check"
-          @click="handleOrderCheck"
-          >批量验收</el-button
-        >
-        <el-button
           v-hasPermi="['order:sale:settle']"
           type="primary"
           size="small"
@@ -232,6 +224,14 @@
             :options="dict.type.t_sale_order_status"
             :value="scope.row.status"
           />
+          <el-tag
+            v-if="scope.row.status == 1 && !scope.row.allocated"
+            size="small"
+            type="success"
+            effect="plain"
+            class="recallable-tag"
+            >可撤回</el-tag
+          >
         </template>
       </el-table-column>
       <el-table-column
@@ -275,7 +275,7 @@
       >
         <template #default="scope">
           <el-button
-            v-if="scope.row.status == 1"
+            v-if="scope.row.status == 1 && !scope.row.allocated"
             size="small"
             link
             :icon="RefreshLeft"
@@ -283,6 +283,13 @@
             v-hasPermi="['order:sale:recall']"
             >撤回</el-button
           >
+          <el-tooltip
+            v-if="scope.row.status == 1 && scope.row.allocated"
+            content="已生成送货单，请先作废对应送货单再撤回"
+            placement="top"
+          >
+            <span class="op-disabled-tip">撤回</span>
+          </el-tooltip>
           <el-button
             v-if="scope.row.status == 2 || scope.row.status == 3"
             size="small"
@@ -293,14 +300,17 @@
             >调整</el-button
           >
           <el-button
-            v-if="scope.row.status == 3"
+            v-if="scope.row.status == 2"
             size="small"
             link
-            :icon="RefreshLeft"
-            @click="handleRevokeAcceptance(scope.row)"
-            >撤销验收</el-button
+            type="primary"
+            :icon="Box"
+            @click="handleGoAcceptance(scope.row)"
+            v-hasPermi="['acceptance:query']"
+            >去验收</el-button
           >
           <el-button
+            v-if="scope.row.status == 0 || scope.row.status == 1"
             size="small"
             link
             :icon="Edit"
@@ -489,46 +499,6 @@
       </template>
     </el-dialog>
 
-    <!-- 批量验收确认弹窗：逐单展示行数/空实收/差异/超阈值 -->
-    <el-dialog align-center title="批量验收确认" v-model="checkOpen" width="720px" append-to-body>
-      <el-alert
-        type="warning"
-        :closable="false"
-        show-icon
-        style="margin-bottom: 12px"
-        title="空实收行将按下单数量计；差异超过阈值的行仅提示不阻断，请自行核实后确认"
-      />
-      <el-table :data="checkRows" border size="small">
-        <el-table-column label="订单编号" align="center" prop="code" min-width="130" />
-        <el-table-column label="送货单位" align="center" prop="deliveryName" min-width="120" :show-overflow-tooltip="true" />
-        <el-table-column label="明细行数" align="center" prop="detailCount" width="80" />
-        <el-table-column label="空实收行数" align="center" prop="emptyActualCount" width="90">
-          <template #default="scope">
-            <span :class="{ 'check-warn-text': scope.row.emptyActualCount > 0 }">{{ scope.row.emptyActualCount }}</span>
-          </template>
-        </el-table-column>
-        <el-table-column label="有差异行数" align="center" prop="diffCount" width="90">
-          <template #default="scope">
-            <span :class="{ 'check-warn-text': scope.row.diffCount > 0 }">{{ scope.row.diffCount }}</span>
-          </template>
-        </el-table-column>
-        <el-table-column label="超阈值行数" align="center" prop="overThresholdCount" width="90">
-          <template #default="scope">
-            <span class="check-danger-text">{{ scope.row.overThresholdCount }}</span>
-          </template>
-        </el-table-column>
-      </el-table>
-      <div class="check-summary">
-        本批 {{ checkRows.length }} 单，共 {{ totalCheckDetail }} 行；有差异 {{ totalDiffLines }} 行，超阈值（±{{ checkThreshold }}%）{{ totalOverLines }} 行
-      </div>
-      <template #footer>
-        <div class="dialog-footer">
-          <el-button type="primary" :loading="checkSubmitting" @click="confirmOrderCheck">确认验收</el-button>
-          <el-button @click="checkOpen = false">取 消</el-button>
-        </div>
-      </template>
-    </el-dialog>
-
     <!-- 生成采购单/送货单抽屉（三步：汇总预览 → 填写信息 → 确认生成） -->
     <el-drawer
       v-model="buildDrawerVisible"
@@ -635,7 +605,7 @@
               />
             </el-form-item>
             <el-alert
-              title="送货单将按 客户+配送点 自动分组生成（多个配送点会生成多张送货单）"
+              title="按各客户的组单策略生成批次与送货单（跨点总单/每点一单、明细是否合并由客户配置决定）；已生成过的订单会自动幂等跳过，遗漏订单按补单规则补齐"
               type="info"
               :closable="false"
               show-icon
@@ -726,8 +696,8 @@ import {
 import { generatePurchaseByOrders } from "@/api/purchase/purchase";
 import { generateDeliveryByOrders } from "@/api/order/delivery";
 import { listCustomerDept } from "@/api/partner/customerDept";
-import { listSaleDetail, saveActualDraft, acceptOrders, revokeAcceptance } from "@/api/order/saleDetail";
-import { getConfigKey } from "@/api/system/config";
+import { listSaleDetail } from "@/api/order/saleDetail";
+import { locateAcceptanceByOrder } from "@/api/acceptance/acceptance";
 import { listDrafts, removeDraft } from "@/utils/saleDraft";
 import { createAdjustment } from "@/api/order/adjustment";
 import {
@@ -742,13 +712,14 @@ import {
   Check,
   RefreshLeft,
   Close,
+  Box,
 } from "@element-plus/icons-vue";
 
 export default {
   name: "Sale",
   dicts: ["t_sale_order_status", "t_sale_order_type", "t_sale_order_source"],
   setup() {
-    return { Search, Refresh, Plus, ShoppingBag, Van, Edit, Delete, Operation, Check, RefreshLeft, Close };
+    return { Search, Refresh, Plus, ShoppingBag, Van, Edit, Delete, Operation, Check, RefreshLeft, Close, Box };
   },
   data() {
     return {
@@ -843,13 +814,6 @@ export default {
       },
       adjustDetailRows: [],
       adjustNewRows: [],
-      // 批量验收确认弹窗
-      checkOpen: false,
-      checkSubmitting: false,
-      // 待验收订单逐单统计行
-      checkRows: [],
-      // 差异提醒阈值（sys_config order.accept.diff.threshold，默认 20%，仅提示非阻断）
-      checkThreshold: 20,
       // 生成采购单/送货单抽屉
       buildDrawerVisible: false,
       buildMode: "purchase", // purchase | delivery
@@ -879,16 +843,6 @@ export default {
       }
       return true;
     },
-    /** 批量验收弹窗汇总：总行数/差异行/超阈值行 */
-    totalCheckDetail() {
-      return this.checkRows.reduce((s, r) => s + r.detailCount, 0);
-    },
-    totalDiffLines() {
-      return this.checkRows.reduce((s, r) => s + r.diffCount, 0);
-    },
-    totalOverLines() {
-      return this.checkRows.reduce((s, r) => s + r.overThresholdCount, 0);
-    },
   },
   created() {
     this.getTreeselect();
@@ -900,15 +854,6 @@ export default {
     this.getPageList();
     // 检测未完成订单草稿，展示恢复横幅
     this.refreshDrafts();
-    // 差异提醒阈值（仅提示非阻断）
-    getConfigKey("order.accept.diff.threshold")
-      .then((response) => {
-        const value = parseFloat(response.msg);
-        if (!isNaN(value) && value > 0) {
-          this.checkThreshold = value;
-        }
-      })
-      .catch(() => {});
   },
   methods: {
     /** 刷新草稿列表（新单页恢复横幅用） */
@@ -1064,92 +1009,29 @@ export default {
           this.handleQuery();
         });
     },
-    /** 批量验收订单状态 */
-    handleOrderCheck(row) {
-      // 获取选中的订单
-      const orderList = row && row.status ? [row] : this.formSelectedOptions;
-      // 校验是否全为已配送状态的订单
-      const valid = orderList.some((item) => item.status !== 2);
-      if (valid) {
-        this.$modal.msgError("请选择已配送状态的订单");
-        return;
-      }
-      // 拉取各单明细，逐单统计行数/空实收/差异/超阈值，弹窗二次确认
-      this.loading = true;
-      Promise.all(
-        orderList.map((o) => listSaleDetail({ orderId: o.id }))
-      )
-        .then((responses) => {
-          this.checkRows = responses.map((res, idx) => {
-            const details = res.data || [];
-            let emptyActualCount = 0;
-            let diffCount = 0;
-            let overThresholdCount = 0;
-            details.forEach((d) => {
-              const num = Number(d.num) || 0;
-              const actual =
-                d.actualNum === null || d.actualNum === undefined
-                  ? num
-                  : Number(d.actualNum);
-              if (d.actualNum === null || d.actualNum === undefined) {
-                emptyActualCount++;
-              }
-              if (Math.abs(actual - num) > 0.005) {
-                diffCount++;
-                if (
-                  num > 0 &&
-                  Math.abs(actual - num) > (num * this.checkThreshold) / 100
-                ) {
-                  overThresholdCount++;
-                }
-              }
-            });
-            return {
-              id: orderList[idx].id,
-              code: orderList[idx].code,
-              deliveryName: orderList[idx].deliveryName,
-              detailCount: details.length,
-              emptyActualCount,
-              diffCount,
-              overThresholdCount,
-            };
-          });
-          this.checkOpen = true;
-        })
-        .finally(() => {
-          this.loading = false;
-        });
-    },
-    /** 确认批量验收（整批置为已验收） */
-    confirmOrderCheck() {
-      this.checkSubmitting = true;
-      acceptOrders({ orderIds: this.checkRows.map((r) => r.id) })
-        .then(() => {
-          this.$modal.msgSuccess(
-            "已验收 " + this.checkRows.length + " 条订单"
-          );
-          this.checkOpen = false;
-          this.getPageList();
-        })
-        .catch(() => {})
-        .finally(() => {
-          this.checkSubmitting = false;
-        });
-    },
-    /** 撤销验收（已验收回退已配送并清空实收数据；已结算由后端拦截） */
-    handleRevokeAcceptance(row) {
-      this.$modal
-        .confirm(
-          "是否确认撤销订单【" +
-            row.code +
-            "】的验收？实收数据将清空并回退到已配送状态。"
-        )
-        .then(function () {
-          return revokeAcceptance({ orderIds: [row.id] });
-        })
-        .then(() => {
-          this.$modal.msgSuccess("已撤销验收");
-          this.getPageList();
+    /** 去验收（S14/C1：仅已配送行；定位该订单所在送货单的验收单并跳转） */
+    handleGoAcceptance(row) {
+      locateAcceptanceByOrder(row.id)
+        .then((response) => {
+          const info = response.data || {};
+          if (!info.deliveryId) {
+            this.$modal.msgError("该订单尚未进入有效送货单，无法验收");
+            return;
+          }
+          const query = { deliveryId: info.deliveryId, highlightOrder: row.id };
+          if (info.hasAcceptance) {
+            // 已有验收单：直接跳转定位
+            query.acceptanceId = info.acceptanceId;
+          } else if (info.deliveryStatus !== 2) {
+            this.$modal.msgWarning(
+              "该订单所在送货单【" + info.deliveryCode + "】尚未送达，送达后才能验收"
+            );
+            return;
+          } else {
+            // 无验收单：引导创建草稿
+            query.create = 1;
+          }
+          this.$router.push({ path: "/order/acceptance", query });
         })
         .catch(() => {});
     },
@@ -1548,20 +1430,16 @@ export default {
 .doc-empty {
   color: #c0c4cc;
 }
-/* 批量验收弹窗统计高亮 */
-.check-warn-text {
-  color: #e6a23c;
-  font-weight: 600;
+/* 可撤回标识 / 撤回禁用提示 */
+.recallable-tag {
+  margin-left: 4px;
 }
-.check-danger-text {
-  color: #f56c6c;
-  font-weight: 600;
-}
-.check-summary {
-  margin-top: 10px;
-  text-align: right;
-  font-size: 13px;
-  color: #606266;
+.op-disabled-tip {
+  display: inline-block;
+  font-size: 12px;
+  color: #c0c4cc;
+  cursor: not-allowed;
+  margin: 0 12px;
 }
 /* 生成单据抽屉 */
 .build-orders-summary {

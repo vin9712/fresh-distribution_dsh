@@ -120,6 +120,12 @@ public class SaleOrder extends BaseEntity {
     @TableField(exist = false)
     private String deliveryOrderCode;
 
+    /**
+     * 查询字段：是否已进入有效送货单（可撤回标识，S14/T7；口径与 existsValidAllocation 一致）
+     */
+    @TableField(exist = false)
+    private Boolean allocated;
+
     public String getDeliveryName() {
         if (!StringUtils.equals(customerName, customerDeptName)) {
             return customerName + "-" + customerDeptName;
