@@ -6,6 +6,8 @@ import com.lin.distribution.domain.JobRunLog;
 import com.lin.distribution.mapper.JobRunLogMapper;
 import com.lin.distribution.mapper.WorkbenchMapper;
 import com.lin.distribution.service.DeliveryGenerationService;
+import com.lin.distribution.util.PendingAcceptanceReminder;
+import com.lin.distribution.vo.PendingAcceptanceVO;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -13,6 +15,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.time.LocalDate;
+import java.time.LocalTime;
+import java.util.List;
 
 /**
  * 工作台待办接口
@@ -46,5 +50,21 @@ public class WorkbenchController extends BaseController {
             return success(null);
         }
         return success(latest);
+    }
+
+    /**
+     * 待验收提醒（蓝图 W0-3.2）：已送达未验收送货单，按「打印满2h→黄 / 配送日当天11:30后→红 / 过期→红」分级
+     */
+    @GetMapping("/pending-acceptance")
+    public AjaxResult pendingAcceptance() {
+        LocalDate today = LocalDate.now();
+        LocalTime now = LocalTime.now();
+        List<PendingAcceptanceVO> list = workbenchMapper.selectPendingAcceptance();
+        for (PendingAcceptanceVO vo : list) {
+            int level = PendingAcceptanceReminder.compute(vo.getDeliveryDate(), vo.getPrintTime(), today, now);
+            vo.setReminderLevel(level);
+            vo.setReminderReason(PendingAcceptanceReminder.reason(level));
+        }
+        return success(list);
     }
 }

@@ -15,6 +15,7 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         <result property="code"    column="code"    />
         <result property="status"    column="status"    />
         <result property="printCount"    column="print_count"    />
+        <result property="printTime"     column="print_time"     />
         <result property="voidReason"    column="void_reason"    />
         <result property="voidBy"    column="void_by"    />
         <result property="voidTime"    column="void_time"    />
@@ -32,7 +33,7 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
 
     <sql id="selectDeliveryOrderVo">
         select o.id, o.customer_id, o.delivery_point_id, o.batch_id, o.scope_type, o.doc_kind, o.predecessor_id,
-               o.code, o.status, o.print_count, o.void_reason, o.void_by, o.void_time, o.delivery_date,
+               o.code, o.status, o.print_count, o.print_time, o.void_reason, o.void_by, o.void_time, o.delivery_date,
                o.is_deleted, o.version, o.create_by, o.create_time, o.update_by, o.update_time, o.remark,
                coalesce(customer.alias, customer.name) as customerName,
                cd.name as customerDeptName
@@ -89,6 +90,7 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
             <if test="code != null and code != ''">code,</if>
             <if test="status != null">status,</if>
             <if test="printCount != null">print_count,</if>
+            <if test="printTime != null">print_time,</if>
             <if test="voidReason != null">void_reason,</if>
             <if test="voidBy != null">void_by,</if>
             <if test="voidTime != null">void_time,</if>
@@ -111,6 +113,7 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
             <if test="code != null and code != ''">#{code},</if>
             <if test="status != null">#{status},</if>
             <if test="printCount != null">#{printCount},</if>
+            <if test="printTime != null">#{printTime},</if>
             <if test="voidReason != null">#{voidReason},</if>
             <if test="voidBy != null">#{voidBy},</if>
             <if test="voidTime != null">#{voidTime},</if>
@@ -137,6 +140,7 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
             <if test="code != null and code != ''">code = #{code},</if>
             <if test="status != null">status = #{status},</if>
             <if test="printCount != null">print_count = #{printCount},</if>
+            <if test="printTime != null">print_time = #{printTime},</if>
             <if test="voidReason != null">void_reason = #{voidReason},</if>
             <if test="voidBy != null">void_by = #{voidBy},</if>
             <if test="voidTime != null">void_time = #{voidTime},</if>

@@ -210,6 +210,7 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
         }
         deliveryOrder.setPrintCount(deliveryOrder.getPrintCount() == null ? 1 : deliveryOrder.getPrintCount() + 1);
         deliveryOrder.setStatus(DeliveryOrderStatus.PRINTED.getCode());
+        deliveryOrder.setPrintTime(DateUtils.getNowDate());
         deliveryOrder.setUpdateTime(DateUtils.getNowDate());
         deliveryOrderMapper.updateDeliveryOrder(deliveryOrder);
         return deliveryOrder;

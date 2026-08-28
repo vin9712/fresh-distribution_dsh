@@ -15,4 +15,23 @@
             (select count(1) from order_adjustment) as pendingAdjust
     </select>
 
+    <!-- 待验收提醒（W0-3.2）：已送达未提交验收的送货单，附打印时间/配送日期 -->
+    <select id="selectPendingAcceptance" resultType="com.lin.distribution.vo.PendingAcceptanceVO">
+        select d.id as deliveryId,
+               d.code as deliveryCode,
+               d.customer_id as customerId,
+               coalesce(c.alias, c.name) as customerName,
+               d.delivery_point_id as deliveryPointId,
+               cd.name as deliveryPointName,
+               d.delivery_date as deliveryDate,
+               d.print_time as printTime
+        from t_delivery_order d
+        left join t_customer c on c.id = d.customer_id
+        left join t_customer_dept cd on cd.id = d.delivery_point_id
+        where d.is_deleted = 0
+          and d.status = 2
+          and not exists (select 1 from acceptance a where a.delivery_order_id = d.id and a.status = 1)
+        order by d.id
+    </select>
+
 </mapper>

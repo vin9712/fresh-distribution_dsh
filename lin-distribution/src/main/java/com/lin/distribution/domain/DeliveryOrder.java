@@ -64,6 +64,9 @@ public class DeliveryOrder extends BaseEntity {
      */
     private Integer printCount;
 
+    /** 最近打印时间（W0-3.2 待验收提醒：打印满2小时仍未验收→黄，配送日当天11:30后→红） */
+    private Date printTime;
+
     /**
      * 作废原因（S14：状态=已作废时必填）
      */
