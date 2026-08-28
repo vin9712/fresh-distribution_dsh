@@ -130,14 +130,15 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         where id = #{id}
     </update>
 
-    <delete id="deleteReturnOrderById" parameterType="Long">
-        delete from t_return_order where id = #{id}
-    </delete>
+    <!-- 逻辑删除（保留审计，与 is_deleted 口径一致） -->
+    <update id="deleteReturnOrderById" parameterType="Long">
+        update t_return_order set is_deleted = 1 where id = #{id}
+    </update>
 
-    <delete id="deleteReturnOrderByIds" parameterType="String">
-        delete from t_return_order where id in
+    <update id="deleteReturnOrderByIds" parameterType="String">
+        update t_return_order set is_deleted = 1 where id in
         <foreach item="id" collection="array" open="(" separator="," close=")">
             #{id}
         </foreach>
-    </delete>
+    </update>
 </mapper>

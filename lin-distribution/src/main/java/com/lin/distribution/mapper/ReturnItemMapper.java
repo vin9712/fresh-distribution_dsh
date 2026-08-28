@@ -2,6 +2,8 @@ package com.lin.distribution.mapper;
 
 import java.util.List;
 
+import org.apache.ibatis.annotations.Param;
+
 import com.lin.distribution.domain.ReturnItem;
 
 /**
@@ -39,9 +41,19 @@ public interface ReturnItemMapper {
      * 按验收明细行累计已退数量（退货数量上限校验用）
      *
      * @param acceptanceItemIds 来源验收明细行ID集合
+     * @param excludeReturnId 需排除的退货单ID（改草稿重算时排除自身占用，可空）
      * @return 已退数量累计（acceptance_item_id → SUM(return_quantity)），按行返回
      */
-    List<ReturnItem> sumReturnedByAcceptanceItemIds(List<Long> acceptanceItemIds);
+    List<ReturnItem> sumReturnedByAcceptanceItemIds(@Param("acceptanceItemIds") List<Long> acceptanceItemIds,
+                                                    @Param("excludeReturnId") Long excludeReturnId);
+
+    /**
+     * 按退货单删除明细（草稿改单重建用）
+     *
+     * @param returnId 退货单ID
+     * @return 影响行数
+     */
+    int deleteByReturnId(Long returnId);
 
     /**
      * 新增退货明细

@@ -51,18 +51,24 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         order by ri.id
     </select>
 
-    <!-- 按验收明细行累计已退数量（含草稿退货单占用，防超退） -->
+    <!-- 按验收明细行累计已退数量（含草稿/已提交占用防超退，已完成 status=3 不再占用；
+         excludeReturnId 非空时排除该退货单自身占用，草稿改单重算用） -->
     <select id="sumReturnedByAcceptanceItemIds" resultMap="ReturnItemResult">
         select ri.acceptance_item_id,
                coalesce(sum(ri.return_quantity), 0) as return_quantity
         from t_return_item ri
         join t_return_order ro on ro.id = ri.return_id and ro.is_deleted = 0 and ro.status &lt;&gt; 3
         where ri.acceptance_item_id in
-        <foreach item="id" collection="list" open="(" separator="," close=")">
+        <foreach item="id" collection="acceptanceItemIds" open="(" separator="," close=")">
             #{id}
         </foreach>
+        <if test="excludeReturnId != null"> and ro.id != #{excludeReturnId}</if>
         group by ri.acceptance_item_id
     </select>
+
+    <delete id="deleteByReturnId" parameterType="Long">
+        delete from t_return_item where return_id = #{returnId}
+    </delete>
 
     <insert id="insertReturnItem" parameterType="com.lin.distribution.domain.ReturnItem" useGeneratedKeys="true" keyProperty="id">
         insert into t_return_item
