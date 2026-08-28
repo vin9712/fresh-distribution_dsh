@@ -70,6 +70,16 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         <where>
             <if test="customerId != null "> and so.customer_id = #{customerId}</if>
             <if test="customerDeptId != null "> and so.customer_dept_id = #{customerDeptId}</if>
+            <if test="customerDeptIds != null and customerDeptIds.size() > 0"> and so.customer_dept_id in
+                <foreach item="id" collection="customerDeptIds" open="(" separator="," close=")">
+                    #{id}
+                </foreach>
+            </if>
+            <if test="customerIds != null and customerIds.size() > 0"> and so.customer_id in
+                <foreach item="id" collection="customerIds" open="(" separator="," close=")">
+                    #{id}
+                </foreach>
+            </if>
             <if test="code != null  and code != ''"> and so.code = #{code}</if>
             <if test="source != null "> and so.source = #{source}</if>
             <if test="type != null "> and so.type = #{type}</if>

@@ -126,6 +126,18 @@ public class SaleOrder extends BaseEntity {
     @TableField(exist = false)
     private Boolean allocated;
 
+    /**
+     * 查询字段：多个配送点ID（用于IN查询，支持多选筛选）
+     */
+    @TableField(exist = false)
+    private java.util.List<Long> customerDeptIds;
+
+    /**
+     * 查询字段：多个客户ID（用于IN查询，支持多选筛选）
+     */
+    @TableField(exist = false)
+    private java.util.List<Long> customerIds;
+
     public String getDeliveryName() {
         if (!StringUtils.equals(customerName, customerDeptName)) {
             return customerName + "-" + customerDeptName;
