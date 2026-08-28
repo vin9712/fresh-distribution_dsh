@@ -36,8 +36,8 @@
 | temp_product | 新建 | 临时商品（录单时无 SKU 即建） |
 | product_alias | 新建 | 全局别名（名称/拼音/英文缩写 → SKU） |
 | customer_sku_mapping | 新建 | 客户 SKU 映射（客户别名 → 我方 SKU） |
-| price_template / price_template_sku | 新建 | 报价模板及模板 SKU 价（含有效期） |
-| delivery_point_price | 新建 | 配送点报价（含有效期） |
+| ~~price_template / price_template_sku~~ | ~~新建~~ 已删除 `[2026-08 W0-1]` | 报价模板随价格层级简化下线（sql/w01_price_simplify.sql） |
+| ~~delivery_point_price~~ | ~~新建~~ 已删除 `[2026-08 W0-1]` | 配送点报价随价格层级简化下线（sql/w01_price_simplify.sql） |
 | order_adjustment | 新建 | 加退换调整（关联原订单/原行、类型、原因、日期） |
 | purchase_order / purchase_item | 新建 | 采购单（来源类型：自动/手工；来源订单 ID 列表；供应商；成本） |
 | acceptance / acceptance_item | 新建 | 验收单（delivery_order_id 唯一；实收/损耗/金额） |
@@ -84,9 +84,9 @@
 | 接口 | 说明 |
 |---|---|
 | GET/POST/PUT/DELETE `/price/customer/**` | 客户报价 CRUD（沿用现状 quote 流程 + 有效期） + **导入**（多客户多行按客户聚合生成报价单，同客户+SKU 已存在则新建，模板=导出模板） |
-| GET/POST/PUT/DELETE `/price/template/**`、`/price/template/sku/**` | 报价模板与模板价 |
-| GET/POST/PUT/DELETE `/price/point/**` | 配送点报价 |
-| GET `/price/query?customerId=&deliveryPointId=&skuId=&deliveryDate=` | **取价接口**：返回优先级命中结果或空价 |
+| ~~GET/POST/PUT/DELETE `/price/template/**`、`/price/template/sku/**`~~ | 报价模板与模板价（已下线 `[2026-08 W0-1]`） |
+| ~~GET/POST/PUT/DELETE `/price/point/**`~~ | 配送点报价（已下线 `[2026-08 W0-1]`） |
+| GET `/price/query?customerId=&deliveryPointId=&skuId=&deliveryDate=` | **取价接口**：仅查客户正式报价（deliveryPointId 保留仅为兼容），命中或空价；空价由文员手工定价 |
 
 ### 3.3 订单管理
 
@@ -114,6 +114,10 @@
 | POST `/delivery/generate?deliveryDate=` | 按客户+配送点分组生成送货单（幂等） |
 | GET `/delivery/**` | 送货单查询/详情 |
 | POST `/delivery/{id}/print` | 记录打印次数 + 日志 |
+| GET `/order/delivery/{id}/print-config` | **W0-2.2** 解析打印拆分配置（无配置时按批次策略推导默认值+自动生成结构，只读不落库） |
+| PUT `/order/delivery/{id}/print-config` | **W0-2.2** 保存打印拆分配置（仅未打印 PENDING 单；每次保存追加版本记录；跨点合单仅 A4、针式固定每页 10 条、顺序全排列校验） |
+| GET `/order/delivery/{id}/print-config/versions` | **W0-2.2** 打印配置版本列表（最新在前） |
+| POST `/order/delivery/{id}/print-config/restore` | **W0-2.2** 恢复自动生成结构（仅未打印 PENDING 单；追加版本记录） |
 | POST `/delivery/{id}/deliver` | 标记送达 → 订单 DELIVERED |
 | POST `/acceptance/create/{deliveryId}` | 由送货单创建验收单（初始行=送货行基线；一单一验，重复创建返回 409） |
 | POST `/acceptance/{id}/submit` | 提交：**后端重算**每行实收金额/损耗与整单总额 → 订单 ACCEPTED |

@@ -22,7 +22,7 @@
 | 2018 | 商品规格(标准SKU) `[v1.2]` 更名 | 4 | sku | `product/sku/index` | **QuickTable** |
 | 2090 | 客户商品 | 4 | customerSku | `product/customerSku/index` | **QuickTable** |
 | 2050 | 别名与映射 | 4 | aliasMapping | `product/aliasMapping/index` | **QuickTable ×3 tab** |
-| 2063 | 报价模板 | 4 | priceTemplate | `price/template/index` | el-table |
+| ~~2063~~ | ~~报价模板~~ 已下线 `[2026-08 W0-1]` | 4 | priceTemplate | `price/template/index` | el-table |
 | 2064 | 配送点覆盖 | 4 | pointPrice | `price/pointPrice/index` | **QuickTable** |
 | 2024 | 商品报价 | 4 | quote | `product/quote/index` | **QuickTable** |
 | 2095 | 默认SKU模板 | 4 | defaultSkuTemplate | `product/defaultSkuTemplate/index` | **QuickTable** |
@@ -181,16 +181,20 @@ R1 重构后**已去客户维度**，此页只管全局标准 SKU。
 
 ### 3.9 报价模板（2063）— el-table
 
+> ⚠️ **已下线 `[2026-08 W0-1]`**：价格层级简化后订单仅使用客户正式报价，本菜单及后端接口/表已删除（`sql/w01_price_simplify.sql`）。历史交互描述仅存档。
+
 - 操作列 4 个功能入口：设为默认 / **SKU价格**（子弹窗，可增删行编辑单价+有效期）/ **绑定客户**（子弹窗多选）/ 修改 / 删除
 - 状态用本地 `statusOptions`，非字典
 
 ### 3.10 配送点覆盖（2064）— QuickTable
 
+> ⚠️ **已下线**：`[2026-02]` 菜单已随 s11 删除；`[2026-08 W0-1]` 遗留表 delivery_point_price 亦已删除（价格层级简化，仅保留客户商品池「限定配送点」）。历史描述仅存档。
+
 取代原"配送点报价"，接口 `/price/delivery-override/**`。无分页。
 
 - 列：配送点(fixed) / 商品 / 是否可见 / 价格覆盖 / 别名覆盖 / 有效期 / 操作
 - **新增即 upsert**：同配送点+SKU 已存在则更新
-- 三层取价优先级：配送点覆盖 > 客户报价 > 报价模板
+- ~~三层取价优先级：配送点覆盖 > 客户报价 > 报价模板~~（已废弃，现行：仅客户正式报价单一口径）
 
 ---
 

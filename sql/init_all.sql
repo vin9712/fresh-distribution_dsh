@@ -1669,7 +1669,10 @@ CREATE TABLE IF NOT EXISTS `purchase_order` (
   `supplier_id`      bigint(20)    DEFAULT NULL COMMENT '供应商ID（可空，确认时后补）',
   `supplier_name`    varchar(200)  DEFAULT NULL COMMENT '供应商名称（直填）',
   `total_amount`     decimal(12,2) NOT NULL DEFAULT 0 COMMENT '采购总额',
-  `status`           tinyint(3)    NOT NULL DEFAULT 0 COMMENT '状态：0草稿 1已确认 2已入库',
+  `status`           tinyint(3)    NOT NULL DEFAULT 0 COMMENT '状态：0草稿 1已确认 2已入库 3已作废',
+  `void_reason`      varchar(200)  DEFAULT NULL COMMENT '作废原因（W0-2.1 撤回级联空单自动作废记录“订单撤回”）',
+  `void_by`          varchar(64)   DEFAULT '' COMMENT '作废人',
+  `void_time`        datetime      DEFAULT NULL COMMENT '作废时间',
   `create_by`        varchar(64)   DEFAULT '' COMMENT '创建者',
   `create_time`      datetime      DEFAULT NULL COMMENT '创建时间',
   `update_by`        varchar(64)   DEFAULT '' COMMENT '更新者',
@@ -1694,6 +1697,55 @@ CREATE TABLE IF NOT EXISTS `purchase_item` (
   PRIMARY KEY (`id`),
   KEY `idx_purchase_id` (`purchase_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='采购单明细表';
+
+-- 已确认采购单调整审计日志（W0-2.5 已确认采购纠错：操作日志 + 前后金额记录）
+CREATE TABLE IF NOT EXISTS `purchase_modify_log` (
+  `id`            bigint(20)    NOT NULL AUTO_INCREMENT COMMENT '主键',
+  `purchase_id`   bigint(20)    NOT NULL COMMENT '采购单ID',
+  `purchase_code` varchar(32)   NOT NULL COMMENT '采购单号（PCyyyyMMddNNN）',
+  `before_amount` decimal(12,2) NOT NULL DEFAULT 0 COMMENT '调整前采购总额',
+  `after_amount`  decimal(12,2) NOT NULL DEFAULT 0 COMMENT '调整后采购总额',
+  `before_items`  text          COMMENT '调整前明细快照(JSON)',
+  `after_items`   text          COMMENT '调整后明细快照(JSON)',
+  `operator`      varchar(64)   DEFAULT '' COMMENT '操作人',
+  `operate_time`  datetime      DEFAULT NULL COMMENT '操作时间',
+  `remark`        varchar(500)  DEFAULT NULL COMMENT '调整说明',
+  PRIMARY KEY (`id`),
+  KEY `idx_purchase_id` (`purchase_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='已确认采购单调整审计日志(W0-2.5)';
+
+-- 下月调整单（W0-2.7：独立单号、草稿/已提交、应收与采购成本分项留痕；月结后纠错不改写原订单快照）
+CREATE TABLE IF NOT EXISTS `t_month_adjustment` (
+  `id`                   bigint(20)    NOT NULL AUTO_INCREMENT COMMENT '主键',
+  `code`                 varchar(32)   NOT NULL COMMENT '调整单号（TJyyyyMMddNNN，独立序列）',
+  `customer_id`          bigint(20)    NOT NULL COMMENT '客户ID',
+  `bill_month`           varchar(7)    NOT NULL COMMENT '结算所属月份（yyyy-MM）',
+  `receivable_amount`    decimal(12,2) NOT NULL DEFAULT 0 COMMENT '应收金额调整（可正可负）',
+  `purchase_cost_amount` decimal(12,2) NOT NULL DEFAULT 0 COMMENT '采购成本调整（可正可负）',
+  `status`               tinyint(3)    NOT NULL DEFAULT 0 COMMENT '状态：0草稿 1已提交',
+  `remark`               varchar(500)  DEFAULT NULL COMMENT '备注',
+  `is_deleted`           tinyint(3)    NOT NULL DEFAULT 0 COMMENT '逻辑删除（0正常 1删除）',
+  `create_by`            varchar(64)   DEFAULT '' COMMENT '创建者',
+  `create_time`          datetime      DEFAULT NULL COMMENT '创建时间',
+  `update_by`            varchar(64)   DEFAULT '' COMMENT '更新者',
+  `update_time`          datetime      DEFAULT NULL COMMENT '更新时间',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_code` (`code`),
+  KEY `idx_customer_month` (`customer_id`, `bill_month`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='下月调整单(W0-2.7)';
+
+-- 客户月度结算（W0-3.1 按客户月结）：按「客户+结算月」锁定，月结后该客户该月验收/采购成本/调整单/退货单冻结
+CREATE TABLE IF NOT EXISTS `t_month_settlement` (
+  `id`           bigint(20)   NOT NULL AUTO_INCREMENT COMMENT '主键',
+  `customer_id`  bigint(20)   NOT NULL COMMENT '客户ID',
+  `bill_month`   varchar(7)   NOT NULL COMMENT '结算月份（yyyy-MM）',
+  `status`       tinyint(3)   NOT NULL DEFAULT 0 COMMENT '状态：0未结 1已结',
+  `settled_by`   varchar(64)  DEFAULT '' COMMENT '结算人',
+  `settled_time` datetime     DEFAULT NULL COMMENT '结算时间',
+  `remark`       varchar(500) DEFAULT NULL COMMENT '备注',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_customer_month` (`customer_id`, `bill_month`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='客户月度结算(W0-3.1)';
 
 -- ------------------------------------------------------------
 -- 5. 验收：验收单主表与明细（一单一验）
@@ -1740,14 +1792,46 @@ CREATE TABLE IF NOT EXISTS `acceptance_item` (
 -- 6. 复用表改造：送货单加打印次数；打印模板加引擎与绑定字段
 -- ------------------------------------------------------------
 ALTER TABLE `t_delivery_order`
-  ADD COLUMN `print_count` int(10) NOT NULL DEFAULT 0 COMMENT '打印次数' AFTER `status`;
+  ADD COLUMN `print_count` int(10) NOT NULL DEFAULT 0 COMMENT '打印次数' AFTER `status`,
+  ADD COLUMN `print_time` datetime DEFAULT NULL COMMENT '最近打印时间（W0-3.2 待验收提醒）' AFTER `print_count`;
 
 ALTER TABLE `t_print_template`
   ADD COLUMN `render_engine` varchar(32)  NOT NULL DEFAULT 'jimureport' COMMENT '渲染引擎（jimureport/hiprint）' AFTER `id`,
   ADD COLUMN `bind_type`     tinyint(3)    NOT NULL DEFAULT 3 COMMENT '绑定类型：1客户+配送点组合 2客户 3全局默认' AFTER `render_engine`,
   ADD COLUMN `delivery_point_id` bigint(20) DEFAULT NULL COMMENT '绑定配送点ID（可空）' AFTER `customer_id`,
   ADD COLUMN `copies`        int(10)       NOT NULL DEFAULT 1 COMMENT '联数（打印份数）' AFTER `delivery_point_id`,
-  ADD COLUMN `is_default`    char(1)       NOT NULL DEFAULT '0' COMMENT '是否全局默认模板（0否 1是）' AFTER `copies`;
+  ADD COLUMN `is_default`    char(1)       NOT NULL DEFAULT '0' COMMENT '是否全局默认模板（0否 1是）' AFTER `copies`,
+  ADD COLUMN `status`        tinyint(3)    NOT NULL DEFAULT 0 COMMENT '模板状态：0草稿 1已测试 2已发布（W0-4.4）' AFTER `is_default`,
+  ADD COLUMN `test_watermark` tinyint(1)   NOT NULL DEFAULT 0 COMMENT '测试水印标记（测试打印整页水印，不计正式次数）' AFTER `status`;
+
+-- 打印模板版本快照（W0-4.4：已发布版本永久保留；发布/回滚均生成新版本）
+CREATE TABLE IF NOT EXISTS `t_print_template_version` (
+  `id`                bigint(20)    NOT NULL AUTO_INCREMENT COMMENT '主键',
+  `template_id`       bigint(20)    NOT NULL COMMENT '模板ID',
+  `version_no`        int(10)       NOT NULL DEFAULT 1 COMMENT '版本号（自增）',
+  `name`              varchar(200)  NOT NULL COMMENT '模板名称快照',
+  `content`           json          NOT NULL COMMENT '模板内容快照(JSON)',
+  `bind_type`         tinyint(3)    NOT NULL DEFAULT 3 COMMENT '绑定类型快照',
+  `customer_id`       bigint(20)    DEFAULT NULL COMMENT '客户ID快照',
+  `delivery_point_id` bigint(20)    DEFAULT NULL COMMENT '绑定配送点ID快照',
+  `copies`            int(10)       NOT NULL DEFAULT 1 COMMENT '联数快照',
+  `published_by`      varchar(64)   DEFAULT '' COMMENT '发布人',
+  `published_time`    datetime      DEFAULT NULL COMMENT '发布时间',
+  `remark`            varchar(500)  DEFAULT NULL COMMENT '版本说明（回滚记录来源版本）',
+  PRIMARY KEY (`id`),
+  KEY `idx_template_id` (`template_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='打印模板版本快照(W0-4.4)';
+
+-- 打印预览记录（W0-4.4：每次正式打印前必须有预览记录）
+CREATE TABLE IF NOT EXISTS `t_print_preview_log` (
+  `id`                bigint(20)    NOT NULL AUTO_INCREMENT COMMENT '主键',
+  `template_id`       bigint(20)    NOT NULL COMMENT '模板ID',
+  `delivery_order_id` bigint(20)    DEFAULT NULL COMMENT '送货单ID（汇总预览为空）',
+  `operator`          varchar(64)   DEFAULT '' COMMENT '操作人',
+  `preview_time`      datetime      DEFAULT NULL COMMENT '预览时间',
+  PRIMARY KEY (`id`),
+  KEY `idx_template_id` (`template_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='打印预览记录(W0-4.4)';
 
 -- ============================================================
 -- ============================================================
@@ -4247,6 +4331,81 @@ WHERE @order_parent IS NOT NULL
 -- ---------- 2. 订单调整按钮停用（写入口下线，菜单保留只读位便于审计回溯） ----------
 UPDATE sys_menu SET status = '1', remark = 'S14 退役：写入口下线(§5.6)，退货走退货单 return:list，补货走新增销售订单'
 WHERE menu_type = 'F' AND perms = 'order:sale:adjust' AND status <> '1';
+
+-- ============================================================
+-- [32] W0-1 价格口径简化  |  源: w01_price_simplify.sql
+-- ============================================================
+
+-- w01_price_simplify.sql
+-- 价格层级简化（客户端化ERP优化蓝图 §2「价格层级」，2026-08-26 确认）：
+--   取消「配送点覆盖价」与「报价模板」，订单仅使用客户正式报价；
+--   未命中报价时由文员手工定价（原因必填、留审计）。
+-- 取价服务 PriceQueryServiceImpl 已同步移除模板回退链。
+
+-- 1) 删除报价模板体系表与遗留配送点报价表（均无正式业务数据）
+DROP TABLE IF EXISTS `price_template_customer`;
+DROP TABLE IF EXISTS `price_template_sku`;
+DROP TABLE IF EXISTS `price_template`;
+DROP TABLE IF EXISTS `delivery_point_price`;
+
+-- 2) 下线「报价模板」菜单及按钮权限
+DELETE FROM sys_menu WHERE component = 'price/template/index';
+DELETE FROM sys_menu WHERE perms LIKE 'price:template:%';
+
+-- 3) 清理角色-菜单关联（防悬挂）
+DELETE FROM sys_role_menu WHERE menu_id NOT IN (SELECT menu_id FROM sys_menu);
+
+-- ============================================================
+-- [33] W0-2.1 撤回级联扣除/作废未打印采购单与送货单  |  源: w02_withdraw_cascade.sql
+-- ============================================================
+
+-- purchase_order 作废审计三列（建表语句已同步含列；存量库由 w02_withdraw_cascade.sql 幂等补列）
+-- 字典 delivery_void_reason 增加「订单撤回」order_withdraw（送货单空单自动作废原因）
+INSERT INTO `sys_dict_data` (`dict_sort`, `dict_label`, `dict_value`, `dict_type`, `css_class`, `list_class`, `is_default`, `status`, `create_by`, `create_time`, `remark`)
+SELECT 6, '订单撤回', 'order_withdraw', 'delivery_void_reason', '', 'info', 'N', '0', 'admin', sysdate(), '撤回已确认订单时，级联扣除后无明细的送货单自动作废（系统动作，非人工选择）'
+WHERE NOT EXISTS (SELECT 1 FROM `sys_dict_data` WHERE `dict_type` = 'delivery_void_reason' AND `dict_value` = 'order_withdraw');
+
+-- ============================================================
+-- [34] W0-2.2 送货单打印拆分配置（配置模型+版本表）  |  源: w03_delivery_print_split.sql
+-- ============================================================
+
+-- t_delivery_print_config：一张送货单一份当前打印拆分/输出配置
+CREATE TABLE IF NOT EXISTS `t_delivery_print_config` (
+    `id`                 bigint unsigned NOT NULL AUTO_INCREMENT,
+    `delivery_order_id`  bigint unsigned NOT NULL COMMENT '送货单ID',
+    `split_mode`         varchar(32)  NOT NULL DEFAULT 'DEFAULT_PER_DEPT' COMMENT '拆分方式:DEFAULT_PER_DEPT默认按配送点/CROSS_POINT_MERGE跨点合单(仅A4)/MAX_ROWS_SPLIT按最大行数拆分',
+    `media_type`         varchar(32)  NOT NULL DEFAULT 'A4' COMMENT '输出介质:A4激光打印/DOT_MATRIX针式多联打印',
+    `rows_per_page`      int          NOT NULL DEFAULT 10 COMMENT '分页行数(针式单点固定10;A4按页高自动分页记录期望值)',
+    `structure_json`     longtext COMMENT '打印结构JSON(明细ID顺序+分页桶,含第N/M张)',
+    `auto_generated`     tinyint(1)   NOT NULL DEFAULT 1 COMMENT '当前结构是否系统自动生成(0=手工调整)',
+    `version`            int unsigned NOT NULL DEFAULT 0,
+    `is_deleted`         tinyint(1)   NOT NULL DEFAULT 0,
+    `create_by`          varchar(64)  DEFAULT '',
+    `create_time`        datetime,
+    `update_by`          varchar(64)  DEFAULT '',
+    `update_time`        datetime,
+    `remark`             varchar(500) DEFAULT NULL COMMENT '备注',
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `unq_delivery_order` (`delivery_order_id`, `is_deleted`),
+    KEY `idx_delivery` (`delivery_order_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='送货单打印拆分配置(未打印单排序/拆分/合并;配置变更承载于版本表)';
+
+-- t_delivery_print_config_version：每次保存/恢复追加一份版本快照
+CREATE TABLE IF NOT EXISTS `t_delivery_print_config_version` (
+    `id`                 bigint unsigned NOT NULL AUTO_INCREMENT,
+    `delivery_order_id`  bigint unsigned NOT NULL COMMENT '送货单ID',
+    `version_no`         int          NOT NULL DEFAULT 1 COMMENT '版本序号(同一送货单内自增,从1起)',
+    `split_mode`         varchar(32)  NOT NULL DEFAULT 'DEFAULT_PER_DEPT' COMMENT '拆分方式快照',
+    `media_type`         varchar(32)  NOT NULL DEFAULT 'A4' COMMENT '输出介质快照',
+    `rows_per_page`      int          NOT NULL DEFAULT 10 COMMENT '分页行数快照',
+    `structure_json`     longtext COMMENT '打印结构快照',
+    `auto_generated`     tinyint(1)   NOT NULL DEFAULT 0 COMMENT '该版本是否系统自动生成结构(1=是)',
+    `change_note`        varchar(200) DEFAULT NULL COMMENT '变更说明(恢复自动结构固定"恢复自动生成结构")',
+    `create_by`          varchar(64)  DEFAULT '',
+    `create_time`        datetime,
+    PRIMARY KEY (`id`),
+    KEY `idx_delivery_version` (`delivery_order_id`, `version_no`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='送货单打印配置版本记录(未打印单每保存一次一份快照,审计与恢复)';
 
 -- ============================================================
 -- 初始化结束
