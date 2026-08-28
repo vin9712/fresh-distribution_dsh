@@ -25,6 +25,8 @@ import com.lin.common.enums.BusinessType;
 import com.lin.distribution.constant.DeliveryGenerateTrigger;
 import com.lin.distribution.domain.DeliveryOrder;
 import com.lin.distribution.dto.DeliveryByOrdersDTO;
+import com.lin.distribution.dto.DeliveryNoPrintDTO;
+import com.lin.distribution.dto.DeliveryVoidDTO;
 import com.lin.distribution.service.DeliveryGenerationService;
 import com.lin.distribution.service.DeliveryOrderService;
 import com.lin.distribution.service.PrintTemplateService;
@@ -194,12 +196,40 @@ public class DeliveryOrderController extends BaseController {
     }
 
     /**
-     * 标记送达：状态 → 已送达，同组已确认订单 → DELIVERED
+     * 标记送达：状态 → 已送达，同组已确认订单 → DELIVERED（兼容旧入口：
+     * 未打印单送达会被拒绝，请改用 /{id}/delivered 并携带免纸原因）
      */
+    @Deprecated
     @PreAuthorize("@ss.hasPermi('order:delivery:deliver')")
     @Log(title = "送货单送达", businessType = BusinessType.UPDATE)
     @PutMapping("/{id}/deliver")
     public AjaxResult deliver(@PathVariable("id") Long id) {
         return success(deliveryOrderService.markDelivered(id));
+    }
+
+    /**
+     * 标记送达（S14/T4）：状态 → 已送达，仅回写来源台账命中的订单；
+     * 未打印（PENDING）送达时 body 必须携带免纸原因 {noPrint: {reasonCode, remark}}（D-018）
+     */
+    @PreAuthorize("@ss.hasPermi('order:delivery:deliver')")
+    @Log(title = "送货单送达", businessType = BusinessType.UPDATE)
+    @PutMapping("/{id}/delivered")
+    public AjaxResult delivered(@PathVariable("id") Long id,
+                                @RequestBody(required = false) DeliveryNoPrintDTO noPrint) {
+        return success(deliveryOrderService.markDelivered(id, noPrint));
+    }
+
+    /**
+     * 作废送货单（S14/T4，DESIGN.md §5.2）：PENDING/PRINTED 可作废（原因必填，新号重建），
+     * 来源分配软删释放订单；已提交验收或来源订单已结算时拒绝。
+     * 作废后重建/补充单走 POST /generate/customer/{customerId}/{deliveryDate}（三态自动分支）。
+     */
+    @PreAuthorize("@ss.hasPermi('order:delivery:void')")
+    @Log(title = "送货单作废", businessType = BusinessType.UPDATE)
+    @PostMapping("/{id}/void")
+    public AjaxResult voidOrder(@PathVariable("id") Long id,
+                                @RequestBody @Validated DeliveryVoidDTO dto) {
+        deliveryOrderService.voidDeliveryOrder(id, dto.getReasonCode(), dto.getReasonNote());
+        return success();
     }
 }

@@ -4,6 +4,7 @@ import java.util.List;
 
 import com.lin.distribution.domain.DeliveryOrder;
 import com.lin.distribution.domain.DeliveryOrderDetail;
+import com.lin.distribution.dto.DeliveryNoPrintDTO;
 
 /**
  * 送货单据Service接口
@@ -77,10 +78,32 @@ public interface DeliveryOrderService {
     DeliveryOrder markPrinted(Long id);
 
     /**
-     * 标记送达：状态 → 已送达，同组（客户+配送点+配送日）已确认订单 → DELIVERED
+     * 标记送达（兼容旧调用）：等价 markDelivered(id, null)，未打印单送达将被拒绝（缺少免纸原因）
      *
      * @param id 送货单主键
      * @return 更新后的送货单
      */
     DeliveryOrder markDelivered(Long id);
+
+    /**
+     * 作废送货单（S14/T4，DESIGN.md §5.2）：状态 → 已作废（终态），来源分配软删释放订单。
+     * 准入：PENDING/PRINTED（已打印作废重开时纸面单号失效由前端警示）；
+     * 已有 SUBMITTED 验收或任一来源订单 SETTLED → 拒绝。
+     *
+     * @param id         送货单主键
+     * @param reasonCode 作废原因编码（字典 delivery_void_reason）
+     * @param reasonNote 补充说明（reasonCode=other 时必填）
+     */
+    void voidDeliveryOrder(Long id, String reasonCode, String reasonNote);
+
+    /**
+     * 标记送达（S14/T4 改造，DESIGN.md §5.3）：状态 → 已送达，仅回写来源台账命中的订单。
+     * 未打印（PENDING）直接送达时必须登记免纸原因（字典 delivery_no_print_reason，other 必填说明，
+     * D-018），拼接进单据 remark 留痕；已打印（PRINTED）送达时 noPrint 传 null 即可。
+     *
+     * @param id      送货单主键
+     * @param noPrint 免纸送达登记（未打印送达时必填，其余可空）
+     * @return 更新后的送货单
+     */
+    DeliveryOrder markDelivered(Long id, DeliveryNoPrintDTO noPrint);
 }
