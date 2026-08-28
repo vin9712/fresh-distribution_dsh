@@ -86,4 +86,42 @@ public class ReportVO {
         private BigDecimal unitPrice;
         private BigDecimal actualAmount;
     }
+
+    /**
+     * 经营概览（蓝图 W0-3.3）：周期销售额/采购额/损耗额与周期估算毛利；区分已/未月结；待确认成本不计毛利
+     */
+    @Data
+    public static class OperatingOverview implements Serializable {
+        private static final long serialVersionUID = 1L;
+
+        private LocalDate beginDate;
+        private LocalDate endDate;
+        /** 验收实收合计（已提交验收单，按验收日期归期） */
+        private BigDecimal acceptedAmount;
+        /** 已月结销售金额（客户该月已月结） */
+        private BigDecimal settledAmount;
+        /** 未月结销售金额 */
+        private BigDecimal unsettledAmount;
+        /** 同周期采购金额（采购单按归属日期归期，含已作废之外） */
+        private BigDecimal purchaseAmount;
+        /** 待确认成本金额（采购单未入库：草稿+已确认） */
+        private BigDecimal pendingCostAmount;
+        /** 存在待确认成本（此时不计毛利） */
+        private boolean hasPendingCost;
+        /** 周期估算毛利 = 验收实收 − 同周期采购金额（无待确认成本时给出；口径见蓝图 §7.2） */
+        private BigDecimal grossProfit;
+    }
+
+    /**
+     * 经营概览验收应收的「已月结/未月结」分桶（mapper 聚合行）
+     */
+    @Data
+    public static class OverviewSettleAmount implements Serializable {
+        private static final long serialVersionUID = 1L;
+
+        /** 0=未月结 1=已月结 */
+        private Integer settled;
+        /** 金额 */
+        private BigDecimal amount;
+    }
 }

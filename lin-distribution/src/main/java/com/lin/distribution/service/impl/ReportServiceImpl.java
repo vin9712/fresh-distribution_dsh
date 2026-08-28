@@ -124,4 +124,48 @@ public class ReportServiceImpl implements ReportService {
     private BigDecimal zeroIfNull(BigDecimal value) {
         return value == null ? BigDecimal.ZERO : value;
     }
+
+    /**
+     * 经营概览（蓝图 W0-3.3）：区分已/未月结销售金额；待确认成本存在时不计毛利；
+     * 周期估算毛利 = 验收实收 − 同周期采购金额（蓝图 §7.2，周期观察口经，非逐单成本核算）
+     */
+    @Override
+    public ReportVO.OperatingOverview overview(LocalDate beginDate, LocalDate endDate) {
+        if (beginDate == null || endDate == null) {
+            throw new ServiceException("请选择日期范围");
+        }
+        if (beginDate.isAfter(endDate)) {
+            throw new ServiceException("开始日期不能晚于结束日期");
+        }
+
+        // 验收实收按客户该月是否已月结分桶
+        List<ReportVO.OverviewSettleAmount> settles = reportMapper.selectOverviewAccepted(beginDate, endDate);
+        BigDecimal accepted = BigDecimal.ZERO;
+        BigDecimal settledAmount = BigDecimal.ZERO;
+        BigDecimal unsettledAmount = BigDecimal.ZERO;
+        for (ReportVO.OverviewSettleAmount row : settles) {
+            BigDecimal amt = zeroIfNull(row.getAmount());
+            accepted = accepted.add(amt);
+            if (Integer.valueOf(1).equals(row.getSettled())) {
+                settledAmount = settledAmount.add(amt);
+            } else {
+                unsettledAmount = unsettledAmount.add(amt);
+            }
+        }
+        BigDecimal purchase = zeroIfNull(reportMapper.selectOverviewPurchase(beginDate, endDate));
+        BigDecimal pendingCost = zeroIfNull(reportMapper.selectOverviewPendingCost(beginDate, endDate));
+
+        ReportVO.OperatingOverview vo = new ReportVO.OperatingOverview();
+        vo.setBeginDate(beginDate);
+        vo.setEndDate(endDate);
+        vo.setAcceptedAmount(accepted);
+        vo.setSettledAmount(settledAmount);
+        vo.setUnsettledAmount(unsettledAmount);
+        vo.setPurchaseAmount(purchase);
+        vo.setPendingCostAmount(pendingCost);
+        vo.setHasPendingCost(pendingCost.compareTo(BigDecimal.ZERO) > 0);
+        // 周期估算毛利：存在待确认成本时不计算（蓝图 §7.2）
+        vo.setGrossProfit(vo.isHasPendingCost() ? null : accepted.subtract(purchase));
+        return vo;
+    }
 }

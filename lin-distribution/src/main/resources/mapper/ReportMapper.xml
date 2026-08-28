@@ -65,4 +65,37 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
           and a.accept_date between #{beginDate} and #{endDate}
         order by a.accept_date, a.id, ai.sort
     </select>
+
+    <!-- 经营概览（W0-3.3）：已提交验收应收，按客户该月是否已月结分桶 -->
+    <select id="selectOverviewAccepted" resultType="com.lin.distribution.dto.ReportVO$OverviewSettleAmount">
+        select case when s.id is not null then 1 else 0 end as settled,
+               sum(a.total_amount) as amount
+        from acceptance a
+        left join t_month_settlement s
+               on s.customer_id = a.customer_id
+              and s.bill_month = date_format(a.accept_date, '%Y-%m')
+              and s.status = 1
+        where a.status = 1
+          and a.is_deleted = 0
+          and a.accept_date between #{beginDate} and #{endDate}
+        group by settled
+    </select>
+
+    <!-- 经营概览：同周期采购总额（不含已作废 status=3） -->
+    <select id="selectOverviewPurchase" resultType="java.math.BigDecimal">
+        select coalesce(sum(total_amount), 0)
+        from purchase_order
+        where is_deleted = 0
+          and status != 3
+          and order_date between #{beginDate} and #{endDate}
+    </select>
+
+    <!-- 经营概览：待确认成本（采购单未入库：草稿0+已确认1） -->
+    <select id="selectOverviewPendingCost" resultType="java.math.BigDecimal">
+        select coalesce(sum(total_amount), 0)
+        from purchase_order
+        where is_deleted = 0
+          and status in (0, 1)
+          and order_date between #{beginDate} and #{endDate}
+    </select>
 </mapper>

@@ -28,4 +28,14 @@ public interface ReportService {
      * @return 对账单
      */
     ReportVO.CustomerStatement customerStatement(Long customerId, LocalDate beginDate, LocalDate endDate);
+
+    /**
+     * 经营概览（蓝图 W0-3.3）：区分已/未月结销售金额；存在待确认成本时不计算毛利；
+     * 周期估算毛利 = 验收实收 − 同周期采购金额（口径见蓝图 §7.2）
+     *
+     * @param beginDate 起始日期（含）
+     * @param endDate   结束日期（含）
+     * @return 经营概览
+     */
+    ReportVO.OperatingOverview overview(LocalDate beginDate, LocalDate endDate);
 }

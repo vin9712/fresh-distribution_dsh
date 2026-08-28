@@ -112,6 +112,17 @@ public class ReportController extends BaseController {
     }
 
     /**
+     * 经营概览（蓝图 W0-3.3）：区分已/未月结销售金额；存在待确认成本时不计算毛利
+     */
+    @Operation(summary = "经营概览")
+    @PreAuthorize("@ss.hasPermi('report:query')")
+    @GetMapping("/overview")
+    public AjaxResult overview(@RequestParam("beginDate") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate beginDate,
+                               @RequestParam("endDate") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate) {
+        return success(reportService.overview(beginDate, endDate));
+    }
+
+    /**
      * 客户对账单导出 Excel
      */
     @Operation(summary = "客户对账单导出")

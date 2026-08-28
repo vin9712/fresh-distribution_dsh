@@ -1,6 +1,6 @@
 package com.lin.distribution.service.impl;
 
-import com.lin.distribution.domain.ReportRow;
+import com.lin.common.exception.ServiceException;
 import com.lin.distribution.dto.ReportVO;
 import com.lin.distribution.mapper.ReportMapper;
 import org.junit.jupiter.api.Test;
@@ -12,17 +12,17 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.Arrays;
-import java.util.Collections;
-import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 
 /**
- * 报表服务测试（DESIGN.md 验收标准 12：销售日报按日+客户分组、客户对账单口径）
+ * 经营概览测试（蓝图 W0-3.3：已/未月结区分、待确认成本不计毛利、周期估算毛利）
  */
 @ExtendWith(MockitoExtension.class)
 class ReportServiceImplTest {
@@ -33,91 +33,49 @@ class ReportServiceImplTest {
     @InjectMocks
     private ReportServiceImpl reportService;
 
-    private static final LocalDate DATE = LocalDate.of(2026, 8, 17);
-    private static final Long CUSTOMER_A = 100L;
-    private static final Long CUSTOMER_B = 200L;
-    private static final Long POINT_A1 = 101L;
+    private static final LocalDate BEGIN = LocalDate.of(2026, 8, 1);
+    private static final LocalDate END = LocalDate.of(2026, 8, 31);
 
-    private ReportRow row(Long customerId, Long pointId, Long acceptanceId, String acceptanceCode,
-                          LocalDate acceptDate, String deliveryCode, String total,
-                          String name, String spec, String unit, String actual, String loss, String price, String amount) {
-        ReportRow row = new ReportRow();
-        row.setCustomerId(customerId);
-        row.setCustomerName("客户" + customerId);
-        row.setDeliveryPointId(pointId);
-        row.setDeliveryPointName("配送点" + pointId);
-        row.setAcceptanceId(acceptanceId);
-        row.setAcceptanceCode(acceptanceCode);
-        row.setAcceptDate(acceptDate);
-        row.setDeliveryCode(deliveryCode);
-        row.setAcceptanceTotalAmount(new BigDecimal(total));
-        row.setProductName(name);
-        row.setProductSpec(spec);
-        row.setProductUnit(unit);
-        row.setActualQuantity(new BigDecimal(actual));
-        row.setLossQuantity(new BigDecimal(loss));
-        row.setUnitPrice(new BigDecimal(price));
-        row.setActualAmount(new BigDecimal(amount));
-        return row;
+    private ReportVO.OverviewSettleAmount bucket(int settled, String amount) {
+        ReportVO.OverviewSettleAmount b = new ReportVO.OverviewSettleAmount();
+        b.setSettled(settled);
+        b.setAmount(new BigDecimal(amount));
+        return b;
     }
 
     @Test
-    void 日报按客户配送点分组且金额损耗汇总正确() {
-        when(reportMapper.selectDailySaleRows(DATE)).thenReturn(Arrays.asList(
-                row(CUSTOMER_A, POINT_A1, 1L, "YS1", DATE, "HS1", "16.00", "白菜", "", "斤", "5.00", "1.00", "2.00", "10.00"),
-                row(CUSTOMER_A, POINT_A1, 1L, "YS1", DATE, "HS1", "16.00", "土豆", "大", "斤", "3.00", "-1.00", "2.00", "6.00"),
-                row(CUSTOMER_B, 201L, 2L, "YS2", DATE, "HS2", "10.00", "白菜", "", "斤", "5.00", "0.00", "2.00", "10.00")
-        ));
+    void 经营概览区分已未月结并计估算毛利() {
+        when(reportMapper.selectOverviewAccepted(BEGIN, END)).thenReturn(Arrays.asList(
+                bucket(1, "100.00"), bucket(0, "80.00")));
+        when(reportMapper.selectOverviewPurchase(BEGIN, END)).thenReturn(new BigDecimal("70.00"));
+        when(reportMapper.selectOverviewPendingCost(BEGIN, END)).thenReturn(BigDecimal.ZERO);
 
-        List<ReportVO.DailySaleGroup> groups = reportService.dailySale(DATE);
+        ReportVO.OperatingOverview vo = reportService.overview(BEGIN, END);
 
-        assertEquals(2, groups.size());
-        ReportVO.DailySaleGroup first = groups.get(0);
-        assertEquals(CUSTOMER_A, first.getCustomerId());
-        assertEquals(POINT_A1, first.getDeliveryPointId());
-        assertEquals(0, new BigDecimal("16.00").compareTo(first.getTotalActualAmount()));
-        assertEquals(0, new BigDecimal("0.00").compareTo(first.getTotalLossQuantity()));
-        // 损耗金额：1*2 + (-1)*2 = 0
-        assertEquals(0, new BigDecimal("0.00").compareTo(first.getTotalLossAmount()));
-        assertEquals(2, first.getItems().size());
-        assertEquals(0, new BigDecimal("10.00").compareTo(first.getItems().get(0).getActualAmount()));
+        assertEquals(0, new BigDecimal("180.00").compareTo(vo.getAcceptedAmount()));
+        assertEquals(0, new BigDecimal("100.00").compareTo(vo.getSettledAmount()));
+        assertEquals(0, new BigDecimal("80.00").compareTo(vo.getUnsettledAmount()));
+        assertEquals(0, new BigDecimal("70.00").compareTo(vo.getPurchaseAmount()));
+        assertFalse(vo.isHasPendingCost());
+        // 估算毛利 = 180 - 70 = 110
+        assertEquals(0, new BigDecimal("110.00").compareTo(vo.getGrossProfit()));
     }
 
     @Test
-    void 日报日期为空应报错() {
-        assertThrows(com.lin.common.exception.ServiceException.class, () -> reportService.dailySale(null));
+    void 存在待确认成本时不计算毛利() {
+        when(reportMapper.selectOverviewAccepted(BEGIN, END)).thenReturn(Arrays.asList(bucket(0, "50.00")));
+        when(reportMapper.selectOverviewPurchase(BEGIN, END)).thenReturn(new BigDecimal("30.00"));
+        when(reportMapper.selectOverviewPendingCost(BEGIN, END)).thenReturn(new BigDecimal("10.00"));
+
+        ReportVO.OperatingOverview vo = reportService.overview(BEGIN, END);
+
+        assertTrue(vo.isHasPendingCost());
+        assertNull(vo.getGrossProfit());
     }
 
     @Test
-    void 对账单按验收单分组且期间合计正确() {
-        when(reportMapper.selectStatementRows(eq(CUSTOMER_A), any(LocalDate.class), any(LocalDate.class)))
-                .thenReturn(Arrays.asList(
-                        row(CUSTOMER_A, POINT_A1, 1L, "YS1", DATE.minusDays(1), "HS1", "16.00", "白菜", "", "斤", "5.00", "1.00", "2.00", "10.00"),
-                        row(CUSTOMER_A, POINT_A1, 1L, "YS1", DATE.minusDays(1), "HS1", "16.00", "土豆", "大", "斤", "3.00", "-1.00", "2.00", "6.00"),
-                        row(CUSTOMER_A, POINT_A1, 2L, "YS2", DATE, "HS2", "9.00", "白菜", "", "斤", "4.50", "0.00", "2.00", "9.00")
-                ));
-
-        ReportVO.CustomerStatement statement = reportService.customerStatement(CUSTOMER_A, DATE.minusDays(30), DATE);
-
-        assertEquals(2, statement.getAcceptances().size());
-        assertEquals(0, new BigDecimal("25.00").compareTo(statement.getTotalAmount()));
-        assertEquals(2, statement.getAcceptances().get(0).getItems().size());
-        assertEquals("YS1", statement.getAcceptances().get(0).getCode());
-        assertEquals(1, statement.getAcceptances().get(1).getItems().size());
-    }
-
-    @Test
-    void 对账单日期区间颠倒应报错() {
-        assertThrows(com.lin.common.exception.ServiceException.class,
-                () -> reportService.customerStatement(CUSTOMER_A, DATE, DATE.minusDays(1)));
-    }
-
-    @Test
-    void 对账单无数据返回空结构() {
-        when(reportMapper.selectStatementRows(eq(CUSTOMER_A), any(LocalDate.class), any(LocalDate.class)))
-                .thenReturn(Collections.emptyList());
-        ReportVO.CustomerStatement statement = reportService.customerStatement(CUSTOMER_A, DATE.minusDays(30), DATE);
-        assertEquals(0, statement.getAcceptances().size());
-        assertEquals(0, new BigDecimal("0.00").compareTo(statement.getTotalAmount()));
+    void 日期范围校验() {
+        assertThrows(ServiceException.class, () -> reportService.overview(null, END));
+        assertThrows(ServiceException.class, () -> reportService.overview(BEGIN, BEGIN.minusDays(1)));
     }
 }
