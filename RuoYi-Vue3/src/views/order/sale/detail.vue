@@ -45,6 +45,20 @@
         </span>
       </template>
     </el-alert>
+    <!-- 编辑已有草稿订单后的提示横幅：点错了？返回重开新单 -->
+    <el-alert
+      v-if="showEditExistingBanner"
+      type="warning"
+      show-icon
+      class="edit-existing-banner"
+    >
+      <template #title>
+        <span class="draft-banner-title">
+          正在编辑已有草稿订单，点错了？
+          <el-button type="danger" size="small" @click="returnToNewOrder">← 返回重开新单</el-button>
+        </span>
+      </template>
+    </el-alert>
     <el-row :gutter="10">
       <!-- 做单区 -->
       <el-col :span="16">
@@ -752,11 +766,18 @@ export default {
       maxRows: 15,
       // 是否继续添加订单
       isContinueAdd: true,
+      // 编辑已有草稿订单后的提示横幅（点错了？返回重开新单）
+      showEditExistingBanner: false,
+      // 当前正在编辑的草稿订单ID（用于重开新单后清空）
+      existingDraftOrderId: null,
     };
   },
   mounted() {
     // 对添加行事件的加入节流处理, 150毫秒内多次触发只会执行一次
     this.throttledAddRow = throttle(150, this.handleAddRow.bind(this));
+    // 初始加载标记：initOrderDetailPage 完成前置 false，完成后置 true
+    // 用于区分 handleAddRow 是初始化调用还是用户手动操作
+    this._initialLoadDone = false;
 
     // 组件挂载完成后添加一行
     this.throttledAddRow();
@@ -1330,6 +1351,10 @@ export default {
       if (this.browseMode || this.viewOnlyMode) {
         return false;
       }
+      // 用户真正点击单元格编辑时，隐藏"编辑已有订单"提示横幅
+      if (this.showEditExistingBanner) {
+        this.showEditExistingBanner = false;
+      }
       // 录单态明细区门禁：未选定客户(+配送点)前禁止编辑，引导先选送货单位
       if (!this.orderForm.customerDeptId) {
         const now = Date.now();
@@ -1376,6 +1401,10 @@ export default {
           this.$modal.msgWarning("请先选择送货单位");
         }
         return;
+      }
+      // 用户真正新增行时，隐藏"编辑已有订单"提示横幅（初始加载不算）
+      if (this._initialLoadDone && this.showEditExistingBanner) {
+        this.showEditExistingBanner = false;
       }
       if (!this.orderDetailList) {
         this.orderDetailList = [];
@@ -1673,19 +1702,27 @@ export default {
           const deptName = this.deptNameOf(order.customerDeptId) || "该配送点";
           this.$confirm(
             "【" + deptName + "】在 " + this.orderForm.deliveryDate +
-              " 已有一个可继续添加的草稿订单（编号：" + order.code + "），可直接在原有明细上继续录入。是否跳转到该订单明细？",
+              " 已有一个可继续添加的草稿订单（编号：" + order.code + "），可直接在原有明细上继续录入。",
             "提示",
             {
-              confirmButtonText: "去编辑",
-              cancelButtonText: "继续新建",
+              confirmButtonText: "去编辑已有订单",
+              cancelButtonText: "重开新单",
               type: "warning",
             }
           )
             .then(() => {
-              // 跳转到对应的订单明细（加载该草稿订单进入编辑态）
+              // 去编辑已有订单：加载该草稿订单，并显示提示横幅
+              this.existingDraftOrderId = order.id;
               this.initOrderDetailPage(order.id);
+              // 延迟显示横幅，等订单加载完成后
+              this.$nextTick(() => {
+                this.showEditExistingBanner = true;
+              });
             })
-            .catch(() => {});
+            .catch(() => {
+              // 重开新单：清空送货单位，回到新单状态
+              this.clearDeliveryUnit();
+            });
         })
         .catch(() => {});
     },
@@ -1979,6 +2016,17 @@ export default {
           this.$modal.msgSuccess("已重开新单，请重新选择送货单位");
         })
         .catch(() => {});
+    },
+    /** 清空送货单位：彻底重置为新单状态（与重置按钮效果一致） */
+    clearDeliveryUnit() {
+      this.showEditExistingBanner = false;
+      this.existingDraftOrderId = null;
+      this.initOrderDetailPage(null);
+    },
+    /** 横幅点击：返回重开新单 */
+    returnToNewOrder() {
+      this.clearDeliveryUnit();
+      this.$modal.msgSuccess("已清空，可重新选择送货单位开新单");
     },
 
     /* ========== 草稿自动保存（Phase 1.1） ========== */
@@ -2281,6 +2329,16 @@ export default {
     .el-button + .el-button {
       margin-left: 8px;
     }
+  }
+}
+
+/* 编辑已有草稿订单提示横幅 */
+.edit-existing-banner {
+  margin-bottom: 10px;
+  .draft-banner-title {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
   }
 }
 
