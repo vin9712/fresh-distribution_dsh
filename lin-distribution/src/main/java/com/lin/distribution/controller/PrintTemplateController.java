@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import com.lin.common.annotation.Log;
 import com.lin.common.core.controller.BaseController;
@@ -106,5 +107,55 @@ public class PrintTemplateController extends BaseController {
     @DeleteMapping("/{ids}")
     public AjaxResult remove(@PathVariable Long[] ids) {
         return toAjax(printTemplateService.deletePrintTemplateByIds(ids));
+    }
+
+    /**
+     * 测试发布模板（W0-4.4：打测试水印，不计正式次数）
+     */
+    @PreAuthorize("@ss.hasPermi('print:template:edit')")
+    @Log(title = "打印模板", businessType = BusinessType.UPDATE)
+    @PutMapping("/{id}/test-publish")
+    public AjaxResult testPublish(@PathVariable("id") Long id) {
+        return toAjax(printTemplateService.testPublish(id));
+    }
+
+    /**
+     * 正式发布模板（W0-4.4：发布门禁校验 + 生成版本快照）
+     */
+    @PreAuthorize("@ss.hasPermi('print:template:edit')")
+    @Log(title = "打印模板", businessType = BusinessType.UPDATE)
+    @PutMapping("/{id}/publish")
+    public AjaxResult publish(@PathVariable("id") Long id, @RequestParam(required = false) String remark) {
+        return success(printTemplateService.publish(id, remark));
+    }
+
+    /**
+     * 回滚到历史版本（W0-4.4：生成新版本发布，不覆盖历史版本）
+     */
+    @PreAuthorize("@ss.hasPermi('print:template:edit')")
+    @Log(title = "打印模板", businessType = BusinessType.UPDATE)
+    @PutMapping("/{templateId}/rollback/{versionId}")
+    public AjaxResult rollback(@PathVariable("templateId") Long templateId, @PathVariable("versionId") Long versionId,
+                               @RequestParam(required = false) String remark) {
+        return success(printTemplateService.rollback(templateId, versionId, remark));
+    }
+
+    /**
+     * 查询模板版本列表（W0-4.4）
+     */
+    @PreAuthorize("@ss.hasPermi('print:template:list')")
+    @GetMapping("/{id}/versions")
+    public AjaxResult versions(@PathVariable("id") Long id) {
+        return success(printTemplateService.listVersions(id));
+    }
+
+    /**
+     * 记录一次打印预览（W0-4.4：正式打印前必须有预览记录）
+     */
+    @PreAuthorize("@ss.hasPermi('print:template:list')")
+    @Log(title = "打印模板", businessType = BusinessType.UPDATE)
+    @PostMapping("/{id}/preview")
+    public AjaxResult preview(@PathVariable("id") Long id, @RequestParam(required = false) Long deliveryOrderId) {
+        return toAjax(printTemplateService.recordPreview(id, deliveryOrderId));
     }
 }

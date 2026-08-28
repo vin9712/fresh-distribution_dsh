@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.lin.distribution.mapper.PrintPreviewLogMapper">
+
+    <insert id="insert" parameterType="com.lin.distribution.domain.PrintPreviewLog"
+            useGeneratedKeys="true" keyProperty="id">
+        insert into t_print_preview_log
+        <trim prefix="(" suffix=")" suffixOverrides=",">
+            <if test="templateId != null">template_id,</if>
+            <if test="deliveryOrderId != null">delivery_order_id,</if>
+            <if test="operator != null">operator,</if>
+            <if test="previewTime != null">preview_time,</if>
+        </trim>
+        <trim prefix="values (" suffix=")" suffixOverrides=",">
+            <if test="templateId != null">#{templateId},</if>
+            <if test="deliveryOrderId != null">#{deliveryOrderId},</if>
+            <if test="operator != null">#{operator},</if>
+            <if test="previewTime != null">#{previewTime},</if>
+        </trim>
+    </insert>
+
+</mapper>

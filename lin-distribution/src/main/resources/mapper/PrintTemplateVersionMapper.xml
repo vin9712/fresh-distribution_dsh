@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.lin.distribution.mapper.PrintTemplateVersionMapper">
+
+    <resultMap type="com.lin.distribution.domain.PrintTemplateVersion" id="PrintTemplateVersionResult">
+        <result property="id"              column="id"              />
+        <result property="templateId"      column="template_id"     />
+        <result property="versionNo"       column="version_no"      />
+        <result property="name"            column="name"            />
+        <result property="content"         column="content"         />
+        <result property="bindType"        column="bind_type"       />
+        <result property="customerId"      column="customer_id"     />
+        <result property="deliveryPointId" column="delivery_point_id"/>
+        <result property="copies"          column="copies"          />
+        <result property="publishedBy"     column="published_by"    />
+        <result property="publishedTime"   column="published_time"  />
+        <result property="remark"          column="remark"          />
+    </resultMap>
+
+    <sql id="selectVo">
+        select id, template_id, version_no, name, content, bind_type, customer_id, delivery_point_id,
+               copies, published_by, published_time, remark
+        from t_print_template_version
+    </sql>
+
+    <select id="selectListByTemplateId" parameterType="Long" resultMap="PrintTemplateVersionResult">
+        <include refid="selectVo"/>
+        where template_id = #{templateId}
+        order by version_no desc
+    </select>
+
+    <select id="selectById" parameterType="Long" resultMap="PrintTemplateVersionResult">
+        <include refid="selectVo"/>
+        where id = #{id}
+    </select>
+
+    <select id="selectMaxVersionNo" parameterType="Long" resultType="java.lang.Integer">
+        select coalesce(max(version_no), 0)
+        from t_print_template_version
+        where template_id = #{templateId}
+    </select>
+
+    <insert id="insert" parameterType="com.lin.distribution.domain.PrintTemplateVersion"
+            useGeneratedKeys="true" keyProperty="id">
+        insert into t_print_template_version
+        <trim prefix="(" suffix=")" suffixOverrides=",">
+            <if test="templateId != null">template_id,</if>
+            <if test="versionNo != null">version_no,</if>
+            <if test="name != null">name,</if>
+            <if test="content != null">content,</if>
+            <if test="bindType != null">bind_type,</if>
+            <if test="customerId != null">customer_id,</if>
+            <if test="deliveryPointId != null">delivery_point_id,</if>
+            <if test="copies != null">copies,</if>
+            <if test="publishedBy != null">published_by,</if>
+            <if test="publishedTime != null">published_time,</if>
+            <if test="remark != null">remark,</if>
+        </trim>
+        <trim prefix="values (" suffix=")" suffixOverrides=",">
+            <if test="templateId != null">#{templateId},</if>
+            <if test="versionNo != null">#{versionNo},</if>
+            <if test="name != null">#{name},</if>
+            <if test="content != null">#{content},</if>
+            <if test="bindType != null">#{bindType},</if>
+            <if test="customerId != null">#{customerId},</if>
+            <if test="deliveryPointId != null">#{deliveryPointId},</if>
+            <if test="copies != null">#{copies},</if>
+            <if test="publishedBy != null">#{publishedBy},</if>
+            <if test="publishedTime != null">#{publishedTime},</if>
+            <if test="remark != null">#{remark},</if>
+        </trim>
+    </insert>
+
+</mapper>

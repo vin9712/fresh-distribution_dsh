@@ -81,6 +81,16 @@ public class PrintTemplate extends BaseEntity {
     private String isDefault;
 
     /**
+     * 模板状态（W0-4.4）：0草稿 1已测试 2已发布；已发布版本在下一版本发布前继续使用
+     */
+    private Integer status;
+
+    /**
+     * 是否测试水印（1是，测试打印整页水印，不计正式打印次数）
+     */
+    private Boolean testWatermark;
+
+    /**
      * 逻辑删除
      */
     private Boolean isDeleted;

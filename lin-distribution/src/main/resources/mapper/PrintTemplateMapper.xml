@@ -15,8 +15,10 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         <result property="bindType"    column="bind_type"    />
         <result property="deliveryPointId"    column="delivery_point_id"    />
         <result property="copies"    column="copies"    />
-        <result property="isDefault"    column="is_default"    />
-        <result property="isDeleted"    column="is_deleted"    />
+        <result property="isDefault"       column="is_default"       />
+        <result property="status"           column="status"           />
+        <result property="testWatermark"    column="test_watermark"    />
+        <result property="isDeleted"        column="is_deleted"        />
         <result property="version"    column="version"    />
         <result property="createBy"    column="create_by"    />
         <result property="createTime"    column="create_time"    />
@@ -26,7 +28,7 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
     </resultMap>
 
     <sql id="selectPrintTemplateVo">
-        select id, customer_id, code, name, content, type, render_engine, bind_type, delivery_point_id, copies, is_default, is_deleted, version, create_by, create_time, update_by, update_time, remark from t_print_template
+        select id, customer_id, code, name, content, type, render_engine, bind_type, delivery_point_id, copies, is_default, status, test_watermark, is_deleted, version, create_by, create_time, update_by, update_time, remark from t_print_template
     </sql>
 
     <select id="selectPrintTemplateList" parameterType="com.lin.distribution.domain.PrintTemplate" resultMap="PrintTemplateResult">
@@ -75,6 +77,8 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
             <if test="deliveryPointId != null">delivery_point_id,</if>
             <if test="copies != null">copies,</if>
             <if test="isDefault != null">is_default,</if>
+            <if test="status != null">status,</if>
+            <if test="testWatermark != null">test_watermark,</if>
             <if test="isDeleted != null">is_deleted,</if>
             <if test="version != null">version,</if>
             <if test="createBy != null">create_by,</if>
@@ -95,6 +99,8 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
             <if test="deliveryPointId != null">#{deliveryPointId},</if>
             <if test="copies != null">#{copies},</if>
             <if test="isDefault != null">#{isDefault},</if>
+            <if test="status != null">#{status},</if>
+            <if test="testWatermark != null">#{testWatermark},</if>
             <if test="isDeleted != null">#{isDeleted},</if>
             <if test="version != null">#{version},</if>
             <if test="createBy != null">#{createBy},</if>
@@ -118,6 +124,8 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
             <if test="deliveryPointId != null">delivery_point_id = #{deliveryPointId},</if>
             <if test="copies != null">copies = #{copies},</if>
             <if test="isDefault != null">is_default = #{isDefault},</if>
+            <if test="status != null">status = #{status},</if>
+            <if test="testWatermark != null">test_watermark = #{testWatermark},</if>
             <if test="isDeleted != null">is_deleted = #{isDeleted},</if>
             <if test="version != null">version = #{version},</if>
             <if test="createBy != null">create_by = #{createBy},</if>
