@@ -595,4 +595,64 @@ class DeliveryGenerationServiceImplTest {
         assertThrows(ServiceException.class, () -> generationService.generateForOrders(
                 DeliveryByOrdersDTO.builder().orderIds(Collections.singletonList(1001L)).build()));
     }
+
+    // ==================== 合单排序（蓝图 W0-2.3） ====================
+
+    @Test
+    void 同配送点多订单时以行数最多订单为基准并按下单顺序补充() {
+        // 订单1001（点1，2 行：白菜/土豆）为基准；订单1002（点1，1 行：萝卜）按顺序补充
+        when(saleOrderMapper.selectMissedConfirmedOrders(CUSTOMER, DATE)).thenReturn(Arrays.asList(
+                order(1001L, "XD1001", CUSTOMER, POINT_1, DATE),
+                order(1002L, "XD1002", CUSTOMER, POINT_1, DATE)));
+        when(saleOrderDetailMapper.selectValidByOrderIdIn(anyList())).thenReturn(Arrays.asList(
+                row(1001L, 5001L, CUSTOMER, POINT_1, SKU_1, "白菜", "斤", "", "2.00", "2"),
+                row(1001L, 5002L, CUSTOMER, POINT_1, SKU_2, "土豆", "斤", "大", "3.50", "4"),
+                row(1002L, 5003L, CUSTOMER, POINT_1, 33L, "萝卜", "斤", "", "1.50", "5")));
+        stubNewBatch(DeliveryScopeType.DELIVERY_POINT_DATE, true);
+
+        GenerateResultVO result = generationService.generateForCustomer(CUSTOMER, DATE);
+
+        assertEquals(1, result.getCreatedOrders().size());
+        ArgumentCaptor<DeliveryOrderDetail> detailCaptor = ArgumentCaptor.forClass(DeliveryOrderDetail.class);
+        verify(deliveryOrderDetailMapper, times(3)).insertDeliveryOrderDetail(detailCaptor.capture());
+        List<DeliveryOrderDetail> details = detailCaptor.getAllValues();
+        // 基准订单（1001）行序在前：白菜 → 土豆 → 萝卜（1002 补充）
+        assertEquals("白菜", details.get(0).getProductName());
+        assertEquals("土豆", details.get(1).getProductName());
+        assertEquals("萝卜", details.get(2).getProductName());
+        // 未合并单来源行保留订单号
+        assertEquals("XD1001", details.get(0).getOrderCode());
+        assertEquals("XD1002", details.get(2).getOrderCode());
+    }
+
+    @Test
+    void 基准订单共享商品时合并数量且保持基准行位置() {
+        // 订单1001（2 行：白菜/土豆）基准；订单1002 的 白菜@2 与基准共享五元组 → 并入基准行
+        when(saleOrderMapper.selectMissedConfirmedOrders(CUSTOMER, DATE)).thenReturn(Arrays.asList(
+                order(1001L, "XD1001", CUSTOMER, POINT_1, DATE),
+                order(1002L, "XD1002", CUSTOMER, POINT_1, DATE)));
+        when(saleOrderDetailMapper.selectValidByOrderIdIn(anyList())).thenReturn(Arrays.asList(
+                row(1001L, 5001L, CUSTOMER, POINT_1, SKU_1, "白菜", "斤", "", "2.00", "2"),
+                row(1001L, 5002L, CUSTOMER, POINT_1, SKU_2, "土豆", "斤", "大", "3.50", "4"),
+                row(1002L, 5003L, CUSTOMER, POINT_1, SKU_1, "白菜", "斤", "", "2.00", "3")));
+        stubNewBatch(DeliveryScopeType.DELIVERY_POINT_DATE, true);
+
+        GenerateResultVO result = generationService.generateForCustomer(CUSTOMER, DATE);
+
+        ArgumentCaptor<DeliveryOrderDetail> detailCaptor = ArgumentCaptor.forClass(DeliveryOrderDetail.class);
+        verify(deliveryOrderDetailMapper, times(2)).insertDeliveryOrderDetail(detailCaptor.capture());
+        List<DeliveryOrderDetail> details = detailCaptor.getAllValues();
+        // 白菜 位于基准首位，数量 2+3=5
+        assertEquals("白菜", details.get(0).getProductName());
+        assertEquals(0, new BigDecimal("5").compareTo(details.get(0).getNum()));
+        assertEquals(0, new BigDecimal("10.00").compareTo(details.get(0).getAmount()));
+        // 合并多来源行订单号置空（G1 口径，溯源走 source_item）
+        assertEquals("", details.get(0).getOrderCode());
+        assertEquals("土豆", details.get(1).getProductName());
+        // source_item 台账 3 条（一订单行一条）
+        verify(deliverySourceItemMapper, times(2)).batchInsertDeliverySourceItem(sourceListCaptor.capture());
+        List<DeliverySourceItem> allSources = sourceListCaptor.getAllValues().stream()
+                .flatMap(List::stream).collect(Collectors.toList());
+        assertEquals(3, allSources.size());
+    }
 }

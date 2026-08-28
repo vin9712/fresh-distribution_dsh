@@ -379,8 +379,14 @@ public class DeliveryGenerationServiceImpl implements DeliveryGenerationService 
     }
 
     /**
-     * 明细聚合：merge=false 一订单行一行；merge=true 按五元组合并（不同价必拆行 D-024），
-     * 合并产生的多来源行订单号置空（订单归属维度留 source_item 对照列，G1 修复口径）
+     * 明细聚合（蓝图 W0-2.3 + S14/DESIGN.md §5.1）：
+     * <ul>
+     *   <li>merge=false 一订单行一行（保持订单行原始顺序）；</li>
+     *   <li>merge=true 按五元组合并（D-024 不同价必拆行；临时商品 sku 空时其余四元全比对防误并）；</li>
+     *   <li>合单排序（蓝图 W0-2.3）：以同一配送点/总单下商品行数最多的订单为基准保持其行顺序，
+     *       其余订单按下单顺序（orderId 升序）补充未出现商品；</li>
+     *   <li>合并产生的多来源行订单号置空（订单归属维度留 source_item 对照列，G1 修复口径）。</li>
+     * </ul>
      */
     private List<MergedDetail> mergeRows(List<SaleOrderDetail> rows, boolean mergeSameItem) {
         List<MergedDetail> details = new ArrayList<>();
@@ -390,21 +396,53 @@ public class DeliveryGenerationServiceImpl implements DeliveryGenerationService 
             }
             return details;
         }
-        Map<String, MergedDetail> keyed = new LinkedHashMap<>();
+
+        // 合单排序前提：按订单分组（保持行内自然顺序），以行数最多订单为基准，并列取先出现者
+        Map<Long, List<SaleOrderDetail>> byOrder = new LinkedHashMap<>();
         for (SaleOrderDetail row : rows) {
-            MergedDetail merged = keyed.get(mergeKey(row));
-            if (merged == null) {
-                merged = MergedDetail.of(row);
-                keyed.put(mergeKey(row), merged);
-                details.add(merged);
-            } else {
-                merged.setNum(merged.getNum().add(nvl(row.getNum())));
-                merged.getSources().add(row);
-                // 合并行不再对应唯一订单行：订单号置空，溯源走 source_item
-                merged.setOrderCode(null);
+            byOrder.computeIfAbsent(row.getOrderId(), k -> new ArrayList<>()).add(row);
+        }
+        Long baseOrderId = null;
+        int maxSize = -1;
+        for (Map.Entry<Long, List<SaleOrderDetail>> e : byOrder.entrySet()) {
+            if (e.getValue().size() > maxSize) {
+                maxSize = e.getValue().size();
+                baseOrderId = e.getKey();
+            }
+        }
+
+        Map<String, MergedDetail> keyed = new LinkedHashMap<>();
+        for (Long orderId : orderedGroupIds(byOrder, baseOrderId)) {
+            for (SaleOrderDetail row : byOrder.get(orderId)) {
+                MergedDetail merged = keyed.get(mergeKey(row));
+                if (merged == null) {
+                    merged = MergedDetail.of(row);
+                    keyed.put(mergeKey(row), merged);
+                    details.add(merged);
+                } else {
+                    merged.setNum(merged.getNum().add(nvl(row.getNum())));
+                    merged.getSources().add(row);
+                    // 合并行不再对应唯一订单行：订单号置空，溯源走 source_item
+                    merged.setOrderCode(null);
+                }
             }
         }
         return details;
+    }
+
+    /**
+     * 合单排序组序：基准订单优先，其余订单按下单顺序（orderId 升序）排列
+     */
+    private List<Long> orderedGroupIds(Map<Long, List<SaleOrderDetail>> byOrder, Long baseOrderId) {
+        List<Long> groupIds = new ArrayList<>();
+        if (baseOrderId != null) {
+            groupIds.add(baseOrderId);
+        }
+        byOrder.keySet().stream()
+                .filter(id -> !id.equals(baseOrderId))
+                .sorted()
+                .forEach(groupIds::add);
+        return groupIds;
     }
 
     /**
