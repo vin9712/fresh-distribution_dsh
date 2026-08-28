@@ -106,3 +106,12 @@ export function generatePreview(data) {
     data: data
   })
 }
+
+// 检测同配送点+同配送日期的草稿订单（新增订单页选中客户后调用）
+export function checkExistingDraft(query) {
+  return request({
+    url: '/order/sale/checkDraft',
+    method: 'get',
+    params: query
+  })
+}

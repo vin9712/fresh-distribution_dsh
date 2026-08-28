@@ -175,4 +175,18 @@ public class SaleOrderController extends BaseController {
     public AjaxResult generatePreview(@RequestBody @Validated SaleOrderGeneratePreviewDTO request) {
         return success(saleOrderService.generatePreview(request.getOrderIds()));
     }
+
+    /**
+     * 检测同配送点+同日期的草稿订单（新增订单页选中客户后调用：存在则前端提示并跳转已有明细）
+     *
+     * @param customerDeptId 配送点ID
+     * @param deliveryDate   配送日期（yyyy-MM-dd）
+     * @return 最新一条草稿订单；无则返回 null
+     */
+    @PreAuthorize("@ss.hasPermi('order:sale:add')")
+    @GetMapping("/checkDraft")
+    public AjaxResult checkExistingDraft(@RequestParam("customerDeptId") Long customerDeptId,
+                                         @RequestParam("deliveryDate") @org.springframework.format.annotation.DateTimeFormat(pattern = "yyyy-MM-dd") java.time.LocalDate deliveryDate) {
+        return success(saleOrderService.findExistingDraftOrder(customerDeptId, deliveryDate));
+    }
 }

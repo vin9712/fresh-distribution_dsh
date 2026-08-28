@@ -225,4 +225,41 @@ class SaleOrderServiceImplTest {
         assertEquals(SaleOrderStatus.DRAFT.getCode(), captor.getAllValues().get(0).getStatus());
         assertEquals(SaleOrderStatus.DRAFT.getCode(), captor.getAllValues().get(1).getStatus());
     }
+
+    // ================= 新增订单防重复：同配送点+同日期草稿检测 =================
+
+    @Test
+    void 同配送点同日期有草稿订单则返回最新一条() {
+        SaleOrder latest = order(SaleOrderStatus.DRAFT.getCode());
+        latest.setId(200L);
+        latest.setCode("XD202608280200");
+        when(saleOrderMapper.selectExistingDraftOrder(1001L, DATE))
+                .thenReturn(Arrays.asList(latest, order(SaleOrderStatus.DRAFT.getCode())));
+
+        SaleOrder result = saleOrderService.findExistingDraftOrder(1001L, DATE);
+
+        assertEquals(200L, result.getId());
+        assertEquals("XD202608280200", result.getCode());
+        verify(saleOrderMapper).selectExistingDraftOrder(1001L, DATE);
+    }
+
+    @Test
+    void 同配送点同日期无草稿订单则返回null() {
+        when(saleOrderMapper.selectExistingDraftOrder(1001L, DATE))
+                .thenReturn(Collections.emptyList());
+
+        SaleOrder result = saleOrderService.findExistingDraftOrder(1001L, DATE);
+
+        assertEquals(null, result);
+    }
+
+    @Test
+    void 防重复检测参数缺一不查返回null() {
+        SaleOrder result1 = saleOrderService.findExistingDraftOrder(null, DATE);
+        SaleOrder result2 = saleOrderService.findExistingDraftOrder(1001L, null);
+
+        assertEquals(null, result1);
+        assertEquals(null, result2);
+        verify(saleOrderMapper, never()).selectExistingDraftOrder(anyLong(), any());
+    }
 }

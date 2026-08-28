@@ -353,6 +353,18 @@ public class SaleOrderServiceImpl implements SaleOrderService {
     }
 
     /**
+     * 查询同配送点+同日期的草稿订单（新增订单时，选中客户后检测是否已有可继续添加的草稿）
+     */
+    @Override
+    public SaleOrder findExistingDraftOrder(Long customerDeptId, LocalDate deliveryDate) {
+        if (customerDeptId == null || deliveryDate == null) {
+            return null;
+        }
+        List<SaleOrder> list = saleOrderMapper.selectExistingDraftOrder(customerDeptId, deliveryDate);
+        return CollectionUtils.isNotEmpty(list) ? list.get(0) : null;
+    }
+
+    /**
      * 生成单据前汇总预览（Phase 2，销售订单列表页抽屉第一步）
      * 校验订单均为已确认，按品类分组聚合明细（临时商品归"临时商品"）。
      */

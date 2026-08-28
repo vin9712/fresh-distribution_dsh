@@ -105,4 +105,13 @@ public interface SaleOrderService {
      * @return 按品类分组的汇总预览
      */
     SaleGeneratePreviewVO generatePreview(List<Long> orderIds);
+
+    /**
+     * 查询同配送点+同日期的草稿订单（新增订单时，选中客户后检测是否已有可继续添加的草稿）
+     *
+     * @param customerDeptId 配送点ID
+     * @param deliveryDate   配送日期
+     * @return 最新一条草稿订单；无则返回 null
+     */
+    SaleOrder findExistingDraftOrder(Long customerDeptId, java.time.LocalDate deliveryDate);
 }

@@ -236,4 +236,14 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
           and so.delivery_date = #{deliveryDate}
         order by so.id
     </select>
+
+    <!-- 新增订单防重复：查同配送点+同日期的草稿订单（status=0，未删除） -->
+    <select id="selectExistingDraftOrder" resultMap="SaleOrderResult">
+        <include refid="selectSaleOrderVo"/>
+        where so.is_deleted = 0
+          and so.status = 0
+          and so.customer_dept_id = #{customerDeptId}
+          and so.delivery_date = #{deliveryDate}
+        order by so.create_time desc, so.id desc
+    </select>
 </mapper>

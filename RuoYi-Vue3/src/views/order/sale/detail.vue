@@ -522,7 +522,7 @@
 </template>
 
 <script>
-import { pageSaleOrder, getSaleOrder, genOrderCode, createSaleOrder, updateSaleOrder, recentSaleOrder } from "@/api/order/sale";
+import { pageSaleOrder, getSaleOrder, genOrderCode, createSaleOrder, updateSaleOrder, recentSaleOrder, checkExistingDraft } from "@/api/order/sale";
 import { listSaleDetail, frequentSaleDetail } from "@/api/order/saleDetail";
 import { listDrafts, saveDraft, removeDraft, restoreDraft, syncDraftToServer, fetchDraftFromServer, removeDraftFromServer } from "@/utils/saleDraft";
 import { listCustomerSku } from "@/api/product/customerSku";
@@ -1655,6 +1655,39 @@ export default {
 
       // init skuQuoteDetails
       this.getSkuQuoteDetailList();
+
+      // 新增订单：选完客户后检测同配送点+同日期的草稿订单，存在则提示可继续添加并跳转已有明细
+      if (!this.orderForm.orderId && customerDeptId && this.orderForm.deliveryDate) {
+        this.checkExistingDraftOrder();
+      }
+    },
+    /** 新增订单防重复：同配送点+同日期已存在草稿订单时，提示并跳转到对应订单明细 */
+    checkExistingDraftOrder() {
+      checkExistingDraft({
+        customerDeptId: this.orderForm.customerDeptId,
+        deliveryDate: this.orderForm.deliveryDate,
+      })
+        .then((response) => {
+          const order = response.data || null;
+          if (!order || !order.id) return;
+          const deptName = this.deptNameOf(order.customerDeptId) || "该配送点";
+          this.$confirm(
+            "【" + deptName + "】在 " + this.orderForm.deliveryDate +
+              " 已有一个可继续添加的草稿订单（编号：" + order.code + "），可直接在原有明细上继续录入。是否跳转到该订单明细？",
+            "提示",
+            {
+              confirmButtonText: "去编辑",
+              cancelButtonText: "继续新建",
+              type: "warning",
+            }
+          )
+            .then(() => {
+              // 跳转到对应的订单明细（加载该草稿订单进入编辑态）
+              this.initOrderDetailPage(order.id);
+            })
+            .catch(() => {});
+        })
+        .catch(() => {});
     },
     /** 查询商品分类下拉树结构 */
     getTreeselect() {
@@ -1763,6 +1796,10 @@ export default {
     /** 收起当前工作区并载入历史订单浏览 */
     enterBrowseMode(orderId, wasEmpty) {
       this.stashCurrentWorkspace(wasEmpty);
+      // 清除新单态下“送货单位”失焦残留的“不能为空”校验态，避免进入浏览模式后仍挂红字
+      this.$nextTick(() => {
+        this.$refs.orderForm && this.$refs.orderForm.clearValidate("customerDeptId");
+      });
       this.loadBrowseOrder(orderId);
     },
     /** 快照当前录入工作区（表头+明细+级联选中），供返回时原样恢复 */
@@ -1802,6 +1839,10 @@ export default {
             )
           : [];
         this.snapshotOriginalOrderForm();
+        // 载入历史订单后清除送货单位残留校验态（浏览态只读，不应再挂“不能为空”）
+        this.$nextTick(() => {
+          this.$refs.orderForm && this.$refs.orderForm.clearValidate("customerDeptId");
+        });
       });
       listSaleDetail({ orderId }).then((response) => {
         const details = (response.data || []).map((item) => ({
