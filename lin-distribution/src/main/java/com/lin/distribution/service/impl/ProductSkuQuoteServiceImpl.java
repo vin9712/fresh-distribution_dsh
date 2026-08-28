@@ -230,6 +230,12 @@ public class ProductSkuQuoteServiceImpl implements ProductSkuQuoteService {
         }
         switch (status) {
             case PUBLISHED -> {
+                // 状态机护栏（蓝图「报价纠错」）：仅草稿（NEW）可发布；已发布/已作废不可重发布
+                if (!ProductSkuQuoteStatus.NEW.getCode().equals(quote.getStatus())) {
+                    throw new ServiceException("仅草稿状态的报价可发布");
+                }
+                // 发布校验（蓝图「报价冲突」）：同客户、同商品的已发布报价有效期不得重叠，提示冲突商品
+                checkPublishOverlap(quote);
                 LocalDate now = LocalDate.now();
                 if (!now.isBefore(quote.getEffectiveStartDate()) && !now.isAfter(quote.getEffectiveEndDate())) {
                     quote.setValid(CommonConstants.YES);
@@ -243,12 +249,62 @@ public class ProductSkuQuoteServiceImpl implements ProductSkuQuoteService {
                     quote.setValid(CommonConstants.NO);
                 }
             }
-            case NEW, INVALID -> quote.setValid(CommonConstants.NO);
+            case INVALID -> {
+                // 状态机护栏（蓝图「报价纠错」）：草稿/已发布可作废；已作废不可重复作废
+                if (ProductSkuQuoteStatus.INVALID.getCode().equals(quote.getStatus())) {
+                    throw new ServiceException("该报价已作废，请复制生成新报价单后修改发布");
+                }
+                quote.setValid(CommonConstants.NO);
+            }
+            case NEW ->
+                    // 状态机护栏（蓝图「报价纠错」）：已发布报价不可撤回为草稿；错误报价作废后复制重发布
+                    throw new ServiceException("已发布报价不可撤回为草稿；如需更正请作废后复制生成新报价单，修改后重新发布");
             default -> throw new ServiceException("invalid status");
         }
         quote.setStatus(status.getCode());
         quote.setUpdateTime(DateUtils.getNowDate());
         productSkuQuoteMapper.updateProductSkuQuote(quote);
+    }
+
+    /**
+     * 发布时有效期重叠校验（蓝图「报价冲突」）：
+     * 同客户、同商品的已发布报价有效期不得重叠；存在冲突时逐项列出冲突商品，由文员处理后重试。
+     */
+    private void checkPublishOverlap(ProductSkuQuote quote) {
+        List<ProductSkuQuote> overlapping = productSkuQuoteMapper.selectOverlappingPublishedQuotes(
+                quote.getCustomerId(), quote.getId(), quote.getEffectiveStartDate(), quote.getEffectiveEndDate());
+        if (CollectionUtils.isEmpty(overlapping)) {
+            return;
+        }
+        Set<Long> selfSkuIds = productSkuQuoteDetailMapper.selectProductSkuQuoteDetailListByQuoteId(quote.getId()).stream()
+                .map(ProductSkuQuoteDetail::getSkuId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+
+        List<String> conflicts = new ArrayList<>();
+        for (ProductSkuQuote other : overlapping) {
+            if (CollectionUtils.isEmpty(selfSkuIds)) {
+                break;
+            }
+            Set<Long> otherSkuIds = productSkuQuoteDetailMapper.selectProductSkuQuoteDetailListByQuoteId(other.getId()).stream()
+                    .map(ProductSkuQuoteDetail::getSkuId)
+                    .filter(Objects::nonNull)
+                    .collect(Collectors.toSet());
+            otherSkuIds.retainAll(selfSkuIds);
+            if (!otherSkuIds.isEmpty()) {
+                String skuNames = otherSkuIds.stream()
+                        .limit(5)
+                        .map(productSkuMapper::selectProductSkuById)
+                        .filter(Objects::nonNull)
+                        .map(sku -> StringUtils.defaultIfBlank(sku.getName(), String.valueOf(sku.getId())))
+                        .collect(Collectors.joining("、"));
+                conflicts.add(String.format("报价单 %s（%s ~ %s）：%s",
+                        other.getCode(), other.getEffectiveStartDate(), other.getEffectiveEndDate(), skuNames));
+            }
+        }
+        if (!conflicts.isEmpty()) {
+            throw new ServiceException("发布失败：与已发布报价的有效期存在重叠冲突商品：" + String.join("；", conflicts));
+        }
     }
 
     @Override

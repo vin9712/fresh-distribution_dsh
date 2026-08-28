@@ -159,6 +159,7 @@ public class SaleOrderController extends BaseController {
      * @return
      */
     @PutMapping("/status")
+    @Log(title = "销售订单状态变更", businessType = BusinessType.UPDATE)
     public AjaxResult updateSaleOrder(@RequestBody @Validated SaleOrderUpdateStatusDTO request) {
         saleOrderService.updateSaleOrderStatus(request);
         return success();

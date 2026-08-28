@@ -5,7 +5,7 @@ import com.lin.distribution.domain.PriceQueryResult;
 import java.time.LocalDate;
 
 /**
- * 取价服务：配送点报价 > 客户报价 > 客户关联报价模板，未命中返回空价
+ * 取价服务：仅使用客户正式报价；未命中返回空价（由文员手工定价）
  *
  * @author dsh
  */

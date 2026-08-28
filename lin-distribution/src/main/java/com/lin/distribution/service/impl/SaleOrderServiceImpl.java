@@ -8,11 +8,13 @@ import com.lin.distribution.domain.SaleOrderDetail;
 import com.lin.distribution.dto.SaleGeneratePreviewVO;
 import com.lin.distribution.dto.SaleOrderCreateDTO;
 import com.lin.distribution.dto.SaleOrderUpdateStatusDTO;
+import com.lin.distribution.dto.WithdrawCascadeResultVO;
 import com.lin.distribution.mapper.SaleOrderDetailMapper;
 import com.lin.distribution.mapper.SaleOrderMapper;
 import com.lin.distribution.service.BizCodeService;
 import com.lin.distribution.service.BizCodeService;
 import com.lin.distribution.service.DeliveryOrderService;
+import com.lin.distribution.service.OrderWithdrawCascadeService;
 import com.lin.distribution.service.SaleOrderService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -28,6 +30,7 @@ import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.util.Objects;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -49,6 +52,7 @@ public class SaleOrderServiceImpl implements SaleOrderService {
     private final SaleOrderMapper saleOrderMapper;
     private final SaleOrderDetailMapper saleOrderDetailMapper;
     private final DeliveryOrderService deliveryOrderService;
+    private final OrderWithdrawCascadeService orderWithdrawCascadeService;
     private final BizCodeService bizCodeService;
 
     /**
@@ -193,6 +197,9 @@ public class SaleOrderServiceImpl implements SaleOrderService {
         }
         // 编辑护栏（S14/G6，DESIGN.md §5.5）：状态机+是否已分配送货单双重拦截
         checkOrderEditable(order);
+        // 快照不可变护栏（蓝图 W0-1/「基础资料快照」）：客户/配送点/单号为订单快照标识字段，
+        // 编辑时不可变更；换客户或换配送点应新开订单，主数据修改不回写历史/未确认订单
+        checkSnapshotImmutable(order, request);
 
         // update order
         order.setDeliveryDate(request.getDeliveryDate());
@@ -253,13 +260,18 @@ public class SaleOrderServiceImpl implements SaleOrderService {
             throw new ServiceException("check new order status error");
         }
 
-        // 撤回（DRAFT）：仅当订单仍被有效送货单占用时拒绝（S14/G4 精确化：EXISTS source_item 分配，
-        // 作废释放/未进单的同组订单不影响；替代旧的 countByCustomerIdAndDeliveryDate 客户+日期推断）
+        // 撤回（DRAFT，W0-2.1 级联）：先对全部待撤回订单无副作用预检（被已打印/已送达送货单
+        // 或已入库采购单占用 → 拒绝），再逐单级联扣除/作废未打印送货单与未入库采购单
+        // （蓝图「撤回级联/共享单据撤回/空关联单据」）；任一失败整体回滚
         if (newStatus == SaleOrderStatus.DRAFT) {
             for (SaleOrder order : orders) {
-                if (saleOrderDetailMapper.existsValidAllocation(order.getId())) {
-                    throw new ServiceException("已生成送货单的订单不可撤回：" + order.getCode());
-                }
+                orderWithdrawCascadeService.validateOrderWithdrawable(order);
+            }
+            for (SaleOrder order : orders) {
+                WithdrawCascadeResultVO cascade = orderWithdrawCascadeService.cascadeOnOrderWithdraw(order.getId());
+                log.info("[sale order withdraw] 订单 {} 撤回级联：作废送货单 {}，扣除送货单 {}，作废采购单 {}，扣除采购单 {}",
+                        order.getCode(), cascade.getVoidedDeliveryCodes(), cascade.getDeductedDeliveryCodes(),
+                        cascade.getVoidedPurchaseCodes(), cascade.getDeductedPurchaseCodes());
             }
         }
 
@@ -327,6 +339,23 @@ public class SaleOrderServiceImpl implements SaleOrderService {
         if (SaleOrderStatus.CONFIRMED.getCode().equals(status)
                 && saleOrderDetailMapper.existsValidAllocation(order.getId())) {
             throw new ServiceException("订单已生成送货单，请先作废对应送货单：" + order.getCode());
+        }
+    }
+
+    /**
+     * 订单快照不可变护栏（蓝图「基础资料快照」，W0-1）。
+     * 客户、配送点、单号为录单时固化的快照标识字段：编辑订单时必须与原单一致，
+     * 任何变更（换客户/换配送点）都应新开订单，保证订单头与明细行快照的一致性。
+     */
+    private void checkSnapshotImmutable(SaleOrder order, SaleOrderCreateDTO request) {
+        if (!Objects.equals(order.getCustomerId(), request.getCustomerId())) {
+            throw new ServiceException("订单客户不可修改，如需为其他客户下单请新开订单：" + order.getCode());
+        }
+        if (!Objects.equals(order.getCustomerDeptId(), request.getCustomerDeptId())) {
+            throw new ServiceException("订单配送点不可修改，更换配送点请新开订单：" + order.getCode());
+        }
+        if (!StringUtils.equals(order.getCode(), request.getOrderCode())) {
+            throw new ServiceException("订单编号不可修改：" + order.getCode());
         }
     }
 

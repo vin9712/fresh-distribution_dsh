@@ -17,6 +17,8 @@ public enum PurchaseOrderStatus {
     DRAFT(0, "草稿"),
     CONFIRMED(1, "已确认"),
     STOCKED(2, "已入库"),
+    /** W0-2.1：撤回级联扣除后无明细的空单自动作废（原因=订单撤回）；作废单仅可查看 */
+    VOIDED(3, "已作废"),
 
     ;
 

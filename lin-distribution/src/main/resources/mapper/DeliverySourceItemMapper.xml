@@ -84,4 +84,21 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         update t_delivery_source_item set is_deleted = 1
         where delivery_id = #{deliveryId} and is_deleted = 0
     </update>
+
+    <!-- 撤回级联（W0-2.1）：订单在有效（非作废）送货单上的来源分配 -->
+    <select id="selectValidBySaleOrderId" parameterType="Long" resultMap="DeliverySourceItemResult">
+        <include refid="selectDeliverySourceItemVo"/>
+        join t_delivery_order d on d.id = si.delivery_id
+        where si.sale_order_id = #{saleOrderId}
+          and si.is_deleted = 0
+          and d.is_deleted = 0
+          and d.status != 3
+        order by si.id
+    </select>
+
+    <!-- 撤回级联（W0-2.1）：按送货单+来源订单软删释放（旧行保留审计；唯一键含 is_deleted，释放后重新生成不撞键） -->
+    <update id="deleteByDeliveryIdAndSaleOrderId">
+        update t_delivery_source_item set is_deleted = 1
+        where delivery_id = #{deliveryId} and sale_order_id = #{saleOrderId} and is_deleted = 0
+    </update>
 </mapper>

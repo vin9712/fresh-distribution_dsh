@@ -109,6 +109,39 @@ export function listDeliverySources(id) {
   })
 }
 
+// 解析送货单打印拆分配置（W0-2.2：无配置时按批次策略推导默认值+自动生成结构）
+export function getDeliveryPrintConfig(id) {
+  return request({
+    url: '/order/delivery/' + id + '/print-config',
+    method: 'get'
+  })
+}
+
+// 保存送货单打印拆分配置（W0-2.2：仅未打印PENDING单可改，每次保存追加版本记录）
+export function saveDeliveryPrintConfig(id, data) {
+  return request({
+    url: '/order/delivery/' + id + '/print-config',
+    method: 'put',
+    data: data
+  })
+}
+
+// 查询打印拆分配置版本记录（W0-2.2：最新在前）
+export function listDeliveryPrintConfigVersions(id) {
+  return request({
+    url: '/order/delivery/' + id + '/print-config/versions',
+    method: 'get'
+  })
+}
+
+// 恢复自动生成结构（W0-2.2：仅未打印PENDING单可恢复，追加版本记录）
+export function restoreDeliveryPrintStructure(id) {
+  return request({
+    url: '/order/delivery/' + id + '/print-config/restore',
+    method: 'post'
+  })
+}
+
 // 客户日总表（S14/D-027/28：标准品名+总量+各点小计，无价格，内部配货/采购视图）
 export function batchView(customerId, date) {
   return request({

@@ -134,4 +134,15 @@
                                       and status = 1)
         order by id desc limit 1
     </select>
+
+    <!-- 发布校验：同客户已发布报价中与待发布区间重叠者（闭区间重叠：start <= endDate 且 end >= startDate） -->
+    <select id="selectOverlappingPublishedQuotes" resultMap="ProductSkuQuoteResult">
+        <include refid="selectProductSkuQuoteVo"/>
+        where customer_id = #{customerId}
+          and status = 1
+          <if test="excludeQuoteId != null">and id != #{excludeQuoteId}</if>
+          and effective_start_date &lt;= #{endDate}
+          and effective_end_date &gt;= #{startDate}
+        order by effective_start_date asc
+    </select>
 </mapper>

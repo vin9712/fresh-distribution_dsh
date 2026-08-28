@@ -121,9 +121,10 @@ public class SecurityConfig {
                 requests.requestMatchers("/login", "/register", "/captchaImage").permitAll()
                     // 静态资源，可匿名访问
                     .requestMatchers(HttpMethod.GET, "/", "/*.html", "/**.html", "/**.css", "/**.js", "/profile/**").permitAll()
-                    // JimuReport 报表引擎（自身由 JimuReportTokenServiceImpl 校验 token 参数）
+                    // JimuReport 报表引擎（自身由 JimuReportTokenServiceImpl 校验 token 参数：
+                    // W0-4.1 起前端传短时一次性打印票据 ptk_，不再传长期 JWT）
                     .requestMatchers("/jmreport/**").permitAll()
-                    // JimuReport API 数据集服务端调用（不带 JWT）的只读打印数据接口
+                    // JimuReport API 数据集服务端调用（不带 JWT，自验短时一次性打印票据）的只读打印数据接口
                     .requestMatchers("/print/deliveryData", "/print/deliveryHead").permitAll()
                     .requestMatchers("/swagger-ui.html", "/v3/api-docs/**", "/swagger-ui/**", "/druid/**").permitAll();
 

@@ -127,6 +127,28 @@ public class PurchaseOrderController extends BaseController {
     }
 
     /**
+     * 已确认采购单直接调整数量/成本（W0-2.5「已确认采购纠错」）：记录前后金额审计日志
+     */
+    @Operation(summary = "已确认采购单调整数量/成本")
+    @PreAuthorize("@ss.hasPermi('purchase:edit')")
+    @Log(title = "采购单", businessType = BusinessType.UPDATE)
+    @PutMapping("/{id}/adjust")
+    public AjaxResult adjust(@PathVariable("id") Long id, @RequestBody PurchaseOrder purchaseOrder) {
+        purchaseOrder.setId(id);
+        return success(purchaseOrderService.adjustConfirmedPurchase(purchaseOrder));
+    }
+
+    /**
+     * 查询采购单调整审计日志列表（W0-2.5）
+     */
+    @Operation(summary = "查询采购单调整审计日志")
+    @PreAuthorize("@ss.hasPermi('purchase:list')")
+    @GetMapping("/{id}/modify-logs")
+    public AjaxResult modifyLogs(@PathVariable("id") Long id) {
+        return success(purchaseOrderService.selectModifyLogsByPurchaseId(id));
+    }
+
+    /**
      * 删除采购单
      */
     @Operation(summary = "删除采购单")

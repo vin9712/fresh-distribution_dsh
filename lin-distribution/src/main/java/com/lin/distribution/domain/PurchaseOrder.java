@@ -10,6 +10,7 @@ import org.apache.commons.lang3.builder.ToStringStyle;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.Date;
 import java.util.List;
 
 /**
@@ -57,9 +58,19 @@ public class PurchaseOrder extends BaseEntity {
     @Excel(name = "采购总额")
     private BigDecimal totalAmount;
 
-    /** 状态：0草稿 1已确认 2已入库 */
-    @Excel(name = "状态", readConverterExp = "0=草稿,1=已确认,2=已入库")
+    /** 状态：0草稿 1已确认 2已入库 3已作废 */
+    @Excel(name = "状态", readConverterExp = "0=草稿,1=已确认,2=已入库,3=已作废")
     private Integer status;
+
+    /** 作废原因（W0-2.1：撤回级联空单自动作废记录“订单撤回”） */
+    @Excel(name = "作废原因")
+    private String voidReason;
+
+    /** 作废人 */
+    private String voidBy;
+
+    /** 作废时间 */
+    private Date voidTime;
 
     /** 采购明细（非表字段，新增/修改时携带） */
     @TableField(exist = false)

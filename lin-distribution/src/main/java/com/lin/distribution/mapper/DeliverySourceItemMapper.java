@@ -2,6 +2,8 @@ package com.lin.distribution.mapper;
 
 import java.util.List;
 
+import org.apache.ibatis.annotations.Param;
+
 import com.lin.distribution.domain.DeliverySourceItem;
 
 /**
@@ -58,4 +60,21 @@ public interface DeliverySourceItemMapper {
      * @return 影响行数
      */
     int deleteByDeliveryId(Long deliveryId);
+
+    /**
+     * 撤回级联（W0-2.1）：查订单在有效（非作废）送货单上的来源分配
+     *
+     * @param saleOrderId 销售订单ID
+     * @return 送货来源明细集合
+     */
+    List<DeliverySourceItem> selectValidBySaleOrderId(Long saleOrderId);
+
+    /**
+     * 撤回级联（W0-2.1）：按送货单+来源订单软删释放来源分配（旧行保留审计）
+     *
+     * @param deliveryId  送货单ID
+     * @param saleOrderId 来源销售订单ID
+     * @return 影响行数
+     */
+    int deleteByDeliveryIdAndSaleOrderId(@Param("deliveryId") Long deliveryId, @Param("saleOrderId") Long saleOrderId);
 }

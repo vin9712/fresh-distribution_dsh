@@ -6,10 +6,12 @@ import com.lin.distribution.domain.SaleOrder;
 import com.lin.distribution.domain.SaleOrderDetail;
 import com.lin.distribution.dto.SaleOrderCreateDTO;
 import com.lin.distribution.dto.SaleOrderUpdateStatusDTO;
+import com.lin.distribution.dto.WithdrawCascadeResultVO;
 import com.lin.distribution.mapper.SaleOrderDetailMapper;
 import com.lin.distribution.mapper.SaleOrderMapper;
 import com.lin.distribution.service.BizCodeService;
 import com.lin.distribution.service.DeliveryOrderService;
+import com.lin.distribution.service.OrderWithdrawCascadeService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -28,7 +30,8 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
-import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -51,6 +54,8 @@ class SaleOrderServiceImplTest {
     @Mock
     private DeliveryOrderService deliveryOrderService;
     @Mock
+    private OrderWithdrawCascadeService orderWithdrawCascadeService;
+    @Mock
     private BizCodeService bizCodeService;
 
     @InjectMocks
@@ -66,6 +71,9 @@ class SaleOrderServiceImplTest {
         order.setStatus(status);
         order.setDeliveryDate(DATE);
         order.setAmount(new BigDecimal("10.00"));
+        // 快照标识字段与 updateRequest() 保持一致（客户/配送点/单号不可变）
+        order.setCustomerId(1000L);
+        order.setCustomerDeptId(1001L);
         return order;
     }
 
@@ -149,6 +157,58 @@ class SaleOrderServiceImplTest {
         assertTrue(ex.getMessage().contains("已结算"));
     }
 
+    // ================= W0-1：订单快照不可变护栏（蓝图「基础资料快照」） =================
+
+    @Test
+    void 编辑时变更客户应拒绝() {
+        when(saleOrderMapper.selectSaleOrderById(ORDER_ID)).thenReturn(order(SaleOrderStatus.DRAFT.getCode()));
+        SaleOrderCreateDTO request = updateRequest();
+        request.setCustomerId(9999L);
+
+        ServiceException ex = assertThrows(ServiceException.class,
+                () -> saleOrderService.updateSaleOrderWithDetails(request));
+        assertTrue(ex.getMessage().contains("客户不可修改"));
+        verify(saleOrderMapper, never()).updateSaleOrder(any(SaleOrder.class));
+    }
+
+    @Test
+    void 编辑时变更配送点应拒绝() {
+        when(saleOrderMapper.selectSaleOrderById(ORDER_ID)).thenReturn(order(SaleOrderStatus.DRAFT.getCode()));
+        SaleOrderCreateDTO request = updateRequest();
+        request.setCustomerDeptId(9999L);
+
+        ServiceException ex = assertThrows(ServiceException.class,
+                () -> saleOrderService.updateSaleOrderWithDetails(request));
+        assertTrue(ex.getMessage().contains("配送点不可修改"));
+        verify(saleOrderMapper, never()).updateSaleOrder(any(SaleOrder.class));
+    }
+
+    @Test
+    void 编辑时变更订单编号应拒绝() {
+        when(saleOrderMapper.selectSaleOrderById(ORDER_ID)).thenReturn(order(SaleOrderStatus.DRAFT.getCode()));
+        SaleOrderCreateDTO request = updateRequest();
+        request.setOrderCode("XD202608289999");
+
+        ServiceException ex = assertThrows(ServiceException.class,
+                () -> saleOrderService.updateSaleOrderWithDetails(request));
+        assertTrue(ex.getMessage().contains("订单编号不可修改"));
+        verify(saleOrderMapper, never()).updateSaleOrder(any(SaleOrder.class));
+    }
+
+    @Test
+    void 编辑时订单行快照价按请求写入且不重新取价() {
+        // 快照不可变的另一面：编辑不触发取价/回写，明细行价格即请求中的下单快照
+        when(saleOrderMapper.selectSaleOrderById(ORDER_ID)).thenReturn(order(SaleOrderStatus.DRAFT.getCode()));
+
+        ArgumentCaptor<SaleOrderDetail> captor = ArgumentCaptor.forClass(SaleOrderDetail.class);
+        saleOrderService.updateSaleOrderWithDetails(updateRequest());
+
+        verify(saleOrderDetailMapper).insertSaleOrderDetail(captor.capture());
+        assertEquals(0, new BigDecimal("2.00").compareTo(captor.getValue().getProductPrice()));
+        assertEquals(1000L, captor.getValue().getCustomerId());
+        assertEquals(1001L, captor.getValue().getCustomerDeptId());
+    }
+
     @Test
     void 修改不存在的订单应报错() {
         when(saleOrderMapper.selectSaleOrderById(ORDER_ID)).thenReturn(null);
@@ -157,27 +217,30 @@ class SaleOrderServiceImplTest {
         verify(saleOrderMapper, never()).updateSaleOrder(any(SaleOrder.class));
     }
 
-    // ================= G4：撤回判断精确化 =================
+    // ================= G4：撤回级联（W0-2.1） =================
 
     @Test
-    void 撤回仍被有效送货单占用的订单应拒绝() {
+    void 撤回被已打印送货单占用的订单应拒绝() {
         SaleOrder occupied = order(SaleOrderStatus.CONFIRMED.getCode());
         when(saleOrderMapper.selectSaleOrderByIdIn(Collections.singletonList(ORDER_ID)))
                 .thenReturn(Collections.singletonList(occupied));
-        when(saleOrderDetailMapper.existsValidAllocation(ORDER_ID)).thenReturn(true);
+        doThrow(new ServiceException("订单已进入已打印/已送达送货单【HS202608280001】，请先作废送货单后再撤回："
+                + occupied.getCode())).when(orderWithdrawCascadeService).validateOrderWithdrawable(any(SaleOrder.class));
 
         SaleOrderUpdateStatusDTO request = new SaleOrderUpdateStatusDTO();
         request.setOrderIds(Collections.singletonList(ORDER_ID));
         request.setStatus(SaleOrderStatus.DRAFT.getCode());
 
         ServiceException ex = assertThrows(ServiceException.class, () -> saleOrderService.updateSaleOrderStatus(request));
-        assertTrue(ex.getMessage().contains("已生成送货单的订单不可撤回"));
+        assertTrue(ex.getMessage().contains("已打印/已送达"));
         verify(saleOrderMapper, never()).updateSaleOrder(any(SaleOrder.class));
+        // 拒绝时不得执行级联扣除
+        verify(orderWithdrawCascadeService, never()).cascadeOnOrderWithdraw(anyLong());
     }
 
     @Test
-    void 撤回未进单的同组订单不受他单送货单影响() {
-        // G4 核心场景：同客户同日 B 单已生成送货单，A 单未进单 → A 撤回必须放行
+    void 撤回未进单的同组订单不受他单已打印送货单影响() {
+        // G4 核心场景：同客户同日 B 单已进入已打印送货单，A 单未进单 → 校验拒绝，报错指向 B
         SaleOrder a = order(SaleOrderStatus.CONFIRMED.getCode());
         SaleOrder b = new SaleOrder();
         b.setId(101L);
@@ -187,8 +250,14 @@ class SaleOrderServiceImplTest {
 
         List<Long> ids = Arrays.asList(ORDER_ID, 101L);
         when(saleOrderMapper.selectSaleOrderByIdIn(ids)).thenReturn(Arrays.asList(a, b));
-        when(saleOrderDetailMapper.existsValidAllocation(ORDER_ID)).thenReturn(false);      // A 未进单
-        when(saleOrderDetailMapper.existsValidAllocation(101L)).thenReturn(true);           // B 已进单
+        // A 校验通过；B 被已打印送货单占用 → 校验拒绝（报错指向 B）
+        doAnswer(invocation -> {
+            SaleOrder o = invocation.getArgument(0);
+            if (Long.valueOf(101L).equals(o.getId())) {
+                throw new ServiceException("订单已进入已打印/已送达送货单【HS202608280002】，请先作废送货单后再撤回：XD202608280002");
+            }
+            return null;
+        }).when(orderWithdrawCascadeService).validateOrderWithdrawable(any(SaleOrder.class));
 
         SaleOrderUpdateStatusDTO request = new SaleOrderUpdateStatusDTO();
         request.setOrderIds(ids);
@@ -196,8 +265,33 @@ class SaleOrderServiceImplTest {
 
         ServiceException ex = assertThrows(ServiceException.class, () -> saleOrderService.updateSaleOrderStatus(request));
         assertTrue(ex.getMessage().contains("XD202608280002"));
-        // A 不应被误伤
+        // 校验未全部通过，任何订单均不更新、不级联
         verify(saleOrderMapper, never()).updateSaleOrder(any(SaleOrder.class));
+        verify(orderWithdrawCascadeService, never()).cascadeOnOrderWithdraw(anyLong());
+    }
+
+    @Test
+    void 撤回待打印送货单占用的订单应级联扣除后放行() {
+        // W0-2.1 核心：CONFIRMED + 待打印送货单占用 → 级联扣除/作废后可撤回
+        SaleOrder a = order(SaleOrderStatus.CONFIRMED.getCode());
+        when(saleOrderMapper.selectSaleOrderByIdIn(Collections.singletonList(ORDER_ID)))
+                .thenReturn(Collections.singletonList(a));
+        when(orderWithdrawCascadeService.cascadeOnOrderWithdraw(ORDER_ID))
+                .thenReturn(WithdrawCascadeResultVO.builder()
+                        .voidedDeliveryCodes(Arrays.asList("HS202608280001"))
+                        .build());
+
+        SaleOrderUpdateStatusDTO request = new SaleOrderUpdateStatusDTO();
+        request.setOrderIds(Collections.singletonList(ORDER_ID));
+        request.setStatus(SaleOrderStatus.DRAFT.getCode());
+
+        saleOrderService.updateSaleOrderStatus(request);
+
+        verify(orderWithdrawCascadeService).validateOrderWithdrawable(any(SaleOrder.class));
+        verify(orderWithdrawCascadeService).cascadeOnOrderWithdraw(ORDER_ID);
+        ArgumentCaptor<SaleOrder> captor = ArgumentCaptor.forClass(SaleOrder.class);
+        verify(saleOrderMapper).updateSaleOrder(captor.capture());
+        assertEquals(SaleOrderStatus.DRAFT.getCode(), captor.getValue().getStatus());
     }
 
     @Test
@@ -211,8 +305,8 @@ class SaleOrderServiceImplTest {
 
         List<Long> ids = Arrays.asList(ORDER_ID, 101L);
         when(saleOrderMapper.selectSaleOrderByIdIn(ids)).thenReturn(Arrays.asList(a, b));
-        lenient().when(saleOrderDetailMapper.existsValidAllocation(ORDER_ID)).thenReturn(false);
-        lenient().when(saleOrderDetailMapper.existsValidAllocation(101L)).thenReturn(false);
+        when(orderWithdrawCascadeService.cascadeOnOrderWithdraw(anyLong()))
+                .thenReturn(WithdrawCascadeResultVO.builder().build());
 
         SaleOrderUpdateStatusDTO request = new SaleOrderUpdateStatusDTO();
         request.setOrderIds(ids);
@@ -220,6 +314,7 @@ class SaleOrderServiceImplTest {
 
         saleOrderService.updateSaleOrderStatus(request);
 
+        verify(orderWithdrawCascadeService, times(2)).validateOrderWithdrawable(any(SaleOrder.class));
         ArgumentCaptor<SaleOrder> captor = ArgumentCaptor.forClass(SaleOrder.class);
         verify(saleOrderMapper, times(2)).updateSaleOrder(captor.capture());
         assertEquals(SaleOrderStatus.DRAFT.getCode(), captor.getAllValues().get(0).getStatus());

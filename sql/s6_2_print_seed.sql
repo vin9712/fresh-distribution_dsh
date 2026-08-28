@@ -24,13 +24,15 @@ NULL, NULL, 'admin', sysdate(), 'admin', sysdate(), 0, NULL, NULL, 0, 0, NULL, N
 INSERT IGNORE INTO `jimu_report_db`
 (`id`, `jimu_report_id`, `create_by`, `update_by`, `create_time`, `update_time`, `db_code`, `db_ch_name`, `db_type`, `db_table_name`, `db_dyn_sql`, `db_key`, `tb_db_key`, `tb_db_table_name`, `java_type`, `java_value`, `api_url`, `api_method`, `is_list`, `is_page`, `db_source`, `db_source_type`, `json_data`, `api_convert`, `iz_shared_source`, `jimu_shared_source_id`)
 VALUES
-('2099000000000000002', '2099000000000000001', 'admin', 'admin', sysdate(), sysdate(), 'hd', '送货单表头', '1', NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'http://localhost:8090/print/deliveryHead?deliveryOrderId=${deliveryOrderId}', '0', '0', '0', '', NULL, NULL, 'deliveryDataConvertAdapter', NULL, NULL),
-('2099000000000000003', '2099000000000000001', 'admin', 'admin', sysdate(), sysdate(), 'dd', '送货单明细', '1', NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'http://localhost:8090/print/deliveryData?deliveryOrderId=${deliveryOrderId}', '0', '1', '0', '', NULL, NULL, 'deliveryDataConvertAdapter', NULL, NULL);
+('2099000000000000002', '2099000000000000001', 'admin', 'admin', sysdate(), sysdate(), 'hd', '送货单表头', '1', NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'http://localhost:8090/print/deliveryHead?deliveryOrderId=${deliveryOrderId}&ticket=${ticket}', '0', '0', '0', '', NULL, NULL, 'deliveryDataConvertAdapter', NULL, NULL),
+('2099000000000000003', '2099000000000000001', 'admin', 'admin', sysdate(), sysdate(), 'dd', '送货单明细', '1', NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'http://localhost:8090/print/deliveryData?deliveryOrderId=${deliveryOrderId}&ticket=${ticket}', '0', '1', '0', '', NULL, NULL, 'deliveryDataConvertAdapter', NULL, NULL);
 
--- 2b) 已存在行更新为转换器配置（幂等）
+-- 2b) 已存在行更新为转换器 + 票据透传配置（幂等，W0-4.1：数据集 URL 透传短时一次性打印票据）
 UPDATE `jimu_report_db`
 SET `api_convert` = 'deliveryDataConvertAdapter',
-    `api_url` = CASE WHEN `db_code` = 'hd' THEN 'http://localhost:8090/print/deliveryHead?deliveryOrderId=${deliveryOrderId}' ELSE `api_url` END
+    `api_url` = CASE WHEN `db_code` = 'hd'
+                     THEN 'http://localhost:8090/print/deliveryHead?deliveryOrderId=${deliveryOrderId}&ticket=${ticket}'
+                     ELSE 'http://localhost:8090/print/deliveryData?deliveryOrderId=${deliveryOrderId}&ticket=${ticket}' END
 WHERE `id` IN ('2099000000000000002', '2099000000000000003');
 
 -- 3) 数据集参数：deliveryOrderId（明细数据集进查询表单，表头数据集同参数自动带入）

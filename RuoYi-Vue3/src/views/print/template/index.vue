@@ -198,7 +198,7 @@ import {
   updatePrintTemplate,
   delPrintTemplate,
 } from "@/api/print/template";
-import { getToken } from "@/utils/auth";
+import { issuePrintTicket } from "@/api/print/ticket";
 import { Search, Refresh, Plus, Delete, Edit, View, Brush } from "@element-plus/icons-vue";
 
 export default {
@@ -331,13 +331,17 @@ export default {
     },
     /** 打开 JimuReport 在线打印设计器（新窗口） */
     openDesigner() {
-      const token = getToken();
-      window.open("/jmreport/list?token=" + token, "_blank");
+      // W0-4.1：URL 不再携带长期 JWT，改签发短时一次性打印票据（无单据绑定）
+      issuePrintTicket({}).then((res) => {
+        window.open("/jmreport/list?token=" + res.ticket, "_blank");
+      });
     },
     /** 预览 JimuReport 模板视图 */
     openView(row) {
-      const token = getToken();
-      window.open("/jmreport/view/" + row.content + "?token=" + token, "_blank");
+      // W0-4.1：同上，票据只绑模板不绑单据
+      issuePrintTicket({ templateId: row.content }).then((res) => {
+        window.open("/jmreport/view/" + row.content + "?token=" + res.ticket, "_blank");
+      });
     },
   },
 };

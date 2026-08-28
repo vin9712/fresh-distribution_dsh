@@ -15,6 +15,9 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         <result property="purchaser"    column="purchaser"    />
         <result property="totalAmount"    column="total_amount"    />
         <result property="status"    column="status"    />
+        <result property="voidReason"    column="void_reason"    />
+        <result property="voidBy"    column="void_by"    />
+        <result property="voidTime"    column="void_time"    />
         <result property="createBy"    column="create_by"    />
         <result property="createTime"    column="create_time"    />
         <result property="updateBy"    column="update_by"    />
@@ -23,7 +26,7 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
     </resultMap>
 
     <sql id="selectPurchaseOrderVo">
-        select id, code, order_date, source_type, source_order_ids, supplier_id, supplier_name, purchaser, total_amount, status, create_by, create_time, update_by, update_time, remark from purchase_order
+        select id, code, order_date, source_type, source_order_ids, supplier_id, supplier_name, purchaser, total_amount, status, void_reason, void_by, void_time, create_by, create_time, update_by, update_time, remark from purchase_order
     </sql>
 
     <select id="selectPurchaseOrderList" parameterType="com.lin.distribution.domain.PurchaseOrder" resultMap="PurchaseOrderResult">
@@ -92,6 +95,9 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
             <if test="purchaser != null">purchaser = #{purchaser},</if>
             <if test="totalAmount != null">total_amount = #{totalAmount},</if>
             <if test="status != null">status = #{status},</if>
+            <if test="voidReason != null">void_reason = #{voidReason},</if>
+            <if test="voidBy != null">void_by = #{voidBy},</if>
+            <if test="voidTime != null">void_time = #{voidTime},</if>
             <if test="updateBy != null">update_by = #{updateBy},</if>
             <if test="updateTime != null">update_time = #{updateTime},</if>
             <if test="remark != null">remark = #{remark},</if>

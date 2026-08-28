@@ -1,9 +1,11 @@
 package com.lin.distribution.mapper;
 
+import java.time.LocalDate;
 import java.util.List;
 
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.lin.distribution.domain.ProductSkuQuote;
+import org.apache.ibatis.annotations.Param;
 
 /**
  * 商品报价Mapper接口
@@ -48,6 +50,21 @@ public interface ProductSkuQuoteMapper {
      * @return
      */
     ProductSkuQuote selectCustomerLatestQuote(Long customerId);
+
+    /**
+     * 查询同客户下与给定有效期区间重叠的已发布报价（不含指定排除单）
+     * 用于发布时校验「同客户、同商品已发布报价有效期不得重叠」（蓝图 W0-1/报价冲突）
+     *
+     * @param customerId 客户ID
+     * @param excludeQuoteId 排除的报价单ID（当前发布单）
+     * @param startDate 待发布报价生效开始日期
+     * @param endDate 待发布报价生效结束日期
+     * @return 重叠的已发布报价列表
+     */
+    List<ProductSkuQuote> selectOverlappingPublishedQuotes(@Param("customerId") Long customerId,
+                                                           @Param("excludeQuoteId") Long excludeQuoteId,
+                                                           @Param("startDate") LocalDate startDate,
+                                                           @Param("endDate") LocalDate endDate);
 
     /**
      * 新增商品报价

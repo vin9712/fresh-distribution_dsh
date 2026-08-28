@@ -236,11 +236,10 @@
             @command="(command) => handleStatusCommand(command, scope.row)"
           >
             <el-button size="mini" type="text" icon="el-icon-link"
-              >取消</el-button
+              >作废</el-button
             >
             <el-dropdown-menu slot="dropdown">
-              <el-dropdown-item command="revoke">撤销</el-dropdown-item>
-              <el-dropdown-item command="invalid">失效</el-dropdown-item>
+              <el-dropdown-item command="invalid">作废（错误报价请作废后复制重发）</el-dropdown-item>
             </el-dropdown-menu>
           </el-dropdown>
           <!-- 更多操作 -->
@@ -384,11 +383,11 @@ export default {
           },
         ],
       },
-      // 报价状态枚举
+      // 报价状态枚举（与后端 ProductSkuQuoteStatus/字典 t_sku_quote_status 一致：失效=2）
       quoteStatus: {
         NEW: { code: 0, description: "新增", name: "NEW" },
         PUBLISHED: { code: 1, description: "发布", name: "PUBLISHED" },
-        INVALID: { code: 3, description: "失效", name: "INVALID" },
+        INVALID: { code: 2, description: "失效", name: "INVALID" },
       },
     };
   },
@@ -498,12 +497,9 @@ export default {
         query: { quoteId: row.id, mode: "view" },
       });
     },
-    /** 变更状态操作 */
+    /** 变更状态操作（蓝图「报价纠错」：已发布不可撤回为草稿，仅可作废） */
     handleStatusCommand(command, row) {
       switch (command) {
-        case "revoke":
-          this.handleUpdateStatus(row, this.quoteStatus.NEW.name);
-          break;
         case "invalid":
           this.handleUpdateStatus(row, this.quoteStatus.INVALID.name);
           break;

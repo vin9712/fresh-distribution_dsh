@@ -16,6 +16,8 @@ import java.time.LocalDate;
 
 /**
  * 取价接口（前端只展示取价结果，不实现优先级）
+ * 价格层级简化后仅使用客户正式报价；未命中由文员手工定价。
+ * deliveryPointId 参数保留仅为接口兼容，服务端已忽略。
  *
  * @author dsh
  */
@@ -28,7 +30,7 @@ public class PriceQueryController extends BaseController {
     private PriceQueryService priceQueryService;
 
     /**
-     * 按 配送点报价 > 客户报价 > 客户模板 优先级取价
+     * 按客户正式报价取价（配送点覆盖价/报价模板已下线，见蓝图 W0-1）
      */
     @PreAuthorize("@ss.hasPermi('order:sale:add')")
     @GetMapping

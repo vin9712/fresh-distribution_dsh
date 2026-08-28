@@ -366,7 +366,7 @@ import {
   deliveredDelivery,
   voidDelivery,
 } from "@/api/order/delivery";
-import { getToken } from "@/utils/auth";
+import { issuePrintTicket } from "@/api/print/ticket";
 import {
   Search,
   Refresh,
@@ -518,12 +518,14 @@ export default {
             .then(() => printDelivery(row.id))
             .then((printResp) => {
               this.$modal.msgSuccess("已记录打印，当前打印次数 " + printResp.data.printCount);
-              const token = getToken();
-              window.open(
-                "/jmreport/view/" + info.templateId + "?token=" + token + "&deliveryOrderId=" + row.id,
-                "_blank"
-              );
-              this.getPageList();
+              // W0-4.1：URL 不再携带长期 JWT，改签发短时一次性打印票据
+              return issuePrintTicket({ deliveryOrderId: row.id, templateId: info.templateId }).then((res) => {
+                window.open(
+                  "/jmreport/view/" + info.templateId + "?token=" + res.ticket + "&deliveryOrderId=" + row.id,
+                  "_blank"
+                );
+                this.getPageList();
+              });
             })
             .catch(() => {});
         })
