@@ -26,13 +26,16 @@
     >
       <el-form-item label="送货单位" prop="customerDeptId">
         <el-cascader
+          ref="customerDeptCascader"
           v-model="selectedCustomerDepts"
-          placeholder="请选择送货单位"
+          placeholder="请选择送货单位（支持多选）"
           :options="customerDeptOptions"
           @change="handleFormOptionsChanged"
-          :props="{ expandTrigger: 'hover' }"
+          :props="{ expandTrigger: 'hover', multiple: true, checkOnClickNode: true }"
           filterable
           clearable
+          collapse-tags
+          collapse-tags-tooltip
         />
       </el-form-item>
       <el-form-item label="订单编号" prop="code">
@@ -646,6 +649,8 @@ export default {
         pageSize: 10,
         customerId: null,
         customerDeptId: null,
+        customerIds: [],
+        customerDeptIds: [],
         code: null,
         source: null,
         type: null,
@@ -695,8 +700,6 @@ export default {
       formSelectedOptions: [],
       // 已选择的送货单位
       selectedCustomerDepts: [],
-      // 送货单位map: <customerDeptId, customerId>
-      customerDeptMap: {},
       // 送货单位树列表
       customerDeptOptions: [],
       // 订单调整对话框（S14 退役：写入口已下线，真实退货走退货单 /order/return，补货走新增销售订单）
@@ -819,6 +822,10 @@ export default {
     /** 重置按钮操作 */
     resetQuery() {
       this.resetForm("queryForm");
+      // 清空级联选择器选中值
+      this.selectedCustomerDepts = [];
+      this.queryParams.customerDeptIds = [];
+      this.queryParams.customerIds = [];
       this.handleQuery();
     },
     // 多选框选中数据
@@ -1136,22 +1143,27 @@ export default {
         `sale_${new Date().getTime()}.xlsx`
       );
     },
-    /** 选择送货单位树回调（兼容清空时传入 null） */
-    handleFormOptionsChanged(value) {
-      const arr = Array.isArray(value) ? value : [];
-      const customerDeptId = arr.length ? arr[arr.length - 1] : null;
-      this.queryParams.customerDeptId = customerDeptId;
-      this.queryParams.customerId = customerDeptId ? this.customerDeptMap[customerDeptId] : null;
+    /** 选择送货单位树回调（兼容清空时触发）；多选仅按“配送点/送货单位”过滤 */
+    handleFormOptionsChanged() {
+      // 取“仅勾选到的叶子（配送点）”节点：父级被勾选时会自动展开为全部子叶子，
+      // 因此这里用 leafOnly 直接拿到最终应参与过滤的配送点，避免把父级误当“全量”展开。
+      const leafNodes = this.$refs.customerDeptCascader
+        ? this.$refs.customerDeptCascader.getCheckedNodes(true)
+        : [];
+      const deptIds = leafNodes
+        .map((node) => String(node.value))
+        .filter((id) => !!id);
+      this.queryParams.customerDeptIds = deptIds;
+      // 不再按客户过滤，避免与配送点交叉导致漏筛
+      this.queryParams.customerIds = [];
+      // 兼容：仅选中一个配送点时设置单个字段
+      this.queryParams.customerDeptId = deptIds.length === 1 ? deptIds[0] : null;
+      this.queryParams.customerId = null;
       this.handleQuery();
     },
     /** 查询商品分类下拉树结构 */
     getTreeselect() {
       listCustomerDept().then((response) => {
-        // init customerDeptMap
-        this.customerDeptMap = Object.fromEntries(
-          response.data.map(({ id, customerId }) => [id, customerId])
-        );
-
         // init customerDeptOptions
         const treeList = this.handleTree(response.data);
         this.customerDeptOptions = this.transformData(treeList);
@@ -1296,5 +1308,19 @@ export default {
 }
 .build-drawer-footer {
   text-align: right;
+}
+
+/* 级联选择器：点击节点任意位置即可勾选（父级=全选/取消全部子叶子，叶子=勾选/取消） */
+:deep(.el-cascader-panel) {
+  .el-cascader-node {
+    cursor: pointer;
+  }
+  /* 节点文字 / 展开箭头不拦截点击事件，确保整行可触发勾选 */
+  .el-cascader-node__label {
+    pointer-events: none;
+  }
+  .el-cascader-node__postfix {
+    pointer-events: none;
+  }
 }
 </style>
