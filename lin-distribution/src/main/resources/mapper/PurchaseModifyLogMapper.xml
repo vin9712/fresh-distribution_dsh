@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.lin.distribution.mapper.PurchaseModifyLogMapper">
+
+    <resultMap type="com.lin.distribution.domain.PurchaseModifyLog" id="PurchaseModifyLogResult">
+        <result property="id"           column="id"           />
+        <result property="purchaseId"   column="purchase_id"  />
+        <result property="purchaseCode" column="purchase_code"/>
+        <result property="beforeAmount" column="before_amount"/>
+        <result property="afterAmount"  column="after_amount" />
+        <result property="beforeItems"  column="before_items" />
+        <result property="afterItems"   column="after_items"  />
+        <result property="operator"     column="operator"     />
+        <result property="operateTime"  column="operate_time" />
+        <result property="remark"       column="remark"       />
+    </resultMap>
+
+    <sql id="selectPurchaseModifyLogVo">
+        select id, purchase_id, purchase_code, before_amount, after_amount, before_items, after_items,
+               operator, operate_time, remark
+        from purchase_modify_log
+    </sql>
+
+    <select id="selectListByPurchaseId" parameterType="Long" resultMap="PurchaseModifyLogResult">
+        <include refid="selectPurchaseModifyLogVo"/>
+        where purchase_id = #{purchaseId}
+        order by operate_time desc, id desc
+    </select>
+
+    <insert id="insertPurchaseModifyLog" parameterType="com.lin.distribution.domain.PurchaseModifyLog"
+            useGeneratedKeys="true" keyProperty="id">
+        insert into purchase_modify_log
+        <trim prefix="(" suffix=")" suffixOverrides=",">
+            <if test="purchaseId != null">purchase_id,</if>
+            <if test="purchaseCode != null">purchase_code,</if>
+            <if test="beforeAmount != null">before_amount,</if>
+            <if test="afterAmount != null">after_amount,</if>
+            <if test="beforeItems != null">before_items,</if>
+            <if test="afterItems != null">after_items,</if>
+            <if test="operator != null">operator,</if>
+            <if test="operateTime != null">operate_time,</if>
+            <if test="remark != null">remark,</if>
+        </trim>
+        <trim prefix="values (" suffix=")" suffixOverrides=",">
+            <if test="purchaseId != null">#{purchaseId},</if>
+            <if test="purchaseCode != null">#{purchaseCode},</if>
+            <if test="beforeAmount != null">#{beforeAmount},</if>
+            <if test="afterAmount != null">#{afterAmount},</if>
+            <if test="beforeItems != null">#{beforeItems},</if>
+            <if test="afterItems != null">#{afterItems},</if>
+            <if test="operator != null">#{operator},</if>
+            <if test="operateTime != null">#{operateTime},</if>
+            <if test="remark != null">#{remark},</if>
+        </trim>
+    </insert>
+
+</mapper>

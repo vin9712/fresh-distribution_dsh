@@ -24,9 +24,11 @@ import com.lin.distribution.mapper.AcceptanceRevokeLogMapper;
 import com.lin.distribution.mapper.DeliveryOrderDetailMapper;
 import com.lin.distribution.mapper.DeliveryOrderMapper;
 import com.lin.distribution.mapper.DeliverySourceItemMapper;
+import com.lin.distribution.mapper.MonthSettlementMapper;
 import com.lin.distribution.mapper.ReturnItemMapper;
 import com.lin.distribution.mapper.SaleOrderDetailMapper;
 import com.lin.distribution.mapper.SaleOrderMapper;
+import com.lin.distribution.domain.MonthSettlement;
 import com.lin.distribution.service.AcceptanceService;
 import com.lin.distribution.vo.AcceptanceByOrderVO;
 import com.lin.distribution.vo.DeliverySourceVO;
@@ -40,6 +42,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.time.YearMonth;
+import java.time.format.DateTimeFormatter;
 import java.math.RoundingMode;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -76,6 +81,7 @@ public class AcceptanceServiceImpl implements AcceptanceService {
     private final SaleOrderMapper saleOrderMapper;
     private final SaleOrderDetailMapper saleOrderDetailMapper;
     private final ReturnItemMapper returnItemMapper;
+    private final MonthSettlementMapper monthSettlementMapper;
     private final BizCodeService bizCodeService;
 
     @Override
@@ -382,7 +388,8 @@ public class AcceptanceServiceImpl implements AcceptanceService {
 
     /**
      * 录入/修改验收单（仅草稿）：实收金额后端重算；
-     * 双向差异必填原因（D-013/G8）：负差异→reason_type=1(短收)，正差异→reason_type=2(超收)，无差异清空原因。
+     * 差异原因口径（蓝图 W0-2.6，替代 D-013/G8 双向必填）：
+     * 实收=0（全部拒收）或实收>送货（超收）必填原因；部分短收（0<实收<送货）建议但不强制；无差异清空原因。
      */
     @Override
     @Transactional
@@ -394,6 +401,8 @@ public class AcceptanceServiceImpl implements AcceptanceService {
         if (!Objects.equals(acceptance.getStatus(), AcceptanceStatus.DRAFT.getCode())) {
             throw new ServiceException("仅草稿状态可修改");
         }
+        // 月结冻结校验（W0-3.1）：已月结客户该月验收单不可改
+        checkNotSettled(acceptance.getCustomerId(), acceptance.getAcceptDate());
         if (CollectionUtils.isEmpty(dto.getItems())) {
             throw new ServiceException("验收明细不能为空");
         }
@@ -418,7 +427,7 @@ public class AcceptanceServiceImpl implements AcceptanceService {
             BigDecimal delivered = item.getDeliveredQuantity() == null ? BigDecimal.ZERO : item.getDeliveredQuantity();
             BigDecimal diff = scale(actual.subtract(delivered));
             String reason = StringUtils.trimToNull(dtoItem.getLossReason());
-            Integer reasonType = resolveReasonType(diff, reason, item.getProductName());
+            Integer reasonType = resolveReasonType(diff, actual, reason, item.getProductName());
 
             AcceptanceItem update = new AcceptanceItem();
             update.setId(item.getId());
@@ -446,13 +455,18 @@ public class AcceptanceServiceImpl implements AcceptanceService {
     }
 
     /**
-     * 差异原因类型与必填校验（双向，D-013/G8）：
-     * 负差异=短收(1，字典 acceptance_shortfall_reason)；正差异=超收(2，字典 acceptance_overage_reason)；无差异不要求。
+     * 差异原因类型与必填校验（蓝图 W0-2.6，替代 D-013/G8 双向必填）：
+     * <ul>
+     *   <li>负差异：实收=0（全部拒收，diff=0-delivered）→ 必填原因；部分短收（0&lt;实收&lt;送货）→ 建议但不强制；</li>
+     *   <li>正差异 = 超收 → 必填原因；</li>
+     *   <li>无差异 → 不要求。</li>
+     * </ul>
+     * 无论是否填原因，负差异一律记短收类型(1)，正差异记超收类型(2)。
      */
-    private Integer resolveReasonType(BigDecimal diff, String reason, String productName) {
+    private Integer resolveReasonType(BigDecimal diff, BigDecimal actual, String reason, String productName) {
         if (diff.compareTo(BigDecimal.ZERO) < 0) {
-            if (StringUtils.isBlank(reason)) {
-                throw new ServiceException("短收差异必须填写原因：" + productName);
+            if (isFullReject(actual) && StringUtils.isBlank(reason)) {
+                throw new ServiceException("全部拒收必须填写原因：" + productName);
             }
             return REASON_TYPE_SHORTFALL;
         }
@@ -463,6 +477,13 @@ public class AcceptanceServiceImpl implements AcceptanceService {
             return REASON_TYPE_OVERAGE;
         }
         return null;
+    }
+
+    /**
+     * 全部拒收判定：实收数量为 0（且存在应送数量，diff&lt;0 已保证）
+     */
+    private boolean isFullReject(BigDecimal actual) {
+        return actual != null && actual.compareTo(BigDecimal.ZERO) == 0;
     }
 
     /**
@@ -545,6 +566,8 @@ public class AcceptanceServiceImpl implements AcceptanceService {
         if (!Objects.equals(acceptance.getStatus(), AcceptanceStatus.SUBMITTED.getCode())) {
             throw new ServiceException("仅已提交的验收单可撤销");
         }
+        // 月结冻结校验（W0-3.1）：已月结客户该月验收单不可撤销
+        checkNotSettled(acceptance.getCustomerId(), acceptance.getAcceptDate());
 
         // 任一来源订单已结算 → 拒绝（结算依据链不可断）
         List<Long> sourceOrderIds = deliverySourceItemMapper.selectListByDeliveryId(acceptance.getDeliveryOrderId())
@@ -649,5 +672,19 @@ public class AcceptanceServiceImpl implements AcceptanceService {
 
     private BigDecimal scale(BigDecimal value) {
         return NumberUtils.toScaledBigDecimal(value, 2, RoundingMode.HALF_UP);
+    }
+
+    /**
+     * 月结冻结校验（W0-3.1）：按「客户 + 结算月」判定，已月结则拒绝修改/撤销验收单（纠错走下月调整单）
+     */
+    private void checkNotSettled(Long customerId, LocalDate date) {
+        if (customerId == null || date == null) {
+            return;
+        }
+        String month = YearMonth.from(date).format(DateTimeFormatter.ofPattern("yyyy-MM"));
+        MonthSettlement s = monthSettlementMapper.selectByCustomerAndMonth(customerId, month);
+        if (s != null && Integer.valueOf(1).equals(s.getStatus())) {
+            throw new ServiceException("客户该月（" + month + "）已月结，验收单已冻结，请使用下月调整单");
+        }
     }
 }

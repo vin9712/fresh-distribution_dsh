@@ -3,15 +3,19 @@ package com.lin.distribution.service.impl;
 import com.alibaba.fastjson2.JSON;
 import com.lin.common.exception.ServiceException;
 import com.lin.common.utils.DateUtils;
+import com.lin.common.utils.SecurityUtils;
 import com.lin.distribution.constant.PurchaseOrderStatus;
 import com.lin.distribution.constant.SaleOrderStatus;
 import com.lin.distribution.domain.PurchaseItem;
+import com.lin.distribution.domain.PurchaseModifyLog;
 import com.lin.distribution.domain.PurchaseOrder;
 import com.lin.distribution.domain.SaleOrder;
 import com.lin.distribution.dto.PurchaseByOrdersDTO;
 import com.lin.distribution.dto.PurchaseGenerateDTO;
 import com.lin.distribution.mapper.PurchaseItemMapper;
+import com.lin.distribution.mapper.PurchaseModifyLogMapper;
 import com.lin.distribution.mapper.PurchaseOrderMapper;
+import com.lin.distribution.mapper.MonthSettlementMapper;
 import com.lin.distribution.mapper.SaleOrderMapper;
 import com.lin.distribution.service.BizCodeService;
 import com.lin.distribution.service.PurchaseOrderService;
@@ -26,8 +30,12 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -48,6 +56,8 @@ public class PurchaseOrderServiceImpl implements PurchaseOrderService {
 
     private final PurchaseOrderMapper purchaseOrderMapper;
     private final PurchaseItemMapper purchaseItemMapper;
+    private final PurchaseModifyLogMapper purchaseModifyLogMapper;
+    private final MonthSettlementMapper monthSettlementMapper;
     private final SaleOrderMapper saleOrderMapper;
     private final BizCodeService bizCodeService;
 
@@ -271,6 +281,108 @@ public class PurchaseOrderServiceImpl implements PurchaseOrderService {
         return purchaseOrderMapper.updatePurchaseOrder(update);
     }
 
+    /**
+     * 已确认采购单直接调整数量/成本（蓝图 W0-2.5「已确认采购纠错」）：
+     * 仅允许对已有明细行修改数量/采购单价（禁止增删行、禁止改快照标识字段），重算小计与总额，
+     * 并记录调整前后金额与明细快照到 t_purchase_modify_log（操作日志+前后金额记录）。
+     * 调整后报表/经营概览按实时采购数据重算（W0-3.3 经营概览读实时表）。
+     */
+    @Override
+    @Transactional
+    public PurchaseOrder adjustConfirmedPurchase(PurchaseOrder purchaseOrder) {
+        if (purchaseOrder == null || purchaseOrder.getId() == null) {
+            throw new ServiceException("采购单ID不能为空");
+        }
+        PurchaseOrder exist = getExistPurchaseOrder(purchaseOrder.getId());
+        if (!PurchaseOrderStatus.CONFIRMED.getCode().equals(exist.getStatus())) {
+            throw new ServiceException("仅已确认采购单可直接调整数量/成本，请先确认采购单");
+        }
+        // 月结冻结校验（W0-3.1）：采购单无 customer_id，按归属月已月结即锁定（供应商池化口径）
+        if (exist.getOrderDate() != null) {
+            String month = exist.getOrderDate().format(DateTimeFormatter.ofPattern("yyyy-MM"));
+            if (monthSettlementMapper.existsByMonth(month) > 0) {
+                throw new ServiceException("该月（" + month + "）已月结，采购成本已冻结，请使用下月调整单");
+            }
+        }
+        List<PurchaseItem> newItems = purchaseOrder.getItems();
+        if (CollectionUtils.isEmpty(newItems)) {
+            throw new ServiceException("采购明细不能为空");
+        }
+
+        // 调整前快照：既有明细 + 总额
+        List<PurchaseItem> beforeItems = purchaseItemMapper.selectPurchaseItemListByPurchaseId(exist.getId());
+        BigDecimal beforeTotal = nvl(exist.getTotalAmount());
+        Map<Long, PurchaseItem> beforeMap = beforeItems.stream()
+                .collect(Collectors.toMap(PurchaseItem::getId, p -> p, (a, b) -> a));
+
+        // 定位校验：调整行必须为已有明细（禁止增删），数量/单价合法
+        for (PurchaseItem item : newItems) {
+            if (item.getId() == null || !beforeMap.containsKey(item.getId())) {
+                throw new ServiceException("调整明细必须为采购单已有明细行（W0-2.5 仅改数量/成本，禁止增删行）");
+            }
+            if (item.getQuantity() == null || item.getQuantity().compareTo(BigDecimal.ZERO) < 0) {
+                throw new ServiceException("采购数量不能为空且不能为负");
+            }
+            if (item.getUnitPrice() == null || item.getUnitPrice().compareTo(BigDecimal.ZERO) < 0) {
+                throw new ServiceException("采购单价不能为空且不能为负");
+            }
+        }
+
+        // 重算小计与总额；锁定快照标识字段（sku/品名/规格/单位 不可变更，仅数量成本可变）
+        BigDecimal afterTotal = BigDecimal.ZERO;
+        int sort = 0;
+        for (PurchaseItem item : newItems) {
+            PurchaseItem before = beforeMap.get(item.getId());
+            item.setSkuId(before.getSkuId());
+            item.setProductName(before.getProductName());
+            item.setProductSpec(before.getProductSpec());
+            item.setProductUnit(before.getProductUnit());
+            item.setSubtotal(NumberUtils.toScaledBigDecimal(item.getQuantity().multiply(item.getUnitPrice()), 2, RoundingMode.HALF_UP));
+            item.setSort(sort++);
+            afterTotal = afterTotal.add(item.getSubtotal());
+        }
+
+        // 更新明细（保留主键逐行更新）+ 重算总额
+        for (PurchaseItem item : newItems) {
+            PurchaseItem update = new PurchaseItem();
+            update.setId(item.getId());
+            update.setQuantity(item.getQuantity());
+            update.setUnitPrice(item.getUnitPrice());
+            update.setSubtotal(item.getSubtotal());
+            purchaseItemMapper.updatePurchaseItem(update);
+        }
+        PurchaseOrder header = new PurchaseOrder();
+        header.setId(exist.getId());
+        header.setTotalAmount(afterTotal);
+        header.setUpdateTime(DateUtils.getNowDate());
+        purchaseOrderMapper.updatePurchaseOrder(header);
+
+        // 写调整审计（前后金额 + 明细快照）
+        PurchaseModifyLog modifyLog = new PurchaseModifyLog();
+        modifyLog.setPurchaseId(exist.getId());
+        modifyLog.setPurchaseCode(exist.getCode());
+        modifyLog.setBeforeAmount(beforeTotal);
+        modifyLog.setAfterAmount(afterTotal);
+        modifyLog.setBeforeItems(JSON.toJSONString(toItemSnapshot(beforeItems)));
+        modifyLog.setAfterItems(JSON.toJSONString(toItemSnapshot(newItems)));
+        modifyLog.setOperator(resolveOperator());
+        modifyLog.setOperateTime(DateUtils.getNowDate());
+        modifyLog.setRemark(StringUtils.trimToNull(purchaseOrder.getRemark()));
+        purchaseModifyLogMapper.insertPurchaseModifyLog(modifyLog);
+
+        log.info("[purchase adjust] 采购单 {} 调整：总额 {} → {}，差异 {}",
+                exist.getCode(), beforeTotal, afterTotal, afterTotal.subtract(beforeTotal));
+
+        exist.setTotalAmount(afterTotal);
+        exist.setItems(newItems);
+        return exist;
+    }
+
+    @Override
+    public List<PurchaseModifyLog> selectModifyLogsByPurchaseId(Long purchaseId) {
+        return purchaseModifyLogMapper.selectListByPurchaseId(purchaseId);
+    }
+
     @Override
     @Transactional
     public int deletePurchaseOrderByIds(Long[] ids) {
@@ -341,5 +453,37 @@ public class PurchaseOrderServiceImpl implements PurchaseOrderService {
             throw new ServiceException("采购单不存在");
         }
         return exist;
+    }
+
+    /**
+     * 采购明细快照（JSON 审计用）：仅携带前后对比需要的字段，避免序列化冗余
+     */
+    private List<Map<String, Object>> toItemSnapshot(List<PurchaseItem> items) {
+        List<Map<String, Object>> list = new ArrayList<>();
+        for (PurchaseItem item : items) {
+            Map<String, Object> m = new HashMap<>();
+            m.put("id", item.getId());
+            m.put("skuId", item.getSkuId());
+            m.put("productName", item.getProductName());
+            m.put("productSpec", item.getProductSpec());
+            m.put("productUnit", item.getProductUnit());
+            m.put("quantity", item.getQuantity());
+            m.put("unitPrice", item.getUnitPrice());
+            m.put("subtotal", item.getSubtotal());
+            list.add(m);
+        }
+        return list;
+    }
+
+    private BigDecimal nvl(BigDecimal value) {
+        return value == null ? BigDecimal.ZERO : value;
+    }
+
+    private String resolveOperator() {
+        try {
+            return SecurityUtils.getUsername();
+        } catch (Exception e) {
+            return "system";
+        }
     }
 }

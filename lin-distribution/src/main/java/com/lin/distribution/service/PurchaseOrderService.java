@@ -1,6 +1,7 @@
 package com.lin.distribution.service;
 
 import com.lin.distribution.domain.PurchaseItem;
+import com.lin.distribution.domain.PurchaseModifyLog;
 import com.lin.distribution.domain.PurchaseOrder;
 import com.lin.distribution.dto.PurchaseByOrdersDTO;
 import com.lin.distribution.dto.PurchaseGenerateDTO;
@@ -77,6 +78,24 @@ public interface PurchaseOrderService {
      * @return 结果
      */
     int confirm(Long id);
+
+    /**
+     * 已确认采购单直接调整数量/成本（蓝图 W0-2.5「已确认采购纠错」）：
+     * 允许对已确认单修改明细数量或采购单价，重算总额，并记录调整前后金额与明细快照审计日志；
+     * 调整后报表/经营概览以实时采购数据为准（同步重算受影响周期）。
+     *
+     * @param purchaseOrder 采购单（含 id + items，明细携带原 id 用于定位）
+     * @return 调整后的采购单
+     */
+    PurchaseOrder adjustConfirmedPurchase(PurchaseOrder purchaseOrder);
+
+    /**
+     * 查询某采购单的调整审计日志列表（W0-2.5）
+     *
+     * @param purchaseId 采购单主键
+     * @return 调整日志集合
+     */
+    List<PurchaseModifyLog> selectModifyLogsByPurchaseId(Long purchaseId);
 
     /**
      * 入库采购单（已确认→已入库）

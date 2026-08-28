@@ -8,6 +8,7 @@ import com.lin.distribution.constant.ReturnOrderStatus;
 import com.lin.distribution.constant.SaleOrderStatus;
 import com.lin.distribution.domain.Acceptance;
 import com.lin.distribution.domain.AcceptanceItem;
+import com.lin.distribution.domain.MonthSettlement;
 import com.lin.distribution.domain.DeliverySourceItem;
 import com.lin.distribution.domain.ReturnItem;
 import com.lin.distribution.domain.ReturnOrder;
@@ -17,6 +18,7 @@ import com.lin.distribution.dto.ReturnOrderSaveDTO;
 import com.lin.distribution.mapper.AcceptanceItemMapper;
 import com.lin.distribution.mapper.AcceptanceMapper;
 import com.lin.distribution.mapper.DeliverySourceItemMapper;
+import com.lin.distribution.mapper.MonthSettlementMapper;
 import com.lin.distribution.mapper.ReturnItemMapper;
 import com.lin.distribution.mapper.ReturnOrderMapper;
 import com.lin.distribution.mapper.SaleOrderMapper;
@@ -33,6 +35,8 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
+import java.time.YearMonth;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -62,6 +66,7 @@ public class ReturnOrderServiceImpl implements ReturnOrderService {
     private final AcceptanceMapper acceptanceMapper;
     private final AcceptanceItemMapper acceptanceItemMapper;
     private final DeliverySourceItemMapper deliverySourceItemMapper;
+    private final MonthSettlementMapper monthSettlementMapper;
     private final SaleOrderMapper saleOrderMapper;
     private final BizCodeService bizCodeService;
 
@@ -87,6 +92,7 @@ public class ReturnOrderServiceImpl implements ReturnOrderService {
             throw new ServiceException("原验收单不能为空");
         }
         Acceptance acceptance = getSubmittableAcceptance(dto.getAcceptanceId());
+        checkNotSettled(acceptance);
 
         List<ReturnItem> items = buildItems(dto.getItems(), acceptance, null);
         BigDecimal total = items.stream().map(ReturnItem::getAmount)
@@ -125,6 +131,7 @@ public class ReturnOrderServiceImpl implements ReturnOrderService {
             throw new ServiceException("仅草稿状态可修改");
         }
         Acceptance acceptance = getSubmittableAcceptance(exist.getAcceptanceId());
+        checkNotSettled(acceptance);
 
         List<ReturnItem> items = buildItems(dto.getItems(), acceptance, exist.getId());
         BigDecimal total = items.stream().map(ReturnItem::getAmount)
@@ -165,6 +172,7 @@ public class ReturnOrderServiceImpl implements ReturnOrderService {
 
         // 复核数量上限（排除自身占用，防并发超退）
         Acceptance acceptance = getSubmittableAcceptance(exist.getAcceptanceId());
+        checkNotSettled(acceptance);
         checkQuantityBounds(items.stream()
                 .map(item -> {
                     ReturnOrderSaveDTO.Item dtoItem = new ReturnOrderSaveDTO.Item();
@@ -246,6 +254,9 @@ public class ReturnOrderServiceImpl implements ReturnOrderService {
             }
             if (!Objects.equals(exist.getStatus(), ReturnOrderStatus.DRAFT.getCode())) {
                 throw new ServiceException("仅草稿状态可删除：" + exist.getCode());
+            }
+            if (exist.getAcceptanceId() != null) {
+                checkNotSettled(acceptanceMapper.selectAcceptanceById(exist.getAcceptanceId()));
             }
             returnItemMapper.deleteByReturnId(id);
             count += returnOrderMapper.deleteReturnOrderById(id);
@@ -370,5 +381,26 @@ public class ReturnOrderServiceImpl implements ReturnOrderService {
 
     private BigDecimal scale(BigDecimal value) {
         return NumberUtils.toScaledBigDecimal(value, 2, RoundingMode.HALF_UP);
+    }
+
+    /**
+     * 月结冻结校验（W0-3.1）：按原验收单「客户+验收日期」归月，已月结则拒绝建单/改/提交/删除退货单
+     */
+    private void checkNotSettled(Acceptance acceptance) {
+        if (acceptance == null) {
+            return;
+        }
+        checkNotSettled(acceptance.getCustomerId(), acceptance.getAcceptDate());
+    }
+
+    private void checkNotSettled(Long customerId, LocalDate date) {
+        if (customerId == null || date == null) {
+            return;
+        }
+        String month = YearMonth.from(date).format(DateTimeFormatter.ofPattern("yyyy-MM"));
+        MonthSettlement s = monthSettlementMapper.selectByCustomerAndMonth(customerId, month);
+        if (s != null && Integer.valueOf(1).equals(s.getStatus())) {
+            throw new ServiceException("客户该月（" + month + "）已月结，退货单已冻结，请使用下月调整单");
+        }
     }
 }

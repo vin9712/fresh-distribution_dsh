@@ -79,6 +79,8 @@ class AcceptanceServiceImplTest {
     @Mock
     private com.lin.distribution.mapper.ReturnItemMapper returnItemMapper;
     @Mock
+    private com.lin.distribution.mapper.MonthSettlementMapper monthSettlementMapper;
+    @Mock
     private BizCodeService bizCodeService;
 
     @InjectMocks
@@ -333,17 +335,35 @@ class AcceptanceServiceImplTest {
     }
 
     @Test
-    void 损耗为负必须填写原因() {
+    void 全部拒收实收为零必须填写原因() {
         when(acceptanceMapper.selectAcceptanceById(1L)).thenReturn(draftAcceptance());
         AcceptanceItem dbItem = item(900L, 1L, "5.00", "2.00");
         when(acceptanceItemMapper.selectAcceptanceItemById(900L)).thenReturn(dbItem);
 
-        // 短收 2 未填原因 → 拒绝（D-013/G8 双向必填）
+        // 实收=0（全部拒收），未填原因 → 拒绝（蓝图 W0-2.6）
         ServiceException ex = assertThrows(ServiceException.class,
-                () -> acceptanceService.updateDraft(singleItemDto("3.00", null)));
-        assertTrue(ex.getMessage().contains("短收差异必须填写原因"));
+                () -> acceptanceService.updateDraft(singleItemDto("0.00", null)));
+        assertTrue(ex.getMessage().contains("全部拒收必须填写原因"));
         assertTrue(ex.getMessage().contains("白菜"));
         verify(acceptanceItemMapper, never()).updateAcceptanceItem(any(AcceptanceItem.class));
+    }
+
+    @Test
+    void 部分短收未填原因允许保存且记短收类型() {
+        when(acceptanceMapper.selectAcceptanceById(1L)).thenReturn(draftAcceptance());
+        AcceptanceItem dbItem = item(900L, 1L, "5.00", "2.00");
+        when(acceptanceItemMapper.selectAcceptanceItemById(900L)).thenReturn(dbItem);
+
+        // 部分短收（0<3<5）：原因可不填（蓝图 W0-2.6 建议不强制），仍记短收类型
+        Acceptance result = acceptanceService.updateDraft(singleItemDto("3.00", null));
+
+        assertEquals(0, new BigDecimal("6.00").compareTo(result.getTotalAmount()));
+        ArgumentCaptor<AcceptanceItem> captor = ArgumentCaptor.forClass(AcceptanceItem.class);
+        verify(acceptanceItemMapper).updateAcceptanceItem(captor.capture());
+        AcceptanceItem updated = captor.getValue();
+        assertEquals(0, new BigDecimal("-2.00").compareTo(updated.getDifferenceQuantity()));
+        assertEquals(1, updated.getReasonType()); // 负差异=短收
+        assertNull(updated.getLossReason());       // 未填原因
     }
 
     @Test

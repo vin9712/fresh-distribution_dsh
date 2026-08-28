@@ -47,6 +47,8 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
             <if test="customerId != null "> and a.customer_id = #{customerId}</if>
             <if test="deliveryPointId != null "> and a.delivery_point_id = #{deliveryPointId}</if>
             <if test="acceptDate != null "> and a.accept_date = #{acceptDate}</if>
+            <if test="beginAcceptDate != null "> and a.accept_date &gt;= #{beginAcceptDate}</if>
+            <if test="endAcceptDate != null "> and a.accept_date &lt;= #{endAcceptDate}</if>
             <if test="status != null "> and a.status = #{status}</if>
         </where>
         order by a.id desc

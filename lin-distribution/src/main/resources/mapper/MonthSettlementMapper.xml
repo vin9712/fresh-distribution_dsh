@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.lin.distribution.mapper.MonthSettlementMapper">
+
+    <resultMap type="com.lin.distribution.domain.MonthSettlement" id="MonthSettlementResult">
+        <result property="id"           column="id"           />
+        <result property="customerId"   column="customer_id"  />
+        <result property="customerName" column="customer_name"/>
+        <result property="billMonth"    column="bill_month"   />
+        <result property="status"       column="status"       />
+        <result property="settledBy"    column="settled_by"   />
+        <result property="settledTime"  column="settled_time" />
+        <result property="remark"       column="remark"       />
+    </resultMap>
+
+    <sql id="selectVo">
+        select s.id, s.customer_id, c.name as customer_name, s.bill_month, s.status, s.settled_by, s.settled_time, s.remark
+        from t_month_settlement s
+        left join t_customer c on c.id = s.customer_id
+    </sql>
+
+    <select id="selectByCustomerAndMonth" resultMap="MonthSettlementResult">
+        <include refid="selectVo"/>
+        where s.customer_id = #{customerId} and s.bill_month = #{billMonth} limit 1
+    </select>
+
+    <select id="selectList" parameterType="com.lin.distribution.domain.MonthSettlement" resultMap="MonthSettlementResult">
+        <include refid="selectVo"/>
+        <where>
+            <if test="customerId != null">and s.customer_id = #{customerId}</if>
+            <if test="billMonth != null and billMonth != ''">and s.bill_month = #{billMonth}</if>
+            <if test="status != null">and s.status = #{status}</if>
+        </where>
+        order by s.bill_month desc, s.id desc
+    </select>
+
+    <insert id="insert" parameterType="com.lin.distribution.domain.MonthSettlement"
+            useGeneratedKeys="true" keyProperty="id">
+        insert into t_month_settlement
+        <trim prefix="(" suffix=")" suffixOverrides=",">
+            <if test="customerId != null">customer_id,</if>
+            <if test="billMonth != null">bill_month,</if>
+            <if test="status != null">status,</if>
+            <if test="settledBy != null">settled_by,</if>
+            <if test="settledTime != null">settled_time,</if>
+            <if test="remark != null">remark,</if>
+        </trim>
+        <trim prefix="values (" suffix=")" suffixOverrides=",">
+            <if test="customerId != null">#{customerId},</if>
+            <if test="billMonth != null">#{billMonth},</if>
+            <if test="status != null">#{status},</if>
+            <if test="settledBy != null">#{settledBy},</if>
+            <if test="settledTime != null">#{settledTime},</if>
+            <if test="remark != null">#{remark},</if>
+        </trim>
+    </insert>
+
+    <select id="existsByMonth" parameterType="String" resultType="int">
+        select count(1) from t_month_settlement where bill_month = #{billMonth} and status = 1
+    </select>
+
+    <update id="update" parameterType="com.lin.distribution.domain.MonthSettlement">
+        update t_month_settlement
+        <trim prefix="SET" suffixOverrides=",">
+            <if test="status != null">status = #{status},</if>
+            <if test="settledBy != null">settled_by = #{settledBy},</if>
+            <if test="settledTime != null">settled_time = #{settledTime},</if>
+            <if test="remark != null">remark = #{remark},</if>
+        </trim>
+        where id = #{id}
+    </update>
+
+</mapper>

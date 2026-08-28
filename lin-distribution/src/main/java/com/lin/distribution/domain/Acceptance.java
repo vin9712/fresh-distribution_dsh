@@ -42,6 +42,12 @@ public class Acceptance extends BaseEntity {
     @Excel(name = "验收日期", width = 30, dateFormat = "yyyy-MM-dd")
     private LocalDate acceptDate;
 
+    /** 验收日期范围起（查询条件，非表字段，月结预览用） */
+    private LocalDate beginAcceptDate;
+
+    /** 验收日期范围止（查询条件，非表字段，月结预览用） */
+    private LocalDate endAcceptDate;
+
     /** 验收总额（结算依据） */
     @Excel(name = "验收总额")
     private BigDecimal totalAmount;

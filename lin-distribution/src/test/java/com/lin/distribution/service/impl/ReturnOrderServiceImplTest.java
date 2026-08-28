@@ -15,6 +15,7 @@ import com.lin.distribution.dto.ReturnOrderSaveDTO;
 import com.lin.distribution.mapper.AcceptanceItemMapper;
 import com.lin.distribution.mapper.AcceptanceMapper;
 import com.lin.distribution.mapper.DeliverySourceItemMapper;
+import com.lin.distribution.mapper.MonthSettlementMapper;
 import com.lin.distribution.mapper.ReturnItemMapper;
 import com.lin.distribution.mapper.ReturnOrderMapper;
 import com.lin.distribution.mapper.SaleOrderMapper;
@@ -61,6 +62,8 @@ class ReturnOrderServiceImplTest {
     private AcceptanceItemMapper acceptanceItemMapper;
     @Mock
     private DeliverySourceItemMapper deliverySourceItemMapper;
+    @Mock
+    private MonthSettlementMapper monthSettlementMapper;
     @Mock
     private SaleOrderMapper saleOrderMapper;
     @Mock
