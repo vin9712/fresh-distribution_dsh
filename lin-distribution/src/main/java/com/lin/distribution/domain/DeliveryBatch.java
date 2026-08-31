@@ -1,5 +1,6 @@
 package com.lin.distribution.domain;
 
+import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.Version;
 import com.fasterxml.jackson.annotation.JsonFormat;
 import com.lin.common.core.domain.BaseEntity;
@@ -56,4 +57,8 @@ public class DeliveryBatch extends BaseEntity {
 
     /** 逻辑删除 */
     private Boolean isDeleted;
+
+    /** 客户名称（联表查询附带字段，非表列） */
+    @TableField(exist = false)
+    private String customerName;
 }
