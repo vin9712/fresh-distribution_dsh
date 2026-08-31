@@ -5,11 +5,13 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import com.lin.common.exception.ServiceException;
@@ -18,6 +20,7 @@ import com.lin.common.utils.SecurityUtils;
 import com.lin.distribution.constant.DeliveryGenerateTrigger;
 import com.lin.distribution.constant.DeliveryOrderStatus;
 import com.lin.distribution.constant.DeliveryScopeType;
+import com.lin.distribution.constant.SaleOrderStatus;
 import com.lin.distribution.domain.Customer;
 import com.lin.distribution.domain.DeliveryBatch;
 import com.lin.distribution.domain.DeliveryOrder;
@@ -27,6 +30,7 @@ import com.lin.distribution.domain.JobRunLog;
 import com.lin.distribution.domain.SaleOrder;
 import com.lin.distribution.domain.SaleOrderDetail;
 import com.lin.distribution.dto.DeliveryByOrdersDTO;
+import com.lin.distribution.dto.SaleOrderUpdateStatusDTO;
 import com.lin.distribution.mapper.CustomerMapper;
 import com.lin.distribution.mapper.DeliveryBatchMapper;
 import com.lin.distribution.mapper.DeliveryOrderDetailMapper;
@@ -37,6 +41,8 @@ import com.lin.distribution.mapper.SaleOrderDetailMapper;
 import com.lin.distribution.mapper.SaleOrderMapper;
 import com.lin.distribution.service.BizCodeService;
 import com.lin.distribution.service.DeliveryGenerationService;
+import com.lin.distribution.service.SaleOrderService;
+import com.lin.distribution.vo.DeliveryGeneratePreviewVO;
 import com.lin.distribution.vo.GenerateResultVO;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -71,6 +77,15 @@ public class DeliveryGenerationServiceImpl implements DeliveryGenerationService 
     /** 作废重建分支的固定作废原因（D-022，非人工作废，T4 的手工作废原因走字典） */
     private static final String REBUILD_VOID_REASON = "补单重建（未打印原单自动作废后重建）";
 
+    /** 预览分支：当日无既有有效单 → 正常成单 */
+    private static final String PREVIEW_ACTION_CREATE = "CREATE";
+    /** 预览分支：既有单全部未打印 → 作废重建（D-022） */
+    private static final String PREVIEW_ACTION_REBUILD = "REBUILD";
+    /** 预览分支：既有单含已打印/已送达 → 另出补充单（D-023） */
+    private static final String PREVIEW_ACTION_SUPPLEMENT = "SUPPLEMENT";
+    /** 预览草稿提示最多列出的单号数 */
+    private static final int PREVIEW_DRAFT_CODE_LIMIT = 8;
+
     private final DeliveryOrderMapper deliveryOrderMapper;
     private final DeliveryOrderDetailMapper deliveryOrderDetailMapper;
     private final DeliverySourceItemMapper deliverySourceItemMapper;
@@ -80,6 +95,7 @@ public class DeliveryGenerationServiceImpl implements DeliveryGenerationService 
     private final CustomerMapper customerMapper;
     private final JobRunLogMapper jobRunLogMapper;
     private final BizCodeService bizCodeService;
+    private final SaleOrderService saleOrderService;
     private final TransactionTemplate transactionTemplate;
 
     /**
@@ -165,11 +181,17 @@ public class DeliveryGenerationServiceImpl implements DeliveryGenerationService 
             throw new ServiceException("部分订单不存在或已删除，请刷新列表后重试");
         }
 
+        GenerateResultVO result = new GenerateResultVO();
+        // 草稿一步确认并出单（录单页「选订单·生成送货单」抽屉）：统一生成只捞已确认订单，
+        // 草稿不先确认必然空跑；与生成同事务，失败整体回滚
+        if (Boolean.TRUE.equals(dto.getConfirmDrafts())) {
+            confirmDraftsAlongside(orders, result);
+        }
+
         // 定位 客户+配送日期 分组（未传日期时逐单取自身配送日期；已进单订单由幂等判定自然排除）
         Map<String, List<SaleOrder>> groups = orders.stream().collect(Collectors.groupingBy(
                 o -> o.getCustomerId() + ":" + (dto.getDeliveryDate() != null ? dto.getDeliveryDate() : o.getDeliveryDate()),
                 LinkedHashMap::new, Collectors.toList()));
-        GenerateResultVO result = new GenerateResultVO();
         for (List<SaleOrder> group : groups.values()) {
             SaleOrder first = group.get(0);
             LocalDate deliveryDate = dto.getDeliveryDate() != null ? dto.getDeliveryDate() : first.getDeliveryDate();
@@ -180,6 +202,230 @@ public class DeliveryGenerationServiceImpl implements DeliveryGenerationService 
                     DeliveryGenerateTrigger.MANUAL, resolveOperator()));
         }
         return result;
+    }
+
+    /**
+     * 生成前预览待生成清单（客户维度，只读推演，不建批次/不加行锁/不落库）。
+     *
+     * <p>与 {@link #doGenerateForCustomer} 同源：同一套遗漏订单判定（selectMissedConfirmedOrders）、
+     * 三态分支（无既有单 CREATE / 均未打印 REBUILD / 含已打印或已送达 SUPPLEMENT）、
+     * 组单策略快照（批次优先，无批次取客户当前配置）、明细合并口径（复用 mergeRows），
+     * 保证“预览到多少张”与“确认后生成多少张”一致。</p>
+     */
+    @Override
+    @Transactional(readOnly = true)
+    public DeliveryGeneratePreviewVO previewGenerate(LocalDate deliveryDate, Long customerId) {
+        if (deliveryDate == null) {
+            throw new ServiceException("配送日期不能为空");
+        }
+        // customerId 为空=当日全部客户（送货单页按日期生成）；传值=单客户（客户管理页送货单视图）
+        List<SaleOrder> missedOrders = saleOrderMapper.selectMissedConfirmedOrders(customerId, deliveryDate);
+        Map<Long, List<SaleOrder>> byCustomer = missedOrders.stream()
+                .collect(Collectors.groupingBy(SaleOrder::getCustomerId, LinkedHashMap::new, Collectors.toList()));
+
+        // 逐客户推演（本轮只算结构，金额/客户名等展示字段统一一次 IN 查询补齐）
+        Map<Long, SaleOrder> buildOrderPool = new LinkedHashMap<>();
+        List<DeliveryGeneratePreviewVO.CustomerPreview> customers = new ArrayList<>();
+        for (Map.Entry<Long, List<SaleOrder>> entry : byCustomer.entrySet()) {
+            customers.add(previewCustomer(entry.getKey(), deliveryDate, entry.getValue(), buildOrderPool));
+        }
+        fillOrderDisplayInfo(customers, buildOrderPool.keySet());
+
+        DeliveryGeneratePreviewVO result = DeliveryGeneratePreviewVO.builder()
+                .deliveryDate(deliveryDate)
+                .customers(customers)
+                .customerCount(customers.size())
+                .sourceOrderCount(buildOrderPool.size())
+                .expectedDeliveryCount(customers.stream()
+                        .mapToInt(c -> c.getExpectedDeliveryCount() == null ? 0 : c.getExpectedDeliveryCount()).sum())
+                .expectedDetailCount(customers.stream()
+                        .mapToInt(c -> c.getExpectedDetailCount() == null ? 0 : c.getExpectedDetailCount()).sum())
+                .totalAmount(customers.stream().map(DeliveryGeneratePreviewVO.CustomerPreview::getTotalAmount)
+                        .map(v -> v == null ? BigDecimal.ZERO : v).reduce(BigDecimal.ZERO, BigDecimal::add))
+                .rebuildCount((int) customers.stream()
+                        .filter(c -> PREVIEW_ACTION_REBUILD.equals(c.getAction())).count())
+                .supplementCount((int) customers.stream()
+                        .filter(c -> PREVIEW_ACTION_SUPPLEMENT.equals(c.getAction())).count())
+                .draftOrderCount(0)
+                .draftOrderCodes(new ArrayList<>())
+                .build();
+        fillDraftHint(result, deliveryDate, customerId);
+        return result;
+    }
+
+    /**
+     * 单客户预览：分支判定与成单结构推演（与生成同口径，但无任何写入）
+     */
+    private DeliveryGeneratePreviewVO.CustomerPreview previewCustomer(Long customerId, LocalDate deliveryDate,
+                                                                     List<SaleOrder> missedOrders,
+                                                                     Map<Long, SaleOrder> buildOrderPool) {
+        // 1. 三态分支（与 doGenerateForCustomer 步骤4 一致）
+        List<DeliveryOrder> activeOrders = deliveryOrderMapper.selectActiveByCustomerAndDate(customerId, deliveryDate);
+        List<SaleOrder> buildOrders = missedOrders;
+        Set<Long> missedIds = missedOrders.stream().map(SaleOrder::getId).collect(Collectors.toSet());
+        String action = PREVIEW_ACTION_CREATE;
+        String actionDesc = "正常生成";
+        String actionTip = "当日尚无有效送货单，按组单策略新建";
+        if (CollectionUtils.isNotEmpty(activeOrders)) {
+            boolean anyPrintedOrDelivered = activeOrders.stream()
+                    .anyMatch(v -> !DeliveryOrderStatus.PENDING.getCode().equals(v.getStatus()));
+            if (anyPrintedOrDelivered) {
+                action = PREVIEW_ACTION_SUPPLEMENT;
+                actionDesc = "补充单";
+                actionTip = "已有单已打印/已送达，原单不动，仅遗漏订单另出补充单（doc_kind=1）";
+            } else {
+                action = PREVIEW_ACTION_REBUILD;
+                actionDesc = "作废重建";
+                actionTip = "已有单均未打印，将先作废原单（释放来源分配），再按当日全部已确认订单重建";
+                buildOrders = saleOrderMapper.selectConfirmedByCustomerAndDate(customerId, deliveryDate);
+            }
+        }
+
+        // 2. 组单策略快照：批次优先（D-016 批次期内策略不变），无批次取客户当前配置（与 upsertBatch 同源）
+        DeliveryBatch batch = deliveryBatchMapper.selectByCustomerAndDate(customerId, deliveryDate.toString());
+        String scopeType;
+        boolean mergeSameItem;
+        String scopeSource;
+        String scopeSourceDesc;
+        if (batch != null) {
+            scopeType = DeliveryScopeType.normalize(batch.getScopeType());
+            mergeSameItem = !Boolean.FALSE.equals(batch.getMergeSameItem());
+            scopeSource = "BATCH_SNAPSHOT";
+            scopeSourceDesc = "当日批次已建，按批次快照出单（D-016/D-041：改客户配置不影响本日）";
+        } else {
+            Customer customer = customerMapper.selectCustomerById(customerId);
+            scopeType = DeliveryScopeType.normalize(customer == null ? null : customer.getDocScopeType());
+            mergeSameItem = customer == null || !Boolean.FALSE.equals(customer.getDocMergeSameItem());
+            scopeSource = "CUSTOMER_CONFIG";
+            scopeSourceDesc = "尚未建批次，本日首次生成将按客户当前配置锁定策略";
+        }
+
+        // 3. 明细行→分组→合并，推演成单张数与行数（不写库）
+        for (SaleOrder order : buildOrders) {
+            buildOrderPool.putIfAbsent(order.getId(), order);
+        }
+        List<Long> orderIds = buildOrders.stream().map(SaleOrder::getId).collect(Collectors.toList());
+        List<SaleOrderDetail> rows = orderIds.isEmpty() ? Collections.emptyList()
+                : saleOrderDetailMapper.selectValidByOrderIdIn(orderIds);
+        Map<Long, SaleOrder> orderMap = buildOrders.stream()
+                .collect(Collectors.toMap(SaleOrder::getId, o -> o, (a, b) -> a));
+        rows.forEach(row -> row.setCustomerDeptId(resolveDeptId(row, orderMap)));
+        Map<Long, List<SaleOrderDetail>> groups = groupRowsByPoint(rows, DeliveryScopeType.isCustomerDate(scopeType));
+        int detailCount = 0;
+        Map<Long, Integer> itemCountByOrder = new HashMap<>();
+        for (SaleOrderDetail row : rows) {
+            itemCountByOrder.merge(row.getOrderId(), 1, Integer::sum);
+        }
+        for (List<SaleOrderDetail> groupRows : groups.values()) {
+            detailCount += mergeRows(groupRows, mergeSameItem).size();
+        }
+
+        return DeliveryGeneratePreviewVO.CustomerPreview.builder()
+                .customerId(customerId)
+                .scopeType(scopeType)
+                .scopeDesc(DeliveryScopeType.isCustomerDate(scopeType) ? "跨点总单" : "每点一单")
+                .scopeSource(scopeSource)
+                .scopeSourceDesc(scopeSourceDesc)
+                .mergeSameItem(mergeSameItem)
+                .action(action)
+                .actionDesc(actionDesc)
+                .actionTip(actionTip)
+                .expectedDeliveryCount(groups.size())
+                .expectedDetailCount(detailCount)
+                .totalAmount(BigDecimal.ZERO)
+                .orders(buildOrders.stream().map(o -> DeliveryGeneratePreviewVO.OrderPreview.builder()
+                        .id(o.getId())
+                        .code(o.getCode())
+                        .deliveryDate(o.getDeliveryDate())
+                        .amount(o.getAmount())
+                        .itemCount(itemCountByOrder.getOrDefault(o.getId(), 0))
+                        .rebuildCovered(!missedIds.contains(o.getId()))
+                        .build()).collect(Collectors.toList()))
+                .existingOrders(activeOrders.stream().map(v -> DeliveryGeneratePreviewVO.ExistingPreview.builder()
+                        .id(v.getId())
+                        .code(v.getCode())
+                        .status(v.getStatus())
+                        .statusDesc(statusDesc(v.getStatus()))
+                        .printCount(v.getPrintCount())
+                        .docKind(v.getDocKind())
+                        .deliveryPointName(v.getCustomerDeptName())
+                        .build()).collect(Collectors.toList()))
+                .build();
+    }
+
+    /**
+     * 补齐预览展示字段（金额/客户名/配送点名）：selectMissedConfirmedOrders 只返必要列，
+     * 这里按当轮涉及的订单一次性回查完整头信息，避免逐行 N+1。
+     */
+    private void fillOrderDisplayInfo(List<DeliveryGeneratePreviewVO.CustomerPreview> customers, Set<Long> orderIds) {
+        if (CollectionUtils.isEmpty(orderIds)) {
+            return;
+        }
+        Map<Long, SaleOrder> detailMap = saleOrderMapper.selectSaleOrderByIdIn(new ArrayList<>(orderIds)).stream()
+                .collect(Collectors.toMap(SaleOrder::getId, o -> o, (a, b) -> a));
+        for (DeliveryGeneratePreviewVO.CustomerPreview customer : customers) {
+            BigDecimal amount = BigDecimal.ZERO;
+            for (DeliveryGeneratePreviewVO.OrderPreview order : customer.getOrders()) {
+                SaleOrder full = detailMap.get(order.getId());
+                if (full == null) {
+                    continue;
+                }
+                order.setCustomerName(full.getCustomerName());
+                order.setCustomerDeptName(full.getCustomerDeptName());
+                order.setDeliveryDate(full.getDeliveryDate());
+                order.setAmount(full.getAmount() == null ? BigDecimal.ZERO : full.getAmount());
+                amount = amount.add(order.getAmount());
+            }
+            customer.setCustomerName(customer.getOrders().stream()
+                    .map(DeliveryGeneratePreviewVO.OrderPreview::getCustomerName)
+                    .filter(StringUtils::isNotBlank).findFirst().orElse(null));
+            customer.setTotalAmount(amount);
+        }
+    }
+
+    /**
+     * 当日未确认草稿提醒：按日期生成只捐已确认订单（D-025），草稿不会静默漏发，先告知再确认。
+     */
+    private void fillDraftHint(DeliveryGeneratePreviewVO preview, LocalDate deliveryDate, Long customerId) {
+        List<SaleOrder> drafts = saleOrderMapper.selectDraftOrdersByDate(customerId, deliveryDate);
+        if (CollectionUtils.isEmpty(drafts)) {
+            return;
+        }
+        preview.setDraftOrderCount(drafts.size());
+        preview.setDraftOrderCodes(drafts.stream().map(SaleOrder::getCode)
+                .limit(PREVIEW_DRAFT_CODE_LIMIT).collect(Collectors.toList()));
+    }
+
+    private String statusDesc(Integer status) {
+        try {
+            return DeliveryOrderStatus.fromCode(status).getDesc();
+        } catch (Exception e) {
+            return String.valueOf(status);
+        }
+    }
+
+    /**
+     * 勾选里的草稿先走既有确认逻辑转「已确认」（含手工定价审计），再交给后续统一生成。
+     * 调用方保证事务上下文；确认失败则整个出单回滚。
+     */
+    private void confirmDraftsAlongside(List<SaleOrder> orders, GenerateResultVO result) {
+        List<SaleOrder> drafts = orders.stream()
+                .filter(o -> SaleOrderStatus.DRAFT.getCode().equals(o.getStatus()))
+                .collect(Collectors.toList());
+        if (drafts.isEmpty()) {
+            return;
+        }
+        List<Long> draftIds = drafts.stream().map(SaleOrder::getId).collect(Collectors.toList());
+        saleOrderService.updateSaleOrderStatus(SaleOrderUpdateStatusDTO.builder()
+                .orderIds(draftIds)
+                .status(SaleOrderStatus.CONFIRMED.getCode())
+                .build());
+        for (SaleOrder draft : drafts) {
+            draft.setStatus(SaleOrderStatus.CONFIRMED.getCode());
+            result.getConfirmedOrderCodes().add(draft.getCode());
+        }
+        log.info("[delivery generate] 随出单一并确认草稿 {} 张：{}",
+                drafts.size(), result.getConfirmedOrderCodes());
     }
 
     /**
@@ -301,14 +547,8 @@ public class DeliveryGenerationServiceImpl implements DeliveryGenerationService 
         rows.forEach(row -> row.setCustomerDeptId(resolveDeptId(row, orderMap)));
 
         boolean customerDate = DeliveryScopeType.isCustomerDate(batch.getScopeType());
-        // 分组：A类总单全客户一张（delivery_point_id=NULL）；B/C类每个配送点一张
-        Map<Long, List<SaleOrderDetail>> groups = new LinkedHashMap<>();
-        if (customerDate) {
-            groups.put(null, rows);
-        } else {
-            groups.putAll(rows.stream().collect(Collectors.groupingBy(
-                    SaleOrderDetail::getCustomerDeptId, LinkedHashMap::new, Collectors.toList())));
-        }
+        // 分组：A类总单全客户一张（delivery_point_id=NULL）；B/C类每个配送点一张（与预览共用 groupRowsByPoint）
+        Map<Long, List<SaleOrderDetail>> groups = groupRowsByPoint(rows, customerDate);
 
         Date now = DateUtils.getNowDate();
         LocalDateTime nowLdt = LocalDateTime.ofInstant(now.toInstant(), ZoneId.systemDefault());
@@ -431,6 +671,26 @@ public class DeliveryGenerationServiceImpl implements DeliveryGenerationService 
     }
 
     /**
+     * 明细行分组（生成与预览共用，防“预览张数≠生成张数”口径漂移）：
+     * A类总单全客户一组（key=null）；B/C类按配送点分组，保持首次出现顺序。
+     */
+    private Map<Long, List<SaleOrderDetail>> groupRowsByPoint(List<SaleOrderDetail> rows, boolean customerDate) {
+        Map<Long, List<SaleOrderDetail>> groups = new LinkedHashMap<>();
+        if (customerDate) {
+            groups.put(null, rows);
+            return groups;
+        }
+        for (SaleOrderDetail row : rows) {
+            if (row.getCustomerDeptId() == null) {
+                throw new ServiceException("订单 " + StringUtils.defaultString(row.getOrderCode(), String.valueOf(row.getOrderId()))
+                        + " 未指定配送点，无法按配送点生成送货单");
+            }
+            groups.computeIfAbsent(row.getCustomerDeptId(), k -> new ArrayList<>()).add(row);
+        }
+        return groups;
+    }
+
+    /**
      * 合单排序组序：基准订单优先，其余订单按下单顺序（orderId 升序）排列
      */
     private List<Long> orderedGroupIds(Map<Long, List<SaleOrderDetail>> byOrder, Long baseOrderId) {
@@ -491,6 +751,7 @@ public class DeliveryGenerationServiceImpl implements DeliveryGenerationService 
         target.getCreatedOrders().addAll(part.getCreatedOrders());
         target.getSkippedReasons().addAll(part.getSkippedReasons());
         target.getMissedOrders().addAll(part.getMissedOrders());
+        target.getConfirmedOrderCodes().addAll(part.getConfirmedOrderCodes());
     }
 
     private void writeJobRunLogIfScheduled(DeliveryGenerateTrigger trigger, LocalDate bizDate, int status,

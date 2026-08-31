@@ -42,6 +42,15 @@ export function generateDelivery(deliveryDate) {
   })
 }
 
+// 生成前预览「待生成清单」（客户维度：一行=一个客户；customerId 传空=当日全部客户，只读不落库）
+export function groupPreview(query) {
+  return request({
+    url: '/order/delivery/group-preview',
+    method: 'get',
+    params: query
+  })
+}
+
 // 按勾选订单生成送货单（销售订单列表页抽屉，配送日期可调整）
 export function generateDeliveryByOrders(data) {
   return request({

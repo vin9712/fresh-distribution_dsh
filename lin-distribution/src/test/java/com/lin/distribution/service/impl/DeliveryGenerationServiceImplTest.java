@@ -23,6 +23,7 @@ import com.lin.distribution.domain.JobRunLog;
 import com.lin.distribution.domain.SaleOrder;
 import com.lin.distribution.domain.SaleOrderDetail;
 import com.lin.distribution.dto.DeliveryByOrdersDTO;
+import com.lin.distribution.dto.SaleOrderUpdateStatusDTO;
 import com.lin.distribution.mapper.CustomerMapper;
 import com.lin.distribution.mapper.DeliveryBatchMapper;
 import com.lin.distribution.mapper.DeliveryOrderDetailMapper;
@@ -33,6 +34,8 @@ import com.lin.distribution.mapper.SaleOrderDetailMapper;
 import com.lin.distribution.mapper.SaleOrderMapper;
 import com.lin.distribution.service.BizCodeService;
 import com.lin.distribution.service.DeliveryGenerationService;
+import com.lin.distribution.service.SaleOrderService;
+import com.lin.distribution.vo.DeliveryGeneratePreviewVO;
 import com.lin.distribution.vo.GenerateResultVO;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -47,6 +50,7 @@ import org.springframework.transaction.support.TransactionCallback;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -90,6 +94,8 @@ class DeliveryGenerationServiceImplTest {
     private JobRunLogMapper jobRunLogMapper;
     @Mock
     private BizCodeService bizCodeService;
+    @Mock
+    private SaleOrderService saleOrderService;
     @Mock
     private TransactionTemplate transactionTemplate;
 
@@ -596,6 +602,68 @@ class DeliveryGenerationServiceImplTest {
                 DeliveryByOrdersDTO.builder().orderIds(Collections.singletonList(1001L)).build()));
     }
 
+    // ==================== confirmDrafts（录单页「选订单·生成送货单」抽屉，草稿一步确认并出单） ====================
+
+    @Test
+    void 勾选草稿并开启确认应先转已确认再出单并回填单号() {
+        SaleOrder draft = order(1001L, "XD1001", CUSTOMER, POINT_1, DATE);
+        draft.setStatus(SaleOrderStatus.DRAFT.getCode());
+        when(saleOrderMapper.selectSaleOrderByIdIn(Collections.singletonList(1001L)))
+                .thenReturn(Collections.singletonList(draft));
+        // 确认后统一生成按 客户+日期 补齐全部遗漏（含同日另一张 1003）
+        stubMissed(order(1001L, "XD1001", CUSTOMER, POINT_1, DATE),
+                order(1003L, "XD1003", CUSTOMER, POINT_1, DATE));
+        stubNewBatch(DeliveryScopeType.DELIVERY_POINT_DATE, true);
+
+        GenerateResultVO result = generationService.generateForOrders(DeliveryByOrdersDTO.builder()
+                .orderIds(Collections.singletonList(1001L))
+                .confirmDrafts(true)
+                .build());
+
+        ArgumentCaptor<SaleOrderUpdateStatusDTO> captor = ArgumentCaptor.forClass(SaleOrderUpdateStatusDTO.class);
+        verify(saleOrderService).updateSaleOrderStatus(captor.capture());
+        assertEquals(Collections.singletonList(1001L), captor.getValue().getOrderIds());
+        assertEquals(SaleOrderStatus.CONFIRMED.getCode(), captor.getValue().getStatus());
+
+        assertEquals(Collections.singletonList("XD1001"), result.getConfirmedOrderCodes());
+        assertEquals(1, result.getCreatedOrders().size());
+    }
+
+    @Test
+    void 未开启草稿确认时草稿不被确认且保留旧入口语义() {
+        SaleOrder draft = order(1001L, "XD1001", CUSTOMER, POINT_1, DATE);
+        draft.setStatus(SaleOrderStatus.DRAFT.getCode());
+        when(saleOrderMapper.selectSaleOrderByIdIn(Collections.singletonList(1001L)))
+                .thenReturn(Collections.singletonList(draft));
+        when(saleOrderMapper.selectMissedConfirmedOrders(CUSTOMER, DATE)).thenReturn(Collections.emptyList());
+
+        GenerateResultVO result = generationService.generateForOrders(DeliveryByOrdersDTO.builder()
+                .orderIds(Collections.singletonList(1001L))
+                .build());
+
+        verify(saleOrderService, never()).updateSaleOrderStatus(any());
+        assertTrue(result.getCreatedOrders().isEmpty());
+        assertTrue(result.getConfirmedOrderCodes().isEmpty());
+    }
+
+    @Test
+    void 勾选全为已确认时开启确认开关也不调确认逻辑() {
+        SaleOrder confirmed = order(1001L, "XD1001", CUSTOMER, POINT_1, DATE);
+        when(saleOrderMapper.selectSaleOrderByIdIn(Collections.singletonList(1001L)))
+                .thenReturn(Collections.singletonList(confirmed));
+        stubMissed(confirmed);
+        stubNewBatch(DeliveryScopeType.DELIVERY_POINT_DATE, true);
+
+        GenerateResultVO result = generationService.generateForOrders(DeliveryByOrdersDTO.builder()
+                .orderIds(Collections.singletonList(1001L))
+                .confirmDrafts(true)
+                .build());
+
+        verify(saleOrderService, never()).updateSaleOrderStatus(any());
+        assertTrue(result.getConfirmedOrderCodes().isEmpty());
+        assertEquals(1, result.getCreatedOrders().size());
+    }
+
     // ==================== 合单排序（蓝图 W0-2.3） ====================
 
     @Test
@@ -654,5 +722,187 @@ class DeliveryGenerationServiceImplTest {
         List<DeliverySourceItem> allSources = sourceListCaptor.getAllValues().stream()
                 .flatMap(List::stream).collect(Collectors.toList());
         assertEquals(3, allSources.size());
+    }
+
+    // ==================== 生成前预览（D-039 客户维度待生成清单） ====================
+
+    /** 预览展示字段桩：一次性回查订单头（金额/客户名/配送点名）+ 默认无草稿 */
+    private void stubPreviewDisplay() {
+        lenient().when(saleOrderMapper.selectSaleOrderByIdIn(anyList())).thenAnswer(inv -> {
+            List<Long> ids = inv.getArgument(0);
+            List<SaleOrder> list = new ArrayList<>();
+            for (Long id : ids) {
+                SaleOrder o = order(id, "XD" + id, CUSTOMER, POINT_1, DATE);
+                o.setAmount(new BigDecimal("100.00"));
+                o.setCustomerName("鲜食餐饮");
+                o.setCustomerDeptName("点-" + id);
+                list.add(o);
+            }
+            return list;
+        });
+        lenient().when(saleOrderMapper.selectDraftOrdersByDate(any(), any())).thenReturn(Collections.emptyList());
+    }
+
+    /** 预览策略桩：未建批次 → 取客户当前配置（D-041 来源标 CUSTOMER_CONFIG） */
+    private void stubPreviewCustomerConfig(String scopeType, boolean mergeSameItem) {
+        when(deliveryBatchMapper.selectByCustomerAndDate(CUSTOMER, DATE.toString())).thenReturn(null);
+        Customer customer = new Customer();
+        customer.setId(CUSTOMER);
+        customer.setDocScopeType(scopeType);
+        customer.setDocMergeSameItem(mergeSameItem);
+        when(customerMapper.selectCustomerById(CUSTOMER)).thenReturn(customer);
+    }
+
+    @Test
+    void 预览按客户维度给出清单且张数与生成同口径() {
+        stubPreviewDisplay();
+        stubMissed(order(1001L, "XD1001", CUSTOMER, POINT_1, DATE), order(1002L, "XD1002", CUSTOMER, POINT_2, DATE));
+        stubPreviewCustomerConfig(DeliveryScopeType.DELIVERY_POINT_DATE, true);
+
+        DeliveryGeneratePreviewVO preview = generationService.previewGenerate(DATE, CUSTOMER);
+
+        assertEquals(1, preview.getCustomerCount().intValue());
+        assertEquals(2, preview.getSourceOrderCount().intValue());
+        // B类每点一单：点1 + 点2 = 2 张；点1 白菜@2 合并 + 白菜@2.5 拆行 + 点2 土豆 = 3 行
+        assertEquals(2, preview.getExpectedDeliveryCount().intValue());
+        assertEquals(3, preview.getExpectedDetailCount().intValue());
+        assertEquals(0, new BigDecimal("200.00").compareTo(preview.getTotalAmount()));
+
+        DeliveryGeneratePreviewVO.CustomerPreview customer = preview.getCustomers().get(0);
+        assertEquals(CUSTOMER, customer.getCustomerId());
+        assertEquals("鲜食餐饮", customer.getCustomerName());
+        assertEquals("CREATE", customer.getAction());
+        assertEquals("正常生成", customer.getActionDesc());
+        assertEquals("CUSTOMER_CONFIG", customer.getScopeSource());
+        assertEquals(2, customer.getOrders().size());
+        // 造数：订单1001 = 3 行（白菜@2 两行 + 白菜@2.5 一行），订单1002 = 1 行
+        assertEquals(3, customer.getOrders().get(0).getItemCount().intValue());
+        assertEquals(1, customer.getOrders().get(1).getItemCount().intValue());
+        assertFalse(customer.getOrders().get(0).getRebuildCovered());
+        assertTrue(customer.getExistingOrders().isEmpty());
+
+        // 预览只读：不建批次、不建单、不写台账、不写任务日志
+        verify(deliveryBatchMapper, never()).insertDeliveryBatch(any(DeliveryBatch.class));
+        verify(deliveryOrderMapper, never()).insertDeliveryOrder(any(DeliveryOrder.class));
+        verify(deliverySourceItemMapper, never()).batchInsertDeliverySourceItem(anyList());
+        verify(jobRunLogMapper, never()).insertJobRunLog(any(JobRunLog.class));
+    }
+
+    @Test
+    void 预览无遗漏订单时返回空清单并提示未确认草稿() {
+        SaleOrder draft = new SaleOrder();
+        draft.setId(9001L);
+        draft.setCode("XD9001");
+        draft.setStatus(SaleOrderStatus.DRAFT.getCode());
+        when(saleOrderMapper.selectMissedConfirmedOrders(isNull(), eq(DATE))).thenReturn(Collections.emptyList());
+        when(saleOrderMapper.selectDraftOrdersByDate(isNull(), eq(DATE))).thenReturn(Collections.singletonList(draft));
+
+        DeliveryGeneratePreviewVO preview = generationService.previewGenerate(DATE, null);
+
+        assertTrue(preview.getCustomers().isEmpty());
+        assertEquals(0, preview.getCustomerCount().intValue());
+        assertEquals(0, preview.getExpectedDeliveryCount().intValue());
+        assertEquals(1, preview.getDraftOrderCount().intValue());
+        assertEquals("XD9001", preview.getDraftOrderCodes().get(0));
+        // 无涉及订单时不发起展示字段回查
+        verify(saleOrderMapper, never()).selectSaleOrderByIdIn(anyList());
+    }
+
+    @Test
+    void 预览对已打印既有单标补充单分支() {
+        stubPreviewDisplay();
+        when(saleOrderMapper.selectMissedConfirmedOrders(CUSTOMER, DATE))
+                .thenReturn(Collections.singletonList(order(1003L, "XD1003", CUSTOMER, POINT_2, DATE)));
+        when(saleOrderDetailMapper.selectValidByOrderIdIn(anyList())).thenReturn(Collections.singletonList(
+                row(1003L, 5005L, CUSTOMER, POINT_2, SKU_2, "土豆", "斤", "大", "3.50", "4")));
+        stubPreviewCustomerConfig(DeliveryScopeType.DELIVERY_POINT_DATE, true);
+        DeliveryOrder printed = DeliveryOrder.builder().id(901L).customerId(CUSTOMER).deliveryPointId(POINT_1)
+                .code("HS901").status(DeliveryOrderStatus.PRINTED.getCode()).printCount(2).docKind(0).build();
+        when(deliveryOrderMapper.selectActiveByCustomerAndDate(CUSTOMER, DATE))
+                .thenReturn(Collections.singletonList(printed));
+
+        DeliveryGeneratePreviewVO preview = generationService.previewGenerate(DATE, CUSTOMER);
+        DeliveryGeneratePreviewVO.CustomerPreview customer = preview.getCustomers().get(0);
+
+        assertEquals("SUPPLEMENT", customer.getAction());
+        assertEquals("补充单", customer.getActionDesc());
+        assertEquals(1, preview.getSupplementCount().intValue());
+        assertEquals(0, preview.getRebuildCount().intValue());
+        assertEquals(1, customer.getExistingOrders().size());
+        assertEquals("HS901", customer.getExistingOrders().get(0).getCode());
+        assertEquals("已打印", customer.getExistingOrders().get(0).getStatusDesc());
+        // 补充单仅用遗漏订单 → 点2 一张
+        assertEquals(1, customer.getExpectedDeliveryCount().intValue());
+        verify(saleOrderMapper, never()).selectConfirmedByCustomerAndDate(any(), any());
+    }
+
+    @Test
+    void 预览对未打印既有单标作废重建并覆盖当日全部已确认订单() {
+        stubPreviewDisplay();
+        when(saleOrderMapper.selectMissedConfirmedOrders(CUSTOMER, DATE))
+                .thenReturn(Collections.singletonList(order(1003L, "XD1003", CUSTOMER, POINT_2, DATE)));
+        stubPreviewCustomerConfig(DeliveryScopeType.DELIVERY_POINT_DATE, true);
+        DeliveryOrder pending = DeliveryOrder.builder().id(901L).customerId(CUSTOMER).deliveryPointId(POINT_1)
+                .code("HS901").status(DeliveryOrderStatus.PENDING.getCode()).printCount(0).docKind(0).build();
+        when(deliveryOrderMapper.selectActiveByCustomerAndDate(CUSTOMER, DATE))
+                .thenReturn(Collections.singletonList(pending));
+        // 重建覆盖【全部】已确认订单：原单订单 1001/1002 + 遗漏订单 1003
+        when(saleOrderMapper.selectConfirmedByCustomerAndDate(CUSTOMER, DATE)).thenReturn(Arrays.asList(
+                order(1001L, "XD1001", CUSTOMER, POINT_1, DATE),
+                order(1002L, "XD1002", CUSTOMER, POINT_2, DATE),
+                order(1003L, "XD1003", CUSTOMER, POINT_2, DATE)));
+        when(saleOrderDetailMapper.selectValidByOrderIdIn(anyList())).thenAnswer(inv -> {
+            List<Long> ids = inv.getArgument(0);
+            List<SaleOrderDetail> rows = buildRows(ids);
+            if (ids.contains(1003L)) {
+                rows.add(row(1003L, 5005L, CUSTOMER, POINT_2, SKU_2, "土豆", "斤", "大", "3.50", "4"));
+            }
+            return rows;
+        });
+
+        DeliveryGeneratePreviewVO preview = generationService.previewGenerate(DATE, CUSTOMER);
+        DeliveryGeneratePreviewVO.CustomerPreview customer = preview.getCustomers().get(0);
+
+        assertEquals("REBUILD", customer.getAction());
+        assertEquals(1, preview.getRebuildCount().intValue());
+        assertEquals(3, customer.getOrders().size());
+        assertEquals(2, customer.getExpectedDeliveryCount().intValue());
+        assertEquals(3, customer.getExpectedDetailCount().intValue());
+        assertTrue(customer.getOrders().get(0).getRebuildCovered());
+        assertFalse(customer.getOrders().get(2).getRebuildCovered());
+        // 预览只推演：不作废原单、不释放来源分配
+        verify(deliveryOrderMapper, never()).updateDeliveryOrder(any(DeliveryOrder.class));
+        verify(deliverySourceItemMapper, never()).deleteByDeliveryId(any());
+    }
+
+    @Test
+    void 预览策略来源已建批次时取批次快照不读客户配置() {
+        stubPreviewDisplay();
+        when(saleOrderMapper.selectMissedConfirmedOrders(CUSTOMER, DATE))
+                .thenReturn(Collections.singletonList(order(1001L, "XD1001", CUSTOMER, POINT_1, DATE)));
+        when(saleOrderDetailMapper.selectValidByOrderIdIn(anyList())).thenReturn(Arrays.asList(
+                row(1001L, 5001L, CUSTOMER, POINT_1, SKU_1, "白菜", "斤", "", "2.00", "2"),
+                row(1001L, 5002L, CUSTOMER, POINT_1, SKU_1, "白菜", "斤", "", "2.00", "3")));
+        DeliveryBatch existing = DeliveryBatch.builder().id(700L).customerId(CUSTOMER).deliveryDate(DATE)
+                .scopeType(DeliveryScopeType.CUSTOMER_DATE).mergeSameItem(false)
+                .status(0).version(0).isDeleted(false).build();
+        when(deliveryBatchMapper.selectByCustomerAndDate(CUSTOMER, DATE.toString())).thenReturn(existing);
+
+        DeliveryGeneratePreviewVO preview = generationService.previewGenerate(DATE, CUSTOMER);
+        DeliveryGeneratePreviewVO.CustomerPreview customer = preview.getCustomers().get(0);
+
+        assertEquals("BATCH_SNAPSHOT", customer.getScopeSource());
+        assertEquals(DeliveryScopeType.CUSTOMER_DATE, customer.getScopeType());
+        assertEquals("跨点总单", customer.getScopeDesc());
+        assertEquals(Boolean.FALSE, customer.getMergeSameItem());
+        assertEquals(1, customer.getExpectedDeliveryCount().intValue());
+        // 快照不合并：2 行订单行 = 2 行明细
+        assertEquals(2, customer.getExpectedDetailCount().intValue());
+        verify(customerMapper, never()).selectCustomerById(any());
+    }
+
+    @Test
+    void 预览参数缺失应报错() {
+        assertThrows(ServiceException.class, () -> generationService.previewGenerate(null, CUSTOMER));
     }
 }

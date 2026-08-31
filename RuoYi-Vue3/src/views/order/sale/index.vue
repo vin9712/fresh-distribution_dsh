@@ -64,6 +64,7 @@
         <el-select
           v-model="queryParams.type"
           placeholder="请选择订单类型"
+          @change="handleQuery"
           clearable
         >
           <el-option
@@ -96,6 +97,7 @@
           type="date"
           value-format="YYYY-MM-DD"
           placeholder="请选择配送日期"
+          @change="handleQuery"
         >
         </el-date-picker>
       </el-form-item>

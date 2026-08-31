@@ -2,7 +2,7 @@
 
 > 依据：`客户端化ERP优化蓝图.md`（2026-08-26 需求澄清与技术评估稿）
 > 本计划将蓝图 §8 分期路线（S0–S3）与 §5 痛点清单展开为可执行、可验收的任务计划。
-> 状态：计划稿（待评审排期）。**W0 阶段后端基座已完成（2026-08）：W0-1 价格口径简化、W0-4.1 打印票据化、W0-2.1 撤回级联、W0-2.2 打印拆分配置、W0-2.3 合单合并排序、W0-2.5 已确认采购直接调整、W0-2.6 验收异常字典与作废回退（部分短收放宽不强制，替代 D-013/G8 双向必填）、W0-2.7 下月调整单、W0-3.1 按客户月结、W0-3.2 待验收提醒、W0-3.3 经营概览、W0-4.4 模板管理与发布门禁（后端基座）。W0-2.4 由 S14 覆盖。**待办（前端，另推进）**：W0-4.4 模板设计器交互/纸张分页精确校验/预览确认回执闭环、W0-5 前端基建（RuoYi-Vue3）；⛔ W0-4.2/4.3 硬件实机验证阻塞；⏸️ W0-6 后置至 S2**
+> 状态：计划稿（待评审排期）。**W0 阶段后端基座已完成（2026-08）：W0-1 价格口径简化、W0-4.1 打印票据化、W0-2.1 撤回级联、W0-2.2 打印拆分配置、W0-2.3 合单合并排序、W0-2.5 已确认采购直接调整、W0-2.6 验收异常字典与作废回退（部分短收放宽不强制，替代 D-013/G8 双向必填）、W0-2.7 下月调整单、W0-3.1 按客户月结、W0-3.2 待验收提醒、W0-3.3 经营概览、W0-4.4 模板管理与发布门禁（后端基座）。W0-2.4 由 S14 覆盖。W0-5.1 SplitWorkspace 前端组件、W0-5.2 快捷键服务、W0-5.3 草稿工具治理、W0-5.4 全局搜索竞态修复已完成（2026-09，见执行记录）。W0-4.4 前端（模板状态交互/发布门禁/预览回执闭环）与 W0-5.5 状态边界规范已完成（2026-09，见执行记录）。S1 订单工作台开发完成（2026-09，1.1~1.5，见执行记录；1.6 真实文员 50 行 ≤5 分钟走查待现场验证）；S2 日结闭环部分完成（2026-09，2.1/2.2 完成；2.3~2.6 硬件阻塞，见执行记录）；W0-6 模板导入导出与资源治理完成（2026-09，见执行记录）；⛔ W0-4.2/4.3 硬件实机验证阻塞**
 
 ---
 
@@ -83,7 +83,7 @@
 |---|---|---|
 | 1.1 | `detail.vue` 拆分改造：左侧订单头+明细表，右侧常用商品/最近订单/搜索面板，接入 SplitWorkspace | 左右可拖拽、宽度本机记忆 |
 | 1.2 | 键盘焦点流：商品选择→数量→单价→下一行；复制行/插入行/删除行/批量粘贴/重复上一行/撤销最近编辑 | 全程不碰鼠标完成一单 |
-| 1.3 | 手工定价留痕：报价来源、原建议价、必填原因、操作者/时间，确认时提示并写日志 | 审计可追溯 |
+| 1.3 | 手工定价留痕：报价来源、原建议价、操作者/时间自动审计（**2026-09 简化：取消必填原因**） | 审计可追溯且不打断录单 |
 | 1.4 | 头字段变更提示：客户/配送点/日期变化影响商品池与取价时明确提示 | 走查确认 |
 | 1.5 | 草稿可见性：自动保存、恢复、清理、提交后删除均可解释 | 断网/刷新演练通过 |
 | 1.6 | 真实文员走查：50 行订单 ≤ 5 分钟计时验证（蓝图 §9） | 达标记录归档 |
@@ -277,4 +277,111 @@
 | 接口 | ✔ `PrintTemplateController` 加 `/test-publish`、`/publish`、`/rollback/{versionId}`、`/versions`、`/preview` |
 | SQL | ✔ `sql/w09_template_version_preview.sql`（幂等 ALTER 加列 + 建两表）+ init_all.sql 同步 |
 | 测试 | ✔ `PrintTemplateServiceImplTest` 3→12（发布门禁通过+版本快照、缺名称/内容/配送点拒绝、测试发布打水印、已发布禁改/禁删、回滚生成新版本、预览记录）；全工程 **217/217** |
-| 待办 | 纸张/分页精确校验、测试水印渲染、预览→确认→任务回执闭环、模板设计器状态（草稿/测试/发布）交互——属前端（RuoYi-Vue3）与 JimuReport 设计器侧，另做 |
+| 待办 | 纸张/分页精确校验、测试水印渲染、预览→确认→任务回执闭环、模板设计器状态（草稿/测试/发布）交互——**前端部分已完成（2026-09，见下方 W0-4.4 前端执行记录）**；JimuReport 设计器侧水印渲染与纸张实测随 W0-4.2 实机验证落地 |
+
+### W0-5.1 SplitWorkspace 通用分屏组件 ✔（2026-09）
+
+| 任务 | 结果 |
+|---|---|
+| 组件 | ✔ 新增 `RuoYi-Vue3/src/components/SplitWorkspace/index.vue`：左右双面板 + 中缝拖拽（Pointer Events，鼠标/触摸/键盘兼容）；左右最小宽度按像素钳制（`leftMinWidth`/`rightMinWidth`，窗口过窄时保左舍右）；占比持久化到 localStorage，键格式 `splitws:u{userId}:{storageKey}`（蓝图 §2 共享设备按登录用户隔离），值带版本号 `{v:1,r:占比}`；`maxRatio` 限制中缝始终可见；窗口 resize 后按最小宽度重钳不覆盖用户偏好 |
+| 恢复默认 | ✔ 双击中缝、键盘焦点下方向键 ±2% 微调、`resetLayout()` 对外暴露（清除存储 + 回默认占比）；演示页提供「恢复默认布局」按钮验证 |
+| 演示页 | ✔ `RuoYi-Vue3/src/views/demo/split-workspace/index.vue`：模拟 S1 订单工作台布局（左：订单头+明细表；右：常用商品/最近订单/商品搜索标签页），实时显示占比；路由注册为隐藏常量路由 `/demo/split-workspace`（需登录，不走菜单 SQL，避免演示入口进生产菜单） |
+| 验证 | ✔ `npm run build:prod` 构建通过；新增 `tests/e2e-split-workspace.mjs`（Playwright）6 项运行时验证全通过：默认占比 70%、拖拽变比 56.1%、用户命名空间写入 `splitws:u1:demo-split-workspace`（`{v:1,r:0.5605}`）、刷新后记忆保持、方向键微调、恢复默认回 70% 且存储清零 |
+| 修复记录 | ✔ 验证中发现并修复：`loadRatio()` 恢复布局后未 emit `change`，导致消费方（@change 同步外部状态）拿到过期占比；已补 emit 后全项通过 |
+
+> 设计取舍备注：① 持久化存「占比」而非像素，适配不同窗口尺寸；最小宽度用像素定义，与拖拽手感一致；② 折叠/收起（TreePanel 有 collapse）未纳入本组件——S1 右侧面板用标签页切换即可，避免首版膨胀；TreePanel 后续可迁移至本组件实现，不在本次范围；③ 键盘微调符合蓝图「纯键盘优先」文化，中缝 `role=separator` + aria-valuenow 可访问性支持；④ 若后续 0.5.3 草稿工具统一封装「用户命名空间存储」util，SplitWorkspace 的键拼接应随之收敛复用。
+
+### W0-5.2 快捷键集中注册服务 ✔（2026-09）
+
+| 任务 | 结果 |
+|---|---|
+| 服务 | ✔ 新增 `RuoYi-Vue3/src/utils/shortcut.js`：全局唯一 window keydown 监听（懒安装/空时卸载）；作用域 `SCOPE.GLOBAL > WORKSPACE > TABLE`（蓝图 §3.3 优先级）；分发为责任链（handler 返回 false 下传低优先级，处理即自动 preventDefault+stopPropagation）；硬性保护：`isComposing`/`keyCode 229` 输入法组合态不分发、input/textarea/select/contenteditable 焦点默认不分发（ctrl/meta 组合或显式 `allowInInput` 例外）；开发环境同作用域同键重复注册 console.warn；`getShortcutRegistry()`/`findShortcutConflicts()` 供生成注册表与冲突核对 |
+| 组合式封装 | ✔ 新增 `src/composables/useShortcuts.js`：onMounted 注册 / onBeforeUnmount 注销 / onActivated-onDeactivated 启停，解决 keep-alive 缓存页失活后快捷键仍生效问题（蓝图「仅由当前活动工作区响应」） |
+| 迁移 | ✔ GlobalSearch（Ctrl+K 唿起 + Esc 关弹窗→global）；QuickTable（F2/F3/Ctrl+S/Delete/Esc→table，移除与 GlobalSearch 重复的 Ctrl+K）；TagsView（Esc 退全屏→global）；预览页与 lock.vue 原生监听不涉及链路，未动 |
+| 冲突修复 | ✔ 历史冲突三项消除：① Esc 双触发（GlobalSearch 关弹窗同时 QT 清空选择）→ 责任链下传；② Ctrl+K 双重处理 → 统一由 GlobalSearch global 绑定承担；③ F2/F3 输入框内误触（QT 先匹配后判焦点）→ 服务层输入焦点保护统一前置；④ keep-alive 失活仍响应 → 组合式自动启停 |
+| 文档 | ✔ 新增 `docs/快捷键规范与冲突表.md`：规范（作用域/优先级/硬性保护/推荐键位）、现状注册表、冲突表（C1~C5 处置记录）、后续页面接入准入检查 8 项、已知未实施项（Ctrl+W、S1 Enter/Tab 焦点流） |
+| 验证 | ✔ 构建通过；新增 `tests/e2e-shortcuts.mjs`（Playwright）9 项全通过：Ctrl+K 唿起/Esc 关闭、演示页 F2 切面板/F3 聚焦、输入框内 F2 不触发、IME 组合态不分发（含非组合态对照触发）、QuickTable 页 F2 新增弹窗/F3 聚焦搜索；回归 `e2e-split-workspace.mjs` 通过；`npm run build:prod` 通过 |
+
+> 设计取舍备注：① 优先级语义为「同键多作用域时高优先级先分发」，而非「低作用域完全屏蔽」——配合责任链返回 false，覆盖「弹窗未打开时 Esc 仍可退出全屏/清空选择」的真实场景；② Ctrl+K 从 QuickTable 移除属行为收敛：@global-search 事件无任何页面监听，删除无破坏；③ demo 页 F2/F3 为 workspace 作用域示范，S1 订单工作台接入时应按冲突表准入检查登记；④ 全局唯一监听用冒泡阶段（window keydown），与原实现一致，不捕获框架内部事件。
+
+### W0-5.3 草稿工具治理 ✔（2026-09）
+
+| 任务 | 结果 |
+|---|---|
+| 用户命名空间 | ✔ `RuoYi-Vue3/src/utils/saleDraft.js` 重构：key 格式升级为 `saleDraft:u{userId}:order:{id}\|new:{deptId}`，共享 PC 草稿按登录用户完全隔离（蓝图 §2）；导出 `draftKeyOf()` 替代 detail.vue 两处手拼 key 字符串；旧格式 key 在 7 天宽限内一次性迁移到当前用户（保留 24h 内新鲜记录）后不再读取 |
+| 版本号 | ✔ 记录携带 `ver`（结构版本，当前 2，不匹配即丢弃）与 `rev`（单草稿修订号，每次保存 +1）；后端双写同步携带 ver/rev，为后续多 PC 冲突「比较并选择版本」（蓝图草稿冲突决策，属 S1 交互）提供依据 |
+| 容量治理 | ✔ 单条草稿序列化后 >256KB 不落本地（后端双写不受影响，console.warn）；每用户本地草稿上限 20 条，超限按 savedAt 淘汰最旧；listDrafts/saveDraft 时惰性执行清扫 |
+| 过期清理 | ✔ 过期时间 24h→7 天（兼顾蓝图「长假恢复」痛点，后端草稿同口径）；过期/损坏记录在读取与保存时自动清除 |
+| 恢复校验 | ✔ 新增 `validateDraft()` 结构校验（ver/rev/savedAt/details 数组/字段类型）；`restoreDraft()` 拒绝非当前用户命名空间的 key（防 URL 携带他人草稿 key 越权读取）；损坏记录返回 null 并清除 |
+| 兼容性 | ✔ 本地 API 函数签名不变，detail.vue 仅两处 removeDraft 硬编码 key 换 draftKeyOf，其余调用无感升级；后端 draftKey 自动获得用户命名空间（服务端旧草稿随过期自然淘汰） |
+| 演示页 | ✔ 新增 `src/views/demo/draft-workspace/index.vue` + 隐藏路由 `/demo/draft-workspace`：真实读写 saleDraft 工具，可验证命名空间/rev 自增/超大拒绝/上限淘汰/恢复校验/损坏清除 |
+| 验证 | ✔ 构建通过；新增 `tests/e2e-sale-draft.mjs`（Playwright）8 项全通过：key 含用户段、rev=2 自增、超大草稿本地拒绝、22 条压到 20 条上限、恢复校验通过且消费删除、损坏 JSON 清除、他人命名空间 key 不入当前用户列表；回归 e2e-smoke/e2e-split-workspace/e2e-shortcuts 全部通过（顺带执行 `sql/w08` 幂等脚本修复本地库缺 print_time 列的环境问题） |
+
+> 设计取舍备注：① 恢复后消费删除草稿为 detail.vue 既有设计（restoreDraftIntoForm 显式 removeDraft），工具层不隐式消费；② 过期 7 天与蓝图「24h 过期」痛点不矛盾——痛点在于数据无治理导致的不可预期失效，后端双写为主后本地 7 天只是更长久的断网兜底；③ 「同一草稿多 PC 修改时逐行比较选择版本」的冲突交互属蓝图草稿冲突决策，依赖 rev 字段，在 S1 录单工作台落地；④ 后端 t_sale_order_draft 表无 user 字段，隔离依赖 draftKey 前缀，若后续需要服务端强隔离可加 user_id 列（不在本次前端基建范围）。
+
+### W0-5.4 全局搜索竞态修复 ✔（2026-09）
+
+| 任务 | 结果 |
+|---|---|
+| 现状确认 | ✔ `GlobalSearch/index.vue` 存在蓝图 §5-P1 两处风险：① `let seq = 0` 声明未使用，`await globalSearch` 无竞态防护，慢响应可覆盖新输入结果；② 每个按键直接发请求，无防抖；③ `jump()` 用 `window.open(url)` 裸跳，绕过路由 base 与守卫 |
+| 防抖 | ✔ 输入 250ms 防抖后才发请求；清空关键词立即取消防抖与在途请求并回提示态 |
+| 序号 + AbortController | ✔ 双保险：请求序号（只有最新一次请求的响应允许写入结果/结束 loading）+ AbortController（发新请求前取消上一个在途请求）；被取消/过期响应静默处理，不误展示「未找到」空态；`onClosed`/`onBeforeUnmount` 取消在途与防抖 |
+| 请求层配套 | ✔ `request.js` 错误拦截器增加取消静默（`axios.isCancel`/`ERR_CANCELED` 不弹错误 toast）；`api/search.js` `globalSearch` 支持透传 `signal` |
+| 路由跳转统一 | ✔ `jump()` 改为 `router.resolve(url)` 后 `window.open(resolved.href)`，URL 不含代理前缀、遵循路由 base；`flushDraft` 联动不变 |
+| 验证 | ✔ 构建通过；新增 `tests/e2e-global-search.mjs`（Playwright route 拦截制造乱序：搜「番」延迟 1500ms、搜「土豆」即时）5 项全通过：防抖后 2 字符仅 1 次请求、慢旧响应不覆盖快新响应（最终首条=新鲜土豆）、无取消报错/5xx、跳转 URL 经 resolve 无代理前缀、清空回提示态；回归 e2e-shortcuts/e2e-smoke 全部通过 |
+
+> 设计取舍备注：① 序号与 Abort 叠加而非二选一：序号防「旧响应后到覆盖」，Abort 省「无谓请求占用」并在响应层兜底，两者任一单独失效都不会错序；② 防抖 250ms 为经验值（蓝图未定），若录单场景反馈偏慢可降至 150ms；③ 未改动的 `HeaderSearch` 无搜索请求链路，不涉及。
+
+### W0-4.4 打印模板前端：状态交互 + 发布门禁 + 预览回执闭环 ✔（2026-09）
+
+| 任务 | 结果 |
+|---|---|
+| 后端配套小改 | ✔ ① `PrintTemplateMapper.xml` `selectBindTemplate` 增加 `and status = 2`——草稿/已测试模板不再遮蔽已发布模板的回退匹配（与解析注释「未发布模板不参与」对齐，行为修复）；② `selectPrintTemplateList` 支持 `status` 过滤（供前端查询已发布模板列表）；③ `printInfo` 补返 `templateRecordId`（模板主键，供预览留痕接口）/`customerId`/`deliveryPointId`（供前端筛选可切换模板）。`mvn -pl lin-distribution test` 217/217 通过，lin-admin/lin-entry 编译通过 |
+| 模板状态交互 | ✔ `RuoYi-Vue3/src/views/print/template/index.vue`：列表新增状态列（草稿/已测试/已发布 tag）与测试水印标记列、状态筛选；行操作：测试发布（确认后置已测试+水印，并自动打开带水印预览）、发布（仅已测试可发布，门禁清单对话框 + 版本说明，发布成功提示新版本号）、版本历史（版本表格 + 逐版本「回滚此版」）；已发布模板修改/删除按钮禁用 + tooltip（后端门禁兜底）；编辑对话框显示当前状态并提示「保存后回草稿」；API 封装新增 testPublish/publish/rollback/versions/previewRecord（`api/print/template.js`） |
+| 纸张/分页门禁 | ✔ 发布对话框内置 4 项门禁清单（必填字段含页码第 N/M 张、纸张介质 A4 纵向/针式预印多联参考 241×140、分页规则针式每页 10 条跨页重复表头/单页显示第 1/1 张、长商品名边界数据无溢出），全勾选方可提交；后端 `validatePublishGate` 同步校验。精确分页/溢出校验仍以 JimuReport 设计器 + 实机测试为准（W0-4.2） |
+| 预览回执闭环 | ✔ `order/delivery/index.vue` `handlePrint` 重构为对话框三步流程（el-steps）：① 选择模板（默认三级绑定解析模板，可切换其他已发布模板仅本次生效）→「打开预览」（签发票据开预览窗 + 调 `/print/template/{id}/preview` 落预览留痕）；② 预览后解锁「确认打印」（新票据开打印视图）；③ 回执确认「本次打印是否成功」——成功才 `printDelivery` 记录打印次数并推进状态，失败不计数提示重试（蓝图「失败不增加成功打印次数」） |
+| 验证 | ✔ `npm run build:prod` 构建通过；后端 217/217 通过 |
+
+> 设计取舍备注：① 预览与打印使用两次签发的独立票据（票据一次性，预览会话已消费首次票据）；② 「设为默认」更新三级绑定需后端绑定管理接口（蓝图 S2-2.5 预览页临时调整完整版），本次仅实现「切换模板仅本次生效」，默认绑定变更暂走模板管理页；③ 份数本次生效需打印任务实体（t_print_task 已建表未接入），待本地打印助手（W0-4.3）阶段统一落地；④ 打印回执为用户确认制（浏览器打印无程序化回执），本地助手接入后替换为程序化回执。
+
+### W0-5.5 统一状态管理边界约定 ✔（2026-09）
+
+| 任务 | 结果 |
+|---|---|
+| 现状盘点 | ✔ ① Pinia 7 个 store（user/permission/tagsView/dict/app/settings/lock）均为 RuoYi 框架层，无业务页自建 store；② 业务页状态为组件 data + API；③ localStorage 使用 11 处：框架（cache.js/settings/lock）、草稿（saleDraft，W0-5.3 已治理）、用户偏好（SplitWorkspace 已带用户命名空间；TreePanel/RightToolbar/QuickTable storageKey 无用户命名空间）；④ provide/inject 仅 layout 内部；⑤ 无 eventBus/mitt；⑥ 键盘事件已由 W0-5.2 集中 |
+| 规范文档 | ✔ 新增 `docs/前端状态管理规范.md`：四类状态归属决策表（会话/框架态→Pinia、服务端数据→组件 data+API、用户偏好→localStorage 带用户命名空间、页面瞬时态→组件 data）+ 判定口诀；Pinia 使用细则（框架 store 不扩、业务数据不进 store、新增 store 准入）；localStorage 键格式 `域:u{userId}:{业务键}` + 值带版本号 `v` + 容量口径（64KB 目标/256KB 上限）；provide/inject、window 事件、eventBus（禁止引入）、sessionStorage、路由参数边界；现状盘点与收敛项（TreePanel/RightToolbar/QuickTable 键无用户段，按「触碰即改」推进，不专项排期）；反模式 7 条（review 一票否决）+ 新页面准入检查 7 项 |
+| 验证 | ✔ 文档送审；无代码改动，不涉及构建/测试回归 |
+
+### S1 订单桌面工作台 ✔（2026-09，1.1~1.5；1.6 待真实走查）
+
+| 任务 | 结果 |
+|---|---|
+| 1.1 分屏改造 | ✔ `RuoYi-Vue3/src/views/order/sale/detail.vue` 去除 el-row/el-col 固定栅格，接入 W0-5.1 SplitWorkspace（storage-key=order-sale-detail，default-ratio=0.68，左最小 600px/右最小 320px）：左侧做单区（订单头+明细表）、右侧选单区（常用/最近/搜索三标签页），中缝拖拽占比按登录用户持久化，双击恢复默认 |
+| 1.2 键盘焦点流 | ✔ 接入 W0-5.2 集中快捷键服务（WORKSPACE/TABLE 作用域，事件归属护栏 + keep-alive activated/deactivated 启停）：F2 插入空行、F3 聚焦右侧搜索面板、F4 重复上一行、Ctrl+D 复制当前行、Ctrl+Z 撤销最近编辑（快照栈上限 50，进入单元格编辑前自动推入）、Delete 删除当前编辑行、Ctrl+S 保存；Enter 焦点流：数量→单价→下一行商品名→数量（最后一行自动追加空行），vxe keyboard-config isEnter 置 false 避免双跳；批量粘贴：表格容器原生 paste 监听解析多行 TSV（商品名[Tab]数量[Tab]单价[Tab]单位），按客户商品池精确/助记码匹配后批量插入并取价（上限 200 行） |
+| 1.3 手工定价留痕 | ✔ 明细行新增 priceSource（quote/manual/temp）、refPrice（原建议价）、priceReason 字段：改价偏离报价或无报价时弹「手工定价原因」必填弹窗（5 个预设原因 + 自定义输入，取消还原价格），确认后单价列显示「手」标签悬浮原因；保存前缺失原因拦截 + 手工行汇总二次确认；后端：`t_sale_order_detail` 加 3 列（`sql/s1_manual_price_audit.sql` 幂等 ALTER，init_all.sql [35] 节同步）、领域/Mapper/insert/update 同步，订单确认（CONFIRMED）时 `logManualPricingOnConfirm` 汇总手工行写操作日志（来源/原建议价/原因/操作者，SecurityUtils 安全回退 system）<br>**⚠ 2026-09 简化（用户反馈「填原因太啭嗦」）：已移除原因必填弹窗、缺失原因拦截与保存前二次确认；改价偏离即直接标记 priceSource=manual + 轻提示（与报价不一致请确认），单价列「手」标签悬浮改为展示「本次价 / 原报价」；priceReason 字段保留（可选、历史兼容），服务端确认日志不再输出原因段，审计仍可追溯谁/何时/原价→现价** |
+| 1.4 头字段变更提示 | ✔ 配送日期变更且已录明细时弹确认框（说明影响取价基准、单价快照不自动刷新），取消还原（程序性还原带守卫防二次确认死循环）；客户/配送点变化本就联动重置商品池（既有逻辑） |
+| 1.5 草稿可见性 | ✔ 订单头新增草稿状态标签（保存中/已保存悬浮解释：5 秒防抖自动保存、本地+服务器双写、提交后自动清除）；新增「草稿箱」入口（显示草稿数）+ 弹窗（送货单位/订单编号/行数/保存时间/恢复/删除），恢复提示「暂存已消费清除，再次录入后重新自动保存」；保存成功提示明确「草稿已清除」 |
+| 验证 | ✔ `npm run build:prod` 构建通过；后端 SaleOrder/DeliveryOrder/PurchaseOrder 相关 53/53 测试通过；新增 `tests/e2e-order-workbench.mjs`（真实订单录入页）：分屏渲染/三标签页/拖拽占比+localStorage 用户命名空间持久化/刷新记忆保持、F3 聚焦搜索面板、草稿箱弹窗、选客户→插商品→改配送日期弹确认、改价→手工定价弹窗→原因为空拦截→选原因确认→「手」标签，全部通过；回归 e2e-shortcuts/e2e-sale-draft/e2e-split-workspace 全部通过<br>**⚠ 2026-09 简化后：e2e 手工定价场景改为断言「不再弹原因弹窗 + 偏离轻提示 + 「手」标签出现」，已重跑通过**<br>**⚠ 2026-09 补强：新增 `tests/e2e-order-save-manual-price.mjs` 真实点「保存」跑通落库链路（选到有商品池的客户→插商品→填数量→改价→保存→接口回查 `price_source=manual`→接口删除清理），并显式检查保存接口 body.code（RuoYi 将后端异常包为 HTTP 200 + code=500，只看状态码会漏判）；该用例当场发现 dev 库未执行 `sql/s1_manual_price_audit.sql` 导致保存报 `Unknown column 'price_source'`** |
+| 待办 1.6 | ⏳ 真实文员 50 行订单 ≤5 分钟计时走查（蓝图 §9），需现场验证后归档记录 |
+
+### S2 日结闭环与打印落地 ◐（2026-09，2.1/2.2 完成；2.3~2.6 硬件阻塞）
+
+| 任务 | 结果 |
+|---|---|
+| 2.1 待办链梳理优化 | ✔ 工作台首页新增「日结待办链」五阶段链路视图：已确认订单（含明日待生成采购子计数）→ 批量采购（待确认+到货待确认成本双计数）→ 送货打印 → 送达登记（已打印未送达）→ 独立验收，节点显示计数徽标与子说明、无待办时降灰，点击直达对应筛选队列（`/order/sale?status=1`、`/purchase`、`/order/delivery?status=0/1`、`/order/acceptance`）；送货单页支持 route.query.status 预置筛选（字符串与字典值匹配）；后端 `WorkbenchSummary`/`WorkbenchMapper.selectSummary` 新增 confirmedOrders/purchaseDraft/purchasePendingCost/pendingMarkDelivered 四个计数 |
+| 2.2 采购批量成本录入优化 | ✔ ① 采购列表新增「成本状态」列（已确认=待确认成本/已入库=已确认成本，带悬浮说明，对应蓝图「到货→待确认成本→已确认成本」口径）；② 新增批量入库接口 `PUT /purchase/batch-stock-in`（仅已确认可入库，任一非法整体回滚）+ 前端勾选批量入库（勾选含非已确认行时禁用）；③ 补齐 W0-2.5 前端「调整成本」抽屉（调 `PUT /purchase/{id}/adjust`，仅改数量/单价禁止增删行，实时预览调整前后总额，成功后校验审计日志写入）；④ 供应商补录：草稿/已确认采购单可补录供应商与采购员（`PUT /purchase/{id}/supplier`，后端校验状态与必填其一，@Log 审计，已入库不可改），前端补录对话框 |
+| 2.3~2.6 打印双链路/打印任务/预览页调整/设备映射 | ⛔ 均依赖 W0-4.2/4.3 硬件实机验证（HP A4 + Epson 针式）与本地打印助手选型，待硬件到位后实施（2.4 关联 t_print_task 接入，随 2.3 落地） |
+| 验证 | ✔ 后端 223/223 测试通过（PurchaseOrderServiceImplTest 新增批量入库×3/供应商补录×3 共 6 个单测）；`npm run build:prod` 构建通过；新增 `tests/e2e-s2-workbench-chain.mjs`：待办链五节点渲染/徽标计数/节点跳转、种子采购单确认后「待确认成本」标签、调整成本抽屉全流程（改数量→保存→审计日志校验）、供应商补录全流程（UI 填写→列表数据校验）、批量入库（勾选→确认→「已确认成本」标签）、送货单 status=1 预置筛选显示「已打印」、独立验收节点跳转，全部通过；回归 e2e-smoke/e2e-order-workbench/e2e-sale-draft/e2e-shortcuts/e2e-split-workspace/e2e-global-search 全部通过 |
+| 环境备注 | ✔ dev 库补齐历史迁移漂移：执行 `sql/w02_withdraw_cascade.sql`（purchase_order 作废三列）、从 init_all.sql 抽取 8 张缺失表建表（purchase_modify_log/t_month_adjustment/t_month_settlement/t_print_template_version/t_print_preview_log/delivery_sku_override/t_delivery_print_config/t_delivery_print_config_version）；注意 dev.sh 后端以 ~/.m2 已安装 jar 运行，改后端代码需先 `mvn install` 再 `./dev.sh restart`<br>**✔ 2026-09 新增漂移体检脚本 `tests/check_schema_drift.py`：比对 init_all.sql 期望的表/列与目标库实际结构（含幂等脚本内嵌的 ADD COLUMN），退出码非 0 即存在缺失；配置默认从 `application-local.yml` 的 master 数据源解析，不硬编码口令。已用它确认当前 dev 库无漂移（48 张期望表齐备；t_product_sku 的 5 个旧版残留列属 R1 重构前定义、代码已不引用，列入默认忽略）** |
+
+### W0-6 模板导入导出与资源治理 ✔（2026-09）
+
+| 任务 | 结果 |
+|---|---|
+| 导出（开放 JSON 包，可选历史版本） | ✔ `GET /print/template/{id}/export?includeVersions=` 返回开放 JSON 包（`format=lin-print-template` + `schemaVersion=1`）；导出前脱敏：content 剔除内部 ID/绑定/操作者等敏感键（`TemplateContentGovernor.sanitize`）；前端行内「导出」按钮，下载 `.json`（含历史版本时 `_full.json`） |
+| 导入安全校验（全有或全无） | ✔ `POST /print/template/import`（@RequestBody JSON）：① 20MB 上限（蓝图 39）；② format/schemaVersion 不兼容禁止导入（蓝图 30/38）；③ 每模板校验 name/type(0/1)/renderEngine(jimureport)/copies/content；④ content 经治理器 `validateImport`：schemaVersion 兼容 + 递归扫描禁止网络资源（http(s) 外链且非本地 `/profile/print/assets/` 与 `data:` 前缀）整体拒绝（蓝图 37）；⑤ 全部校验通过后才逐条落库，任一非法整包回滚；导入后为重命名未绑定草稿（名称前缀「导入_原名_时间戳」、bindType=3、customerId=0、status=0 草稿、须重走完整发布门禁，蓝图 38） |
+| 字段白名单与弃用迁移 | ✔ `TemplateContentGovernor`：顶层受控字段白名单（schemaVersion/paper/margin/copies/fields/fixedText/logo/background/elements/layout 等，jimureport 结构透传）；弃用字段迁移映射（paperSize→paper、marginMm→margin，迁移后剔除旧键）；导入时 `migrate` 后 `validateImport` |
+| 资源治理（Logo/底图） | ✔ 新增 `t_print_asset` 表（init_all.sql [36]）+ `PrintAssetService`/`PrintAssetController`：上传仅 PNG/JPG/JPEG 且 ≤5MB（蓝图 36），存本机文件目录 `profile/print/assets`（绝对路径，修正 transferTo 相对路径问题），返回 URL 供 content 引用；删除前扫描模板/历史版本 content 是否引用该 URL（`PrintTemplateMapper.countContentLike`/`PrintTemplateVersionMapper.countContentLike` LIKE 扫描），被引用则拒绝物理删除（蓝图 37：历史引用资源不可物理删除）；前端「资源管理」弹窗（上传/列表/删除） |
+| 验证 | ✔ 后端 246/246 测试通过（新增 `TemplateContentGovernorTest`×11 + `PrintTemplateIoServiceImplTest`×8 + `PrintAssetServiceImplTest`×4 = 23 个单测：迁移/脱敏/网络资源拒绝/数组扫描/资源限制/全有或全无/未绑定草稿/引用保护）；`npm run build:prod` 构建通过；新增 `tests/e2e-w06-template-io.mjs`：上传 PNG 资源→建引用资源模板→被引用资源删除被拒→导出脱敏包→改名导入→未绑定草稿出现（bindType=3/status=0/customerId=0）→资源管理弹窗列表渲染，全部通过；回归 e2e-s2-workbench-chain/e2e-order-workbench/e2e-smoke 全部通过 |
+| 坐标体系与设备映射 | ⏸️ 蓝图 34（模板坐标统一毫米）、32-33（设备映射分层/同型号复用）属设计器与硬件范畴：坐标体系已在治理器以 `schemaVersion` + 字段白名单约束（mm 后缀约定），完整毫米坐标校验随设计器与 W0-4.3 本地打印助手校准测试页落地；设备映射依赖 W0-4.2/4.3 硬件，⛔ 阻塞 |
+| 环境备注 | ✔ dev 库补齐 t_print_template 的 W0-4.4 列（status/test_watermark，幂等 ALTER via information_schema）；后续又补齐 t_sale_order_detail 的 S1-1.3 三列（执行 `sql/s1_manual_price_audit.sql`，保存订单链路 E2E 发现）；price_reason 列注释已随「取消必填」同步为「可选、不再必填，仅留痕」（脚本与 init_all.sql 一致） |

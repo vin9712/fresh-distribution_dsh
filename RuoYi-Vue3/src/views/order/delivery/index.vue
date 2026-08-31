@@ -77,6 +77,7 @@
           v-hasPermi="['order:delivery:add']"
           >生成送货单</el-button
         >
+        <span class="generate-hint">先出待生成清单（按客户），确认后才写单</span>
       </el-col>
       <el-col :span="1.5">
         <el-button
@@ -351,6 +352,50 @@
         </div>
       </template>
     </el-dialog>
+
+    <!-- 生成送货单·待生成清单确认（D-039 三步式：选日期 → 客户维度清单 → 确认） -->
+    <generate-preview-drawer
+      v-model="generatePreviewOpen"
+      :delivery-date="generateDate"
+      @success="getPageList"
+    />
+
+    <!-- 打印对话框（W0-4.4：强制预览→确认→打印→回执；失败不增加成功打印次数） -->
+    <el-dialog align-center title="打印送货单" v-model="printOpen" width="560px" append-to-body :close-on-click-modal="false">
+      <el-form label-width="90px">
+        <el-form-item label="送货单">
+          <span>{{ printRow.code }}</span>
+        </el-form-item>
+        <el-form-item label="打印模板">
+          <el-radio-group v-model="printChosenRecordId">
+            <div v-for="t in printTemplates" :key="t.id" style="display: block; margin-bottom: 6px">
+              <el-radio :value="t.id">
+                {{ t.name }}（联数 {{ t.copies }}）
+                <el-tag v-if="t.id === printInfo.templateRecordId" size="small" type="success" style="margin-left: 4px">默认</el-tag>
+              </el-radio>
+            </div>
+          </el-radio-group>
+          <div class="dialog-hint">可切换为其他已发布模板，仅对本次打印生效；份数可在打印窗口调整。</div>
+        </el-form-item>
+        <el-form-item label="打印步骤">
+          <el-steps :active="printPreviewed ? 1 : 0" simple style="width: 100%">
+            <el-step title="预览确认" />
+            <el-step title="正式打印" />
+            <el-step title="结果回执" />
+          </el-steps>
+        </el-form-item>
+        <div class="dialog-hint" style="padding: 0 12px 8px">
+          正式打印前必须预览（系统记录预览留痕）；打印失败不会记录打印次数，可修复后重试。
+        </div>
+      </el-form>
+      <template #footer>
+        <div class="dialog-footer">
+          <el-button type="warning" plain @click="openPrintPreview">打开预览</el-button>
+          <el-button type="primary" :disabled="!printPreviewed" @click="confirmPrint">确认打印</el-button>
+          <el-button @click="printOpen = false">取 消</el-button>
+        </div>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -359,14 +404,15 @@ import {
   pageDelivery,
   listDeliveryDetail,
   listDeliverySources,
-  generateDelivery,
   generateDeliveryForCustomer,
   printDelivery,
   printInfoDelivery,
   deliveredDelivery,
   voidDelivery,
 } from "@/api/order/delivery";
+import GeneratePreviewDrawer from "./generatePreviewDrawer.vue";
 import { issuePrintTicket } from "@/api/print/ticket";
+import { listPrintTemplate, recordPrintPreview } from "@/api/print/template";
 import {
   Search,
   Refresh,
@@ -381,6 +427,7 @@ import {
 
 export default {
   name: "Delivery",
+  components: { GeneratePreviewDrawer },
   dicts: ["t_delivery_order_status", "delivery_no_print_reason", "delivery_void_reason"],
   setup() {
     return { Search, Refresh, Plus, Download, Printer, Van, View, Document, CircleClose };
@@ -397,6 +444,8 @@ export default {
       deliveryList: [],
       // 生成送货单的配送日期
       generateDate: null,
+      // 待生成清单确认抽屉（D-039）
+      generatePreviewOpen: false,
       // 明细对话框
       detailOpen: false,
       detailTitle: "",
@@ -424,6 +473,13 @@ export default {
         reasonCode: [{ required: true, message: "作废原因不能为空", trigger: "change" }],
         reasonNote: [{ required: true, message: "选择“其他”时必须填写说明", trigger: "blur" }],
       },
+      // 打印对话框（W0-4.4：强制预览→确认→打印→回执）
+      printOpen: false,
+      printRow: {},
+      printInfo: {},
+      printTemplates: [],
+      printChosenRecordId: null,
+      printPreviewed: false,
       // 查询参数
       queryParams: {
         pageNum: 1,
@@ -436,6 +492,17 @@ export default {
     };
   },
   created() {
+    // S2-2.1 待办链跳转支持：/order/delivery?status=0/1 预置状态筛选（保持字符串与字典值匹配）
+    const routeStatus = this.$route.query.status;
+    if (routeStatus !== undefined && routeStatus !== null && routeStatus !== "") {
+      this.queryParams.status = String(routeStatus);
+    }
+    // 客户管理页「送货单」抽屉跳转带日期：列表筛选与生成日期同步预置
+    const routeDate = this.$route.query.deliveryDate;
+    if (routeDate) {
+      this.queryParams.deliveryDate = String(routeDate);
+      this.generateDate = String(routeDate);
+    }
     this.getPageList();
   },
   methods: {
@@ -458,33 +525,16 @@ export default {
       this.resetForm("queryForm");
       this.handleQuery();
     },
-    /** 生成送货单（统一生成服务：幂等，按客户组单策略三态分支） */
+    /**
+     * 生成送货单（D-039 三步式）：先拉客户维度待生成清单预览，确认后才调统一生成服务。
+     * 幂等与三态分支（跨点总单/每点一单、作废重建 D-022、补充单 D-023）在预览里逐客户如实展示。
+     */
     handleGenerate() {
-      const deliveryDate = this.generateDate;
-      if (!deliveryDate) {
+      if (!this.generateDate) {
         this.$modal.msgWarning("请先选择配送日期");
         return;
       }
-      this.$modal
-        .confirm(
-          "将为配送日期 " +
-            deliveryDate +
-            " 生成送货单（按各客户的组单策略：跨点总单/每点一单；已生成过的订单自动幂等跳过，遗漏订单按补单规则补齐）？"
-        )
-        .then(() => {
-          return generateDelivery(deliveryDate);
-        })
-        .then((response) => {
-          const result = response.data || {};
-          const created = result.createdOrders || result || [];
-          const skipped = result.skippedReasons || [];
-          this.$modal.msgSuccess(
-            "已生成 " + created.length + " 张送货单" +
-              (skipped.length ? "，" + skipped.length + " 个客户幂等跳过" : "")
-          );
-          this.getPageList();
-        })
-        .catch(() => {});
+      this.generatePreviewOpen = true;
     },
     /** 查看明细 */
     handleDetail(row) {
@@ -506,30 +556,91 @@ export default {
         this.sourcesOpen = true;
       });
     },
-    /** 打印：解析三级绑定模板 → 记录打印次数 → 打开 JimuReport 打印视图 */
+    /** 打印（W0-4.4 闭环）：解析模板 → 强制预览（留痕）→ 确认 → 打开打印视图 → 回执（成功才计次） */
     handlePrint(row) {
       printInfoDelivery(row.id)
         .then((response) => {
-          const info = response.data;
-          this.$modal
-            .confirm(
-              "按模板【" + info.templateName + "】打印（联数 " + info.copies + " 份），确认后记录打印次数并打开打印视图？"
-            )
-            .then(() => printDelivery(row.id))
-            .then((printResp) => {
-              this.$modal.msgSuccess("已记录打印，当前打印次数 " + printResp.data.printCount);
-              // W0-4.1：URL 不再携带长期 JWT，改签发短时一次性打印票据
-              return issuePrintTicket({ deliveryOrderId: row.id, templateId: info.templateId }).then((res) => {
-                window.open(
-                  "/jmreport/view/" + info.templateId + "?token=" + res.ticket + "&deliveryOrderId=" + row.id,
-                  "_blank"
-                );
-                this.getPageList();
-              });
-            })
-            .catch(() => {});
+          this.printRow = row;
+          this.printInfo = response.data;
+          this.printChosenRecordId = response.data.templateRecordId;
+          this.printPreviewed = false;
+          this.printOpen = true;
+          this.loadPrintTemplates();
         })
         .catch(() => {});
+    },
+    /** 可切换模板：已发布送货单模板，前端按三级绑定过滤（与后端 selectBindTemplate 同口径） */
+    loadPrintTemplates() {
+      listPrintTemplate({ type: 0, status: 2 })
+        .then((response) => {
+          const info = this.printInfo;
+          const list = (response.data || []).filter(
+            (t) =>
+              (t.bindType === 1 && t.customerId === info.customerId && t.deliveryPointId === info.deliveryPointId) ||
+              (t.bindType === 2 && t.customerId === info.customerId) ||
+              (t.bindType === 3 && t.isDefault === "1")
+          );
+          // 兑底：解析模板不在过滤结果中（如历史数据）仍可选
+          if (info.templateRecordId && !list.some((t) => t.id === info.templateRecordId)) {
+            list.unshift({
+              id: info.templateRecordId,
+              name: info.templateName,
+              content: info.templateId,
+              copies: info.copies,
+            });
+          }
+          this.printTemplates = list;
+        })
+        .catch(() => {});
+    },
+    chosenPrintTemplate() {
+      return this.printTemplates.find((t) => t.id === this.printChosenRecordId);
+    },
+    /** 打开预览窗口并记录预览留痕（W0-4.4：每次正式打印前必须有预览记录） */
+    openPrintPreview() {
+      const template = this.chosenPrintTemplate();
+      if (!template) {
+        this.$modal.msgWarning("请先选择打印模板");
+        return;
+      }
+      issuePrintTicket({ deliveryOrderId: this.printRow.id, templateId: template.content }).then((res) => {
+        window.open(
+          "/jmreport/view/" + template.content + "?token=" + res.ticket + "&deliveryOrderId=" + this.printRow.id,
+          "_blank"
+        );
+        // 预览留痕（模板主键 + 送货单）
+        recordPrintPreview(template.id, this.printRow.id).catch(() => {});
+        this.printPreviewed = true;
+        this.$modal.msgSuccess("预览已打开，请核对版式与数据后点「确认打印」");
+      });
+    },
+    /** 确认打印：打开打印视图，回执确认后成功才记录打印次数（失败不计数） */
+    confirmPrint() {
+      const template = this.chosenPrintTemplate();
+      const row = this.printRow;
+      if (!template) {
+        this.$modal.msgWarning("请先选择打印模板");
+        return;
+      }
+      issuePrintTicket({ deliveryOrderId: row.id, templateId: template.content }).then((res) => {
+        this.printOpen = false;
+        window.open(
+          "/jmreport/view/" + template.content + "?token=" + res.ticket + "&deliveryOrderId=" + row.id,
+          "_blank"
+        );
+        this.$modal
+          .confirm(
+            "请在打印窗口完成打印。\n本次打印是否成功？\n· 成功：记录打印次数并推进单据状态\n· 失败：不记录次数，可修复后重新打印"
+          )
+          .then(() => printDelivery(row.id))
+          .then((printResp) => {
+            this.$modal.msgSuccess("打印成功已记录，当前打印次数 " + printResp.data.printCount);
+            this.getPageList();
+          })
+          .catch(() => {
+            this.$modal.msgWarning("本次打印未记录次数（失败或放弃），请排查后重新打印");
+          });
+      });
     },
     /** 标记送达：PENDING 弹免纸原因（D-018），PRINTED 直接确认 */
     handleDeliver(row) {
@@ -647,5 +758,10 @@ export default {
   font-size: 12px;
   color: #909399;
   line-height: 1.6;
+}
+.generate-hint {
+  margin-left: 8px;
+  font-size: 12px;
+  color: #909399;
 }
 </style>

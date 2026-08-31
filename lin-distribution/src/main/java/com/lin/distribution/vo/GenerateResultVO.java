@@ -28,4 +28,7 @@ public class GenerateResultVO implements Serializable {
 
     /** 本轮参与生成的订单集合（作废重建时 = 该客户当日全部已确认订单，D-022） */
     private List<SaleOrder> missedOrders = new ArrayList<>();
+
+    /** 本次随生成一并“草稿→已确认”的订单号（仅 confirmDrafts=true 时非空，供页面提示） */
+    private List<String> confirmedOrderCodes = new ArrayList<>();
 }

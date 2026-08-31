@@ -32,6 +32,8 @@
             <if test="name != null  and name != ''"> and name like concat('%', #{name}, '%')</if>
             <if test="type != null  and type != ''"> and type = #{type}</if>
             <if test="valid != null "> and valid = #{valid}</if>
+            <!-- 送货单客户维度：按组单策略筛选（CUSTOMER_DATE 跨点总单 / DELIVERY_POINT_DATE 每点一单） -->
+            <if test="docScopeType != null  and docScopeType != ''"> and doc_scope_type = #{docScopeType}</if>
         </where>
     </select>
 

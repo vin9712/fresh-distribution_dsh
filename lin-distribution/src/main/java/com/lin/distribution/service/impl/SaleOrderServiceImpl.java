@@ -2,6 +2,7 @@ package com.lin.distribution.service.impl;
 
 import com.lin.common.exception.ServiceException;
 import com.lin.common.utils.DateUtils;
+import com.lin.common.utils.SecurityUtils;
 import com.lin.distribution.constant.SaleOrderStatus;
 import com.lin.distribution.domain.SaleOrder;
 import com.lin.distribution.domain.SaleOrderDetail;
@@ -279,6 +280,47 @@ public class SaleOrderServiceImpl implements SaleOrderService {
         for (SaleOrder order : orders) {
             order.setStatus(newStatus.getCode());
             saleOrderMapper.updateSaleOrder(order);
+        }
+
+        // S1-1.3 手工定价审计：订单确认时汇总手工定价行写操作日志（来源/原价/原因随订单行持久化）
+        if (newStatus == SaleOrderStatus.CONFIRMED) {
+            for (SaleOrder order : orders) {
+                logManualPricingOnConfirm(order);
+            }
+        }
+    }
+
+    /**
+     * 订单确认时输出手工定价审计日志（S1-1.3，蓝图「手工定价：审计可追溯」）。
+     * 审计落点：行级 price_source/ref_price/price_reason 持久化 + 此处操作日志（sys_oper_log 经 @Log 另有状态变更记录）。
+     */
+    private void logManualPricingOnConfirm(SaleOrder order) {
+        SaleOrderDetail query = new SaleOrderDetail();
+        query.setOrderId(order.getId());
+        List<SaleOrderDetail> details = saleOrderDetailMapper.selectSaleOrderDetailList(query);
+        List<String> manualLines = new ArrayList<>();
+        for (SaleOrderDetail detail : details) {
+            if (detail.getIsDeleted() == null || detail.getIsDeleted()) {
+                continue;
+            }
+            if ("manual".equals(detail.getPriceSource())) {
+                manualLines.add(detail.getProductName()
+                        + "：单价 " + detail.getProductPrice()
+                        + (detail.getRefPrice() != null ? "（原建议价 " + detail.getRefPrice() + "）" : "（无报价）"));
+            }
+        }
+        if (!manualLines.isEmpty()) {
+            log.info("[sale order confirm] 订单 {} 含 {} 行手工定价（操作者：{}）：{}",
+                    order.getCode(), manualLines.size(), resolveOperator(), String.join("；", manualLines));
+        }
+    }
+
+    /** 安全获取当前登录操作者（定时/系统调用场景回退 system） */
+    private String resolveOperator() {
+        try {
+            return SecurityUtils.getUsername();
+        } catch (Exception e) {
+            return "system";
         }
     }
 

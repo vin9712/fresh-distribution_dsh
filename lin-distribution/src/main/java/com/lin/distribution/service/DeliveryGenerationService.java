@@ -4,6 +4,7 @@ import java.time.LocalDate;
 
 import com.lin.distribution.constant.DeliveryGenerateTrigger;
 import com.lin.distribution.dto.DeliveryByOrdersDTO;
+import com.lin.distribution.vo.DeliveryGeneratePreviewVO;
 import com.lin.distribution.vo.GenerateResultVO;
 
 /**
@@ -50,4 +51,18 @@ public interface DeliveryGenerationService {
      * @return 生成结果
      */
     GenerateResultVO generateForOrders(DeliveryByOrdersDTO dto);
+
+    /**
+     * 生成前预览「待生成清单」（客户维度：送货单页 生成 → 预览 → 确认 的第二步，
+     * 客户管理页「送货单」抽屉传 customerId 看单客户）。
+     *
+     * <p>只读推演，与 {@link #generateForDate}/{@link #generateForCustomer} 同源判定：同一套
+     * 遗漏订单判定 + 三态分支（正常生成/作废重建 D-022/补充单 D-023）+ 组单策略快照
+     * （批次优先 D-016）+ 明细合并口径；不建批次、不加行锁、不落库。</p>
+     *
+     * @param deliveryDate 配送日期（必填）
+     * @param customerId   客户ID（可空=当日全部有遗漏订单的客户）
+     * @return 预览结果（无遗漏订单时 customers 为空）
+     */
+    DeliveryGeneratePreviewVO previewGenerate(LocalDate deliveryDate, Long customerId);
 }

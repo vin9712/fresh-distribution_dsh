@@ -17,6 +17,9 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         <result property="productSpec"    column="product_spec"    />
         <result property="num"    column="num"    />
         <result property="expectAmount"    column="expect_amount"    />
+        <result property="priceSource"    column="price_source"    />
+        <result property="refPrice"    column="ref_price"    />
+        <result property="priceReason"    column="price_reason"    />
         <result property="lossReason"      column="loss_reason"      />
         <result property="actualPrice"    column="actual_price"    />
         <result property="actualNum"    column="actual_num"    />
@@ -35,7 +38,7 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
     </resultMap>
 
     <sql id="selectSaleOrderDetailVo">
-        select id, order_id, customer_id, customer_dept_id, sku_id, order_code, product_name, product_unit, product_price, product_spec, num, expect_amount, loss_reason, actual_price, actual_num, actual_amount, sort, is_deleted, version, create_by, create_time, update_by, update_time, remark from t_sale_order_detail
+        select id, order_id, customer_id, customer_dept_id, sku_id, order_code, product_name, product_unit, product_price, product_spec, num, expect_amount, price_source, ref_price, price_reason, loss_reason, actual_price, actual_num, actual_amount, sort, is_deleted, version, create_by, create_time, update_by, update_time, remark from t_sale_order_detail
     </sql>
 
     <select id="selectSaleOrderDetailList" parameterType="com.lin.distribution.domain.SaleOrderDetail" resultMap="SaleOrderDetailResult">
@@ -69,6 +72,9 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
             <if test="productSpec != null">product_spec,</if>
             <if test="num != null">num,</if>
             <if test="expectAmount != null">expect_amount,</if>
+            <if test="priceSource != null and priceSource != ''">price_source,</if>
+            <if test="refPrice != null">ref_price,</if>
+            <if test="priceReason != null and priceReason != ''">price_reason,</if>
             <if test="lossReason != null">loss_reason,</if>
             <if test="actualPrice != null">actual_price,</if>
             <if test="actualNum != null">actual_num,</if>
@@ -94,6 +100,9 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
             <if test="productSpec != null">#{productSpec},</if>
             <if test="num != null">#{num},</if>
             <if test="expectAmount != null">#{expectAmount},</if>
+            <if test="priceSource != null and priceSource != ''">#{priceSource},</if>
+            <if test="refPrice != null">#{refPrice},</if>
+            <if test="priceReason != null and priceReason != ''">#{priceReason},</if>
             <if test="lossReason != null">#{lossReason},</if>
             <if test="actualPrice != null">#{actualPrice},</if>
             <if test="actualNum != null">#{actualNum},</if>
@@ -123,6 +132,9 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
             <if test="productSpec != null">product_spec = #{productSpec},</if>
             <if test="num != null">num = #{num},</if>
             <if test="expectAmount != null">expect_amount = #{expectAmount},</if>
+            <if test="priceSource != null and priceSource != ''">price_source = #{priceSource},</if>
+            <if test="refPrice != null">ref_price = #{refPrice},</if>
+            <if test="priceReason != null and priceReason != ''">price_reason = #{priceReason},</if>
             <if test="lossReason != null">loss_reason = #{lossReason},</if>
             <if test="actualPrice != null">actual_price = #{actualPrice},</if>
             <if test="actualNum != null">actual_num = #{actualNum},</if>

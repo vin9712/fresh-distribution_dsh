@@ -140,4 +140,14 @@ public interface SaleOrderMapper {
      */
     List<SaleOrder> selectExistingDraftOrder(@Param("customerDeptId") Long customerDeptId,
                                              @Param("deliveryDate") LocalDate deliveryDate);
+
+    /**
+     * 查当日未确认草稿（生成前预览提示用：按日期生成只捞已确认订单，草稿不会静默漏发）。
+     *
+     * @param customerId   客户ID（可空=不限客户）
+     * @param deliveryDate 配送日期
+     * @return 草稿订单集合（仅头信息，is_deleted=0）
+     */
+    List<SaleOrder> selectDraftOrdersByDate(@Param("customerId") Long customerId,
+                                            @Param("deliveryDate") LocalDate deliveryDate);
 }

@@ -30,6 +30,17 @@
           />
         </el-select>
       </el-form-item>
+      <el-form-item label="组单策略" prop="docScopeType">
+        <el-select
+          v-model="queryParams.docScopeType"
+          placeholder="送货单组单方式"
+          clearable
+          style="width: 170px"
+        >
+          <el-option label="每配送点一张单" value="DELIVERY_POINT_DATE" />
+          <el-option label="跨点总单（按客户日合并）" value="CUSTOMER_DATE" />
+        </el-select>
+      </el-form-item>
       <el-form-item>
         <el-button
           type="primary"
@@ -142,6 +153,25 @@
           <dict-tag :options="dict.type.biz_yes_no" :value="scope.row.valid" />
         </template>
       </el-table-column>
+      <!-- 送货单客户维度（D-040）：组单口径在列表直接可见，不必进编辑弹窗 -->
+      <el-table-column label="送货单组单策略" align="center" width="150">
+        <template #default="scope">
+          <el-tag
+            :type="scope.row.docScopeType === 'CUSTOMER_DATE' ? 'primary' : 'info'"
+            size="small"
+            effect="plain"
+          >
+            {{ scope.row.docScopeType === "CUSTOMER_DATE" ? "跨点总单" : "每点一单" }}
+          </el-tag>
+        </template>
+      </el-table-column>
+      <el-table-column label="相同商品合并" align="center" width="110">
+        <template #default="scope">
+          <el-tag :type="scope.row.docMergeSameItem === false ? 'warning' : 'success'" size="small" effect="plain">
+            {{ scope.row.docMergeSameItem === false ? "不合行" : "合并" }}
+          </el-tag>
+        </template>
+      </el-table-column>
       <el-table-column label="备注" align="center" prop="remark" />
       <el-table-column
         label="操作"
@@ -149,6 +179,14 @@
         class-name="small-padding fixed-width"
       >
         <template #default="scope">
+          <el-button
+            size="small"
+            link
+            :icon="Van"
+            @click="handleDeliveryView(scope.row)"
+            v-hasPermi="['order:delivery:list']"
+            >送货单</el-button
+          >
           <el-button
             size="small"
             link
@@ -217,11 +255,38 @@
             <el-option label="每配送点一张单" value="DELIVERY_POINT_DATE" />
             <el-option label="跨点总单（按客户日合并）" value="CUSTOMER_DATE" />
           </el-select>
-          <div class="scope-hint">生成送货单时的单据范围：默认每配送点一张；跨点总单适合统一配送的客户</div>
+          <div class="scope-hint">生成送货单时的单据范围：默认每配送点一张；跨点总单适合统一配送的客户（配送点不可单独覆盖）</div>
+          <div class="scope-hint">生效时机：仅对尚未建批次的「客户+配送日期」生效；当日已生成过送货单则按当日批次快照不变</div>
         </el-form-item>
         <el-form-item label="相同商品合并" prop="docMergeSameItem">
           <el-switch v-model="form.docMergeSameItem" />
           <span class="scope-hint">开：同一客户多张订单的相同商品合并为一行（不同价必拆行）；关：一订单行一行</span>
+        </el-form-item>
+        <el-form-item label="打印模板">
+          <div v-loading="templateLoading" style="width: 100%">
+            <template v-if="form.id != null">
+              <template v-if="boundTemplates.length">
+                <el-tag
+                  v-for="t in boundTemplates"
+                  :key="t.id"
+                  size="small"
+                  effect="plain"
+                  style="margin: 0 8px 4px 0"
+                >
+                  {{ t.name }}（联数 {{ t.copies }}·{{ bindLevelText(t.bindType) }}）
+                </el-tag>
+              </template>
+              <span v-else-if="!templateLoading && !templateDenied" class="scope-hint">
+                未绑定客户级模板，打印时自动回退「全局默认」模板
+              </span>
+              <span v-else-if="templateDenied" class="scope-hint">无打印模板查看权限，请联系管理员绑定</span>
+            </template>
+            <span v-else class="scope-hint">客户保存后，可在「打印管理 → 打印模板」中绑定该客户专属模板</span>
+            <div class="scope-hint">
+              绑定解析优先级：客户+配送点级 &gt; 客户级 &gt; 全局默认；打印送货单默认取解析到的已发布模板，打印时可临时切换。
+              <el-link type="primary" :underline="false" style="font-size: 12px" @click="gotoTemplatePage">去配置打印模板</el-link>
+            </div>
+          </div>
         </el-form-item>
         <el-form-item label="备注" prop="remark">
           <el-input
@@ -238,6 +303,12 @@
         </div>
       </template>
     </el-dialog>
+
+    <!-- 客户维度送货单抽屉（D-040：策略来源 + 待生成清单 + 当日单 + 一键生成/补单） -->
+    <customer-delivery-drawer
+      v-model="deliveryOpen"
+      :customer="deliveryCustomer"
+    />
 
     <!-- 客户导入对话框 -->
     <el-dialog align-center
@@ -293,13 +364,16 @@ import {
   updateCustomer,
 } from "@/api/partner/customer";
 import { getToken } from "@/utils/auth";
-import { Search, Refresh, Plus, Edit, Delete, Upload, Download } from "@element-plus/icons-vue";
+import { listPrintTemplate } from "@/api/print/template";
+import CustomerDeliveryDrawer from "./customerDeliveryDrawer.vue";
+import { Search, Refresh, Plus, Edit, Delete, Upload, Download, Van } from "@element-plus/icons-vue";
 
 export default {
   name: "Customer",
+  components: { CustomerDeliveryDrawer },
   dicts: ["biz_yes_no", "t_customer_type"],
   setup() {
-    return { Search, Refresh, Plus, Edit, Delete, Upload, Download };
+    return { Search, Refresh, Plus, Edit, Delete, Upload, Download, Van };
   },
   data() {
     return {
@@ -321,6 +395,13 @@ export default {
       title: "",
       // 是否显示弹出层
       open: false,
+      // 客户维度送货单抽屉
+      deliveryOpen: false,
+      deliveryCustomer: {},
+      // 客户绑定送货单打印模板（已发布，bind_type 1=客户+点 2=客户级）
+      boundTemplates: [],
+      templateLoading: false,
+      templateDenied: false,
       // 用户导入参数
       upload: {
         // 是否显示弹出层（用户导入）
@@ -341,6 +422,7 @@ export default {
         name: null,
         type: null,
         valid: null,
+        docScopeType: null,
       },
       // 表单参数
       form: {},
@@ -430,8 +512,20 @@ export default {
     /** 新增按钮操作 */
     handleAdd() {
       this.reset();
+      this.boundTemplates = [];
       this.open = true;
       this.title = "添加客户";
+    },
+    /** 客户维度送货单视图（D-040）：看策略来源 + 待生成清单 + 当日单，并可直接生成/补单 */
+    handleDeliveryView(row) {
+      this.deliveryCustomer = {
+        id: row.id,
+        name: row.name,
+        alias: row.alias,
+        docScopeType: row.docScopeType,
+        docMergeSameItem: row.docMergeSameItem,
+      };
+      this.deliveryOpen = true;
     },
     /** 修改按钮操作 */
     handleUpdate(row) {
@@ -441,7 +535,32 @@ export default {
         this.form = response.data;
         this.open = true;
         this.title = "修改客户";
+        this.loadBoundTemplates(this.form.id);
       });
+    },
+    /** 客户绑定的送货单打印模板（type=0 送货单、已发布；bind_type 1=客户+点 2=客户级） */
+    loadBoundTemplates(customerId) {
+      this.boundTemplates = [];
+      this.templateLoading = true;
+      this.templateDenied = false;
+      listPrintTemplate({ customerId, type: 0, status: 2 })
+        .then((response) => {
+          this.boundTemplates = (response.data || []).filter(
+            (t) => t.bindType === 1 || t.bindType === 2
+          );
+        })
+        .catch(() => {
+          this.templateDenied = true;
+        })
+        .finally(() => {
+          this.templateLoading = false;
+        });
+    },
+    bindLevelText(bindType) {
+      return bindType === 1 ? "客户+配送点级" : "客户级";
+    },
+    gotoTemplatePage() {
+      this.$router.push("/print/template");
     },
     /** 提交按钮 */
     submitForm() {

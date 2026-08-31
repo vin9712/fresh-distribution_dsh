@@ -139,9 +139,14 @@ public class DeliveryOrderController extends BaseController {
         Map<String, Object> info = new java.util.LinkedHashMap<>();
         info.put("deliveryOrderId", id);
         info.put("code", deliveryOrder.getCode());
+        // 模板主键（预览记录 /print/template/{id}/preview 入参）与 JimuReport 报表 ID 分开返回
+        info.put("templateRecordId", template.getId());
         info.put("templateId", template.getContent());
         info.put("templateName", template.getName());
         info.put("copies", template.getCopies() == null ? 1 : template.getCopies());
+        // 供前端筛选「本次生效」可切换的已发布模板（三级绑定同口径）
+        info.put("customerId", deliveryOrder.getCustomerId());
+        info.put("deliveryPointId", deliveryOrder.getDeliveryPointId());
         return success(info);
     }
 
@@ -187,10 +192,13 @@ public class DeliveryOrderController extends BaseController {
     }
 
     /**
-     * 按勾选订单生成送货单（旧入口兼容：D-025 语义=按选中订单定位 客户+配送日期，
-     * 由统一生成服务补齐对应客户当日的全部遗漏订单，已进单订单幂等排除）
+     * 按勾选订单生成送货单（销售订单列表页抽屉 / 录单页「选订单·生成送货单」抽屉，D-025 语义
+     * =按选中订单定位 客户+配送日期，由统一生成服务补齐对应客户当日的全部遗漏订单，已进单订单幂等排除）。
+     * <p>confirmDrafts=true 时，勾选里的草稿会在同一事务内先批量确认再出单（录单页抽屉专用）。
+     * <p>权限：列表页入口沿用 {@code order:delivery:add}，录单页抽屉入口用
+     * {@code order:delivery:generateCustomer}（与前端 v-hasPermi 对齐，避免按钮可见但接口 403）。
      */
-    @PreAuthorize("@ss.hasPermi('order:delivery:add')")
+    @PreAuthorize("@ss.hasAnyPermi('order:delivery:add,order:delivery:generateCustomer')")
     @Log(title = "送货单生成", businessType = BusinessType.INSERT)
     @PostMapping("/generate-by-orders")
     public AjaxResult generateByOrders(@RequestBody @Validated DeliveryByOrdersDTO dto) {
@@ -207,6 +215,19 @@ public class DeliveryOrderController extends BaseController {
     public AjaxResult generateForCustomer(@PathVariable("customerId") Long customerId,
                                           @PathVariable("deliveryDate") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate deliveryDate) {
         return success(deliveryGenerationService.generateForCustomer(customerId, deliveryDate));
+    }
+
+    /**
+     * 生成前预览「待生成清单」（客户维度：一行=一个客户，展开看该客户待并入订单与既有单）。
+     *
+     * <p>与统一生成服务同源判定（遗漏订单/三态分支/组单策略快照/明细合并），只读不落库；
+     * 送货单页「生成 → 预览 → 确认」与客户管理页「送货单」抽屉共用。customerId 传空=当日全部客户。</p>
+     */
+    @PreAuthorize("@ss.hasAnyPermi('order:delivery:add,order:delivery:generateCustomer,order:delivery:list')")
+    @GetMapping("/group-preview")
+    public AjaxResult groupPreview(@RequestParam("deliveryDate") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate deliveryDate,
+                                   @RequestParam(value = "customerId", required = false) Long customerId) {
+        return success(deliveryGenerationService.previewGenerate(deliveryDate, customerId));
     }
 
     /**

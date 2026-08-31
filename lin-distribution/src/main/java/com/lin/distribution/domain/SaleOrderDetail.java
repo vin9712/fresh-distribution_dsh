@@ -94,6 +94,21 @@ public class SaleOrderDetail extends BaseEntity {
     private BigDecimal expectAmount;
 
     /**
+     * 报价来源（S1-1.3 手工定价留痕）：quote=客户报价，manual=手工定价，temp=临时商品默认价；空=历史数据/未标注
+     */
+    private String priceSource;
+
+    /**
+     * 原建议价（S1-1.3 手工定价留痕：取价引擎/报价快照价，手工定价时用于比对审计；无报价为空）
+     */
+    private BigDecimal refPrice;
+
+    /**
+     * 手工定价原因（S1-1.3：报价来源为 manual 时必填，订单确认时写入操作日志）
+     */
+    private String priceReason;
+
+    /**
      * 损耗原因（字典 biz_loss_reason，实收 < 下单数时必填）
      */
     private String lossReason;
