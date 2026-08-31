@@ -15,3 +15,11 @@ export function getJobAlert() {
     method: 'get'
   })
 }
+
+// 待验收提醒列表（W0-3.2）：已送达未验收送货单，逐行带 reminderLevel 0无/1黄/2红
+export function getPendingAcceptance() {
+  return request({
+    url: '/workbench/pending-acceptance',
+    method: 'get'
+  })
+}

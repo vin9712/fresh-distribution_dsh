@@ -1,10 +1,14 @@
 package com.lin.distribution.service.impl;
 
+import java.time.LocalDate;
+import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import com.lin.common.exception.ServiceException;
@@ -29,6 +33,7 @@ import com.lin.distribution.mapper.DeliveryOrderMapper;
 import com.lin.distribution.mapper.DeliverySourceItemMapper;
 import com.lin.distribution.mapper.SaleOrderMapper;
 import com.lin.distribution.service.DeliveryOrderService;
+import com.lin.distribution.util.PendingAcceptanceReminder;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
@@ -139,14 +144,48 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
     }
 
     /**
-     * 查询送货单据列表
+     * 查询送货单据列表（W0-3.2：已送达未提交验收的行实时计算待验收提醒级别，0无/1黄/2红，
+     * 复用 {@link PendingAcceptanceReminder} 纯函数与工作台接口同口径）
      *
      * @param deliveryOrder 送货单据
      * @return 送货单据
      */
     @Override
     public List<DeliveryOrder> selectDeliveryOrderList(DeliveryOrder deliveryOrder) {
-        return deliveryOrderMapper.selectDeliveryOrderList(deliveryOrder);
+        List<DeliveryOrder> list = deliveryOrderMapper.selectDeliveryOrderList(deliveryOrder);
+        fillReminderLevel(list);
+        return list;
+    }
+
+    /**
+     * W0-3.2 列表提醒标色：仅 status=已送达且无已提交验收单的行参与分级
+     * （与 WorkbenchController#pendingAcceptance 同口径：打印满2h→黄 / 配送日当天11:30后→红 / 过期→红）
+     */
+    private void fillReminderLevel(List<DeliveryOrder> list) {
+        if (list == null || list.isEmpty()) {
+            return;
+        }
+        List<Long> pendingIds = list.stream()
+                .filter(d -> d.getStatus() != null && d.getStatus() == DeliveryOrderStatus.DELIVERED.getCode())
+                .map(DeliveryOrder::getId)
+                .collect(Collectors.toList());
+        if (pendingIds.isEmpty()) {
+            return;
+        }
+        Set<Long> submittedIds = new HashSet<>(acceptanceMapper.selectSubmittedDeliveryIds(pendingIds));
+        LocalDate today = LocalDate.now();
+        LocalTime now = LocalTime.now();
+        for (DeliveryOrder order : list) {
+            if (order.getStatus() == null || order.getStatus() != DeliveryOrderStatus.DELIVERED.getCode()
+                    || submittedIds.contains(order.getId())) {
+                continue;
+            }
+            int level = PendingAcceptanceReminder.compute(order.getDeliveryDate(), order.getPrintTime(), today, now);
+            if (level != PendingAcceptanceReminder.LEVEL_NONE) {
+                order.setReminderLevel(level);
+                order.setReminderReason(PendingAcceptanceReminder.reason(level));
+            }
+        }
     }
 
     /**

@@ -99,6 +99,7 @@
     <el-table
       v-loading="loading"
       :data="deliveryList"
+      :row-class-name="reminderRowClass"
     >
       <el-table-column label="送货单编号" align="center" width="210">
         <template #default="scope">
@@ -146,10 +147,22 @@
             /></span>
           </el-tooltip>
           <dict-tag
-            v-else
+            v-else-if="!(scope.row.status === 2 && scope.row.reminderLevel)"
             :options="dict.type.t_delivery_order_status"
             :value="scope.row.status"
           />
+          <!-- W0-3.2：已送达未验收行按提醒级别标提示（红=当天11:30后/过期，黄=打印满2h） -->
+          <el-tooltip
+            v-else
+            :content="'待验收提醒：' + (scope.row.reminderReason || '超时未验收')"
+            placement="top"
+          >
+            <span
+              class="reminder-tag"
+              :class="scope.row.reminderLevel === 2 ? 'reminder-tag--red' : 'reminder-tag--yellow'"
+              >待验收</span
+            >
+          </el-tooltip>
         </template>
       </el-table-column>
       <el-table-column label="打印次数" align="center" prop="printCount" width="90" />
@@ -506,6 +519,16 @@ export default {
     this.getPageList();
   },
   methods: {
+    /** W0-3.2：已送达未验收行按提醒级别标行色 */
+    reminderRowClass({ row }) {
+      if (row.status === 2 && row.reminderLevel === 2) {
+        return "row-reminder-red";
+      }
+      if (row.status === 2 && row.reminderLevel === 1) {
+        return "row-reminder-yellow";
+      }
+      return "";
+    },
     /** 分页查询送货单列表 */
     getPageList() {
       this.loading = true;
@@ -763,5 +786,26 @@ export default {
   margin-left: 8px;
   font-size: 12px;
   color: #909399;
+}
+/* W0-3.2 待验收提醒行标色（el-table row-class-name） */
+:deep(.row-reminder-red) td.el-table__cell {
+  background-color: #fef0f0 !important;
+}
+:deep(.row-reminder-yellow) td.el-table__cell {
+  background-color: #fdf6ec !important;
+}
+.reminder-tag {
+  display: inline-block;
+  padding: 0 6px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #fff;
+}
+.reminder-tag--red {
+  background-color: #f56c6c;
+}
+.reminder-tag--yellow {
+  background-color: #e6a23c;
 }
 </style>

@@ -27,11 +27,13 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.math.BigDecimal;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -410,5 +412,72 @@ class DeliveryOrderServiceImplTest {
         assertEquals("土豆", result.get(0).getProductName());
         assertTrue(result.get(0).getSources().isEmpty());
         verify(saleOrderMapper, never()).selectSaleOrderByIdIn(anyList());
+    }
+
+    // ==================== 列表待验收提醒标色（W0-3.2） ====================
+
+    @Test
+    void 列表已送达过期未验收行标红() {
+        DeliveryOrder expired = new DeliveryOrder();
+        expired.setId(1L);
+        expired.setStatus(DeliveryOrderStatus.DELIVERED.getCode());
+        expired.setDeliveryDate(java.time.LocalDate.now().minusDays(1));
+        when(deliveryOrderMapper.selectDeliveryOrderList(any(DeliveryOrder.class)))
+                .thenReturn(new ArrayList<>(List.of(expired)));
+        when(acceptanceMapper.selectSubmittedDeliveryIds(anyList())).thenReturn(Collections.emptyList());
+
+        List<DeliveryOrder> result = deliveryOrderService.selectDeliveryOrderList(new DeliveryOrder());
+
+        assertEquals(2, result.get(0).getReminderLevel());
+        assertNotNull(result.get(0).getReminderReason());
+    }
+
+    @Test
+    void 列表已提交验收单的送达行不标色() {
+        DeliveryOrder accepted = new DeliveryOrder();
+        accepted.setId(2L);
+        accepted.setStatus(DeliveryOrderStatus.DELIVERED.getCode());
+        accepted.setDeliveryDate(java.time.LocalDate.now().minusDays(1));
+        when(deliveryOrderMapper.selectDeliveryOrderList(any(DeliveryOrder.class)))
+                .thenReturn(new ArrayList<>(List.of(accepted)));
+        when(acceptanceMapper.selectSubmittedDeliveryIds(anyList())).thenReturn(List.of(2L));
+
+        List<DeliveryOrder> result = deliveryOrderService.selectDeliveryOrderList(new DeliveryOrder());
+
+        assertNull(result.get(0).getReminderLevel());
+    }
+
+    @Test
+    void 列表非送达状态与未来配送日不标色() {
+        DeliveryOrder printed = new DeliveryOrder();
+        printed.setId(3L);
+        printed.setStatus(DeliveryOrderStatus.PRINTED.getCode());
+        printed.setDeliveryDate(java.time.LocalDate.now().minusDays(1));
+        DeliveryOrder future = new DeliveryOrder();
+        future.setId(4L);
+        future.setStatus(DeliveryOrderStatus.DELIVERED.getCode());
+        future.setDeliveryDate(java.time.LocalDate.now().plusDays(1));
+        when(deliveryOrderMapper.selectDeliveryOrderList(any(DeliveryOrder.class)))
+                .thenReturn(new ArrayList<>(List.of(printed, future)));
+        when(acceptanceMapper.selectSubmittedDeliveryIds(anyList())).thenReturn(Collections.emptyList());
+
+        List<DeliveryOrder> result = deliveryOrderService.selectDeliveryOrderList(new DeliveryOrder());
+
+        assertNull(result.get(0).getReminderLevel());
+        assertNull(result.get(1).getReminderLevel());
+    }
+
+    @Test
+    void 列表无送达行时不查验收单() {
+        DeliveryOrder pending = new DeliveryOrder();
+        pending.setId(5L);
+        pending.setStatus(DeliveryOrderStatus.PENDING.getCode());
+        when(deliveryOrderMapper.selectDeliveryOrderList(any(DeliveryOrder.class)))
+                .thenReturn(new ArrayList<>(List.of(pending)));
+
+        List<DeliveryOrder> result = deliveryOrderService.selectDeliveryOrderList(new DeliveryOrder());
+
+        assertNull(result.get(0).getReminderLevel());
+        verify(acceptanceMapper, never()).selectSubmittedDeliveryIds(anyList());
     }
 }

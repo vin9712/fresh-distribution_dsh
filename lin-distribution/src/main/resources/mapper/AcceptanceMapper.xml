@@ -63,6 +63,26 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         select count(1) from acceptance where delivery_order_id = #{deliveryOrderId}
     </select>
 
+    <!-- W0-3.2 列表提醒标色：批量查已有已提交验收单的送货单ID（与工作台口径一致 status=1） -->
+    <select id="selectSubmittedDeliveryIds" resultType="Long">
+        select distinct delivery_order_id from acceptance
+        where status = 1 and delivery_order_id in
+        <foreach item="id" collection="ids" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+    </select>
+
+    <!-- 月结调整追溯：来源订单最近一张已提交验收单的验收日期（订单归月） -->
+    <select id="selectLatestAcceptDateBySaleOrderId" resultType="java.time.LocalDate">
+        select max(a.accept_date)
+        from acceptance a
+        join t_delivery_order d on d.id = a.delivery_order_id
+        join t_delivery_source_item si on si.delivery_id = d.id
+        where si.sale_order_id = #{saleOrderId}
+          and si.is_deleted = 0
+          and a.status = 1
+    </select>
+
     <insert id="insertAcceptance" parameterType="com.lin.distribution.domain.Acceptance" useGeneratedKeys="true" keyProperty="id">
         insert into acceptance
         <trim prefix="(" suffix=")" suffixOverrides=",">

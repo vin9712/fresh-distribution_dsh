@@ -57,6 +57,11 @@
           <div class="card-body">
             <div class="card-title">{{ item.title }}</div>
             <div class="card-count">{{ summary[item.key] || 0 }}</div>
+            <!-- W0-3.2 待验收卡片：按提醒级别分计数标色（红=当天11:30后/过期，黄=打印满2h） -->
+            <div v-if="item.key === 'pendingAcceptance' && (reminderCounts.red || reminderCounts.yellow)" class="card-levels">
+              <span v-if="reminderCounts.red" class="level-dot level-red">红 {{ reminderCounts.red }}</span>
+              <span v-if="reminderCounts.yellow" class="level-dot level-yellow">黄 {{ reminderCounts.yellow }}</span>
+            </div>
           </div>
         </el-card>
       </el-col>
@@ -65,7 +70,7 @@
 </template>
 
 <script>
-import { getWorkbenchSummary, getJobAlert } from "@/api/workbench";
+import { getWorkbenchSummary, getJobAlert, getPendingAcceptance } from "@/api/workbench";
 import {
   EditPen,
   Checked,
@@ -85,6 +90,8 @@ export default {
     return {
       loading: false,
       summary: {},
+      // W0-3.2 待验收提醒分级计数（红/黄），来自 /workbench/pending-acceptance
+      reminderCounts: { red: 0, yellow: 0 },
       // 最近一次送货单生成任务异常记录（null = 无告警）
       jobAlert: null,
       // S2-2.1 日结待办链：按业务时序串联五个阶段
@@ -142,6 +149,7 @@ export default {
   created() {
     this.getSummary();
     this.refreshJobAlert();
+    this.refreshReminderCounts();
   },
   methods: {
     getSummary() {
@@ -160,6 +168,18 @@ export default {
       getJobAlert()
         .then((response) => {
           this.jobAlert = response.data || null;
+        })
+        .catch(() => {});
+    },
+    /** W0-3.2：拉取待验收列表并按提醒级别分计数（红2/黄1） */
+    refreshReminderCounts() {
+      getPendingAcceptance()
+        .then((response) => {
+          const list = response.data || [];
+          this.reminderCounts = {
+            red: list.filter((r) => r.reminderLevel === 2).length,
+            yellow: list.filter((r) => r.reminderLevel === 1).length,
+          };
         })
         .catch(() => {});
     },
@@ -296,6 +316,25 @@ export default {
       font-size: 28px;
       font-weight: bold;
       color: #303133;
+    }
+    /* W0-3.2 待验收分级计数 */
+    .card-levels {
+      margin-top: 4px;
+      display: flex;
+      gap: 8px;
+      .level-dot {
+        font-size: 12px;
+        font-weight: 600;
+        padding: 0 6px;
+        border-radius: 8px;
+        color: #fff;
+      }
+      .level-red {
+        background-color: #f56c6c;
+      }
+      .level-yellow {
+        background-color: #e6a23c;
+      }
     }
   }
 }

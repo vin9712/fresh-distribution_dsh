@@ -35,6 +35,22 @@ public interface AcceptanceMapper {
     int countByDeliveryOrderId(Long deliveryOrderId);
 
     /**
+     * 查询来源订单最近一张已提交验收单的验收日期（月结调整追溯：订单归月用）
+     *
+     * @param saleOrderId 销售订单ID
+     * @return 最近 accept_date，无已提交验收单时为 null
+     */
+    java.time.LocalDate selectLatestAcceptDateBySaleOrderId(Long saleOrderId);
+
+    /**
+     * 批量查询已存在已提交验收单的送货单ID（W0-3.2 列表提醒标色：已验收单不标）
+     *
+     * @param ids 送货单ID集合
+     * @return 已有已提交(status=1)验收单的送货单ID
+     */
+    List<Long> selectSubmittedDeliveryIds(@org.apache.ibatis.annotations.Param("ids") List<Long> ids);
+
+    /**
      * 新增验收单
      *
      * @param acceptance 验收单

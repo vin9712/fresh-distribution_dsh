@@ -123,4 +123,10 @@ public class DeliveryOrder extends BaseEntity {
      */
     private String customerDeptName;
 
+    /** 待验收提醒级别（W0-3.2，列表实时计算非落库列）：0无 1黄(打印满2h) 2红(当日11:30后/已过期) */
+    private Integer reminderLevel;
+
+    /** 待验收提醒原因（与 reminderLevel 配套） */
+    private String reminderReason;
+
 }
