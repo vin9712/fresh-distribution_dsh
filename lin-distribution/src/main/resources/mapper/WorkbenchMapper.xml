@@ -7,8 +7,12 @@
     <select id="selectSummary" resultType="com.lin.distribution.domain.WorkbenchSummary">
         select
             (select count(1) from t_sale_order where status = 0 and is_deleted = 0) as draftOrders,
+            (select count(1) from t_sale_order where status = 1 and is_deleted = 0) as confirmedOrders,
             (select count(1) from t_sale_order where status = 1 and is_deleted = 0 and delivery_date = #{tomorrow}) as pendingPurchase,
+            (select count(1) from purchase_order where status = 0) as purchaseDraft,
+            (select count(1) from purchase_order where status = 1) as purchasePendingCost,
             (select count(1) from t_delivery_order where status = 0 and is_deleted = 0) as pendingPrint,
+            (select count(1) from t_delivery_order where status = 1 and is_deleted = 0) as pendingMarkDelivered,
             (select count(1) from t_delivery_order d
               where d.status = 2 and d.is_deleted = 0
                 and not exists (select 1 from acceptance a where a.delivery_order_id = d.id)) as pendingAcceptance,

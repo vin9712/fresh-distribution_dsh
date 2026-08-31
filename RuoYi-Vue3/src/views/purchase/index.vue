@@ -73,6 +73,18 @@
       </el-col>
       <el-col :span="1.5">
         <el-button
+          type="warning"
+          plain
+          :icon="Select"
+          size="small"
+          :disabled="multiple || !stockableSelection"
+          @click="handleBatchStockIn"
+          v-hasPermi="['purchase:edit']"
+          >批量入库（确认成本）</el-button
+        >
+      </el-col>
+      <el-col :span="1.5">
+        <el-button
           type="danger"
           plain
           :icon="Delete"
@@ -103,8 +115,22 @@
           <dict-tag :options="dict.type.t_purchase_order_status" :value="scope.row.status" />
         </template>
       </el-table-column>
+      <!-- S2-2.2 成本状态提示：已确认=到货/待确认成本；已入库=已确认成本 -->
+      <el-table-column label="成本状态" align="center" width="130">
+        <template #default="scope">
+          <el-tooltip
+            :disabled="scope.row.status !== 1"
+            content="供应商已到货，成本待入库确认；确认后计入已确认成本"
+            placement="top"
+          >
+            <el-tag v-if="scope.row.status === 1" type="warning" size="small">待确认成本</el-tag>
+            <el-tag v-else-if="scope.row.status === 2" type="success" size="small">已确认成本</el-tag>
+            <span v-else>—</span>
+          </el-tooltip>
+        </template>
+      </el-table-column>
       <el-table-column label="备注" align="center" prop="remark" :show-overflow-tooltip="true" />
-      <el-table-column label="操作" align="center" class-name="small-padding fixed-width" width="260">
+      <el-table-column label="操作" align="center" class-name="small-padding fixed-width" width="380">
         <template #default="scope">
           <el-button
             size="small"
@@ -132,6 +158,24 @@
             v-if="scope.row.status === 1"
             v-hasPermi="['purchase:edit']"
             >入库</el-button
+          >
+          <el-button
+            size="small"
+            link
+            :icon="Edit"
+            @click="handleAdjustCost(scope.row)"
+            v-if="scope.row.status === 1"
+            v-hasPermi="['purchase:edit']"
+            >调整成本</el-button
+          >
+          <el-button
+            size="small"
+            link
+            :icon="OfficeBuilding"
+            @click="handleBackfillSupplier(scope.row)"
+            v-if="scope.row.status === 0 || scope.row.status === 1"
+            v-hasPermi="['purchase:edit']"
+            >供应商补录</el-button
           >
           <el-button
             size="small"
@@ -261,6 +305,84 @@
         </div>
       </template>
     </el-dialog>
+    <!-- S2-2.2 成本调整抽屉（W0-2.5 前端）：已确认采购单逐行调整数量/成本，禁止增删行 -->
+    <el-drawer
+      v-model="adjustOpen"
+      :title="'调整采购成本（' + (adjustOrder.code || '') + '）'"
+      size="620px"
+      append-to-body
+    >
+      <el-alert
+        type="info"
+        :closable="false"
+        show-icon
+        title="仅允许修改数量与采购单价（禁止增删行）；保存后重算总额并写入调整审计（前后金额 + 明细快照）。"
+        style="margin-bottom: 12px"
+      />
+      <el-table :data="adjustItems" size="small" border max-height="480">
+        <el-table-column label="商品名称" align="center" prop="productName" min-width="140" />
+        <el-table-column label="规格" align="center" prop="productSpec" width="100" />
+        <el-table-column label="单位" align="center" prop="productUnit" width="70" />
+        <el-table-column label="数量" align="center" width="130">
+          <template #default="scope">
+            <el-input-number
+              v-model="scope.row.quantity"
+              :min="0"
+              :precision="2"
+              :controls="false"
+              size="small"
+              style="width: 100%"
+            />
+          </template>
+        </el-table-column>
+        <el-table-column label="单价" align="center" width="130">
+          <template #default="scope">
+            <el-input-number
+              v-model="scope.row.unitPrice"
+              :min="0"
+              :precision="2"
+              :controls="false"
+              size="small"
+              style="width: 100%"
+            />
+          </template>
+        </el-table-column>
+        <el-table-column label="小计" align="center" width="100">
+          <template #default="scope">
+            <span>{{ ((Number(scope.row.quantity) || 0) * (Number(scope.row.unitPrice) || 0)).toFixed(2) }}</span>
+          </template>
+        </el-table-column>
+      </el-table>
+      <div style="margin-top: 10px; text-align: right">
+        调整后总额：¥ {{ adjustTotal }}
+        <span v-if="adjustTotal !== adjustBeforeTotal" style="color: #e6a23c; margin-left: 8px">
+          （原 {{ adjustBeforeTotal }}）
+        </span>
+      </div>
+      <template #footer>
+        <el-button type="primary" :loading="adjustSaving" @click="submitAdjustCost">保存调整</el-button>
+        <el-button @click="adjustOpen = false">取 消</el-button>
+      </template>
+    </el-drawer>
+
+    <!-- S2-2.2 供应商补录：草稿/已确认采购单补录供应商与采购员 -->
+    <el-dialog v-model="supplierOpen" title="供应商补录" width="440px" append-to-body>
+      <div style="margin-bottom: 8px; color: #909399; font-size: 12px">
+        采购单 {{ supplierForm.code }}：供应商可拖至入库（确认成本）前补录，补录后写入操作日志。
+      </div>
+      <el-form label-width="80px">
+        <el-form-item label="供应商">
+          <el-input v-model="supplierForm.supplierName" placeholder="供应商名称（直填）" />
+        </el-form-item>
+        <el-form-item label="采购员">
+          <el-input v-model="supplierForm.purchaser" placeholder="采购员姓名" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button type="primary" @click="submitBackfillSupplier">保存</el-button>
+        <el-button @click="supplierOpen = false">取 消</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -274,16 +396,19 @@ import {
   updatePurchase,
   confirmPurchase,
   stockInPurchase,
+  batchStockInPurchase,
+  adjustPurchase,
+  backfillSupplier,
   delPurchase,
 } from "@/api/purchase/purchase";
 import { listSku } from "@/api/product/sku";
-import { Search, Refresh, Plus, Delete, Edit, Cpu, Check, Select } from "@element-plus/icons-vue";
+import { Search, Refresh, Plus, Delete, Edit, Cpu, Check, Select, OfficeBuilding } from "@element-plus/icons-vue";
 
 export default {
   name: "Purchase",
   dicts: ["t_purchase_order_status"],
   setup() {
-    return { Search, Refresh, Plus, Delete, Edit, Cpu, Check, Select };
+    return { Search, Refresh, Plus, Delete, Edit, Cpu, Check, Select, OfficeBuilding };
   },
   data() {
     return {
@@ -315,6 +440,15 @@ export default {
       },
       // 表单参数
       form: {},
+      // S2-2.2 成本调整抽屉
+      adjustOpen: false,
+      adjustOrder: {},
+      adjustItems: [],
+      adjustBeforeTotal: "0.00",
+      adjustSaving: false,
+      // S2-2.2 供应商补录
+      supplierOpen: false,
+      supplierForm: {},
       // 表单校验
       rules: {
         orderDate: [
@@ -329,6 +463,17 @@ export default {
         (sum, item) => sum + (Number(item.subtotal) || 0),
         0
       ).toFixed(2);
+    },
+    /** S2-2.2：勾选行是否全部为已确认（可批量入库/确认成本） */
+    stockableSelection() {
+      const rows = this.purchaseList.filter((r) => this.ids.includes(r.id));
+      return rows.length > 0 && rows.every((r) => r.status === 1);
+    },
+    /** S2-2.2：调整后总额实时重算 */
+    adjustTotal() {
+      return this.adjustItems
+        .reduce((sum, it) => sum + (Number(it.quantity) || 0) * (Number(it.unitPrice) || 0), 0)
+        .toFixed(2);
     },
   },
   created() {
@@ -434,6 +579,71 @@ export default {
           this.$modal.msgSuccess("入库成功");
         })
         .catch(() => {});
+    },
+    /** S2-2.2 批量入库（确认成本）：勾选行均为已确认时可用 */
+    handleBatchStockIn() {
+      this.$modal
+        .confirm(`是否将勾选的 ${this.ids.length} 张已确认采购单批量入库（确认成本）？`)
+        .then(() => {
+          return batchStockInPurchase(this.ids);
+        })
+        .then(() => {
+          this.getList();
+          this.$modal.msgSuccess("批量入库成功");
+        })
+        .catch(() => {});
+    },
+    /** S2-2.2 调整成本（W0-2.5 前端）：打开抽屉加载既有明细，仅改数量/单价 */
+    handleAdjustCost(row) {
+      getPurchaseItems(row.id).then((response) => {
+        this.adjustOrder = row;
+        this.adjustItems = (response.data || []).map((it) => ({ ...it }));
+        this.adjustBeforeTotal = Number(row.totalAmount || 0).toFixed(2);
+        this.adjustOpen = true;
+      });
+    },
+    /** S2-2.2 提交成本调整：仅传行 id/数量/单价（后端校验禁止增删行并写审计） */
+    submitAdjustCost() {
+      const items = this.adjustItems.map((it) => ({
+        id: it.id,
+        quantity: Number(it.quantity) || 0,
+        unitPrice: Number(it.unitPrice) || 0,
+      }));
+      this.adjustSaving = true;
+      adjustPurchase(this.adjustOrder.id, { items })
+        .then(() => {
+          this.$modal.msgSuccess("调整成功，已写入审计日志");
+          this.adjustOpen = false;
+          this.getList();
+        })
+        .catch(() => {})
+        .finally(() => {
+          this.adjustSaving = false;
+        });
+    },
+    /** S2-2.2 供应商补录：草稿/已确认采购单补录供应商与采购员 */
+    handleBackfillSupplier(row) {
+      this.supplierForm = {
+        id: row.id,
+        code: row.code,
+        supplierName: row.supplierName,
+        purchaser: row.purchaser,
+      };
+      this.supplierOpen = true;
+    },
+    submitBackfillSupplier() {
+      if (!this.supplierForm.supplierName && !this.supplierForm.purchaser) {
+        this.$modal.msgWarning("供应商与采购员至少填写其一");
+        return;
+      }
+      backfillSupplier(this.supplierForm.id, {
+        supplierName: this.supplierForm.supplierName,
+        purchaser: this.supplierForm.purchaser,
+      }).then(() => {
+        this.$modal.msgSuccess("补录成功");
+        this.supplierOpen = false;
+        this.getList();
+      });
     },
     /** 删除按钮操作 */
     handleDelete(row) {

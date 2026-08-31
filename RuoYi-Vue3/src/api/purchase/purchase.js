@@ -77,6 +77,41 @@ export function stockInPurchase(id) {
   })
 }
 
+// 批量入库（S2-2.2 批量确认成本）：仅已确认采购单
+export function batchStockInPurchase(ids) {
+  return request({
+    url: '/purchase/batch-stock-in',
+    method: 'put',
+    data: ids
+  })
+}
+
+// 已确认采购单调整数量/成本（W0-2.5，带前后金额审计）
+export function adjustPurchase(id, data) {
+  return request({
+    url: '/purchase/' + id + '/adjust',
+    method: 'put',
+    data: data
+  })
+}
+
+// 采购单调整审计日志（W0-2.5）
+export function getModifyLogs(id) {
+  return request({
+    url: '/purchase/' + id + '/modify-logs',
+    method: 'get'
+  })
+}
+
+// 供应商补录（S2-2.2）：草稿/已确认采购单补录供应商与采购员
+export function backfillSupplier(id, data) {
+  return request({
+    url: '/purchase/' + id + '/supplier',
+    method: 'put',
+    data: data
+  })
+}
+
 // 删除采购单
 export function delPurchase(id) {
   return request({

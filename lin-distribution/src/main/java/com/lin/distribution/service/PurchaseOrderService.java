@@ -106,6 +106,26 @@ public interface PurchaseOrderService {
     int stockIn(Long id);
 
     /**
+     * 批量入库（S2-2.2 批量确认成本）：仅已确认采购单可入库，遇非已确认单抛异常整体回滚
+     *
+     * @param ids 采购单主键集合
+     * @return 成功入库数
+     */
+    int batchStockIn(Long[] ids);
+
+    /**
+     * 供应商补录（S2-2.2）：草稿/已确认采购单补录或修正供应商与采购员
+     * （蓝图「供应商补录」；已确认单补录属纠错，@Log 审计）
+     *
+     * @param id            采购单主键
+     * @param supplierId    供应商ID（可空）
+     * @param supplierName  供应商名称（直填，可空但与 supplierId 至少其一）
+     * @param purchaser     采购员（可空）
+     * @return 结果
+     */
+    int backfillSupplier(Long id, Long supplierId, String supplierName, String purchaser);
+
+    /**
      * 批量删除采购单（仅草稿）
      *
      * @param ids 需要删除的采购单主键集合

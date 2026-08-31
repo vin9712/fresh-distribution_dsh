@@ -282,6 +282,66 @@ public class PurchaseOrderServiceImpl implements PurchaseOrderService {
     }
 
     /**
+     * 批量入库（S2-2.2 批量确认成本）：逐单校验仅已确认可入库，任一不合法整体回滚；
+     * 蓝图「到货→待确认成本→已确认成本」状态提示对应批量场景的成本收口动作。
+     */
+    @Override
+    @Transactional
+    public int batchStockIn(Long[] ids) {
+        if (ids == null || ids.length == 0) {
+            throw new ServiceException("请选择需要入库的采购单");
+        }
+        int rows = 0;
+        for (Long id : ids) {
+            PurchaseOrder exist = getExistPurchaseOrder(id);
+            if (!PurchaseOrderStatus.CONFIRMED.getCode().equals(exist.getStatus())) {
+                throw new ServiceException("采购单 " + exist.getCode() + " 非已确认状态，不可入库");
+            }
+            PurchaseOrder update = new PurchaseOrder();
+            update.setId(id);
+            update.setStatus(PurchaseOrderStatus.STOCKED.getCode());
+            update.setUpdateTime(DateUtils.getNowDate());
+            rows += purchaseOrderMapper.updatePurchaseOrder(update);
+        }
+        log.info("[purchase batch stock-in] 批量入库 {} 单（操作者：{}）", rows, resolveOperator());
+        return rows;
+    }
+
+    /**
+     * 供应商补录（S2-2.2）：草稿/已确认采购单补录或修正供应商与采购员（蓝图「供应商补录」）；
+     * 已入库后成本已确认，供应商不再变更；至少提供供应商/采购员其一。
+     */
+    @Override
+    @Transactional
+    public int backfillSupplier(Long id, Long supplierId, String supplierName, String purchaser) {
+        PurchaseOrder exist = getExistPurchaseOrder(id);
+        if (!PurchaseOrderStatus.DRAFT.getCode().equals(exist.getStatus())
+                && !PurchaseOrderStatus.CONFIRMED.getCode().equals(exist.getStatus())) {
+            throw new ServiceException("仅草稿/已确认采购单可补录供应商");
+        }
+        if (supplierId == null && StringUtils.isBlank(supplierName) && StringUtils.isBlank(purchaser)) {
+            throw new ServiceException("供应商与采购员至少填写其一");
+        }
+        PurchaseOrder update = new PurchaseOrder();
+        update.setId(id);
+        if (supplierId != null) {
+            update.setSupplierId(supplierId);
+        }
+        if (StringUtils.isNotBlank(supplierName)) {
+            update.setSupplierName(supplierName.trim());
+        }
+        if (StringUtils.isNotBlank(purchaser)) {
+            update.setPurchaser(purchaser.trim());
+        }
+        update.setUpdateTime(DateUtils.getNowDate());
+        int rows = purchaseOrderMapper.updatePurchaseOrder(update);
+        log.info("[purchase supplier backfill] 采购单 {} 供应商补录：{} / {}（操作者：{}）",
+                exist.getCode(), supplierId != null ? supplierId : exist.getSupplierId(),
+                supplierName, resolveOperator());
+        return rows;
+    }
+
+    /**
      * 已确认采购单直接调整数量/成本（蓝图 W0-2.5「已确认采购纠错」）：
      * 仅允许对已有明细行修改数量/采购单价（禁止增删行、禁止改快照标识字段），重算小计与总额，
      * 并记录调整前后金额与明细快照到 t_purchase_modify_log（操作日志+前后金额记录）。

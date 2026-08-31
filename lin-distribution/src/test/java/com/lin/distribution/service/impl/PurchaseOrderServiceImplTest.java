@@ -314,4 +314,72 @@ class PurchaseOrderServiceImplTest {
                 .thenReturn(Collections.singletonList(new PurchaseModifyLog()));
         assertEquals(1, purchaseOrderService.selectModifyLogsByPurchaseId(99L).size());
     }
+
+    // ==================== S2-2.2 批量入库（确认成本）与供应商补录 ====================
+
+    @Test
+    void 批量入库应全部置为已入库() {
+        PurchaseOrder p1 = confirmedPurchase(1L, "PC20260822001", "10.00");
+        PurchaseOrder p2 = confirmedPurchase(2L, "PC20260822002", "20.00");
+        when(purchaseOrderMapper.selectPurchaseOrderById(1L)).thenReturn(p1);
+        when(purchaseOrderMapper.selectPurchaseOrderById(2L)).thenReturn(p2);
+        when(purchaseOrderMapper.updatePurchaseOrder(any(PurchaseOrder.class))).thenReturn(1);
+
+        int rows = purchaseOrderService.batchStockIn(new Long[]{1L, 2L});
+
+        assertEquals(2, rows);
+        ArgumentCaptor<PurchaseOrder> captor = ArgumentCaptor.forClass(PurchaseOrder.class);
+        verify(purchaseOrderMapper, times(2)).updatePurchaseOrder(captor.capture());
+        assertEquals(PurchaseOrderStatus.STOCKED.getCode(), captor.getAllValues().get(0).getStatus());
+        assertEquals(PurchaseOrderStatus.STOCKED.getCode(), captor.getAllValues().get(1).getStatus());
+    }
+
+    @Test
+    void 批量入库含非已确认单应整体报错() {
+        PurchaseOrder draft = confirmedPurchase(1L, "PC20260822001", "10.00");
+        draft.setStatus(PurchaseOrderStatus.DRAFT.getCode());
+        when(purchaseOrderMapper.selectPurchaseOrderById(1L)).thenReturn(draft);
+
+        assertThrows(ServiceException.class, () -> purchaseOrderService.batchStockIn(new Long[]{1L, 2L}));
+        verify(purchaseOrderMapper, times(0)).updatePurchaseOrder(any(PurchaseOrder.class));
+    }
+
+    @Test
+    void 批量入库集合为空应报错() {
+        assertThrows(ServiceException.class, () -> purchaseOrderService.batchStockIn(new Long[0]));
+    }
+
+    @Test
+    void 已确认单供应商补录应更新供应商与采购员() {
+        PurchaseOrder confirmed = confirmedPurchase(1L, "PC20260822001", "10.00");
+        when(purchaseOrderMapper.selectPurchaseOrderById(1L)).thenReturn(confirmed);
+        when(purchaseOrderMapper.updatePurchaseOrder(any(PurchaseOrder.class))).thenReturn(1);
+
+        int rows = purchaseOrderService.backfillSupplier(1L, null, "张记蔬菜", "李四");
+
+        assertEquals(1, rows);
+        ArgumentCaptor<PurchaseOrder> captor = ArgumentCaptor.forClass(PurchaseOrder.class);
+        verify(purchaseOrderMapper).updatePurchaseOrder(captor.capture());
+        assertEquals("张记蔬菜", captor.getValue().getSupplierName());
+        assertEquals("李四", captor.getValue().getPurchaser());
+    }
+
+    @Test
+    void 已入库单禁止供应商补录() {
+        PurchaseOrder stocked = confirmedPurchase(1L, "PC20260822001", "10.00");
+        stocked.setStatus(PurchaseOrderStatus.STOCKED.getCode());
+        when(purchaseOrderMapper.selectPurchaseOrderById(1L)).thenReturn(stocked);
+
+        assertThrows(ServiceException.class,
+                () -> purchaseOrderService.backfillSupplier(1L, null, "张记蔬菜", null));
+    }
+
+    @Test
+    void 供应商与采购员均为空时补录应报错() {
+        when(purchaseOrderMapper.selectPurchaseOrderById(1L))
+                .thenReturn(confirmedPurchase(1L, "PC20260822001", "10.00"));
+
+        assertThrows(ServiceException.class,
+                () -> purchaseOrderService.backfillSupplier(1L, null, "  ", " "));
+    }
 }

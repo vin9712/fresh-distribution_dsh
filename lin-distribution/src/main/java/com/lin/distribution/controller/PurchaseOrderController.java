@@ -127,6 +127,30 @@ public class PurchaseOrderController extends BaseController {
     }
 
     /**
+     * 批量入库（S2-2.2 批量确认成本）：仅已确认采购单，任一非法整体回滚
+     */
+    @Operation(summary = "采购单批量入库")
+    @PreAuthorize("@ss.hasPermi('purchase:edit')")
+    @Log(title = "采购单", businessType = BusinessType.UPDATE)
+    @PutMapping("/batch-stock-in")
+    public AjaxResult batchStockIn(@RequestBody Long[] ids) {
+        return toAjax(purchaseOrderService.batchStockIn(ids));
+    }
+
+    /**
+     * 供应商补录（S2-2.2）：草稿/已确认采购单补录供应商与采购员
+     */
+    @Operation(summary = "采购单供应商补录")
+    @PreAuthorize("@ss.hasPermi('purchase:edit')")
+    @Log(title = "采购单-供应商补录", businessType = BusinessType.UPDATE)
+    @PutMapping("/{id}/supplier")
+    public AjaxResult backfillSupplier(@PathVariable("id") Long id,
+                                       @RequestBody PurchaseOrder body) {
+        return toAjax(purchaseOrderService.backfillSupplier(id,
+                body.getSupplierId(), body.getSupplierName(), body.getPurchaser()));
+    }
+
+    /**
      * 已确认采购单直接调整数量/成本（W0-2.5「已确认采购纠错」）：记录前后金额审计日志
      */
     @Operation(summary = "已确认采购单调整数量/成本")
