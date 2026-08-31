@@ -4,9 +4,12 @@ import com.lin.common.exception.ServiceException;
 import com.lin.distribution.constant.MonthAdjustmentStatus;
 import com.lin.distribution.domain.Customer;
 import com.lin.distribution.domain.MonthAdjustment;
+import com.lin.distribution.domain.SaleOrder;
+import com.lin.distribution.mapper.AcceptanceMapper;
 import com.lin.distribution.mapper.CustomerMapper;
 import com.lin.distribution.mapper.MonthAdjustmentMapper;
 import com.lin.distribution.mapper.MonthSettlementMapper;
+import com.lin.distribution.mapper.SaleOrderMapper;
 import com.lin.distribution.service.BizCodeService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -21,9 +24,11 @@ import java.util.Collections;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -39,6 +44,10 @@ class MonthAdjustmentServiceImplTest {
     private CustomerMapper customerMapper;
     @Mock
     private MonthSettlementMapper monthSettlementMapper;
+    @Mock
+    private SaleOrderMapper saleOrderMapper;
+    @Mock
+    private AcceptanceMapper acceptanceMapper;
     @Mock
     private BizCodeService bizCodeService;
 
@@ -164,5 +173,60 @@ class MonthAdjustmentServiceImplTest {
         when(monthAdjustmentMapper.selectList(any(MonthAdjustment.class)))
                 .thenReturn(Collections.singletonList(draft(1L)));
         assertEquals(1, monthAdjustmentService.selectList(new MonthAdjustment()).size());
+    }
+
+    // ==================== 原订单关联摘要（蓝图 §2 月结调整追溯） ====================
+
+    @Test
+    void 订单摘要按归月聚合调整单并合计() {
+        SaleOrder order = new SaleOrder();
+        order.setId(9L);
+        order.setCustomerId(CUSTOMER);
+        when(saleOrderMapper.selectSaleOrderById(9L)).thenReturn(order);
+        when(acceptanceMapper.selectLatestAcceptDateBySaleOrderId(9L))
+                .thenReturn(java.time.LocalDate.of(2026, 8, 20));
+        MonthAdjustment tj = new MonthAdjustment();
+        tj.setCode("TJ20260829001");
+        tj.setReceivableAmount(new BigDecimal("50"));
+        tj.setPurchaseCostAmount(new BigDecimal("-30"));
+        when(monthAdjustmentMapper.selectList(any(MonthAdjustment.class)))
+                .thenReturn(Collections.singletonList(tj));
+
+        com.lin.distribution.vo.OrderAdjustmentSummaryVO vo = monthAdjustmentService.selectBySaleOrderId(9L);
+
+        assertEquals("2026-08", vo.getBillMonth());
+        assertEquals(1, vo.getAdjustments().size());
+        assertEquals(0, vo.getReceivableTotal().compareTo(new BigDecimal("50")));
+        assertEquals(0, vo.getCostTotal().compareTo(new BigDecimal("-30")));
+        // 查询条件应为「客户+结算月」
+        ArgumentCaptor<MonthAdjustment> captor = ArgumentCaptor.forClass(MonthAdjustment.class);
+        verify(monthAdjustmentMapper).selectList(captor.capture());
+        assertEquals(CUSTOMER, captor.getValue().getCustomerId());
+        assertEquals("2026-08", captor.getValue().getBillMonth());
+    }
+
+    @Test
+    void 未验收归月的订单摘要为空() {
+        SaleOrder order = new SaleOrder();
+        order.setId(9L);
+        order.setCustomerId(CUSTOMER);
+        when(saleOrderMapper.selectSaleOrderById(9L)).thenReturn(order);
+        when(acceptanceMapper.selectLatestAcceptDateBySaleOrderId(9L)).thenReturn(null);
+
+        com.lin.distribution.vo.OrderAdjustmentSummaryVO vo = monthAdjustmentService.selectBySaleOrderId(9L);
+
+        assertNull(vo.getBillMonth());
+        assertEquals(0, vo.getAdjustments().size());
+        verify(monthAdjustmentMapper, never()).selectList(any(MonthAdjustment.class));
+    }
+
+    @Test
+    void 订单不存在时摘要为空() {
+        when(saleOrderMapper.selectSaleOrderById(404L)).thenReturn(null);
+
+        com.lin.distribution.vo.OrderAdjustmentSummaryVO vo = monthAdjustmentService.selectBySaleOrderId(404L);
+
+        assertNull(vo.getBillMonth());
+        assertEquals(0, vo.getAdjustments().size());
     }
 }

@@ -87,4 +87,15 @@ public class MonthAdjustmentController extends BaseController {
     public AjaxResult remove(@PathVariable("id") Long id) {
         return toAjax(monthAdjustmentService.delete(id));
     }
+
+    /**
+     * 原订单关联摘要（蓝图 §2「月结调整追溯」）：客户+结算月粒度，
+     * 返回订单归月（最近已提交验收单 accept_date 所在月）下该客户全部调整单与合计
+     */
+    @Operation(summary = "原订单关联调整摘要")
+    @PreAuthorize("@ss.hasAnyPermi('monthAdjustment:list,order:sale:query')")
+    @GetMapping("/by-order/{saleOrderId}")
+    public AjaxResult byOrder(@PathVariable("saleOrderId") Long saleOrderId) {
+        return success(monthAdjustmentService.selectBySaleOrderId(saleOrderId));
+    }
 }

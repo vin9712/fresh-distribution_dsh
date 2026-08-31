@@ -6,9 +6,12 @@ import com.lin.distribution.constant.MonthAdjustmentStatus;
 import com.lin.distribution.domain.Customer;
 import com.lin.distribution.domain.MonthAdjustment;
 import com.lin.distribution.domain.MonthSettlement;
+import com.lin.distribution.domain.SaleOrder;
+import com.lin.distribution.mapper.AcceptanceMapper;
 import com.lin.distribution.mapper.CustomerMapper;
 import com.lin.distribution.mapper.MonthAdjustmentMapper;
 import com.lin.distribution.mapper.MonthSettlementMapper;
+import com.lin.distribution.mapper.SaleOrderMapper;
 import com.lin.distribution.service.BizCodeService;
 import com.lin.distribution.service.MonthAdjustmentService;
 import lombok.RequiredArgsConstructor;
@@ -36,6 +39,8 @@ public class MonthAdjustmentServiceImpl implements MonthAdjustmentService {
     private final MonthAdjustmentMapper monthAdjustmentMapper;
     private final CustomerMapper customerMapper;
     private final MonthSettlementMapper monthSettlementMapper;
+    private final SaleOrderMapper saleOrderMapper;
+    private final AcceptanceMapper acceptanceMapper;
     private final BizCodeService bizCodeService;
 
     @Override
@@ -122,6 +127,41 @@ public class MonthAdjustmentServiceImpl implements MonthAdjustmentService {
         // 月结冻结校验（W0-3.1）：已月结客户该月调整单不可删
         checkNotSettled(exist.getCustomerId(), exist.getBillMonth());
         return monthAdjustmentMapper.deleteById(id);
+    }
+
+    /**
+     * 原订单关联摘要（蓝图 §2「月结调整追溯」）：t_month_adjustment 仅有「客户+结算月」粒度
+     * （无订单级外键），订单级摘要=该客户订单归月（最近已提交验收单 accept_date 所在月）
+     * 下的调整单列表，不改写原订单快照；未验收归月的订单返回空摘要。
+     */
+    @Override
+    public com.lin.distribution.vo.OrderAdjustmentSummaryVO selectBySaleOrderId(Long saleOrderId) {
+        com.lin.distribution.vo.OrderAdjustmentSummaryVO vo = new com.lin.distribution.vo.OrderAdjustmentSummaryVO();
+        vo.setAdjustments(List.of());
+        vo.setReceivableTotal(BigDecimal.ZERO);
+        vo.setCostTotal(BigDecimal.ZERO);
+        SaleOrder order = saleOrderMapper.selectSaleOrderById(saleOrderId);
+        if (order == null || order.getCustomerId() == null) {
+            return vo;
+        }
+        java.time.LocalDate latestAcceptDate = acceptanceMapper.selectLatestAcceptDateBySaleOrderId(saleOrderId);
+        if (latestAcceptDate == null) {
+            return vo; // 尚未验收归月，无关联调整
+        }
+        String billMonth = latestAcceptDate.format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM"));
+        MonthAdjustment query = new MonthAdjustment();
+        query.setCustomerId(order.getCustomerId());
+        query.setBillMonth(billMonth);
+        List<MonthAdjustment> adjustments = monthAdjustmentMapper.selectList(query);
+        vo.setBillMonth(billMonth);
+        vo.setAdjustments(adjustments);
+        vo.setReceivableTotal(adjustments.stream()
+                .map(a -> a.getReceivableAmount() == null ? BigDecimal.ZERO : a.getReceivableAmount())
+                .reduce(BigDecimal.ZERO, BigDecimal::add));
+        vo.setCostTotal(adjustments.stream()
+                .map(a -> a.getPurchaseCostAmount() == null ? BigDecimal.ZERO : a.getPurchaseCostAmount())
+                .reduce(BigDecimal.ZERO, BigDecimal::add));
+        return vo;
     }
 
     /**

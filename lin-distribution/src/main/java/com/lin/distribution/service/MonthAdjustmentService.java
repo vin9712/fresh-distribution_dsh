@@ -58,4 +58,13 @@ public interface MonthAdjustmentService {
      * @return 结果
      */
     int delete(Long id);
+
+    /**
+     * 原订单关联摘要（蓝图 §2「月结调整追溯」）：t_month_adjustment 仅有「客户+结算月」粒度，
+     * 订单级摘要=该客户订单归月（最近已提交验收单 accept_date 所在月）下的调整单列表，不改写原订单快照
+     *
+     * @param saleOrderId 销售订单ID
+     * @return 归月 + 调整单列表 + 合计（未验收归月时 billMonth 为 null、列表为空）
+     */
+    com.lin.distribution.vo.OrderAdjustmentSummaryVO selectBySaleOrderId(Long saleOrderId);
 }

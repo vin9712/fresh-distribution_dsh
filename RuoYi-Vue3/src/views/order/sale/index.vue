@@ -315,6 +315,16 @@
             >修改</el-button
           >
           <el-button
+            v-if="scope.row.status >= 2"
+            size="small"
+            link
+            type="warning"
+            :icon="TrendCharts"
+            @click="handleAdjustmentSummary(scope.row)"
+            v-hasPermi="['order:sale:list']"
+            >调整摘要</el-button
+          >
+          <el-button
             size="small"
             link
             :icon="Delete"
@@ -325,6 +335,48 @@
         </template>
       </el-table-column>
     </el-table>
+
+    <!-- 月结调整摘要对话框（蓝图 §2「月结调整追溯」：客户+结算月粒度，不改写原订单快照） -->
+    <el-dialog
+      align-center
+      :title="adjustmentSummary.orderCode ? '月结调整摘要 - ' + adjustmentSummary.orderCode : '月结调整摘要'"
+      v-model="adjustmentSummary.open"
+      width="640px"
+      append-to-body
+    >
+      <el-alert
+        v-if="!adjustmentSummary.billMonth"
+        type="info"
+        :closable="false"
+        show-icon
+        title="该订单尚未验收归月，暂无关联的下月调整单"
+      />
+      <template v-else>
+        <div class="adjustment-summary-tip">
+          结算月 <b>{{ adjustmentSummary.billMonth }}</b>，该客户该结算月共
+          {{ adjustmentSummary.adjustments.length }} 张调整单（含草稿）:
+        </div>
+        <el-table :data="adjustmentSummary.adjustments" size="small" border>
+          <el-table-column label="调整单号" align="center" prop="code" min-width="150" />
+          <el-table-column label="状态" align="center" width="90">
+            <template #default="scope">
+              <el-tag v-if="scope.row.status === 1" size="small" type="success">已提交</el-tag>
+              <el-tag v-else size="small" type="info">草稿</el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column label="应收调整" align="center" prop="receivableAmount" width="110" />
+          <el-table-column label="成本调整" align="center" prop="purchaseCostAmount" width="110" />
+          <el-table-column label="备注" align="center" prop="remark" :show-overflow-tooltip="true" />
+        </el-table>
+        <div class="adjustment-summary-total">
+          合计：应收调整
+          <b>{{ adjustmentSummary.receivableTotal }}</b>
+          元，采购成本调整
+          <b>{{ adjustmentSummary.costTotal }}</b>
+          元
+        </div>
+      </template>
+    </el-dialog>
 
     <pagination
       v-show="total > 0"
@@ -599,6 +651,7 @@ import {
   generatePreview,
 } from "@/api/order/sale";
 import { generatePurchaseByOrders } from "@/api/purchase/purchase";
+import { getOrderAdjustmentSummary } from "@/api/order/monthAdjustment";
 import { generateDeliveryByOrders } from "@/api/order/delivery";
 import { listCustomerDept } from "@/api/partner/customerDept";
 import { locateAcceptanceByOrder } from "@/api/acceptance/acceptance";
@@ -615,13 +668,14 @@ import {
   RefreshLeft,
   Close,
   Box,
+  TrendCharts,
 } from "@element-plus/icons-vue";
 
 export default {
   name: "Sale",
   dicts: ["t_sale_order_status", "t_sale_order_type", "t_sale_order_source"],
   setup() {
-    return { Search, Refresh, Plus, ShoppingBag, Van, Edit, Delete, Check, RefreshLeft, Close, Box };
+    return { Search, Refresh, Plus, ShoppingBag, Van, Edit, Delete, Check, RefreshLeft, Close, Box, TrendCharts };
   },
   data() {
     return {
@@ -707,6 +761,15 @@ export default {
       // 订单调整对话框（S14 退役：写入口已下线，真实退货走退货单 /order/return，补货走新增销售订单）
       // 生成采购单/送货单抽屉
       buildDrawerVisible: false,
+      // 月结调整摘要对话框（蓝图 §2「月结调整追溯」）
+      adjustmentSummary: {
+        open: false,
+        orderCode: null,
+        billMonth: null,
+        adjustments: [],
+        receivableTotal: "0",
+        costTotal: "0",
+      },
       buildMode: "purchase", // purchase | delivery
       buildActiveStep: 0,
       buildSelectedOrders: [],
@@ -1014,6 +1077,22 @@ export default {
         }
       });
     },
+    /** 月结调整摘要（蓝图 §2「月结调整追溯」：客户+结算月粒度，订单归月=最近已提交验收单验收月） */
+    handleAdjustmentSummary(row) {
+      getOrderAdjustmentSummary(row.id)
+        .then((response) => {
+          const data = response.data || {};
+          this.adjustmentSummary = {
+            open: true,
+            orderCode: row.code,
+            billMonth: data.billMonth || null,
+            adjustments: data.adjustments || [],
+            receivableTotal: data.receivableTotal != null ? data.receivableTotal : "0",
+            costTotal: data.costTotal != null ? data.costTotal : "0",
+          };
+        })
+        .catch(() => {});
+    },
     /** 删除按钮操作 */
     handleDelete(row) {
       const ids = row.id || this.ids;
@@ -1190,6 +1269,18 @@ export default {
 </script>
 
 <style lang="scss" scoped>
+/* 月结调整摘要对话框 */
+.adjustment-summary-tip {
+  margin-bottom: 10px;
+  font-size: 13px;
+  color: #606266;
+}
+.adjustment-summary-total {
+  margin-top: 10px;
+  text-align: right;
+  font-size: 13px;
+  color: #606266;
+}
 /* 批量操作条：勾选订单后浮现 */
 .batch-action-bar {
   display: flex;
