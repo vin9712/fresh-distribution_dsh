@@ -186,7 +186,8 @@
             >预览</el-button
           >
           <el-tooltip
-            content="以该模板为底稿创建未绑定草稿副本，改好后绑定到客户（适合每个客户定制不同版式）"
+            v-if="scope.row.bindType === 3"
+            content="以全局模板为底稿创建未绑定草稿副本，改好后绑定到客户（适合每个客户定制不同版式）"
             placement="top"
           >
             <span>
@@ -198,6 +199,15 @@
                 v-hasPermi="['print:template:add']"
                 >复制</el-button
               >
+            </span>
+          </el-tooltip>
+          <el-tooltip
+            v-else
+            content="客户模板不可作为底稿复制（蓝图§2：客户模板只允许从全局模板复制），请从全局默认模板复制"
+            placement="top"
+          >
+            <span>
+              <el-button size="small" link :icon="CopyDocument" disabled>复制</el-button>
             </span>
           </el-tooltip>
           <el-tooltip
@@ -882,7 +892,7 @@ export default {
       const hit = this.jimuReports.find((r) => r.id === reportId);
       return hit ? hit.name : reportId;
     },
-    /** 以现有模板为底稿创建未绑定草稿副本（适合按客户定制版式） */
+    /** 以全局模板为底稿创建未绑定草稿副本（蓝图 §2：客户模板不可作为底稿复制，入口已按 bindType 收敛到全局默认行） */
     handleCopy(row) {
       this.$modal
         .confirm(`将以「${row.name}」为底稿创建未绑定草稿副本（需重新绑定客户并走测试发布→发布），是否继续？`)
