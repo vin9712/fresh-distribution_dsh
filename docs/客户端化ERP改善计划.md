@@ -400,8 +400,10 @@
 | 口径决策 | ✔ 送货单列表不走工作台接口，改为列表查询时实时计算 reminderLevel：复用同一纯函数 `PendingAcceptanceReminder`（打印满2h黄/当天11:30后红/过期红），保证与 `GET /workbench/pending-acceptance` 完全同口径；仅 status=已送达(2) 且无已提交验收单的行参与分级（批量查 `selectSubmittedDeliveryIds`，已验收行不标），避免 N+1 |
 | 后端 | ✔ `DeliveryOrder` 加非落库字段 reminderLevel/reminderReason；`DeliveryOrderServiceImpl.selectDeliveryOrderList` 补 `fillReminderLevel`（非送达行/无候选行直接跳过不查库）；`AcceptanceMapper.selectSubmittedDeliveryIds` 批量查询 |
 | 工作台卡片 | ✔ `workbench/index.vue` 待验收卡片下拉分级计数（红 X / 黄 Y 徽标，来自 `/workbench/pending-acceptance` 逐行 reminderLevel 统计，无提醒不占位）；新增 `getPendingAcceptance` API 封装 |
-| 送货单列表 | ✔ `order/delivery/index.vue`：① `el-table :row-class-name` 按级别标行色（红 #fef0f0/黄 #fdf6ec）；② 状态列对提醒行显示「待验收」色标签（红/黄），悬浮展示 reminderReason 原因 |
+| 送货单列表 | ✔ `order/delivery/index.vue`：① `el-table :row-class-name` 按级别标行色（红 #fef0f0/黄 #fdf6ec）；② 状态列对提醒行**追加**「待验收」色标签（红/黄，不取代原状态标签，竖排不挤），悬浮展示 reminderReason 原因 |
+| 运行时自审修复 | ✔ ① 提醒标签由「替代状态标签」改为「追加在状态标签下方」，保留「已送达」状态信息；② 工作台补 `activated()` 刷新（keep-alive 缓存下验收提交返回后分级计数/概览即时更新） |
 | 测试 | ✔ 新增 `DeliveryOrderServiceImplTest` 4 项（过期未验收标红/已提交验收单不标/非送达与未来配送日不标/无送达行不查验收单）；`mvn -pl lin-distribution test` **262/262**；`npm run build:prod` 通过；全工程编译通过 |
+| E2E | ✔ 新增 `tests/e2e-w032-reminder.mjs`（只读验证，dev 库既有 2 张过期红单）：工作台红徽标计数=API 基线、红级行 row-reminder-red + 提醒标签悬浮原因、标色行数=基线提醒数（已验收送达行不标）、keep-alive 返回计数仍在——**全项通过** |
 
 > 设计取舍备注：① 分级计算放服务层而非 Controller，page/list/export 三个入口共用同一列表方法，导出亦带级别；② 已作废/已打印行不标色（提醒只关心「已送达未验收」）；③ reminderLevel 仅对黄/红行赋值，无提醒行为 null，前端按 null 处理，避免与 0 语义混淆。 |
 

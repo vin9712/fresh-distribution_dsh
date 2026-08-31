@@ -151,6 +151,11 @@ export default {
     this.refreshJobAlert();
     this.refreshReminderCounts();
   },
+  activated() {
+    // keep-alive 返回时刷新：验收提交后待验收计数与分级标色需及时更新（W0-3.2）
+    this.getSummary();
+    this.refreshReminderCounts();
+  },
   methods: {
     getSummary() {
       this.loading = true;

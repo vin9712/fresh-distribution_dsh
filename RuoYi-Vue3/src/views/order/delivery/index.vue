@@ -136,33 +136,35 @@
       </el-table-column>
       <el-table-column label="状态" align="center" prop="status" width="100">
         <template #default="scope">
-          <el-tooltip
-            v-if="scope.row.status === 3 && scope.row.voidReason"
-            :content="'作废原因：' + scope.row.voidReason"
-            placement="top"
-          >
-            <span><dict-tag
+          <div class="status-cell">
+            <el-tooltip
+              v-if="scope.row.status === 3 && scope.row.voidReason"
+              :content="'作废原因：' + scope.row.voidReason"
+              placement="top"
+            >
+              <span><dict-tag
+                :options="dict.type.t_delivery_order_status"
+                :value="scope.row.status"
+              /></span>
+            </el-tooltip>
+            <dict-tag
+              v-else
               :options="dict.type.t_delivery_order_status"
               :value="scope.row.status"
-            /></span>
-          </el-tooltip>
-          <dict-tag
-            v-else-if="!(scope.row.status === 2 && scope.row.reminderLevel)"
-            :options="dict.type.t_delivery_order_status"
-            :value="scope.row.status"
-          />
-          <!-- W0-3.2：已送达未验收行按提醒级别标提示（红=当天11:30后/过期，黄=打印满2h） -->
-          <el-tooltip
-            v-else
-            :content="'待验收提醒：' + (scope.row.reminderReason || '超时未验收')"
-            placement="top"
-          >
-            <span
-              class="reminder-tag"
-              :class="scope.row.reminderLevel === 2 ? 'reminder-tag--red' : 'reminder-tag--yellow'"
-              >待验收</span
+            />
+            <!-- W0-3.2：已送达未验收行追加提醒标记（红=当天11:30后/过期，黄=打印满2h），不取代原状态 -->
+            <el-tooltip
+              v-if="scope.row.status === 2 && scope.row.reminderLevel"
+              :content="'待验收提醒：' + (scope.row.reminderReason || '超时未验收')"
+              placement="top"
             >
-          </el-tooltip>
+              <span
+                class="reminder-tag"
+                :class="scope.row.reminderLevel === 2 ? 'reminder-tag--red' : 'reminder-tag--yellow'"
+                >待验收</span
+              >
+            </el-tooltip>
+          </div>
         </template>
       </el-table-column>
       <el-table-column label="打印次数" align="center" prop="printCount" width="90" />
@@ -801,6 +803,16 @@ export default {
   font-size: 12px;
   font-weight: 600;
   color: #fff;
+}
+/* 状态标签 + 提醒标签竖排，避免撑破状态列 */
+.status-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+.status-cell .reminder-tag {
+  cursor: default;
 }
 .reminder-tag--red {
   background-color: #f56c6c;
