@@ -77,8 +77,11 @@
 </template>
 
 <script setup>
-import { ref, computed, nextTick, onMounted, onBeforeUnmount } from 'vue'
+import { ref, computed, nextTick, onBeforeUnmount } from 'vue'
+import { useRouter } from 'vue-router'
 import { globalSearch } from '@/api/search'
+import { SCOPE } from '@/utils/shortcut'
+import { useShortcuts } from '@/composables/useShortcuts'
 
 const visible = defineModel({ type: Boolean, default: false })
 const keyword = ref('')
@@ -87,7 +90,11 @@ const searched = ref(false)
 const loading = ref(false)
 const isComposing = ref(false)
 const uid = ref(-1)
+const router = useRouter()
+/** 请求序号：只有最新一次请求的响应才允许写入结果（W0-5.4 竞态修复） */
 let seq = 0
+let abortCtrl = null
+let debounceTimer = null
 const searchInputRef = ref(null)
 
 /**
@@ -154,6 +161,7 @@ function onOpened() {
 }
 
 function onClosed() {
+  cancelPendingSearch()
   keyword.value = ''
   lastKeyword.value = ''
   searched.value = false
@@ -161,18 +169,45 @@ function onClosed() {
   uid.value = -1
 }
 
-async function onInput() {
+/* ========== 搜索请求：防抖 + 序号 + AbortController（W0-5.4，蓝图 §5-P1） ========== */
+
+const SEARCH_DEBOUNCE_MS = 250
+
+function cancelPendingSearch() {
+  if (debounceTimer) {
+    clearTimeout(debounceTimer)
+    debounceTimer = null
+  }
+  if (abortCtrl) {
+    abortCtrl.abort()
+    abortCtrl = null
+  }
+}
+
+function onInput() {
+  if (debounceTimer) clearTimeout(debounceTimer)
+  debounceTimer = setTimeout(doSearch, SEARCH_DEBOUNCE_MS)
+}
+
+async function doSearch() {
+  debounceTimer = null
   const kw = keyword.value.trim()
+  const mySeq = ++seq
   if (!kw) {
+    cancelPendingSearch()
     searched.value = false
     loading.value = false
     groups.value = []
     uid.value = -1
     return
   }
+  // 取消上一个在途请求，避免旧响应后到覆盖新结果
+  if (abortCtrl) abortCtrl.abort()
+  abortCtrl = new AbortController()
   loading.value = true
   try {
-    const res = await globalSearch(kw, 10)
+    const res = await globalSearch(kw, 10, { signal: abortCtrl.signal })
+    if (mySeq !== seq) return // 已有更新请求，过期响应丢弃
     groups.value = buildGroups(res.data)
     searched.value = true
     lastKeyword.value = kw
@@ -180,10 +215,12 @@ async function onInput() {
     const first = flatGroups.value[0]?.items[0]
     uid.value = first ? first.uid : -1
   } catch (e) {
+    // 取消/过期静默；真实错误才展示「未找到」态
+    if (mySeq !== seq || abortCtrl?.signal.aborted) return
     groups.value = []
     searched.value = true
   } finally {
-    loading.value = false
+    if (mySeq === seq) loading.value = false
   }
 }
 
@@ -236,7 +273,9 @@ function jump(item) {
     url = `/order/sale-detail/index?orderId=${id}`
   }
   if (!url) return
-  window.open(url, '_blank')
+  // 统一路由跳转：经 router.resolve 拼接，避免绕过路由 base 与守卫（蓝图 §5-P1）
+  const resolved = router.resolve(url)
+  window.open(resolved.href, '_blank')
   close()
 }
 
@@ -286,30 +325,32 @@ function open() {
   }
 }
 
-/** 全局 Ctrl+K 唤起（任一面板），过滤输入法组合态；打开时 Esc 关闭 */
-function onGlobalKeydown(e) {
-  if (e.key === 'Escape' && visible.value) {
-    // 关闭逻辑统一走 el-dialog 的关闭，避免与输入项冲突
-    e.preventDefault()
-    close()
-    return
-  }
-  if (e.ctrlKey || e.metaKey) {
-    const key = String(e.key || '').toLowerCase()
-    if (key === 'k') {
-      e.preventDefault()
+/** 全局 Ctrl+K 唿起、Esc 关闭——改由快捷键服务集中分发（W0-5.2） */
+useShortcuts([
+  {
+    scope: SCOPE.GLOBAL,
+    key: 'ctrl+k',
+    description: '打开全局搜索',
+    owner: 'GlobalSearch',
+    handler: () => {
       open()
-      return
+    }
+  },
+  {
+    scope: SCOPE.GLOBAL,
+    key: 'escape',
+    description: '关闭全局搜索弹窗',
+    owner: 'GlobalSearch',
+    allowInInput: true,
+    handler: () => {
+      if (!visible.value) return false // 未打开时下传给低优先级绑定
+      close()
     }
   }
-}
-
-onMounted(() => {
-  window.addEventListener('keydown', onGlobalKeydown)
-})
+])
 
 onBeforeUnmount(() => {
-  window.removeEventListener('keydown', onGlobalKeydown)
+  cancelPendingSearch()
 })
 
 defineExpose({ open })

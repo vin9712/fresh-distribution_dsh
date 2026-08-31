@@ -113,6 +113,7 @@
 
 <script>
 import { Search, Refresh, Close } from '@element-plus/icons-vue'
+import { SCOPE, registerShortcuts } from '@/utils/shortcut'
 
 /**
  * 快捷列表页核心组件（deepseek_ui_redesign.md §2/§3/§4/§5）
@@ -316,56 +317,42 @@ export default {
   },
   mounted() {
     if (this.shortcuts) {
-      window.addEventListener('keydown', this.onKeydown)
+      // 快捷键改由集中服务分发（W0-5.2）：table 作用域；Ctrl+K 移除（全局搜索自身已全局注册）
+      this._unregisterShortcuts = registerShortcuts([
+        { scope: SCOPE.TABLE, key: 'f2', description: '新增', owner: 'QuickTable', handler: () => this.$emit('add') },
+        { scope: SCOPE.TABLE, key: 'f3', description: '聚焦搜索', owner: 'QuickTable', handler: () => this.focusSearch() },
+        { scope: SCOPE.TABLE, key: 'ctrl+s', description: '保存', owner: 'QuickTable', handler: () => this.$emit('save') },
+        {
+          scope: SCOPE.TABLE,
+          key: 'delete',
+          description: '删除选中行',
+          owner: 'QuickTable',
+          handler: () => {
+            if (!this.selection.length) return false
+            this.$emit('delete', this.selection.map((r) => r.id))
+          }
+        },
+        {
+          scope: SCOPE.TABLE,
+          key: 'escape',
+          description: '清除选择',
+          owner: 'QuickTable',
+          allowInInput: true,
+          handler: () => {
+            if (!this.selection.length) return false
+            this.clearSelection()
+          }
+        }
+      ])
     }
   },
   beforeUnmount() {
-    if (this.shortcuts) {
-      window.removeEventListener('keydown', this.onKeydown)
+    if (this._unregisterShortcuts) {
+      this._unregisterShortcuts()
+      this._unregisterShortcuts = null
     }
   },
   methods: {
-    /** 快捷键处理 */
-    onKeydown(e) {
-      const tag = (e.target && e.target.tagName) || ''
-      const inInput =
-        tag === 'INPUT' ||
-        tag === 'TEXTAREA' ||
-        tag === 'SELECT' ||
-        (e.target && e.target.isContentEditable)
-      const key = String(e.key || '').toLowerCase()
-      if (key === 'f2') {
-        e.preventDefault()
-        this.$emit('add')
-        return
-      }
-      if (key === 'f3') {
-        e.preventDefault()
-        this.focusSearch()
-        return
-      }
-      if ((e.ctrlKey || e.metaKey) && key === 's') {
-        e.preventDefault()
-        this.$emit('save')
-        return
-      }
-      if ((e.ctrlKey || e.metaKey) && key === 'k') {
-        e.preventDefault()
-        this.$emit('global-search')
-        return
-      }
-      if (inInput) return
-      if (key === 'delete') {
-        if (this.selection.length) {
-          e.preventDefault()
-          this.$emit('delete', this.selection.map((r) => r.id))
-        }
-        return
-      }
-      if (key === 'escape') {
-        this.clearSelection()
-      }
-    },
     /** 聚焦搜索区第一个输入框 */
     focusSearch() {
       const area = this.$refs.searchArea

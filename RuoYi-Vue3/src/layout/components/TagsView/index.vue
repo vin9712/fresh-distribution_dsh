@@ -71,6 +71,7 @@
 <script setup>
 import ScrollPane from './ScrollPane'
 import { getNormalPath } from '@/utils/ruoyi'
+import { SCOPE, registerShortcut } from '@/utils/shortcut'
 import useTagsViewStore from '@/store/modules/tagsView'
 import useSettingsStore from '@/store/modules/settings'
 import usePermissionStore from '@/store/modules/permission'
@@ -122,20 +123,25 @@ onMounted(() => {
   initTags()
   addTags()
   window.addEventListener('resize', updateArrowState)
-  window.addEventListener('keydown', handleKeyDown)
 })
 
 onBeforeUnmount(() => {
   window.removeEventListener('resize', updateArrowState)
-  window.removeEventListener('keydown', handleKeyDown)
+  unregisterEsc()
 })
 
-function handleKeyDown(event) {
-  // 当按下Esc键且处于全屏状态时，退出全屏
-  if (event.key === 'Escape' && isFullscreen.value) {
+// Esc 退出标签区全屏——改由快捷键服务集中分发（W0-5.2），返回 false 下传低优先级绑定
+const unregisterEsc = registerShortcut({
+  scope: SCOPE.GLOBAL,
+  key: 'escape',
+  description: '退出标签页全屏',
+  owner: 'TagsView',
+  allowInInput: true,
+  handler: () => {
+    if (!isFullscreen.value) return false
     toggleFullscreen()
   }
-}
+})
 
 function isActive(r) {
   return r.path === route.path

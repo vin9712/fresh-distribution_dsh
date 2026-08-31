@@ -77,6 +77,34 @@ export const constantRoutes = [
     meta: { title: '锁定屏幕' }
   },
   {
+    // W0-5.1 SplitWorkspace 演示页（隐藏路由，登录后访问 /demo/split-workspace）
+    path: '/demo/split-workspace',
+    component: Layout,
+    hidden: true,
+    children: [
+      {
+        path: '',
+        component: () => import('@/views/demo/split-workspace/index.vue'),
+        name: 'DemoSplitWorkspace',
+        meta: { title: '分屏工作区演示', noCache: true }
+      }
+    ]
+  },
+  {
+    // W0-5.3 草稿工具治理演示页（隐藏路由，登录后访问 /demo/draft-workspace）
+    path: '/demo/draft-workspace',
+    component: Layout,
+    hidden: true,
+    children: [
+      {
+        path: '',
+        component: () => import('@/views/demo/draft-workspace/index.vue'),
+        name: 'DemoDraftWorkspace',
+        meta: { title: '草稿工具演示', noCache: true }
+      }
+    ]
+  },
+  {
     path: '/user',
     component: Layout,
     hidden: true,

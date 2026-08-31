@@ -109,6 +109,10 @@ service.interceptors.response.use(res => {
     }
   },
   error => {
+    // 主动取消的请求（AbortController）静默处理，不弹错误提示（W0-5.4 搜索竞态修复）
+    if (axios.isCancel(error) || error.code === 'ERR_CANCELED') {
+      return Promise.reject(error)
+    }
     console.log('err' + error)
     let { message } = error
     if (message == "Network Error") {
