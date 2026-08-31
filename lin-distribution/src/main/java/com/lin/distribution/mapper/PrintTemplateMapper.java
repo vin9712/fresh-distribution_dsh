@@ -38,6 +38,13 @@ public interface PrintTemplateMapper {
     PrintTemplate selectBindTemplate(@Param("customerId") Long customerId, @Param("deliveryPointId") Long deliveryPointId);
 
     /**
+     * 查询 JimuReport（积木报表）设计器中可用报表清单（del_flag=0，按更新时间倒序）
+     *
+     * @return [{id, name, code, updateTime}]
+     */
+    List<java.util.Map<String, Object>> selectJimuReports();
+
+    /**
      * 新增打印模板
      *
      * @param printTemplate 打印模板
@@ -60,6 +67,11 @@ public interface PrintTemplateMapper {
      * @return 结果
      */
     int deletePrintTemplateById(Long id);
+
+    /**
+     * W0-6：统计 content 包含某关键字的模板数（资源引用扫描，删除前校验）
+     */
+    int countContentLike(String keyword);
 
     /**
      * 批量删除打印模板

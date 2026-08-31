@@ -71,4 +71,9 @@
         </trim>
     </insert>
 
+    <!-- W0-6：版本资源引用扫描（历史引用资源不可物理删除） -->
+    <select id="countContentLike" parameterType="String" resultType="int">
+        select count(1) from t_print_template_version where content like concat('%', #{keyword}, '%')
+    </select>
+
 </mapper>

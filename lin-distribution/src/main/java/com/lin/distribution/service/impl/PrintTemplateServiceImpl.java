@@ -1,7 +1,14 @@
 package com.lin.distribution.service.impl;
 
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
+import com.alibaba.fastjson2.JSON;
+import com.alibaba.fastjson2.JSONArray;
+import com.alibaba.fastjson2.JSONObject;
 import com.lin.common.exception.ServiceException;
 import com.lin.common.utils.DateUtils;
 import com.lin.common.utils.SecurityUtils;
@@ -14,6 +21,7 @@ import com.lin.distribution.mapper.PrintPreviewLogMapper;
 import com.lin.distribution.mapper.PrintTemplateMapper;
 import com.lin.distribution.mapper.PrintTemplateVersionMapper;
 import com.lin.distribution.service.PrintTemplateService;
+import com.lin.distribution.service.support.TemplateContentGovernor;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -32,6 +40,7 @@ public class PrintTemplateServiceImpl implements PrintTemplateService {
     private final PrintTemplateMapper printTemplateMapper;
     private final PrintTemplateVersionMapper printTemplateVersionMapper;
     private final PrintPreviewLogMapper printPreviewLogMapper;
+    private final TemplateContentGovernor contentGovernor;
 
     /**
      * 查询打印模板
@@ -47,6 +56,14 @@ public class PrintTemplateServiceImpl implements PrintTemplateService {
     @Override
     public List<PrintTemplate> selectPrintTemplateList(PrintTemplate printTemplate) {
         return printTemplateMapper.selectPrintTemplateList(printTemplate);
+    }
+
+    /**
+     * 查询 JimuReport 设计器可用报表清单（替代手工复制报表ID）
+     */
+    @Override
+    public List<java.util.Map<String, Object>> selectJimuReports() {
+        return printTemplateMapper.selectJimuReports();
     }
 
     /**
@@ -308,6 +325,147 @@ public class PrintTemplateServiceImpl implements PrintTemplateService {
         if (printTemplate.getIsDefault() == null) {
             printTemplate.setIsDefault("0");
         }
+    }
+
+    // ==================== W0-6 模板导入导出 ====================
+
+    /**
+     * 导出模板为开放 JSON 包（蓝图 37/39）。脱敏：剔除内部 ID/绑定/操作者，保留结构。
+     */
+    @Override
+    public Map<String, Object> exportTemplate(Long id, boolean includeVersions) {
+        PrintTemplate template = getExist(id);
+        Map<String, Object> pkg = new LinkedHashMap<>();
+        pkg.put("format", TemplateContentGovernor.PACKAGE_FORMAT);
+        pkg.put("schemaVersion", TemplateContentGovernor.SCHEMA_VERSION);
+        pkg.put("exportedAt", DateUtils.dateTimeNow());
+        pkg.put("exportedBy", resolveOperator());
+
+        Map<String, Object> tpl = new LinkedHashMap<>();
+        tpl.put("name", template.getName());
+        tpl.put("type", template.getType());
+        tpl.put("renderEngine", template.getRenderEngine());
+        tpl.put("copies", template.getCopies());
+        // 脱敏后的 content
+        JSONObject content = contentGovernor.parseContent(template.getContent());
+        content = contentGovernor.ensureSchemaVersion(content);
+        content = contentGovernor.sanitize(content);
+        tpl.put("content", content);
+
+        if (includeVersions) {
+            List<PrintTemplateVersion> versions = printTemplateVersionMapper.selectListByTemplateId(id);
+            List<Map<String, Object>> versionList = new ArrayList<>();
+            for (PrintTemplateVersion v : versions) {
+                Map<String, Object> vm = new LinkedHashMap<>();
+                vm.put("versionNo", v.getVersionNo());
+                vm.put("name", v.getName());
+                vm.put("copies", v.getCopies());
+                vm.put("publishedTime", v.getPublishedTime());
+                vm.put("remark", v.getRemark());
+                JSONObject vc = contentGovernor.parseContent(v.getContent());
+                vc = contentGovernor.ensureSchemaVersion(vc);
+                vm.put("content", contentGovernor.sanitize(vc));
+                versionList.add(vm);
+            }
+            tpl.put("versions", versionList);
+        }
+        pkg.put("templates", List.of(tpl));
+        return pkg;
+    }
+
+    /**
+     * 导入模板包（蓝图 38/39：全有或全无安全校验、20MB 上限、禁止网络资源、不兼容禁止导入；
+     * 导入后为重命名的未绑定草稿，须重走完整发布门禁）。
+     */
+    @Override
+    @Transactional
+    public int importTemplates(String packageJson) {
+        if (packageJson == null || packageJson.isBlank()) {
+            throw new ServiceException("导入包为空");
+        }
+        if (packageJson.length() > TemplateContentGovernor.IMPORT_MAX_BYTES) {
+            throw new ServiceException("导入包超出 20MB 上限");
+        }
+        JSONObject pkg;
+        try {
+            pkg = JSON.parseObject(packageJson);
+        } catch (Exception e) {
+            throw new ServiceException("导入包不是合法 JSON：" + e.getMessage());
+        }
+        if (pkg == null || !TemplateContentGovernor.PACKAGE_FORMAT.equals(pkg.getString("format"))) {
+            throw new ServiceException("导入包格式不兼容（format != " + TemplateContentGovernor.PACKAGE_FORMAT + "）");
+        }
+        Integer pkgSchema = pkg.getInteger("schemaVersion");
+        if (pkgSchema == null || pkgSchema != TemplateContentGovernor.SCHEMA_VERSION) {
+            throw new ServiceException("导入包 schemaVersion 不兼容（当前支持 " + TemplateContentGovernor.SCHEMA_VERSION + "）");
+        }
+        JSONArray templates = pkg.getJSONArray("templates");
+        if (templates == null || templates.isEmpty()) {
+            throw new ServiceException("导入包不含任何模板");
+        }
+
+        // 全有或全无：先全部校验，任一非法即整体拒绝
+        List<JSONObject> validated = new ArrayList<>();
+        for (int i = 0; i < templates.size(); i++) {
+            JSONObject t = templates.getJSONObject(i);
+            validateImportTemplate(t);
+            validated.add(t);
+        }
+        // 校验通过后统一落库
+        int count = 0;
+        for (JSONObject t : validated) {
+            PrintTemplate template = new PrintTemplate();
+            // 重命名的未绑定草稿：名称前缀「导入_原名_时间戳」，避免冲突
+            template.setName("导入_" + t.getString("name") + "_" + DateUtils.dateTimeNow("yyyyMMddHHmmss"));
+            template.setType(t.getInteger("type"));
+            template.setRenderEngine(StringUtils.defaultIfBlank(t.getString("renderEngine"), "jimureport"));
+            template.setCopies(t.getIntValue("copies", 1) > 0 ? t.getIntValue("copies", 1) : 1);
+            // 未绑定：全局默认草稿，须重走完整发布门禁
+            JSONObject content = contentGovernor.ensureSchemaVersion(t.getJSONObject("content"));
+            content = contentGovernor.migrate(content);
+            template.setContent(JSON.toJSONString(content));
+            template.setBindType(3);
+            template.setCustomerId(0L);
+            template.setIsDefault("0");
+            template.setStatus(PrintTemplateStatus.DRAFT.getCode());
+            template.setTestWatermark(Boolean.FALSE);
+            template.setCode("TPL" + DateUtils.dateTimeNow("yyyyMMddHHmmssSSS"));
+            template.setCreateTime(DateUtils.getNowDate());
+            printTemplateMapper.insertPrintTemplate(template);
+            count++;
+        }
+        log.info("[print template] 批量导入模板 {} 个（操作者：{}）", count, resolveOperator());
+        return count;
+    }
+
+    /**
+     * 单模板导入校验（全有或全无）：name/type/renderEngine/copies/content 均合法，且 content 通过治理器校验。
+     */
+    private void validateImportTemplate(JSONObject t) {
+        if (t == null) {
+            throw new ServiceException("导入模板项为空");
+        }
+        if (StringUtils.isBlank(t.getString("name"))) {
+            throw new ServiceException("导入模板 name 不能为空");
+        }
+        Integer type = t.getInteger("type");
+        if (type == null || (type != 0 && type != 1)) {
+            throw new ServiceException("导入模板 type 非法（仅 0 送货单 / 1 汇总表）");
+        }
+        String engine = StringUtils.defaultIfBlank(t.getString("renderEngine"), "jimureport");
+        if (!"jimureport".equalsIgnoreCase(engine)) {
+            throw new ServiceException("不兼容的渲染引擎，禁止导入：" + engine);
+        }
+        Integer copies = t.getInteger("copies");
+        if (copies == null || copies < 1) {
+            throw new ServiceException("导入模板 copies 非法");
+        }
+        JSONObject content = t.getJSONObject("content");
+        if (content == null) {
+            throw new ServiceException("导入模板 content 不能为空");
+        }
+        // 安全校验（schemaVersion 兼容 + 禁止网络资源）
+        contentGovernor.validateImport(content);
     }
 
     private PrintTemplate getExist(Long id) {

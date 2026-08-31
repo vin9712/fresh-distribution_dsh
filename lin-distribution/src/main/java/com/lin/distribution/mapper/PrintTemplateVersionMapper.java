@@ -42,4 +42,9 @@ public interface PrintTemplateVersionMapper {
      * @return 结果
      */
     int insert(PrintTemplateVersion version);
+
+    /**
+     * W0-6：统计版本 content 包含某关键字的版本数（历史引用资源扫描）
+     */
+    int countContentLike(String keyword);
 }

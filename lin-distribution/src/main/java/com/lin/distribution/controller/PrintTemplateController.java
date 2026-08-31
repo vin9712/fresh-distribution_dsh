@@ -2,6 +2,7 @@ package com.lin.distribution.controller;
 
 import java.util.List;
 
+import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -56,6 +57,15 @@ public class PrintTemplateController extends BaseController {
     public AjaxResult list(PrintTemplate printTemplate) {
         List<PrintTemplate> list = printTemplateService.selectPrintTemplateList(printTemplate);
         return success(list);
+    }
+
+    /**
+     * 查询积木报表设计器可用报表清单（打印模板表单下拉选择，替代手工复制报表ID）
+     */
+    @PreAuthorize("@ss.hasPermi('print:template:list')")
+    @GetMapping("/jimu-reports")
+    public AjaxResult jimuReports() {
+        return success(printTemplateService.selectJimuReports());
     }
 
     /**
@@ -157,5 +167,30 @@ public class PrintTemplateController extends BaseController {
     @PostMapping("/{id}/preview")
     public AjaxResult preview(@PathVariable("id") Long id, @RequestParam(required = false) Long deliveryOrderId) {
         return toAjax(printTemplateService.recordPreview(id, deliveryOrderId));
+    }
+
+    // ==================== W0-6 模板导入导出 ====================
+
+    /**
+     * 导出模板为开放 JSON 包（脱敏，可选携带历史版本）
+     */
+    @Operation(summary = "导出打印模板")
+    @PreAuthorize("@ss.hasPermi('print:template:export')")
+    @Log(title = "打印模板", businessType = BusinessType.EXPORT)
+    @GetMapping("/{id}/export")
+    public AjaxResult exportTemplate(@PathVariable("id") Long id,
+                                    @RequestParam(defaultValue = "false") boolean includeVersions) {
+        return success(printTemplateService.exportTemplate(id, includeVersions));
+    }
+
+    /**
+     * 导入模板包（全有或全无安全校验、20MB 上限、禁止网络资源、导入后未绑定草稿）
+     */
+    @Operation(summary = "导入打印模板")
+    @PreAuthorize("@ss.hasPermi('print:template:edit')")
+    @Log(title = "打印模板", businessType = BusinessType.IMPORT)
+    @PostMapping("/import")
+    public AjaxResult importTemplate(@RequestBody String packageJson) {
+        return success(printTemplateService.importTemplates(packageJson));
     }
 }

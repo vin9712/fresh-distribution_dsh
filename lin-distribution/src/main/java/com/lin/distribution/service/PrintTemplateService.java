@@ -30,6 +30,13 @@ public interface PrintTemplateService {
     List<PrintTemplate> selectPrintTemplateList(PrintTemplate printTemplate);
 
     /**
+     * 查询 JimuReport 设计器可用报表清单（打印模板表单下拉选择用）
+     *
+     * @return [{id, name, code, updateTime}]
+     */
+    List<java.util.Map<String, Object>> selectJimuReports();
+
+    /**
      * 按送货单解析打印模板（三级绑定：客户+配送点组合 > 客户 > 全局默认；停用回退全局默认）
      *
      * @param deliveryOrder 送货单
@@ -121,4 +128,25 @@ public interface PrintTemplateService {
      * @return 最新版本号（未发布返回 0）
      */
     int currentPublishedVersion(Long templateId);
+
+    // ==================== W0-6 模板导入导出 ====================
+
+    /**
+     * 导出模板为开放 JSON 包（蓝图 37/39：模板文件保持开放 JSON；导出可选历史版本）。
+     * 导出前对 content 脱敏（剔除内部 ID/绑定/操作者），并按需携带历史版本快照。
+     *
+     * @param id              模板主键
+     * @param includeVersions 是否携带历史发布版本快照
+     * @return 导出包（Map，可序列化为 JSON 下载）
+     */
+    java.util.Map<String, Object> exportTemplate(Long id, boolean includeVersions);
+
+    /**
+     * 导入模板包（蓝图 38/39：全有或全无安全校验、20MB 上限、禁止网络资源、不兼容禁止导入；
+     * 导入后为重命名的未绑定草稿，须重走完整发布门禁）。
+     *
+     * @param packageJson 导出包 JSON 字符串
+     * @return 导入成功数量
+     */
+    int importTemplates(String packageJson);
 }

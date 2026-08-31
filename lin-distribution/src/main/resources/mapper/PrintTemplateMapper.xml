@@ -41,6 +41,7 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
             <if test="bindType != null "> and bind_type = #{bindType}</if>
             <if test="deliveryPointId != null "> and delivery_point_id = #{deliveryPointId}</if>
             <if test="isDefault != null and isDefault != ''"> and is_default = #{isDefault}</if>
+            <if test="status != null "> and status = #{status}</if>
         </where>
         order by id desc
     </select>
@@ -50,10 +51,11 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         where id = #{id}
     </select>
 
-    <!-- 三级绑定解析：1客户+配送点组合 > 2客户 > 3全局默认（停用 is_deleted=1 不参与） -->
+    <!-- 三级绑定解析：1客户+配送点组合 > 2客户 > 3全局默认（仅已发布 status=2 参与，未发布/停用自动回退，W0-4.4） -->
     <select id="selectBindTemplate" resultMap="PrintTemplateResult">
         <include refid="selectPrintTemplateVo"/>
         where is_deleted = 0
+          and status = 2
           and (
                (bind_type = 1 and customer_id = #{customerId} and delivery_point_id = #{deliveryPointId})
             or (bind_type = 2 and customer_id = #{customerId})
@@ -61,6 +63,14 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
           )
         order by bind_type asc, id desc
         limit 1
+    </select>
+
+    <!-- 积木报表设计器可用报表清单（供打印模板表单下拉选择，替代手工复制报表ID） -->
+    <select id="selectJimuReports" resultType="java.util.HashMap">
+        select id, name, code, update_time as updateTime
+        from jimu_report
+        where del_flag = 0
+        order by update_time desc
     </select>
 
     <insert id="insertPrintTemplate" parameterType="com.lin.distribution.domain.PrintTemplate" useGeneratedKeys="true" keyProperty="id">
@@ -147,4 +157,9 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
             #{id}
         </foreach>
     </delete>
+
+    <!-- W0-6：资源引用扫描（删除前校验历史引用资源不可物理删除） -->
+    <select id="countContentLike" parameterType="String" resultType="int">
+        select count(1) from t_print_template where content like concat('%', #{keyword}, '%')
+    </select>
 </mapper>
