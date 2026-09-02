@@ -23,6 +23,7 @@ import com.lin.distribution.domain.Customer;
 import com.lin.distribution.domain.CustomerDept;
 import com.lin.distribution.domain.CustomerSkuMapping;
 import com.lin.distribution.domain.DeliveryBatch;
+import com.lin.distribution.domain.SaleOrderDetail;
 import com.lin.distribution.mapper.CustomerDeptMapper;
 import com.lin.distribution.mapper.CustomerMapper;
 import com.lin.distribution.mapper.CustomerSkuMappingMapper;

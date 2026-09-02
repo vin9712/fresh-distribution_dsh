@@ -102,6 +102,9 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
             <if test="actualNum != null">actual_num,</if>
             <if test="actualAmount != null">actual_amount,</if>
             <if test="sort != null">sort,</if>
+            <if test="changeType != null">change_type,</if>
+            <if test="changeGroup != null">change_group,</if>
+            <if test="changeRemark != null">change_remark,</if>
             <if test="isDeleted != null">is_deleted,</if>
             <if test="version != null">version,</if>
             <if test="createBy != null">create_by,</if>
@@ -130,6 +133,9 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
             <if test="actualNum != null">#{actualNum},</if>
             <if test="actualAmount != null">#{actualAmount},</if>
             <if test="sort != null">#{sort},</if>
+            <if test="changeType != null">#{changeType},</if>
+            <if test="changeGroup != null">#{changeGroup},</if>
+            <if test="changeRemark != null">#{changeRemark},</if>
             <if test="isDeleted != null">#{isDeleted},</if>
             <if test="version != null">#{version},</if>
             <if test="createBy != null">#{createBy},</if>
@@ -162,6 +168,9 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
             <if test="actualNum != null">actual_num = #{actualNum},</if>
             <if test="actualAmount != null">actual_amount = #{actualAmount},</if>
             <if test="sort != null">sort = #{sort},</if>
+            <if test="changeType != null">change_type = #{changeType},</if>
+            <if test="changeGroup != null">change_group = #{changeGroup},</if>
+            <if test="changeRemark != null">change_remark = #{changeRemark},</if>
             <if test="isDeleted != null">is_deleted = #{isDeleted},</if>
             <if test="version != null">version = #{version},</if>
             <if test="createBy != null">create_by = #{createBy},</if>
