@@ -34,6 +34,9 @@ public class PrintTemplateVersion implements Serializable {
     /** 绑定类型快照：1客户+配送点组合 2客户 3全局默认 */
     private Integer bindType;
 
+    /** 打印形态快照（P1/D-048）：MATRIX=跨点总单 / FLAT=点单平铺 */
+    private String printForm;
+
     /** 客户ID快照（可空） */
     private Long customerId;
 

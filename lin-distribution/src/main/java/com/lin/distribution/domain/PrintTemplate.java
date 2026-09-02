@@ -65,6 +65,12 @@ public class PrintTemplate extends BaseEntity {
     private Integer bindType;
 
     /**
+     * 打印形态（P1/D-048）：MATRIX=跨点总单矩阵 / FLAT=点单平铺
+     */
+    @Excel(name = "打印形态", readConverterExp = "MATRIX=跨点总单矩阵,FLAT=点单平铺")
+    private String printForm;
+
+    /**
      * 绑定配送点ID（bind_type=1 时使用）
      */
     private Long deliveryPointId;

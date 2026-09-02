@@ -13,6 +13,7 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         <result property="type"    column="type"    />
         <result property="renderEngine"    column="render_engine"    />
         <result property="bindType"    column="bind_type"    />
+        <result property="printForm"    column="print_form"    />
         <result property="deliveryPointId"    column="delivery_point_id"    />
         <result property="copies"    column="copies"    />
         <result property="isDefault"       column="is_default"       />
@@ -28,7 +29,7 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
     </resultMap>
 
     <sql id="selectPrintTemplateVo">
-        select id, customer_id, code, name, content, type, render_engine, bind_type, delivery_point_id, copies, is_default, status, test_watermark, is_deleted, version, create_by, create_time, update_by, update_time, remark from t_print_template
+        select id, customer_id, code, name, content, type, render_engine, bind_type, print_form, delivery_point_id, copies, is_default, status, test_watermark, is_deleted, version, create_by, create_time, update_by, update_time, remark from t_print_template
     </sql>
 
     <select id="selectPrintTemplateList" parameterType="com.lin.distribution.domain.PrintTemplate" resultMap="PrintTemplateResult">
@@ -39,6 +40,7 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
             <if test="name != null  and name != ''"> and name like concat('%', #{name}, '%')</if>
             <if test="type != null "> and type = #{type}</if>
             <if test="bindType != null "> and bind_type = #{bindType}</if>
+            <if test="printForm != null and printForm != ''"> and print_form = #{printForm}</if>
             <if test="deliveryPointId != null "> and delivery_point_id = #{deliveryPointId}</if>
             <if test="isDefault != null and isDefault != ''"> and is_default = #{isDefault}</if>
             <if test="status != null "> and status = #{status}</if>
@@ -51,7 +53,9 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         where id = #{id}
     </select>
 
-    <!-- 三级绑定解析：1客户+配送点组合 > 2客户 > 3全局默认（仅已发布 status=2 参与，未发布/停用自动回退，W0-4.4） -->
+    <!-- P1/D-048 绑定解析：按打印形态 + 绑定层级路由（bind_type 升序 = 客户+配送点 > 客户 > 全局默认）。
+         MATRIX=跨点总单只匹配 print_form=MATRIX（客户配的总单矩阵模板能命中，修复 A 类总单 =NULL 巧合回落）；
+         FLAT=点单平铺匹配 print_form=FLAT 或空（历史未配形态模板兼容为平铺）。仅已发布 status=2 参与。 -->
     <select id="selectBindTemplate" resultMap="PrintTemplateResult">
         <include refid="selectPrintTemplateVo"/>
         where is_deleted = 0
@@ -61,8 +65,33 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
             or (bind_type = 2 and customer_id = #{customerId})
             or (bind_type = 3 and is_default = '1')
           )
+          <choose>
+            <when test="printForm != null and printForm == 'MATRIX'">
+              and print_form = 'MATRIX'
+            </when>
+            <otherwise>
+              and (print_form = 'FLAT' or print_form is null or print_form = '')
+            </otherwise>
+          </choose>
         order by bind_type asc, id desc
         limit 1
+    </select>
+
+    <!-- P1/D-048 候选模板：客户可用的已发布模板，按绑定层级与印刷形态排序（供 print-candidates 接口） -->
+    <select id="selectPrintCandidates" resultMap="PrintTemplateResult">
+        <include refid="selectPrintTemplateVo"/>
+        where is_deleted = 0
+          and status = 2
+          and (customer_id = #{customerId} or bind_type = 3)
+          <choose>
+            <when test="printForm != null and printForm == 'MATRIX'">
+              and print_form = 'MATRIX'
+            </when>
+            <otherwise>
+              and (print_form = 'FLAT' or print_form is null or print_form = '')
+            </otherwise>
+          </choose>
+        order by bind_type asc, id desc
     </select>
 
     <!-- 积木报表设计器可用报表清单（供打印模板表单下拉选择，替代手工复制报表ID） -->
@@ -84,6 +113,7 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
             <if test="type != null">type,</if>
             <if test="renderEngine != null">render_engine,</if>
             <if test="bindType != null">bind_type,</if>
+            <if test="printForm != null and printForm != ''">print_form,</if>
             <if test="deliveryPointId != null">delivery_point_id,</if>
             <if test="copies != null">copies,</if>
             <if test="isDefault != null">is_default,</if>
@@ -106,6 +136,7 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
             <if test="type != null">#{type},</if>
             <if test="renderEngine != null">#{renderEngine},</if>
             <if test="bindType != null">#{bindType},</if>
+            <if test="printForm != null and printForm != ''">#{printForm},</if>
             <if test="deliveryPointId != null">#{deliveryPointId},</if>
             <if test="copies != null">#{copies},</if>
             <if test="isDefault != null">#{isDefault},</if>
@@ -131,6 +162,7 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
             <if test="type != null">type = #{type},</if>
             <if test="renderEngine != null">render_engine = #{renderEngine},</if>
             <if test="bindType != null">bind_type = #{bindType},</if>
+            <if test="printForm != null and printForm != ''">print_form = #{printForm},</if>
             <if test="deliveryPointId != null">delivery_point_id = #{deliveryPointId},</if>
             <if test="copies != null">copies = #{copies},</if>
             <if test="isDefault != null">is_default = #{isDefault},</if>

@@ -37,12 +37,22 @@ public interface PrintTemplateService {
     List<java.util.Map<String, Object>> selectJimuReports();
 
     /**
-     * 按送货单解析打印模板（三级绑定：客户+配送点组合 > 客户 > 全局默认；停用回退全局默认）
+     * 按送货单解析打印模板（P1/D-048 显式化：按打印形态 MATRIX/FLAT + 绑定层级客户+配送点 &gt; 客户 &gt; 全局默认；
+     * 修复 A 类总单 delivery_point_id=NULL 时 = NULL 巧合回落）
      *
      * @param deliveryOrder 送货单
      * @return 命中的模板（未配置任何模板则抛异常）
      */
     PrintTemplate resolveForDeliveryOrder(DeliveryOrder deliveryOrder);
+
+    /**
+     * 候选打印模板（P1/D-048 替代前端复制过滤）：该送货单可切换的已发布模板列表，
+     * 按绑定层级与印刷形态排序；命中「全局默认」时标记 {@code matchGlobalDefault=true} 供告警。
+     *
+     * @param deliveryOrder 送货单
+     * @return 候选模板 + 是否命中全局默认
+     */
+    com.lin.distribution.vo.DeliveryPrintCandidateVO selectPrintCandidates(DeliveryOrder deliveryOrder);
 
     /**
      * 新增打印模板

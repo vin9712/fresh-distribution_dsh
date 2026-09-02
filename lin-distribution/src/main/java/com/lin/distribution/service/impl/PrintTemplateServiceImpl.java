@@ -13,6 +13,7 @@ import com.lin.common.exception.ServiceException;
 import com.lin.common.utils.DateUtils;
 import com.lin.common.utils.SecurityUtils;
 import com.lin.distribution.constant.PrintTemplateStatus;
+import com.lin.distribution.constant.DeliveryScopeType;
 import com.lin.distribution.domain.DeliveryOrder;
 import com.lin.distribution.domain.PrintPreviewLog;
 import com.lin.distribution.domain.PrintTemplate;
@@ -21,6 +22,8 @@ import com.lin.distribution.mapper.PrintPreviewLogMapper;
 import com.lin.distribution.mapper.PrintTemplateMapper;
 import com.lin.distribution.mapper.PrintTemplateVersionMapper;
 import com.lin.distribution.service.PrintTemplateService;
+import com.lin.distribution.vo.DeliveryMatrixLayout;
+import com.lin.distribution.vo.DeliveryPrintCandidateVO;
 import com.lin.distribution.service.support.TemplateContentGovernor;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -67,18 +70,50 @@ public class PrintTemplateServiceImpl implements PrintTemplateService {
     }
 
     /**
-     * 三级绑定解析（客户+配送点组合 > 客户 > 全局默认；停用/未发布模板不参与，自动回退）
+     * 打印模板绑定解析（P1/D-048 显式化）：按送货单组单范围判断打印形态（总单→MATRIX / 点单→FLAT），
+     * 再按 客户+配送点 &gt; 客户 &gt; 全局默认 且限定同形态模板 解析。
+     * 修复：A 类总单（delivery_point_id=NULL）不再靠 = NULL 的巧合回落，客户配的跨点总单矩阵模板能命中。
      */
     @Override
     public PrintTemplate resolveForDeliveryOrder(DeliveryOrder deliveryOrder) {
         if (deliveryOrder == null) {
             throw new ServiceException("送货单不存在");
         }
-        PrintTemplate template = printTemplateMapper.selectBindTemplate(deliveryOrder.getCustomerId(), deliveryOrder.getDeliveryPointId());
+        String printForm = DeliveryScopeType.isCustomerDate(deliveryOrder.getScopeType())
+                ? DeliveryMatrixLayout.FORM_MATRIX : DeliveryMatrixLayout.FORM_FLAT;
+        PrintTemplate template = printTemplateMapper.selectBindTemplate(
+                deliveryOrder.getCustomerId(), deliveryOrder.getDeliveryPointId(), printForm);
         if (template == null || !PrintTemplateStatus.PUBLISHED.getCode().equals(template.getStatus())) {
             throw new ServiceException("未配置已发布打印模板，请先在打印模板页面发布全局默认模板");
         }
         return template;
+    }
+
+    /**
+     * 候选打印模板（P1/D-048 替代前端复制过滤）：同印刷形态、该客户可用的已发布模板，按绑定层级排序；
+     * 命中「全局默认」（bind_type=3 且被选中）时标记 matchGlobalDefault=true 供打印对话框告警。
+     */
+    @Override
+    public DeliveryPrintCandidateVO selectPrintCandidates(DeliveryOrder deliveryOrder) {
+        if (deliveryOrder == null) {
+            throw new ServiceException("送货单不存在");
+        }
+        String printForm = DeliveryScopeType.isCustomerDate(deliveryOrder.getScopeType())
+                ? DeliveryMatrixLayout.FORM_MATRIX : DeliveryMatrixLayout.FORM_FLAT;
+        if (deliveryOrder.getScopeType() == null) {
+            printForm = DeliveryMatrixLayout.FORM_FLAT;
+        }
+        deliveryOrder.setScopeType(DeliveryScopeType.normalize(deliveryOrder.getScopeType()));
+        List<PrintTemplate> candidates = printTemplateMapper.selectPrintCandidates(
+                deliveryOrder.getCustomerId(), printForm);
+        // 命中全局默认：候选里没有比全局默认更具体的（bind_type<3）层级时，说明回落到了全局默认
+        boolean matchDefault = candidates.stream()
+                .noneMatch(t -> t.getBindType() != null && t.getBindType() < 3);
+        return DeliveryPrintCandidateVO.builder()
+                .printForm(printForm)
+                .matchGlobalDefault(Boolean.valueOf(matchDefault))
+                .templates(candidates)
+                .build();
     }
 
     /**
@@ -174,6 +209,7 @@ public class PrintTemplateServiceImpl implements PrintTemplateService {
         restore.setName(source.getName());
         restore.setContent(source.getContent());
         restore.setBindType(source.getBindType());
+        restore.setPrintForm(source.getPrintForm());
         restore.setCustomerId(source.getCustomerId());
         restore.setDeliveryPointId(source.getDeliveryPointId());
         restore.setCopies(source.getCopies());
@@ -297,6 +333,7 @@ public class PrintTemplateServiceImpl implements PrintTemplateService {
         version.setName(template.getName());
         version.setContent(template.getContent());
         version.setBindType(template.getBindType());
+        version.setPrintForm(template.getPrintForm());
         version.setCustomerId(template.getCustomerId());
         version.setDeliveryPointId(template.getDeliveryPointId());
         version.setCopies(template.getCopies());
@@ -312,6 +349,9 @@ public class PrintTemplateServiceImpl implements PrintTemplateService {
         }
         if (printTemplate.getBindType() == null) {
             printTemplate.setBindType(3);
+        }
+        if (StringUtils.isBlank(printTemplate.getPrintForm())) {
+            printTemplate.setPrintForm(DeliveryMatrixLayout.FORM_FLAT);
         }
         if (printTemplate.getCopies() == null) {
             printTemplate.setCopies(1);

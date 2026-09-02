@@ -131,6 +131,13 @@
           <el-tag size="small" :type="bindTagType(scope.row.bindType)">{{ bindTypeText(scope.row.bindType) }}</el-tag>
         </template>
       </el-table-column>
+      <el-table-column label="打印形态" align="center" width="110">
+        <template #default="scope">
+          <el-tag size="small" :type="scope.row.printForm === 'MATRIX' ? 'warning' : 'info'">
+            {{ scope.row.printForm === 'MATRIX' ? '总单·矩阵' : '点单平铺' }}
+          </el-tag>
+        </template>
+      </el-table-column>
       <el-table-column label="客户" align="center" width="150">
         <template #default="scope">
           <span v-if="scope.row.bindType === 1 || scope.row.bindType === 2">{{ customerName(scope.row.customerId) }}<span class="id-muted">（ID {{ scope.row.customerId }}）</span></span>
@@ -314,6 +321,14 @@
             <el-radio :value="2">客户</el-radio>
             <el-radio :value="3">全局默认</el-radio>
           </el-radio-group>
+        </el-form-item>
+        <el-form-item label="打印形态" prop="printForm">
+          <el-radio-group v-model="form.printForm">
+            <el-radio value="FLAT">点单平铺</el-radio>
+            <el-radio value="MATRIX">总单·跨点矩阵</el-radio>
+          </el-radio-group>
+          <div v-if="form.printForm === 'MATRIX'" class="form-tip">总单（跨点合并）专用模板：行=菜品、列=配送点、格=数量，A4；仅 CUSTOMER_DATE 客户命中</div>
+          <div v-else class="form-tip">点单（每配送点一张）模板：一维明细，针式/双列，客户签收</div>
         </el-form-item>
         <el-form-item v-if="form.bindType === 1 || form.bindType === 2" label="绑定客户" prop="customerId">
           <el-tree-select
@@ -658,6 +673,7 @@ export default {
         renderEngine: "jimureport",
         bindType: 3,
         deliveryPointId: null,
+        printForm: "FLAT",
         copies: 1,
         isDefault: "0",
         remark: null,

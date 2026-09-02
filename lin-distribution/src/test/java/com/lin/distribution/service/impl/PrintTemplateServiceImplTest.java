@@ -4,7 +4,12 @@ import com.lin.common.exception.ServiceException;
 import com.lin.distribution.constant.PrintTemplateStatus;
 import com.lin.distribution.domain.DeliveryOrder;
 import com.lin.distribution.domain.PrintTemplate;
+import com.lin.distribution.vo.DeliveryPrintCandidateVO;
 import com.lin.distribution.mapper.PrintTemplateMapper;
+
+import java.util.ArrayList;
+import java.util.List;
+
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -12,12 +17,14 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -60,17 +67,17 @@ class PrintTemplateServiceImplTest {
 
     @Test
     void 命中模板返回绑定与联数() {
-        when(printTemplateMapper.selectBindTemplate(100L, 101L)).thenReturn(template(1, 3));
+        when(printTemplateMapper.selectBindTemplate(100L, 101L, "FLAT")).thenReturn(template(1, 3));
         PrintTemplate resolved = printTemplateService.resolveForDeliveryOrder(order());
         assertNotNull(resolved);
         assertEquals(Integer.valueOf(1), resolved.getBindType());
         assertEquals(Integer.valueOf(3), resolved.getCopies());
-        verify(printTemplateMapper).selectBindTemplate(eq(100L), eq(101L));
+        verify(printTemplateMapper).selectBindTemplate(eq(100L), eq(101L), eq("FLAT"));
     }
 
     @Test
     void 未配置任何模板应报错() {
-        when(printTemplateMapper.selectBindTemplate(anyLong(), anyLong())).thenReturn(null);
+        when(printTemplateMapper.selectBindTemplate(anyLong(), anyLong(), anyString())).thenReturn(null);
         ServiceException ex = assertThrows(ServiceException.class, () -> printTemplateService.resolveForDeliveryOrder(order()));
         assertTrue(ex.getMessage().contains("未配置已发布打印模板"));
     }
@@ -78,6 +85,42 @@ class PrintTemplateServiceImplTest {
     @Test
     void 送货单为空应报错() {
         assertThrows(ServiceException.class, () -> printTemplateService.resolveForDeliveryOrder(null));
+    }
+
+    // ==================== 候选打印模板（P1/D-048 print-candidates） ====================
+
+    @Test
+    void 点单候选仅全局默认时标记命中默认() {
+        // 点单 scopeType=DELIVERY_POINT_DATE → printForm=FLAT
+        DeliveryOrder point = order();
+        point.setScopeType("DELIVERY_POINT_DATE");
+        PrintTemplate global = template(3, 2);
+        global.setPrintForm("FLAT");
+        when(printTemplateMapper.selectPrintCandidates(100L, "FLAT"))
+                .thenReturn(new ArrayList<>(List.of(global)));
+
+        DeliveryPrintCandidateVO vo = printTemplateService.selectPrintCandidates(point);
+
+        assertEquals("FLAT", vo.getPrintForm());
+        assertTrue(vo.getMatchGlobalDefault(), "仅全局默认候选 → 命中默认告警");
+        assertEquals(1, vo.getTemplates().size());
+    }
+
+    @Test
+    void 总单候选含客户级模板时不标记命中默认() {
+        // 总单 scopeType=CUSTOMER_DATE → printForm=MATRIX
+        DeliveryOrder total = order();
+        total.setScopeType("CUSTOMER_DATE");
+        total.setDeliveryPointId(null);
+        PrintTemplate customerMatrix = template(2, 1);
+        customerMatrix.setPrintForm("MATRIX");
+        when(printTemplateMapper.selectPrintCandidates(100L, "MATRIX"))
+                .thenReturn(new ArrayList<>(List.of(customerMatrix)));
+
+        DeliveryPrintCandidateVO vo = printTemplateService.selectPrintCandidates(total);
+
+        assertEquals("MATRIX", vo.getPrintForm());
+        assertFalse(vo.getMatchGlobalDefault(), "存在客户级模板 → 不命中全局默认");
     }
 
     // ==================== 模板状态机与发布门禁（W0-4.4） ====================
