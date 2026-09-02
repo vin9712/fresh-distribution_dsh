@@ -9,6 +9,15 @@ export function pageDelivery(query) {
   })
 }
 
+// 批次分组聚合分页（D-043：主行=客户+配送日期=批次，聚合张数/状态数/合计/打印形态/提醒最高级）
+export function batchPageDelivery(query) {
+  return request({
+    url: '/order/delivery/batch-page',
+    method: 'get',
+    params: query
+  })
+}
+
 // 查询送货单列表
 export function listDelivery(query) {
   return request({
@@ -73,6 +82,76 @@ export function printInfoDelivery(id) {
   return request({
     url: '/order/delivery/' + id + '/printInfo',
     method: 'get'
+  })
+}
+
+// 候选打印模板（P1/D-048：后端出候选，替代前端复刻绑定过滤；含命中全局默认告警标记）
+export function printCandidatesDelivery(id) {
+  return request({
+    url: '/order/delivery/' + id + '/print-candidates',
+    method: 'get'
+  })
+}
+
+// ==================== 打印包（P2/D-050） ====================
+
+// 建打印包（客户+配送日期；已有未完成包则复用）
+export function createPrintPackage(data) {
+  return request({
+    url: '/order/delivery/print-package',
+    method: 'post',
+    data: data
+  })
+}
+
+// 查打印包（含任务清单与合计）
+export function getPrintPackage(packageId) {
+  return request({
+    url: '/order/delivery/print-package/' + packageId,
+    method: 'get'
+  })
+}
+
+// 打印包列表（客户+日期）
+export function listPrintPackage(query) {
+  return request({
+    url: '/order/delivery/print-package/list',
+    method: 'get',
+    params: query
+  })
+}
+
+// 汇总预览
+export function previewPrintPackage(packageId) {
+  return request({
+    url: '/order/delivery/print-package/' + packageId + '/preview',
+    method: 'post'
+  })
+}
+
+// 开始打印
+export function startPrintPackage(packageId) {
+  return request({
+    url: '/order/delivery/print-package/' + packageId + '/start',
+    method: 'post'
+  })
+}
+
+// 单张回执
+export function receiptPrintTask(taskId, data) {
+  return request({
+    url: '/order/delivery/print-package/task/' + taskId + '/receipt',
+    method: 'post',
+    data: data
+  })
+}
+
+// 逐张改模板/份数
+export function updatePrintTask(taskId, data) {
+  return request({
+    url: '/order/delivery/print-package/task/' + taskId,
+    method: 'put',
+    data: data
   })
 }
 
@@ -157,6 +236,15 @@ export function batchView(customerId, date) {
     url: '/order/delivery/batch/view',
     method: 'get',
     params: { customerId: customerId, date: date }
+  })
+}
+
+// 矩阵总表（D-044/D-047/D-051：行=菜品明细行、列=配送点快照（含空列）、格=分配量）
+// 纸面不打单价与金额，同名多行以 (档①) 区分；页面与打印共用同一数据
+export function deliveryMatrix(customerId, deliveryDate) {
+  return request({
+    url: '/order/delivery/batch/' + customerId + '/' + deliveryDate + '/matrix',
+    method: 'get'
   })
 }
 

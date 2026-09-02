@@ -85,4 +85,34 @@ public interface DeliveryBatchMapper {
      */
     List<com.lin.distribution.vo.DeliveryBatchViewVO.Row> selectBatchViewRowsByDetail(@Param("customerId") Long customerId,
                                                                                       @Param("deliveryDate") String deliveryDate);
+
+    /**
+     * 矩阵总表列快照源（D-045）：客户<b>启用</b>配送点（{@code valid=1}），按 {@code code, id} 稳定排序。
+     * 停用点不进列（当日有单时由服务层以 adHoc 临时补列，D-053）。
+     *
+     * @param customerId 客户ID
+     * @return 点列（deptId/code/name，adHoc 由服务层置值）
+     */
+    List<com.lin.distribution.vo.DeliveryMatrixLayout.Column> selectMatrixColumns(@Param("customerId") Long customerId);
+
+    /**
+     * 矩阵总表行（D-047）：批次内<b>全部有效</b>送货单（原单 + 补充单）的合并明细行，
+     * 行身份即 {@code t_delivery_order_detail.id}，不重新聚合。
+     *
+     * @param customerId   客户ID
+     * @param deliveryDate 配送日期
+     * @return 明细行扁平集（按 doc_kind、单ID、明细ID 升序）
+     */
+    List<com.lin.distribution.vo.DeliveryMatrixVO.DetailRow> selectMatrixDetails(@Param("customerId") Long customerId,
+                                                                                @Param("deliveryDate") String deliveryDate);
+
+    /**
+     * 矩阵总表格（D-047）：按 (送货明细行, 配送点) 透视 source_item 分配量合计。
+     *
+     * @param customerId   客户ID
+     * @param deliveryDate 配送日期
+     * @return 格扁平集（detailId/deptId/quantity）
+     */
+    List<com.lin.distribution.vo.DeliveryMatrixVO.CellRow> selectMatrixCells(@Param("customerId") Long customerId,
+                                                                            @Param("deliveryDate") String deliveryDate);
 }

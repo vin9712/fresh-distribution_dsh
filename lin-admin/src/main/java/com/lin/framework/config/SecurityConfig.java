@@ -125,7 +125,7 @@ public class SecurityConfig {
                     // W0-4.1 起前端传短时一次性打印票据 ptk_，不再传长期 JWT）
                     .requestMatchers("/jmreport/**").permitAll()
                     // JimuReport API 数据集服务端调用（不带 JWT，自验短时一次性打印票据）的只读打印数据接口
-                    .requestMatchers("/print/deliveryData", "/print/deliveryHead").permitAll()
+                    .requestMatchers("/print/deliveryData", "/print/deliveryHead", "/print/deliveryMatrixData").permitAll()
                     .requestMatchers("/swagger-ui.html", "/v3/api-docs/**", "/swagger-ui/**", "/druid/**").permitAll();
 
                 // 自定义白名单

@@ -22,6 +22,12 @@ public class DeliveryBatchViewVO {
     /** 标准品名（sku.name，无 sku 时回退快照品名） */
     private String productName;
 
+    /** 规格快照（P0-A 修正：行键含规格，防同 SKU 不同规格错并） */
+    private String spec;
+
+    /** 单位快照（同上） */
+    private String unit;
+
     /** 总量（各配送点合计） */
     private BigDecimal totalQuantity;
 
@@ -52,6 +58,10 @@ public class DeliveryBatchViewVO {
         private Long skuId;
 
         private String productName;
+
+        private String spec;
+
+        private String unit;
 
         private Long deptId;
 

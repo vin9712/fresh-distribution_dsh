@@ -2,7 +2,7 @@ import { defineConfig, loadEnv } from 'vite'
 import path from 'path'
 import createVitePlugins from './vite/plugins'
 
-const baseUrl = 'http://localhost:8090' // 后端接口（本项目后端 profile=local 实际端口 8090）
+const baseUrl = process.env.VITE_PROXY_TARGET || 'http://localhost:8090' // 后端接口（本项目后端 profile=local 实际端口 8090；VITE_PROXY_TARGET 可临时指向其他实例）
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode, command }) => {

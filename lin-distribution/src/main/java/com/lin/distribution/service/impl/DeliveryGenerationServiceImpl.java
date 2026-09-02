@@ -40,6 +40,7 @@ import com.lin.distribution.mapper.JobRunLogMapper;
 import com.lin.distribution.mapper.SaleOrderDetailMapper;
 import com.lin.distribution.mapper.SaleOrderMapper;
 import com.lin.distribution.service.BizCodeService;
+import com.lin.distribution.service.DeliveryBatchService;
 import com.lin.distribution.service.DeliveryGenerationService;
 import com.lin.distribution.service.SaleOrderService;
 import com.lin.distribution.vo.DeliveryGeneratePreviewVO;
@@ -96,6 +97,7 @@ public class DeliveryGenerationServiceImpl implements DeliveryGenerationService 
     private final JobRunLogMapper jobRunLogMapper;
     private final BizCodeService bizCodeService;
     private final SaleOrderService saleOrderService;
+    private final DeliveryBatchService deliveryBatchService;
     private final TransactionTemplate transactionTemplate;
 
     /**
@@ -481,6 +483,10 @@ public class DeliveryGenerationServiceImpl implements DeliveryGenerationService 
         // 5-7. 建单 + 聚合明细 + 来源分配（任何一步失败整事务回滚，批次不留半截数据）
         List<DeliveryOrder> createdOrders = createDeliveryOrders(batch, buildOrders, docKind,
                 rebuild, voidedByPoint, singleVoided, operator);
+
+        // 8. 刷新批次布局快照（D-045/D-053）：矩阵总表的列集合（启用点 + 空列 + adHoc 临时补列）
+        //    与价档（append-only）在此定格，后续打印与页面只读快照，不回落实时主数据
+        deliveryBatchService.refreshLayout(batch, operator);
 
         result.setBatchId(batch.getId());
         result.setCreatedOrders(createdOrders);

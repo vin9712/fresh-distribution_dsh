@@ -9,7 +9,10 @@ import com.lin.distribution.domain.DeliveryOrderDetail;
 import com.lin.distribution.mapper.CustomerSkuMappingMapper;
 import com.lin.distribution.mapper.DeliveryOrderDetailMapper;
 import com.lin.distribution.mapper.DeliveryOrderMapper;
+import com.lin.distribution.service.DeliveryBatchService;
 import com.lin.distribution.service.PrintTicketService;
+import com.lin.distribution.vo.DeliveryMatrixLayout;
+import com.lin.distribution.vo.DeliveryMatrixVO;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.apache.commons.lang3.StringUtils;
@@ -51,6 +54,8 @@ public class PrintController extends BaseController {
     private DeliveryOrderDetailMapper deliveryOrderDetailMapper;
     @Autowired
     private CustomerSkuMappingMapper customerSkuMappingMapper;
+    @Autowired
+    private DeliveryBatchService deliveryBatchService;
     @Autowired
     private PrintTicketService printTicketService;
 
@@ -159,8 +164,126 @@ public class PrintController extends BaseController {
             row.put("num", detail.getNum());
             row.put("price", detail.getPrice());
             row.put("amount", detail.getAmount());
+            // 验收数(留空)：客户签收时由送货员手填，纸面为空白列，仅供模板绑定「验收数」栏
+            row.put("acceptanceNum", "");
             rows.add(row);
         }
+        return resp;
+    }
+
+    /**
+     * 矩阵总表打印数据（JimuReport 数据集 dm，D-044/D-046/D-051）
+     *
+     * <p>行=本单送货明细行（沿用 D-024 不同价必拆行）、列=批次布局快照的配送点（含当日无单空列）、
+     * 格=分配量。纸面<b>不打单价与金额</b>，同名多行以 {@code (档①)} 区分（档号取批次快照，
+     * 原单与补充单一致）。列数超出 {@code colsPerPage} 时按 colBlock 横向分页，
+     * 每页重复品名列，页码「第 i/j 页 · 列块 k/m」。</p>
+     *
+     * <p>格位固定输出 c1..c{colsPerPage}（未用位置 null），保证套打列位不漂移。</p>
+     *
+     * @param deliveryOrderId 送货单ID（A 类总单或补充单）
+     * @param colBlock        列块序号（1 起，缺省 1）
+     * @param ticket          打印票据（报表视图 URL 透传）
+     * @return {head:{...}, columns:[...], rows:[...]}
+     */
+    @Operation(summary = "矩阵总表打印数据")
+    @GetMapping("/deliveryMatrixData")
+    public Map<String, Object> deliveryMatrixData(@RequestParam("deliveryOrderId") Long deliveryOrderId,
+                                                  @RequestParam(value = "colBlock", required = false, defaultValue = "1") Integer colBlock,
+                                                  @RequestParam(value = "ticket", required = false) String ticket) {
+        checkTicket(deliveryOrderId, ticket);
+        Map<String, Object> resp = new LinkedHashMap<>();
+        Map<String, Object> head = new LinkedHashMap<>();
+        resp.put("head", head);
+        resp.put("columns", new ArrayList<Map<String, Object>>());
+        resp.put("rows", new ArrayList<Map<String, Object>>());
+        if (deliveryOrderId == null) {
+            return resp;
+        }
+        DeliveryOrder order = deliveryOrderMapper.selectDeliveryOrderById(deliveryOrderId);
+        if (order == null || order.getCustomerId() == null || order.getDeliveryDate() == null) {
+            return resp;
+        }
+        DeliveryMatrixVO matrix = deliveryBatchService.selectMatrix(order.getCustomerId(), order.getDeliveryDate().toString());
+
+        int block = colBlock == null || colBlock < 1 ? 1 : colBlock;
+        int totalBlocks = matrix.getColBlocks() == null || matrix.getColBlocks() < 1 ? 1 : matrix.getColBlocks();
+        if (block > totalBlocks) {
+            block = totalBlocks;
+        }
+        final int blockNo = block;
+        List<DeliveryMatrixVO.ColumnVO> blockColumns = matrix.getColumns().stream()
+                .filter(c -> c.getBlockNo() != null && c.getBlockNo().intValue() == blockNo)
+                .collect(Collectors.toList());
+        int slots = matrix.getColsPerPage() == null || matrix.getColsPerPage() <= 0
+                ? Math.max(blockColumns.size(), 1) : matrix.getColsPerPage();
+
+        // 列头（未用槽位补空列，套打列位固定）
+        List<Map<String, Object>> columnMetas = new ArrayList<>();
+        for (int i = 0; i < slots; i++) {
+            Map<String, Object> meta = new LinkedHashMap<>();
+            DeliveryMatrixVO.ColumnVO column = i < blockColumns.size() ? blockColumns.get(i) : null;
+            meta.put("seq", i + 1);
+            meta.put("deptName", column == null ? "" : StringUtils.defaultString(column.getName()));
+            meta.put("adHoc", column != null && Boolean.TRUE.equals(column.getAdHoc()));
+            meta.put("empty", column == null);
+            columnMetas.add(meta);
+        }
+        resp.put("columns", columnMetas);
+
+        // 行（仅本张送货单的明细行；补充单另成一张纸，列块与档号沿用批次快照）
+        List<Map<String, Object>> rowMetas = new ArrayList<>();
+        int seq = 1;
+        for (DeliveryMatrixVO.RowVO row : matrix.getRows()) {
+            if (!deliveryOrderId.equals(row.getDeliveryId())) {
+                continue;
+            }
+            Map<String, Object> line = new LinkedHashMap<>();
+            line.put("seq", seq++);
+            // 打印品名客户叫法优先（DESIGN 不变量 8），品名本身保持干净；档位标注进备注列（D-046/D-053 修订）
+            String baseName = StringUtils.defaultIfBlank(row.getCustomerAlias(), row.getProductName());
+            line.put("productName", DeliveryMatrixLayout.displayProductName(baseName));
+            line.put("productSpec", row.getSpec());
+            line.put("productUnit", row.getUnit());
+            // 备注列：承载档位标注（同名多行不同价时），单档为空保持干净
+            line.put("remark", row.getRemark() == null ? "" : row.getRemark());
+            for (int i = 0; i < slots; i++) {
+                DeliveryMatrixVO.ColumnVO column = i < blockColumns.size() ? blockColumns.get(i) : null;
+                BigDecimal qty = column == null ? null : row.getCells().get(column.getDeptId());
+                // 历史单无点级台账：格位打 —（D-051）
+                line.put("c" + (i + 1), qty != null ? qty : (Boolean.TRUE.equals(matrix.getHistoryFallback()) ? "—" : ""));
+            }
+            line.put("total", row.getTotalQuantity());
+            rowMetas.add(line);
+        }
+        resp.put("rows", rowMetas);
+
+        head.put("code", order.getCode());
+        head.put("docKind", order.getDocKind());
+        head.put("customerName", StringUtils.defaultIfBlank(matrix.getCustomerName(), order.getCustomerName()));
+        head.put("deliveryDate", order.getDeliveryDate().toString());
+        head.put("printTitle", "配送总表");
+        head.put("colBlockNo", blockNo);
+        head.put("totalColBlocks", totalBlocks);
+        head.put("colBlockLabel", "列块 " + blockNo + "/" + totalBlocks);
+        head.put("totalQuantity", matrix.getTotalQuantity());
+        head.put("layoutVersion", matrix.getLayoutVersion());
+        List<String> warnings = new ArrayList<>();
+        if (Boolean.TRUE.equals(matrix.getLayoutDerived())) {
+            warnings.add("本批次无布局快照，列按当前启用配送点实时推导");
+        }
+        if (Boolean.TRUE.equals(matrix.getHistoryFallback())) {
+            warnings.add("历史单无点级分配台账，各点列以 — 占位");
+        }
+        if (Boolean.FALSE.equals(matrix.getIdentityOk())) {
+            warnings.add("恒等式自检不通过（明细数量≠各点分配量合计）："
+                    + matrix.getMismatches().stream()
+                    .map(m -> m.getProductName() + " " + m.getNum() + "≠" + m.getCellSum())
+                    .collect(Collectors.joining("；")));
+        }
+        head.put("warnings", warnings);
+        head.put("identityOk", matrix.getIdentityOk());
+        head.put("remark", order.getRemark());
         return resp;
     }
 
