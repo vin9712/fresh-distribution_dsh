@@ -115,3 +115,29 @@ export function checkExistingDraft(query) {
     params: query
   })
 }
+// 配送后加单（D-055：原订单不变，标记附加订单明细）
+export function deliverySupplement(orderId, data) {
+  return request({
+    url: '/order/delivery-change/' + orderId + '/supplement',
+    method: 'post',
+    data: data
+  })
+}
+
+// 配送后换货（D-055：被换行标退货+新行标换货，同组）
+export function deliveryExchange(orderId, data) {
+  return request({
+    url: '/order/delivery-change/' + orderId + '/exchange',
+    method: 'post',
+    data: data
+  })
+}
+
+// 配送后退货（D-055：原行标退货，应送实收归0）
+export function deliveryReturn(orderId, data) {
+  return request({
+    url: '/order/delivery-change/' + orderId + '/return',
+    method: 'post',
+    data: data
+  })
+}

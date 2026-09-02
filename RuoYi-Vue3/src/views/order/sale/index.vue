@@ -306,6 +306,16 @@
             >去验收</el-button
           >
           <el-button
+            v-if="scope.row.status == 1"
+            size="small"
+            link
+            type="danger"
+            :icon="CircleClose"
+            @click="handleDeliveryChange(scope.row)"
+            v-hasPermi="['order:sale:edit']"
+            >配送后变更</el-button
+          >
+          <el-button
             v-if="scope.row.status == 0 || scope.row.status == 1"
             size="small"
             link
@@ -636,6 +646,9 @@
         </div>
       </template>
     </el-drawer>
+
+    <!-- D-055 配送后变更抽屉（加单/换货/退货） -->
+    <sale-change-drawer v-model="changeOpen" :order="changeOrder" @done="getPageList" />
   </div>
 </template>
 
@@ -656,6 +669,7 @@ import { generateDeliveryByOrders } from "@/api/order/delivery";
 import { listCustomerDept } from "@/api/partner/customerDept";
 import { locateAcceptanceByOrder } from "@/api/acceptance/acceptance";
 import { listDrafts, removeDraft } from "@/utils/saleDraft";
+import SaleChangeDrawer from "./saleChangeDrawer.vue";
 import {
   Search,
   Refresh,
@@ -669,18 +683,23 @@ import {
   Close,
   Box,
   TrendCharts,
+  CircleClose,
 } from "@element-plus/icons-vue";
 
 export default {
   name: "Sale",
+  components: { SaleChangeDrawer },
   dicts: ["t_sale_order_status", "t_sale_order_type", "t_sale_order_source"],
   setup() {
-    return { Search, Refresh, Plus, ShoppingBag, Van, Edit, Delete, Check, RefreshLeft, Close, Box, TrendCharts };
+    return { Search, Refresh, Plus, ShoppingBag, Van, Edit, Delete, Check, RefreshLeft, Close, Box, TrendCharts, CircleClose };
   },
   data() {
     return {
       // 未完成订单草稿（列表页恢复横幅）
       availableDrafts: [],
+      // 配送后变更抽屉（D-055）
+      changeOpen: false,
+      changeOrder: {},
       // 遮罩层
       loading: true,
       // 选中数组
@@ -968,7 +987,13 @@ export default {
         });
     },
     /** 去验收（S14/C1：仅已配送行；定位该订单所在送货单的验收单并跳转） */
+    /** D-055 配送后变更（加单/换货/退货）：原订单不变，标记附加订单明细 */
+    handleDeliveryChange(row) {
+      this.changeOrder = row;
+      this.changeOpen = true;
+    },
     handleGoAcceptance(row) {
+      locateAcceptanceByOrder(row.id)
       locateAcceptanceByOrder(row.id)
         .then((response) => {
           const info = response.data || {};
