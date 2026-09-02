@@ -137,6 +137,21 @@ public class SaleOrderDetail extends BaseEntity {
     private Integer sort;
 
     /**
+     * 变更标记（D-055）：0正常(含配送前更新) / 1加单(配送后补充) / 2换货 / 3退货
+     */
+    private Integer changeType;
+
+    /**
+     * 换货组号（被换行与换货行同组关联，非换货为 NULL）
+     */
+    private Long changeGroup;
+
+    /**
+     * 变更说明（如：换货 原土豆→大白菜）
+     */
+    private String changeRemark;
+
+    /**
      * 逻辑删除
      */
     private Boolean isDeleted;

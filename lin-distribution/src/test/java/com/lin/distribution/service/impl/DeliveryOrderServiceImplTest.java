@@ -48,8 +48,7 @@ import static org.mockito.Mockito.when;
 /**
  * 送货单打印/送达/作废测试（S14/G2：送达仅回写来源台账命中的订单；T4：作废与免纸送达）
  *
- * <p>生成路径自 S14/T3 起收敛到 {@link DeliveryGenerationServiceImpl}，
- * 生成相关测试见 {@link DeliveryGenerationServiceImplTest}。</p>
+ * <p>D-055 送货单视图化：生成/补单/作废重建已取消，仅保留打印/送达/作废与批次视图行为测试。</p>
  */
 @ExtendWith(MockitoExtension.class)
 class DeliveryOrderServiceImplTest {

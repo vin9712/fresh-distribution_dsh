@@ -112,26 +112,6 @@ public interface SaleOrderMapper {
      * <p>口径：CONFIRMED 且未进入任何有效送货单。有效判定两路：
      * ① 新模型——t_delivery_source_item 有效分配（作废释放/软删即视为遗漏）；
      * ② 历史兼容——S14 前生成的送货单无台账，按 t_delivery_order_detail.order_id 直挂且所属单未作废判定。
-     * 判定②防止历史单与新单并存时同一订单被双重配送。</p>
-     *
-     * @param customerId   客户ID（可空=null 时不限客户，generateForDate 全日期扫描用）
-     * @param deliveryDate 配送日期（必填）
-     * @return 遗漏订单集合
-     */
-    List<SaleOrder> selectMissedConfirmedOrders(@Param("customerId") Long customerId,
-                                                @Param("deliveryDate") LocalDate deliveryDate);
-
-    /**
-     * 查该客户当日全部已确认订单（S14/T3 作废重建分支 D-022：重建覆盖全部已确认遗漏+原订单，而非拼接）
-     *
-     * @param customerId   客户ID
-     * @param deliveryDate 配送日期
-     * @return 已确认订单集合
-     */
-    List<SaleOrder> selectConfirmedByCustomerAndDate(@Param("customerId") Long customerId,
-                                                     @Param("deliveryDate") LocalDate deliveryDate);
-
-    /**
      * 查询同配送点+同日期的草稿订单（新增订单防重复提示用：选中客户后检测是否已有可继续添加的草稿）
      *
      * @param customerDeptId 配送点ID
@@ -140,14 +120,4 @@ public interface SaleOrderMapper {
      */
     List<SaleOrder> selectExistingDraftOrder(@Param("customerDeptId") Long customerDeptId,
                                              @Param("deliveryDate") LocalDate deliveryDate);
-
-    /**
-     * 查当日未确认草稿（生成前预览提示用：按日期生成只捞已确认订单，草稿不会静默漏发）。
-     *
-     * @param customerId   客户ID（可空=不限客户）
-     * @param deliveryDate 配送日期
-     * @return 草稿订单集合（仅头信息，is_deleted=0）
-     */
-    List<SaleOrder> selectDraftOrdersByDate(@Param("customerId") Long customerId,
-                                            @Param("deliveryDate") LocalDate deliveryDate);
 }
