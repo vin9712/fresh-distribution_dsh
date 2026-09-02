@@ -21,21 +21,31 @@
 
     <!-- 待验收提醒（W0-3.2）：已送达未提交验收的送货单，附打印时间/配送日期 -->
     <select id="selectPendingAcceptance" resultType="com.lin.distribution.vo.PendingAcceptanceVO">
-        select d.id as deliveryId,
-               d.code as deliveryCode,
-               d.customer_id as customerId,
+        select max(o.id) as deliveryId,
+               max(o.code) as deliveryCode,
+               o.customer_id as customerId,
                coalesce(c.alias, c.name) as customerName,
-               d.delivery_point_id as deliveryPointId,
+               o.customer_dept_id as deliveryPointId,
                cd.name as deliveryPointName,
-               d.delivery_date as deliveryDate,
-               d.print_time as printTime
-        from t_delivery_order d
-        left join t_customer c on c.id = d.customer_id
-        left join t_customer_dept cd on cd.id = d.delivery_point_id
-        where d.is_deleted = 0
-          and d.status = 2
-          and not exists (select 1 from acceptance a where a.delivery_order_id = d.id and a.status = 1)
-        order by d.id
+               o.delivery_date as deliveryDate,
+               (select pl.print_time from t_delivery_print_log pl
+                where pl.customer_id = o.customer_id
+                  and pl.delivery_date = o.delivery_date
+                  and pl.customer_dept_id = o.customer_dept_id
+                order by pl.print_time desc limit 1) as printTime
+        from t_sale_order o
+        left join t_customer c on c.id = o.customer_id
+        left join t_customer_dept cd on cd.id = o.customer_dept_id
+        where o.is_deleted = 0
+          and o.status = 1
+          and o.delivery_date &lt;= curdate()
+          and not exists (select 1 from acceptance a
+                          where a.customer_id = o.customer_id
+                            and a.customer_dept_id = o.customer_dept_id
+                            and a.delivery_date = o.delivery_date
+                            and a.status = 1)
+        group by o.customer_id, o.customer_dept_id, o.delivery_date, coalesce(c.alias, c.name), cd.name
+        order by o.delivery_date, o.customer_id
     </select>
 
 </mapper>

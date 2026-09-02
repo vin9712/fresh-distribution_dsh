@@ -63,28 +63,6 @@
 
     <el-row :gutter="10" class="mb8">
       <el-col :span="1.5">
-        <el-date-picker
-          v-model="generateDate"
-          type="date"
-          value-format="YYYY-MM-DD"
-          placeholder="选择配送日期"
-          size="small"
-          style="width: 150px"
-        />
-      </el-col>
-      <el-col :span="1.5">
-        <el-button
-          type="primary"
-          plain
-          :icon="Plus"
-          size="small"
-          @click="handleGenerate"
-          v-hasPermi="['order:delivery:add']"
-          >生成送货单</el-button
-        >
-        <span class="generate-hint">先出待生成清单（按客户），确认后才写单</span>
-      </el-col>
-      <el-col :span="1.5">
         <el-button
           type="warning"
           plain
@@ -468,13 +446,6 @@
       </template>
     </el-dialog>
 
-    <!-- 生成送货单·待生成清单确认（D-039 三步式：选日期 → 客户维度清单 → 确认） -->
-    <generate-preview-drawer
-      v-model="generatePreviewOpen"
-      :delivery-date="generateDate"
-      @success="getPageList"
-    />
-
     <!-- 打印对话框（W0-4.4：强制预览→确认→打印→回执；失败不增加成功打印次数） -->
     <el-dialog align-center title="打印送货单" v-model="printOpen" width="560px" append-to-body :close-on-click-modal="false">
       <el-form label-width="90px">
@@ -527,7 +498,6 @@ import {
   deliveredDelivery,
   voidDelivery,
 } from "@/api/order/delivery";
-import GeneratePreviewDrawer from "./generatePreviewDrawer.vue";
 import { listCustomer } from "@/api/partner/customer";
 import { issuePrintTicket } from "@/api/print/ticket";
 import { listPrintTemplate, recordPrintPreview } from "@/api/print/template";
@@ -545,7 +515,7 @@ import {
 
 export default {
   name: "Delivery",
-  components: { GeneratePreviewDrawer },
+  components: {},
   dicts: ["t_delivery_order_status", "delivery_no_print_reason", "delivery_void_reason"],
   setup() {
     return { Search, Refresh, Plus, Download, Printer, Van, View, Document, CircleClose };
@@ -564,10 +534,6 @@ export default {
       deliveryList: [],
       // 客户下拉（D-043 筛选补齐）
       customerOptions: [],
-      // 生成送货单的配送日期
-      generateDate: null,
-      // 待生成清单确认抽屉（D-039）
-      generatePreviewOpen: false,
       // 明细对话框
       detailOpen: false,
       detailTitle: "",
@@ -630,7 +596,6 @@ export default {
     const routeDate = this.$route.query.deliveryDate;
     if (routeDate) {
       this.queryParams.deliveryDate = String(routeDate);
-      this.generateDate = String(routeDate);
     }
     this.getPageList();
   },
@@ -721,17 +686,6 @@ export default {
     resetQuery() {
       this.resetForm("queryForm");
       this.handleQuery();
-    },
-    /**
-     * 生成送货单（D-039 三步式）：先拉客户维度待生成清单预览，确认后才调统一生成服务。
-     * 幂等与三态分支（跨点总单/每点一单、作废重建 D-022、补充单 D-023）在预览里逐客户如实展示。
-     */
-    handleGenerate() {
-      if (!this.generateDate) {
-        this.$modal.msgWarning("请先选择配送日期");
-        return;
-      }
-      this.generatePreviewOpen = true;
     },
     /** 查看明细 */
     handleDetail(row) {

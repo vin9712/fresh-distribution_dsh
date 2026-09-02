@@ -185,14 +185,6 @@
           @click="handleBuildPurchase"
           >生成采购单</el-button
         >
-        <el-button
-          type="success"
-          size="small"
-          plain
-          :icon="Van"
-          @click="handleBuildDelivery"
-          >生成送货单</el-button
-        >
       </div>
     </div>
 
