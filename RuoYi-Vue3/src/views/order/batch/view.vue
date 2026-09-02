@@ -177,7 +177,11 @@
 <script>
 import { batchView, deliveryMatrix } from "@/api/order/delivery";
 import { listCustomer } from "@/api/partner/customer";
+import { issuePrintTicket } from "@/api/print/ticket";
 import { Search, Printer } from "@element-plus/icons-vue";
+
+// 总单通用模板（s18：客户总单矩阵，司机对单 A4）——所有客户共用
+const TOTAL_MATRIX_TEMPLATE_ID = "2599000000000000001";
 
 export default {
   name: "DeliveryBatchView",
@@ -285,9 +289,20 @@ export default {
     matrixRowClass({ row }) {
       return row.identityOk === false ? "row-identity-bad" : "";
     },
-    /** 打印（总表：仅品名+各点数量，D-028/D-046 不含价格） */
+    /** 打印（通用总单矩阵模板：行=菜品、列=配送点、格=数量，标题=<客户>总单） */
     handlePrint() {
-      window.print();
+      const row = (this.matrix.rows || [])[0];
+      if (!row || !row.deliveryId) {
+        this.$modal.msgWarning("暂无可用送货单，无法打开总单打印");
+        return;
+      }
+      // 矩阵数据按 客户+日期 聚合；打印接口经 deliveryOrderId 校验票据（批次下任一有效单）
+      issuePrintTicket({ deliveryOrderId: row.deliveryId, templateId: TOTAL_MATRIX_TEMPLATE_ID }).then((res) => {
+        window.open(
+          "/jmreport/view/" + TOTAL_MATRIX_TEMPLATE_ID + "?token=" + res.ticket + "&deliveryOrderId=" + row.deliveryId,
+          "_blank"
+        );
+      });
     },
   },
 };
