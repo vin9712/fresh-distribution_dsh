@@ -123,33 +123,3 @@ export function importPrintTemplate(packageJson) {
     headers: { 'Content-Type': 'application/json' }
   })
 }
-
-// 打印资源列表
-export function listPrintAsset(query) {
-  return request({
-    url: '/print/asset/list',
-    method: 'get',
-    params: query
-  })
-}
-
-// 上传打印资源（PNG/JPG 5MB）
-export function uploadPrintAsset(file) {
-  const formData = new FormData()
-  formData.append('file', file)
-  return request({
-    url: '/print/asset/upload',
-    method: 'post',
-    data: formData,
-    headers: { 'Content-Type': 'multipart/form-data' },
-    timeout: 60000
-  })
-}
-
-// 删除打印资源（被引用则拒绝）
-export function delPrintAsset(id) {
-  return request({
-    url: '/print/asset/' + id,
-    method: 'delete'
-  })
-}
