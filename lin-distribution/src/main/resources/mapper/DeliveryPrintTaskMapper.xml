@@ -1,0 +1,106 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+"http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.lin.distribution.mapper.DeliveryPrintTaskMapper">
+
+    <resultMap type="com.lin.distribution.domain.DeliveryPrintTask" id="DeliveryPrintTaskResult">
+        <result property="id"               column="id"                />
+        <result property="packageId"        column="package_id"        />
+        <result property="deliveryOrderId"  column="delivery_order_id" />
+        <result property="seqNo"            column="seq_no"            />
+        <result property="templateId"       column="template_id"       />
+        <result property="copies"           column="copies"            />
+        <result property="deviceKey"        column="device_key"        />
+        <result property="status"           column="status"            />
+        <result property="attemptNo"        column="attempt_no"        />
+        <result property="retryOfTaskId"    column="retry_of_task_id"  />
+        <result property="receiptTime"      column="receipt_time"      />
+        <result property="errorMsg"         column="error_msg"         />
+        <result property="createBy"         column="create_by"         />
+        <result property="createTime"       column="create_time"       />
+        <result property="updateBy"         column="update_by"         />
+        <result property="updateTime"       column="update_time"       />
+        <result property="remark"           column="remark"            />
+        <result property="deliveryCode"     column="deliveryCode"      />
+        <result property="customerName"     column="customerName"      />
+        <result property="customerDeptName" column="customerDeptName"  />
+        <result property="deliveryDate"     column="deliveryDate"      />
+        <result property="templateName"     column="templateName"      />
+        <result property="printForm"        column="printForm"         />
+    </resultMap>
+
+    <insert id="batchInsertPrintTask" parameterType="java.util.List">
+        insert into t_print_task (package_id, delivery_order_id, seq_no, template_id, copies,
+                                  device_key, status, attempt_no, retry_of_task_id, create_by, create_time, remark)
+        values
+        <foreach item="t" collection="list" separator=",">
+            (#{t.packageId}, #{t.deliveryOrderId}, #{t.seqNo}, #{t.templateId},
+             coalesce(#{t.copies}, 1), #{t.deviceKey},
+             #{t.status}, coalesce(#{t.attemptNo}, 1), #{t.retryOfTaskId},
+             #{t.createBy}, #{t.createTime}, #{t.remark})
+        </foreach>
+    </insert>
+
+    <!-- 包内任务清单（含送货单/模板展示字段，按 seq_no 升序） -->
+    <select id="selectTasksByPackageId" resultMap="DeliveryPrintTaskResult">
+        select t.*,
+               o.code              as deliveryCode,
+               coalesce(c.alias, c.name) as customerName,
+               cd.name             as customerDeptName,
+               o.delivery_date     as deliveryDate,
+               tp.name             as templateName,
+               tp.print_form       as printForm
+        from t_print_task t
+        join t_delivery_order o on o.id = t.delivery_order_id
+        left join t_customer c on c.id = o.customer_id
+        left join t_customer_dept cd on cd.id = o.delivery_point_id
+        left join t_print_template tp on tp.id = t.template_id
+        where t.package_id = #{packageId}
+        order by t.seq_no asc, t.id asc
+    </select>
+
+    <select id="selectTaskById" resultMap="DeliveryPrintTaskResult">
+        select t.*,
+               o.code              as deliveryCode,
+               coalesce(c.alias, c.name) as customerName,
+               cd.name             as customerDeptName,
+               o.delivery_date     as deliveryDate,
+               tp.name             as templateName,
+               tp.print_form       as printForm
+        from t_print_task t
+        join t_delivery_order o on o.id = t.delivery_order_id
+        left join t_customer c on c.id = o.customer_id
+        left join t_customer_dept cd on cd.id = o.delivery_point_id
+        left join t_print_template tp on tp.id = t.template_id
+        where t.id = #{id}
+    </select>
+
+    <update id="updatePrintTask" parameterType="com.lin.distribution.domain.DeliveryPrintTask">
+        update t_print_task
+        <trim prefix="SET" suffixOverrides=",">
+            <if test="packageId != null">package_id = #{packageId},</if>
+            <if test="deliveryOrderId != null">delivery_order_id = #{deliveryOrderId},</if>
+            <if test="seqNo != null">seq_no = #{seqNo},</if>
+            <if test="templateId != null">template_id = #{templateId},</if>
+            <if test="copies != null">copies = #{copies},</if>
+            <if test="deviceKey != null">device_key = #{deviceKey},</if>
+            <if test="status != null">status = #{status},</if>
+            <if test="attemptNo != null">attempt_no = #{attemptNo},</if>
+            <if test="retryOfTaskId != null">retry_of_task_id = #{retryOfTaskId},</if>
+            <if test="receiptTime != null">receipt_time = #{receiptTime},</if>
+            <if test="errorMsg != null">error_msg = #{errorMsg},</if>
+            <if test="updateBy != null">update_by = #{updateBy},</if>
+            <if test="updateTime != null">update_time = #{updateTime},</if>
+            <if test="remark != null">remark = #{remark},</if>
+        </trim>
+        where id = #{id}
+    </update>
+
+    <select id="countByStatus" resultType="java.util.HashMap">
+        select status, count(1) as cnt
+        from t_print_task
+        where package_id = #{packageId}
+        group by status
+    </select>
+</mapper>

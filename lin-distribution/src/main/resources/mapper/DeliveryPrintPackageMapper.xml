@@ -1,0 +1,108 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+"http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.lin.distribution.mapper.DeliveryPrintPackageMapper">
+
+    <resultMap type="com.lin.distribution.domain.DeliveryPrintPackage" id="DeliveryPrintPackageResult">
+        <result property="id"            column="id"            />
+        <result property="batchId"       column="batch_id"      />
+        <result property="customerId"    column="customer_id"   />
+        <result property="deliveryDate"  column="delivery_date" />
+        <result property="packageNo"     column="package_no"    />
+        <result property="mediaType"     column="media_type"    />
+        <result property="status"        column="status"        />
+        <result property="totalCount"    column="total_count"   />
+        <result property="successCount"  column="success_count" />
+        <result property="failCount"     column="fail_count"    />
+        <result property="previewTime"   column="preview_time"  />
+        <result property="createBy"      column="create_by"     />
+        <result property="createTime"    column="create_time"   />
+        <result property="updateBy"      column="update_by"     />
+        <result property="updateTime"    column="update_time"   />
+        <result property="remark"        column="remark"        />
+        <result property="customerName"  column="customerName"  />
+        <result property="totalQuantity" column="totalQuantity" />
+        <result property="totalAmount"   column="totalAmount"   />
+    </resultMap>
+
+    <!-- 展示查询：包 + 客户名（金额/数量由服务层按任务聚合） -->
+    <sql id="selectPackageVo">
+        select p.*, coalesce(c.alias, c.name) as customerName
+        from t_print_package p
+        left join t_customer c on c.id = p.customer_id
+    </sql>
+
+    <select id="selectPrintPackageById" resultMap="DeliveryPrintPackageResult">
+        <include refid="selectPackageVo"/>
+        where p.id = #{id}
+    </select>
+
+    <select id="selectPrintPackageList" parameterType="com.lin.distribution.domain.DeliveryPrintPackage"
+            resultMap="DeliveryPrintPackageResult">
+        <include refid="selectPackageVo"/>
+        <where>
+            <if test="customerId != null "> and p.customer_id = #{customerId}</if>
+            <if test="deliveryDate != null "> and p.delivery_date = #{deliveryDate}</if>
+        </where>
+        order by p.id desc
+    </select>
+
+    <insert id="insertPrintPackage" parameterType="com.lin.distribution.domain.DeliveryPrintPackage"
+            useGeneratedKeys="true" keyProperty="id">
+        insert into t_print_package
+        <trim prefix="(" suffix=")" suffixOverrides=",">
+            <if test="batchId != null">batch_id,</if>
+            <if test="customerId != null">customer_id,</if>
+            <if test="deliveryDate != null">delivery_date,</if>
+            <if test="packageNo != null and packageNo != ''">package_no,</if>
+            <if test="mediaType != null and mediaType != ''">media_type,</if>
+            <if test="status != null">status,</if>
+            <if test="totalCount != null">total_count,</if>
+            <if test="successCount != null">success_count,</if>
+            <if test="failCount != null">fail_count,</if>
+            <if test="previewTime != null">preview_time,</if>
+            <if test="createBy != null">create_by,</if>
+            <if test="createTime != null">create_time,</if>
+            <if test="updateBy != null">update_by,</if>
+            <if test="updateTime != null">update_time,</if>
+            <if test="remark != null">remark,</if>
+        </trim>
+        <trim prefix="values (" suffix=")" suffixOverrides=",">
+            <if test="batchId != null">#{batchId},</if>
+            <if test="customerId != null">#{customerId},</if>
+            <if test="deliveryDate != null">#{deliveryDate},</if>
+            <if test="packageNo != null and packageNo != ''">#{packageNo},</if>
+            <if test="mediaType != null and mediaType != ''">#{mediaType},</if>
+            <if test="status != null">#{status},</if>
+            <if test="totalCount != null">#{totalCount},</if>
+            <if test="successCount != null">#{successCount},</if>
+            <if test="failCount != null">#{failCount},</if>
+            <if test="previewTime != null">#{previewTime},</if>
+            <if test="createBy != null">#{createBy},</if>
+            <if test="createTime != null">#{createTime},</if>
+            <if test="updateBy != null">#{updateBy},</if>
+            <if test="updateTime != null">#{updateTime},</if>
+            <if test="remark != null">#{remark},</if>
+        </trim>
+    </insert>
+
+    <update id="updatePrintPackage" parameterType="com.lin.distribution.domain.DeliveryPrintPackage">
+        update t_print_package
+        <trim prefix="SET" suffixOverrides=",">
+            <if test="batchId != null">batch_id = #{batchId},</if>
+            <if test="customerId != null">customer_id = #{customerId},</if>
+            <if test="packageNo != null and packageNo != ''">package_no = #{packageNo},</if>
+            <if test="mediaType != null and mediaType != ''">media_type = #{mediaType},</if>
+            <if test="status != null">status = #{status},</if>
+            <if test="totalCount != null">total_count = #{totalCount},</if>
+            <if test="successCount != null">success_count = #{successCount},</if>
+            <if test="failCount != null">fail_count = #{failCount},</if>
+            <if test="previewTime != null">preview_time = #{previewTime},</if>
+            <if test="updateBy != null">update_by = #{updateBy},</if>
+            <if test="updateTime != null">update_time = #{updateTime},</if>
+            <if test="remark != null">remark = #{remark},</if>
+        </trim>
+        where id = #{id}
+    </update>
+</mapper>
