@@ -49,6 +49,14 @@ public interface DeliveryOrderService {
     List<DeliveryOrder> selectDeliveryOrderList(DeliveryOrder deliveryOrder);
 
     /**
+     * 批次分组聚合分页（D-043）：按 客户+配送日期 分组，主行聚合张数/状态数/合计/打印形态/提醒最高级。
+     *
+     * @param deliveryOrder 筛选条件（customerId/deliveryPointId/status/deliveryDate/scopeType 等）
+     * @return 批次分组聚合集合
+     */
+    List<com.lin.distribution.vo.DeliveryBatchPageVO> selectBatchPage(DeliveryOrder deliveryOrder);
+
+    /**
      * 新增送货单据
      *
      * @param deliveryOrder 送货单据

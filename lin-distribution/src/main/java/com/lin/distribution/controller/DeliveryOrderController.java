@@ -66,6 +66,20 @@ public class DeliveryOrderController extends BaseController {
     }
 
     /**
+     * 批次分组聚合分页（D-043 送货单据页：主行=客户+配送日期=批次，聚合张数/状态数/合计/打印形态/提醒最高级）
+     *
+     * <p>必须后端分组——前端分页会切断同一批次。子行（单号/点/状态/打印次数）由前端展开时
+     * 按 customerId+deliveryDate 调既有 {@link #list(DeliveryOrder)}。</p>
+     */
+    @PreAuthorize("@ss.hasPermi('order:delivery:list')")
+    @GetMapping("/batch-page")
+    public TableDataInfo batchPage(DeliveryOrder deliveryOrder) {
+        startPage();
+        List<com.lin.distribution.vo.DeliveryBatchPageVO> list = deliveryOrderService.selectBatchPage(deliveryOrder);
+        return getDataTable(list);
+    }
+
+    /**
      * 查询送货单据列表
      */
     @PreAuthorize("@ss.hasPermi('order:delivery:list')")
@@ -126,6 +140,18 @@ public class DeliveryOrderController extends BaseController {
     }
 
     /**
+     * 矩阵总表（D-044/D-047/D-051）：行=送货明细行（不同价必拆行）、列=配送点快照（含当日无单空列）、
+     * 格=source_item 分配量透视；纸面不打单价与金额，同名多行以 (档①) 标记区分（D-046）。
+     * 页面与打印共用本接口，附恒等式自检结果（D-047）。
+     */
+    @PreAuthorize("@ss.hasPermi('order:delivery:batch')")
+    @GetMapping("/batch/{customerId}/{deliveryDate}/matrix")
+    public AjaxResult matrix(@PathVariable("customerId") Long customerId,
+                             @PathVariable("deliveryDate") String deliveryDate) {
+        return success(deliveryBatchService.selectMatrix(customerId, deliveryDate));
+    }
+
+    /**
      * 打印信息：三级绑定解析模板 + 联数（打印计数由 /{id}/print 记录）
      */
     @PreAuthorize("@ss.hasPermi('order:delivery:print')")
@@ -148,6 +174,20 @@ public class DeliveryOrderController extends BaseController {
         info.put("customerId", deliveryOrder.getCustomerId());
         info.put("deliveryPointId", deliveryOrder.getDeliveryPointId());
         return success(info);
+    }
+
+    /**
+     * 候选打印模板（P1/D-048 替代前端复刻过滤）：同印刷形态、该客户可用的已发布模板，
+     * 按绑定层级排序 + 命中「全局默认」告警标记。
+     */
+    @PreAuthorize("@ss.hasPermi('order:delivery:print')")
+    @GetMapping(value = "/{id}/print-candidates")
+    public AjaxResult printCandidates(@PathVariable("id") Long id) {
+        DeliveryOrder deliveryOrder = deliveryOrderService.selectDeliveryOrderById(id);
+        if (deliveryOrder == null) {
+            return error("送货单不存在");
+        }
+        return success(printTemplateService.selectPrintCandidates(deliveryOrder));
     }
 
     /**

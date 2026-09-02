@@ -16,6 +16,11 @@
           @keyup.enter="handleQuery"
         />
       </el-form-item>
+      <el-form-item label="客户" prop="customerId">
+        <el-select v-model="queryParams.customerId" placeholder="请选择客户" filterable clearable style="width: 190px">
+          <el-option v-for="c in customerOptions" :key="c.id" :label="c.name" :value="c.id" />
+        </el-select>
+      </el-form-item>
       <el-form-item label="状态" prop="status">
         <el-select v-model="queryParams.status" placeholder="请选择状态" clearable>
           <el-option
@@ -98,127 +103,222 @@
 
     <el-table
       v-loading="loading"
-      :data="deliveryList"
-      :row-class-name="reminderRowClass"
+      :data="batchList"
+      :row-key="rowKey"
+      :row-class-name="batchReminderClass"
+      @expand-change="handleBatchExpand"
     >
-      <el-table-column label="送货单编号" align="center" width="210">
+      <!-- D-043：批次两级视图，主行=客户+配送日期=批次，展开看该批次下送货单 -->
+      <el-table-column type="expand" width="40">
         <template #default="scope">
-          <span>{{ scope.row.code }}</span>
-          <el-tag
-            v-if="scope.row.docKind === 1"
-            size="small"
-            type="warning"
-            effect="plain"
-            class="code-tag"
-            >补充单</el-tag
-          >
+          <div class="batch-children">
+            <div class="children-title">
+              {{ scope.row.customerName }} / {{ scope.row.deliveryDate }} 批次下 {{ scope.row.docCount }} 张送货单
+              （已打 {{ scope.row.printedCount }} · 待打 {{ scope.row.pendingCount }} · 已送 {{ scope.row.deliveredCount }}
+              <template v-if="scope.row.voidedCount"> · 已作废 {{ scope.row.voidedCount }}</template>）
+            </div>
+            <el-table
+              v-loading="scope.row.__loading"
+              :data="scope.row.children || []"
+              size="small"
+              border
+              :row-class-name="reminderRowClass"
+            >
+              <el-table-column label="送货单编号" align="center" width="200">
+                <template #default="c">
+                  <span>{{ c.row.code }}</span>
+                  <el-tag
+                    v-if="c.row.docKind === 1"
+                    size="small"
+                    type="warning"
+                    effect="plain"
+                    class="code-tag"
+                    >补充单</el-tag
+                  >
+                </template>
+              </el-table-column>
+              <el-table-column label="配送点" align="center">
+                <template #default="c">
+                  <span v-if="c.row.customerDeptName">{{ c.row.customerDeptName }}</span>
+                  <el-tag v-else-if="c.row.scopeType === 'CUSTOMER_DATE'" size="small" type="info" effect="plain"
+                    >跨点总单</el-tag
+                  >
+                  <span v-else>—</span>
+                </template>
+              </el-table-column>
+              <el-table-column label="状态" align="center" prop="status" width="110">
+                <template #default="c">
+                  <div class="status-cell">
+                    <el-tooltip
+                      v-if="c.row.status === 3 && c.row.voidReason"
+                      :content="'作废原因：' + c.row.voidReason"
+                      placement="top"
+                    >
+                      <span><dict-tag
+                        :options="dict.type.t_delivery_order_status"
+                        :value="c.row.status"
+                      /></span>
+                    </el-tooltip>
+                    <dict-tag
+                      v-else
+                      :options="dict.type.t_delivery_order_status"
+                      :value="c.row.status"
+                    />
+                    <el-tooltip
+                      v-if="c.row.status === 2 && c.row.reminderLevel"
+                      :content="'待验收提醒：' + (c.row.reminderReason || '超时未验收')"
+                      placement="top"
+                    >
+                      <span
+                        class="reminder-tag"
+                        :class="c.row.reminderLevel === 2 ? 'reminder-tag--red' : 'reminder-tag--yellow'"
+                        >待验收</span
+                      >
+                    </el-tooltip>
+                  </div>
+                </template>
+              </el-table-column>
+              <el-table-column label="打印次数" align="center" prop="printCount" width="80" />
+              <el-table-column label="备注" align="center" prop="remark" :show-overflow-tooltip="true" />
+              <el-table-column
+                label="操作"
+                align="center"
+                class-name="small-padding fixed-width"
+                width="300"
+              >
+                <template #default="c">
+                  <el-button
+                    size="small"
+                    link
+                    :icon="View"
+                    @click="handleDetail(c.row)"
+                    v-hasPermi="['order:delivery:query']"
+                    >明细</el-button
+                  >
+                  <el-button
+                    size="small"
+                    link
+                    :icon="Document"
+                    @click="handleSources(c.row)"
+                    v-hasPermi="['order:delivery:query']"
+                    >来源</el-button
+                  >
+                  <el-button
+                    size="small"
+                    link
+                    :icon="Printer"
+                    :disabled="c.row.status === 2 || c.row.status === 3"
+                    @click="handlePrint(c.row)"
+                    v-hasPermi="['order:delivery:print']"
+                    >打印</el-button
+                  >
+                  <el-button
+                    v-if="c.row.status === 0 || c.row.status === 1"
+                    size="small"
+                    link
+                    :icon="Van"
+                    @click="handleDeliver(c.row)"
+                    v-hasPermi="['order:delivery:deliver']"
+                    >送达</el-button
+                  >
+                  <el-button
+                    v-if="c.row.status === 0 || c.row.status === 1"
+                    size="small"
+                    link
+                    type="danger"
+                    :icon="CircleClose"
+                    @click="handleVoid(c.row)"
+                    v-hasPermi="['order:delivery:void']"
+                    >作废</el-button
+                  >
+                </template>
+              </el-table-column>
+            </el-table>
+          </div>
         </template>
       </el-table-column>
-      <el-table-column label="客户" align="center" prop="customerName" />
-      <el-table-column label="配送点" align="center" prop="customerDeptName">
-        <template #default="scope">
-          <span v-if="scope.row.customerDeptName">{{ scope.row.customerDeptName }}</span>
-          <el-tag v-else-if="scope.row.scopeType === 'CUSTOMER_DATE'" size="small" type="info" effect="plain"
-            >跨点总单</el-tag
-          >
-          <span v-else>—</span>
-        </template>
-      </el-table-column>
-      <el-table-column
-        label="配送日期"
-        align="center"
-        prop="deliveryDate"
-        width="120"
-      >
+      <el-table-column label="客户" align="center" prop="customerName" min-width="140" />
+      <el-table-column label="配送日期" align="center" width="120">
         <template #default="scope">
           <span>{{ parseTime(scope.row.deliveryDate, "{y}-{m}-{d}") }}</span>
         </template>
       </el-table-column>
-      <el-table-column label="状态" align="center" prop="status" width="100">
+      <el-table-column label="形态" align="center" width="90">
         <template #default="scope">
-          <div class="status-cell">
-            <el-tooltip
-              v-if="scope.row.status === 3 && scope.row.voidReason"
-              :content="'作废原因：' + scope.row.voidReason"
-              placement="top"
-            >
-              <span><dict-tag
-                :options="dict.type.t_delivery_order_status"
-                :value="scope.row.status"
-              /></span>
-            </el-tooltip>
-            <dict-tag
-              v-else
-              :options="dict.type.t_delivery_order_status"
-              :value="scope.row.status"
-            />
-            <!-- W0-3.2：已送达未验收行追加提醒标记（红=当天11:30后/过期，黄=打印满2h），不取代原状态 -->
-            <el-tooltip
-              v-if="scope.row.status === 2 && scope.row.reminderLevel"
-              :content="'待验收提醒：' + (scope.row.reminderReason || '超时未验收')"
-              placement="top"
-            >
-              <span
-                class="reminder-tag"
-                :class="scope.row.reminderLevel === 2 ? 'reminder-tag--red' : 'reminder-tag--yellow'"
-                >待验收</span
-              >
-            </el-tooltip>
-          </div>
+          <el-tag v-if="scope.row.printForm === 'MATRIX'" size="small" type="info" effect="plain">总单·矩阵</el-tag>
+          <el-tag v-else size="small" type="info" effect="plain">每点一单</el-tag>
         </template>
       </el-table-column>
-      <el-table-column label="打印次数" align="center" prop="printCount" width="90" />
-      <el-table-column label="备注" align="center" prop="remark" :show-overflow-tooltip="true" />
-      <el-table-column
-        label="操作"
-        align="center"
-        class-name="small-padding fixed-width"
-        width="300"
-      >
+      <el-table-column label="张数" align="center" width="70">
+        <template #default="scope">
+          <b>{{ scope.row.docCount }}</b>
+          <el-tag v-if="scope.row.supplementCount" size="small" type="warning" effect="plain" class="code-tag">
+            补{{ scope.row.supplementCount }}
+          </el-tag>
+        </template>
+      </el-table-column>
+      <el-table-column label="待打/已打/已送" align="center" width="130">
+        <template #default="scope">
+          <span class="batch-status-count">
+            待打 {{ scope.row.pendingCount }} · 已打 {{ scope.row.printedCount }} · 已送
+            {{ scope.row.deliveredCount }}
+          </span>
+        </template>
+      </el-table-column>
+      <el-table-column label="合计数量" align="center" width="100">
+        <template #default="scope">
+          <b>{{ scope.row.totalQuantity }}</b>
+        </template>
+      </el-table-column>
+      <el-table-column label="合计金额" align="center" width="100">
+        <template #default="scope">
+          {{ scope.row.totalAmount }}
+        </template>
+      </el-table-column>
+      <el-table-column label="待验收" align="center" width="90">
+        <template #default="scope">
+          <el-tag
+            v-if="scope.row.maxReminderLevel === 2"
+            size="small"
+            type="danger"
+            effect="plain"
+            >待验收</el-tag
+          >
+          <el-tag
+            v-else-if="scope.row.maxReminderLevel === 1"
+            size="small"
+            type="warning"
+            effect="plain"
+            >待验收</el-tag
+          >
+          <span v-else>—</span>
+        </template>
+      </el-table-column>
+      <el-table-column label="总表" align="center" width="120">
+        <template #default="scope">
+          <el-button
+            v-if="scope.row.printForm === 'MATRIX'"
+            size="small"
+            link
+            type="primary"
+            :icon="Printer"
+            @click="handleMatrixPrint(scope.row)"
+            v-hasPermi="['order:delivery:print']"
+            >总表</el-button
+          >
+          <span v-else>—</span>
+        </template>
+      </el-table-column>
+      <el-table-column label="打印包" align="center" width="120">
         <template #default="scope">
           <el-button
             size="small"
             link
-            :icon="View"
-            @click="handleDetail(scope.row)"
-            v-hasPermi="['order:delivery:query']"
-            >明细</el-button
-          >
-          <el-button
-            size="small"
-            link
-            :icon="Document"
-            @click="handleSources(scope.row)"
-            v-hasPermi="['order:delivery:query']"
-            >来源</el-button
-          >
-          <el-button
-            size="small"
-            link
+            type="primary"
             :icon="Printer"
-            :disabled="scope.row.status === 2 || scope.row.status === 3"
-            @click="handlePrint(scope.row)"
+            @click="handlePrintPackage(scope.row)"
             v-hasPermi="['order:delivery:print']"
-            >打印</el-button
-          >
-          <el-button
-            v-if="scope.row.status === 0 || scope.row.status === 1"
-            size="small"
-            link
-            :icon="Van"
-            @click="handleDeliver(scope.row)"
-            v-hasPermi="['order:delivery:deliver']"
-            >送达</el-button
-          >
-          <el-button
-            v-if="scope.row.status === 0 || scope.row.status === 1"
-            size="small"
-            link
-            type="danger"
-            :icon="CircleClose"
-            @click="handleVoid(scope.row)"
-            v-hasPermi="['order:delivery:void']"
-            >作废</el-button
+            >打印包</el-button
           >
         </template>
       </el-table-column>
@@ -375,6 +475,13 @@
       @success="getPageList"
     />
 
+    <!-- 打印包抽屉（P2/D-050：N 张点单一次输出 → 汇总预览 → 队列 → 回执） -->
+    <print-package-drawer
+      v-model="printPackageOpen"
+      :batch="printPackageBatch"
+      @done="getPageList"
+    />
+
     <!-- 打印对话框（W0-4.4：强制预览→确认→打印→回执；失败不增加成功打印次数） -->
     <el-dialog align-center title="打印送货单" v-model="printOpen" width="560px" append-to-body :close-on-click-modal="false">
       <el-form label-width="90px">
@@ -416,16 +523,20 @@
 
 <script>
 import {
-  pageDelivery,
+  listDelivery,
+  batchPageDelivery,
   listDeliveryDetail,
   listDeliverySources,
   generateDeliveryForCustomer,
   printDelivery,
   printInfoDelivery,
+  printCandidatesDelivery,
   deliveredDelivery,
   voidDelivery,
 } from "@/api/order/delivery";
 import GeneratePreviewDrawer from "./generatePreviewDrawer.vue";
+import PrintPackageDrawer from "./printPackageDrawer.vue";
+import { listCustomer } from "@/api/partner/customer";
 import { issuePrintTicket } from "@/api/print/ticket";
 import { listPrintTemplate, recordPrintPreview } from "@/api/print/template";
 import {
@@ -442,7 +553,7 @@ import {
 
 export default {
   name: "Delivery",
-  components: { GeneratePreviewDrawer },
+  components: { GeneratePreviewDrawer, PrintPackageDrawer },
   dicts: ["t_delivery_order_status", "delivery_no_print_reason", "delivery_void_reason"],
   setup() {
     return { Search, Refresh, Plus, Download, Printer, Van, View, Document, CircleClose };
@@ -455,12 +566,19 @@ export default {
       showSearch: true,
       // 总条数
       total: 0,
+      // 批次聚合主行（D-043：一行=客户+配送日期=批次）
+      batchList: [],
       // 送货单表格数据
       deliveryList: [],
+      // 客户下拉（D-043 筛选补齐）
+      customerOptions: [],
       // 生成送货单的配送日期
       generateDate: null,
       // 待生成清单确认抽屉（D-039）
       generatePreviewOpen: false,
+      // 打印包抽屉（P2/D-050）
+      printPackageOpen: false,
+      printPackageBatch: {},
       // 明细对话框
       detailOpen: false,
       detailTitle: "",
@@ -495,11 +613,14 @@ export default {
       printTemplates: [],
       printChosenRecordId: null,
       printPreviewed: false,
+      // P1/D-048：候选模板是否命中「全局默认」（用于打印对话框告警）
+      printMatchGlobalDefault: false,
       // 查询参数
       queryParams: {
         pageNum: 1,
         pageSize: 10,
         code: null,
+        customerId: null,
         status: null,
         scopeType: null,
         deliveryDate: null,
@@ -507,6 +628,10 @@ export default {
     };
   },
   created() {
+    // 客户下拉（D-043 筛选）
+    listCustomer().then((response) => {
+      this.customerOptions = response.data || [];
+    });
     // S2-2.1 待办链跳转支持：/order/delivery?status=0/1 预置状态筛选（保持字符串与字典值匹配）
     const routeStatus = this.$route.query.status;
     if (routeStatus !== undefined && routeStatus !== null && routeStatus !== "") {
@@ -521,6 +646,10 @@ export default {
     this.getPageList();
   },
   methods: {
+    /** 批次主行唯一键（客户+日期组合，稳定展开状态） */
+    rowKey(row) {
+      return (row.customerId || 0) + "-" + (row.deliveryDate || "");
+    },
     /** W0-3.2：已送达未验收行按提醒级别标行色 */
     reminderRowClass({ row }) {
       if (row.status === 2 && row.reminderLevel === 2) {
@@ -531,14 +660,73 @@ export default {
       }
       return "";
     },
-    /** 分页查询送货单列表 */
+    /** 分页查询送货单列表（D-043：批次聚合主行，一行=客户+配送日期） */
     getPageList() {
       this.loading = true;
-      pageDelivery(this.queryParams).then((response) => {
-        this.deliveryList = response.rows;
+      batchPageDelivery(this.queryParams).then((response) => {
+        this.batchList = (response.rows || []).map((r) => ({
+          ...r,
+          children: r.children || [],
+          __loaded: false,
+          __loading: false,
+        }));
         this.total = response.total;
         this.loading = false;
       });
+    },
+    /** 批次主行展开事件：加载该批次子送货单 */
+    handleBatchExpand(row, expandedRows) {
+      if (!row) {
+        return;
+      }
+      if (row.__loaded) {
+        return;
+      }
+      row.__loading = true;
+      this.loadBatchChildren(row).finally(() => {
+        row.__loading = false;
+      });
+    },
+    /** 批次总表打印：矩阵形态批次跳转客户日总表矩阵页（含总表预览/打印） */
+    handleMatrixPrint(row) {
+      this.$router.push({
+        path: "/order/batch",
+        query: { customerId: row.customerId, deliveryDate: row.deliveryDate },
+      });
+    },
+    /** 批次打印包（P2/D-050）：N 张点单一次输出 */
+    handlePrintPackage(row) {
+      this.printPackageBatch = row;
+      this.printPackageOpen = true;
+    },
+    /** 展开批次子行：按 客户+配送日期 拉该批次下全部送货单（复用 listDelivery） */
+    loadBatchChildren(row) {
+      // 已加载过则不重复
+      if (row.__loaded) {
+        row.children = row.children || [];
+        return Promise.resolve(row.children);
+      }
+      const q = {
+        pageNum: 1,
+        pageSize: 100,
+        customerId: row.customerId,
+        deliveryDate: row.deliveryDate,
+      };
+      return listDelivery(q).then((response) => {
+        row.children = response.data || [];
+        row.__loaded = true;
+        return row.children;
+      });
+    },
+    /** 批次主行是否命中提醒（红色/黄色），驱动主行标色 */
+    batchReminderClass({ row }) {
+      if (row.maxReminderLevel === 2) {
+        return "row-reminder-red";
+      }
+      if (row.maxReminderLevel === 1) {
+        return "row-reminder-yellow";
+      }
+      return "";
     },
     /** 搜索按钮操作 */
     handleQuery() {
@@ -594,18 +782,14 @@ export default {
         })
         .catch(() => {});
     },
-    /** 可切换模板：已发布送货单模板，前端按三级绑定过滤（与后端 selectBindTemplate 同口径） */
+    /** 可切换模板（P1/D-048）：后端出候选（同印刷形态、按绑定层级排序，替代前端复刻过滤）；命中全局默认时告警 */
     loadPrintTemplates() {
-      listPrintTemplate({ type: 0, status: 2 })
+      printCandidatesDelivery(this.printRow.id)
         .then((response) => {
+          const vo = response.data || {};
+          const list = vo.templates || [];
+          // 兑底：解析模板不在候选（如历史数据形态不匹配）仍可选
           const info = this.printInfo;
-          const list = (response.data || []).filter(
-            (t) =>
-              (t.bindType === 1 && t.customerId === info.customerId && t.deliveryPointId === info.deliveryPointId) ||
-              (t.bindType === 2 && t.customerId === info.customerId) ||
-              (t.bindType === 3 && t.isDefault === "1")
-          );
-          // 兑底：解析模板不在过滤结果中（如历史数据）仍可选
           if (info.templateRecordId && !list.some((t) => t.id === info.templateRecordId)) {
             list.unshift({
               id: info.templateRecordId,
@@ -615,6 +799,7 @@ export default {
             });
           }
           this.printTemplates = list;
+          this.matchGlobalDefault = Boolean(vo.matchGlobalDefault);
         })
         .catch(() => {});
     },
@@ -770,6 +955,18 @@ export default {
 }
 .code-tag {
   margin-left: 4px;
+}
+.batch-children {
+  padding: 6px 16px 8px 24px;
+}
+.children-title {
+  margin-bottom: 6px;
+  font-size: 13px;
+  color: #606266;
+}
+.batch-status-count {
+  font-size: 12px;
+  color: #606266;
 }
 .sources-expand {
   padding: 6px 24px;

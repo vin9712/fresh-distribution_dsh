@@ -18,6 +18,8 @@ import com.lin.distribution.mapper.DeliveryOrderMapper;
 import com.lin.distribution.mapper.DeliverySourceItemMapper;
 import com.lin.distribution.mapper.SaleOrderMapper;
 import com.lin.distribution.service.BizCodeService;
+import com.lin.distribution.vo.DeliveryMatrixLayout;
+import com.lin.distribution.vo.DeliveryBatchPageVO;
 import com.lin.distribution.vo.DeliverySourceVO;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -479,5 +481,54 @@ class DeliveryOrderServiceImplTest {
 
         assertNull(result.get(0).getReminderLevel());
         verify(acceptanceMapper, never()).selectSubmittedDeliveryIds(anyList());
+    }
+
+    // ==================== 批次分组聚合（D-043 batch-page） ====================
+
+    @Test
+    void 批次打印形态按范围推导_跨点归矩阵_每点归平铺() {
+        DeliveryBatchPageVO cross = new DeliveryBatchPageVO();
+        cross.setCustomerId(11L);
+        cross.setDeliveryDate("2026-09-01");
+        cross.setScopeType("CUSTOMER_DATE");
+        cross.setPrintForm(null);
+        DeliveryBatchPageVO point = new DeliveryBatchPageVO();
+        point.setCustomerId(10L);
+        point.setDeliveryDate("2026-09-01");
+        point.setScopeType("DELIVERY_POINT_DATE");
+        point.setPrintForm(null);
+        when(deliveryOrderMapper.selectBatchPage(any(DeliveryOrder.class)))
+                .thenReturn(new ArrayList<>(List.of(cross, point)));
+        // 无已送达单，不触发验收查询
+        when(deliveryOrderMapper.selectDeliveryOrderList(any(DeliveryOrder.class)))
+                .thenReturn(new ArrayList<>(List.of()));
+
+        List<DeliveryBatchPageVO> result = deliveryOrderService.selectBatchPage(new DeliveryOrder());
+
+        assertEquals(DeliveryMatrixLayout.FORM_MATRIX, result.get(0).getPrintForm());
+        assertEquals(DeliveryMatrixLayout.FORM_FLAT, result.get(1).getPrintForm());
+    }
+
+    @Test
+    void 批次提醒为批内已送达未验收单最高级() {
+        DeliveryBatchPageVO cross = new DeliveryBatchPageVO();
+        cross.setCustomerId(11L);
+        cross.setDeliveryDate("2026-09-01");
+        cross.setScopeType("CUSTOMER_DATE");
+        cross.setMaxReminderLevel(0);
+        when(deliveryOrderMapper.selectBatchPage(any(DeliveryOrder.class)))
+                .thenReturn(new ArrayList<>(List.of(cross)));
+        DeliveryOrder expired = new DeliveryOrder();
+        expired.setId(88L);
+        expired.setCustomerId(11L);
+        expired.setDeliveryDate(java.time.LocalDate.of(2026, 8, 31));
+        expired.setStatus(DeliveryOrderStatus.DELIVERED.getCode());
+        when(deliveryOrderMapper.selectDeliveryOrderList(any(DeliveryOrder.class)))
+                .thenReturn(new ArrayList<>(List.of(expired)));
+        when(acceptanceMapper.selectSubmittedDeliveryIds(anyList())).thenReturn(Collections.emptyList());
+
+        List<DeliveryBatchPageVO> result = deliveryOrderService.selectBatchPage(new DeliveryOrder());
+
+        assertEquals(2, result.get(0).getMaxReminderLevel(), "批内已送达且未验收（过期）单 → 批级红色提醒");
     }
 }

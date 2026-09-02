@@ -27,6 +27,8 @@ import com.lin.distribution.domain.SaleOrder;
 import com.lin.distribution.dto.DeliveryNoPrintDTO;
 import com.lin.distribution.mapper.CustomerDeptMapper;
 import com.lin.distribution.vo.DeliverySourceVO;
+import com.lin.distribution.vo.DeliveryBatchPageVO;
+import com.lin.distribution.vo.DeliveryMatrixLayout;
 import com.lin.distribution.mapper.AcceptanceMapper;
 import com.lin.distribution.mapper.DeliveryOrderDetailMapper;
 import com.lin.distribution.mapper.DeliveryOrderMapper;
@@ -155,6 +157,74 @@ public class DeliveryOrderServiceImpl implements DeliveryOrderService {
         List<DeliveryOrder> list = deliveryOrderMapper.selectDeliveryOrderList(deliveryOrder);
         fillReminderLevel(list);
         return list;
+    }
+
+    /**
+     * 批次分组聚合（D-043）：按 客户+配送日期 分组。printForm 取批次布局快照（<无快照按 scopeType 推导>），
+     * maxReminderLevel 按批次内已送达未验收单计算最高级（与单行标色同口径，聚合到批次主行）。
+     */
+    @Override
+    public List<DeliveryBatchPageVO> selectBatchPage(DeliveryOrder deliveryOrder) {
+        List<DeliveryBatchPageVO> batches = deliveryOrderMapper.selectBatchPage(deliveryOrder);
+        if (CollectionUtils.isEmpty(batches)) {
+            return batches;
+        }
+        // printForm：批次布局快照优先，无快照按 scopeType 推导
+        for (DeliveryBatchPageVO batch : batches) {
+            String scope = StringUtils.trimToNull(batch.getScopeType());
+            if (StringUtils.isBlank(batch.getPrintForm())) {
+                batch.setPrintForm(com.lin.distribution.constant.DeliveryScopeType.isCustomerDate(scope)
+                        ? DeliveryMatrixLayout.FORM_MATRIX : DeliveryMatrixLayout.FORM_FLAT);
+            }
+        }
+        // maxReminderLevel：批次内单行提醒最高级（已送达且无已提交验收，用 PendingAcceptanceReminder 同口径）
+        fillBatchReminderLevel(batches);
+        return batches;
+    }
+
+    /**
+     * 批次主行待验收提醒最高级（D-043 聚合）。对批次内已送达未验收单计算提醒级，批次行取最高。
+     *
+     * <p>实现：查出这些「客户+日期」下的有效送货单，逐单算 reminder，再按批次取 max。</p>
+     */
+    private void fillBatchReminderLevel(List<DeliveryBatchPageVO> batches) {
+        LocalDate today = LocalDate.now();
+        LocalTime now = LocalTime.now();
+        for (DeliveryBatchPageVO batch : batches) {
+            int max = 0;
+            DeliveryOrder q = new DeliveryOrder();
+            q.setCustomerId(batch.getCustomerId());
+            q.setDeliveryDate(batch.getDeliveryDate() == null ? null : LocalDate.parse(batch.getDeliveryDate()));
+            List<DeliveryOrder> orders = deliveryOrderMapper.selectDeliveryOrderList(q);
+            // 只对已送达且无已提交验收的单计算
+            Set<Long> submittedIds = submittedAcceptanceIds(orders);
+            for (DeliveryOrder order : orders) {
+                if (order.getStatus() == null || order.getStatus() != DeliveryOrderStatus.DELIVERED.getCode()
+                        || submittedIds.contains(order.getId())) {
+                    continue;
+                }
+                int level = PendingAcceptanceReminder.compute(order.getDeliveryDate(), order.getPrintTime(), today, now);
+                max = Math.max(max, level);
+            }
+            batch.setMaxReminderLevel(Math.max(max, nvl(batch.getMaxReminderLevel())));
+        }
+    }
+
+    /** 已提交验收的单号集合（同口径：已送达且已有验收单则不算待验收） */
+    private Set<Long> submittedAcceptanceIds(List<DeliveryOrder> orders) {
+        List<Long> deliveredIds = orders.stream()
+                .filter(o -> o.getStatus() != null && o.getStatus() == DeliveryOrderStatus.DELIVERED.getCode())
+                .map(DeliveryOrder::getId)
+                .distinct()
+                .collect(Collectors.toList());
+        if (deliveredIds.isEmpty()) {
+            return new HashSet<>();
+        }
+        return new HashSet<>(acceptanceMapper.selectSubmittedDeliveryIds(deliveredIds));
+    }
+
+    private int nvl(Integer v) {
+        return v == null ? 0 : v;
     }
 
     /**
