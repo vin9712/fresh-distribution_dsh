@@ -266,6 +266,11 @@ public class PrintController extends BaseController {
         head.put("colBlockNo", blockNo);
         head.put("totalColBlocks", totalBlocks);
         head.put("colBlockLabel", "列块 " + blockNo + "/" + totalBlocks);
+        // 列名槽位 c1Name..c{colsPerPage}（与 rows 的 c1..c6 槽位对齐，空列给空串）——模板列头绑定用
+        for (int i = 0; i < slots; i++) {
+            DeliveryMatrixVO.ColumnVO column = i < blockColumns.size() ? blockColumns.get(i) : null;
+            head.put("c" + (i + 1) + "Name", column == null ? "" : StringUtils.defaultString(column.getName()));
+        }
         head.put("totalQuantity", matrix.getTotalQuantity());
         head.put("layoutVersion", matrix.getLayoutVersion());
         List<String> warnings = new ArrayList<>();
