@@ -33,6 +33,7 @@ import com.lin.distribution.mapper.JobRunLogMapper;
 import com.lin.distribution.mapper.SaleOrderDetailMapper;
 import com.lin.distribution.mapper.SaleOrderMapper;
 import com.lin.distribution.service.BizCodeService;
+import com.lin.distribution.service.DeliveryBatchService;
 import com.lin.distribution.service.DeliveryGenerationService;
 import com.lin.distribution.service.SaleOrderService;
 import com.lin.distribution.vo.DeliveryGeneratePreviewVO;
@@ -96,6 +97,8 @@ class DeliveryGenerationServiceImplTest {
     private BizCodeService bizCodeService;
     @Mock
     private SaleOrderService saleOrderService;
+    @Mock
+    private DeliveryBatchService deliveryBatchService;
     @Mock
     private TransactionTemplate transactionTemplate;
 
@@ -212,6 +215,19 @@ class DeliveryGenerationServiceImplTest {
         assertTrue(result.getSkippedReasons().get(0).contains("无遗漏订单"));
         verify(deliveryBatchMapper, never()).insertDeliveryBatch(any(DeliveryBatch.class));
         verify(deliveryOrderMapper, never()).insertDeliveryOrder(any(DeliveryOrder.class));
+        // 幂等跳过不碰批次，也不刷布局快照（D-045）
+        verify(deliveryBatchService, never()).refreshLayout(any(), any());
+    }
+
+    /** D-045：生成成功后刷新批次布局快照（矩阵列集合与价档在此定格） */
+    @Test
+    void 生成后刷新批次布局快照() {
+        stubMissed(order(1001L, "XD1001", CUSTOMER, POINT_1, DATE));
+        stubNewBatch(DeliveryScopeType.CUSTOMER_DATE, true);
+
+        generationService.generateForCustomer(CUSTOMER, DATE);
+
+        verify(deliveryBatchService).refreshLayout(any(DeliveryBatch.class), any());
     }
 
     @Test
