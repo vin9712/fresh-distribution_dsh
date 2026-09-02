@@ -28,9 +28,12 @@ public class AcceptanceItem implements Serializable {
     @Excel(name = "验收单ID")
     private Long acceptanceId;
 
-    /** 送货单明细ID */
+    /** 送货单明细ID（D-055 后保留历史兼容，新行以订单明细为维度） */
     @Excel(name = "送货单明细ID")
     private Long deliveryItemId;
+
+    /** D-055：来源订单明细ID（应送行=订单明细，含加单/换货/退货标记） */
+    private Long saleOrderDetailId;
 
     /** 明细所属配送点（S14：A类总单按点展开录入即归属，B/C类也填） */
     private Long customerDeptId;

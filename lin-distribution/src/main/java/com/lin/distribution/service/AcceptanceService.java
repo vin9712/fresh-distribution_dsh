@@ -1,5 +1,6 @@
 package com.lin.distribution.service;
 
+import java.time.LocalDate;
 import java.util.List;
 
 import com.lin.distribution.domain.Acceptance;
@@ -56,6 +57,17 @@ public interface AcceptanceService {
      * @return 验收单
      */
     Acceptance createByDeliveryOrder(Long deliveryOrderId);
+
+    /**
+     * D-055 按「客户+日期+配送点」生成验收单草稿：应送行=订单明细（含加单/换货/退货标记），
+     * 一维一验；默认实收=应送（补充单行取订单明细 actual_num）。
+     *
+     * @param customerId     客户ID
+     * @param customerDeptId 配送点ID
+     * @param deliveryDate   配送日期
+     * @return 验收单
+     */
+    Acceptance createByCustomerPoint(Long customerId, Long customerDeptId, LocalDate deliveryDate);
 
     /**
      * 录入/修改验收单（仅草稿；实收金额与损耗由后端重算）

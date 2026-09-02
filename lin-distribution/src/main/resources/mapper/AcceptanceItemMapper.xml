@@ -8,6 +8,7 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         <result property="id"    column="id"    />
         <result property="acceptanceId"    column="acceptance_id"    />
         <result property="deliveryItemId"    column="delivery_item_id"    />
+        <result property="saleOrderDetailId" column="sale_order_detail_id" />
         <result property="skuId"    column="sku_id"    />
         <result property="skuCode"    column="sku_code"    />
         <result property="productName"    column="product_name"    />
@@ -97,10 +98,10 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
 
     <insert id="insertAcceptanceItemBatch" parameterType="java.util.List">
         insert into acceptance_item
-        (acceptance_id, delivery_item_id, customer_dept_id, sku_id, product_name, product_spec, product_unit, delivered_quantity, actual_quantity, unit_price, difference_quantity, reason_type, loss_reason, actual_amount, sort)
+        (acceptance_id, delivery_item_id, sale_order_detail_id, customer_dept_id, sku_id, product_name, product_spec, product_unit, delivered_quantity, actual_quantity, unit_price, difference_quantity, reason_type, loss_reason, actual_amount, sort)
         values
         <foreach collection="list" item="item" separator=",">
-            (#{item.acceptanceId}, #{item.deliveryItemId}, #{item.customerDeptId}, #{item.skuId}, #{item.productName}, #{item.productSpec}, #{item.productUnit}, #{item.deliveredQuantity}, #{item.actualQuantity}, #{item.unitPrice}, #{item.differenceQuantity}, #{item.reasonType}, #{item.lossReason}, #{item.actualAmount}, #{item.sort})
+            (#{item.acceptanceId}, #{item.deliveryItemId}, #{item.saleOrderDetailId}, #{item.customerDeptId}, #{item.skuId}, #{item.productName}, #{item.productSpec}, #{item.productUnit}, #{item.deliveredQuantity}, #{item.actualQuantity}, #{item.unitPrice}, #{item.differenceQuantity}, #{item.reasonType}, #{item.lossReason}, #{item.actualAmount}, #{item.sort})
         </foreach>
     </insert>
 

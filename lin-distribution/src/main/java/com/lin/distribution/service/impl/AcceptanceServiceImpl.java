@@ -387,6 +387,69 @@ public class AcceptanceServiceImpl implements AcceptanceService {
     }
 
     /**
+     * D-055 按 客户+日期+配送点 生成验收单：应送行=订单明细（含变更标记），默认实收=应送
+     * （加单/换货行取订单明细 actual_num 作为默认实收——补充单据现场已录实收）。
+     */
+    @Override
+    @Transactional
+    public Acceptance createByCustomerPoint(Long customerId, Long customerDeptId, LocalDate deliveryDate) {
+        if (customerId == null || customerDeptId == null || deliveryDate == null) {
+            throw new ServiceException("客户/配送点/配送日期不能为空");
+        }
+        // 一维一验守卫：该 客户+日期+点 已有验收单则拒绝
+        if (acceptanceMapper.countByCustomerPointDate(customerId, customerDeptId, deliveryDate) > 0) {
+            throw new ServiceException("该客户+日期+配送点已生成验收单");
+        }
+        List<SaleOrderDetail> orderDetails = saleOrderDetailMapper
+                .selectValidByCustomerPointDate(customerId, customerDeptId, deliveryDate);
+        if (CollectionUtils.isEmpty(orderDetails)) {
+            throw new ServiceException("该客户+日期+配送点没有有效订单明细，无法生成验收单");
+        }
+        // 应送行=订单明细行（含标记）；换货退货行变更物（change_type=3 被换/被退）应送=0 不生成明细行？——
+        // 业务口径：验收展示含标记行，退货行实收=0应送=0（应收为0），换货行正常验收。
+        List<AcceptanceItem> items = new ArrayList<>();
+        BigDecimal total = BigDecimal.ZERO;
+        int sort = 0;
+        for (SaleOrderDetail d : orderDetails) {
+            boolean isReturned = d.getChangeType() != null && d.getChangeType() == 3;
+            BigDecimal delivered = isReturned ? BigDecimal.ZERO : nvl(d.getNum());
+            BigDecimal actual = isReturned ? BigDecimal.ZERO
+                    : (d.getActualNum() != null ? d.getActualNum() : delivered);
+            AcceptanceItem item = new AcceptanceItem();
+            item.setSaleOrderDetailId(d.getId());
+            item.setCustomerDeptId(d.getCustomerDeptId());
+            item.setSkuId(d.getSkuId());
+            item.setProductName(d.getProductName());
+            item.setProductSpec(d.getProductSpec());
+            item.setProductUnit(d.getProductUnit());
+            item.setDeliveredQuantity(delivered);
+            item.setActualQuantity(actual);
+            item.setUnitPrice(nvl(d.getProductPrice()));
+            item.setDifferenceQuantity(actual.subtract(delivered));
+            item.setSort(sort++);
+            total = total.add(scale(item.getUnitPrice().multiply(actual)));
+            items.add(item);
+        }
+
+        Acceptance acceptance = new Acceptance();
+        acceptance.setCode(bizCodeService.nextDailyCode("acceptance", "YS", 3));
+        acceptance.setCustomerId(customerId);
+        acceptance.setDeliveryPointId(customerDeptId);
+        acceptance.setDeliveryDate(deliveryDate);
+        acceptance.setAcceptDate(deliveryDate);
+        acceptance.setTotalAmount(total);
+        acceptance.setStatus(AcceptanceStatus.DRAFT.getCode());
+        acceptance.setCreateTime(DateUtils.getNowDate());
+        acceptanceMapper.insertAcceptance(acceptance);
+
+        for (AcceptanceItem item : items) {
+            item.setAcceptanceId(acceptance.getId());
+        }
+        acceptanceItemMapper.insertAcceptanceItemBatch(items);
+        return acceptance;
+    }
+
+    /**
      * 录入/修改验收单（仅草稿）：实收金额后端重算；
      * 差异原因口径（蓝图 W0-2.6，替代 D-013/G8 双向必填）：
      * 实收=0（全部拒收）或实收>送货（超收）必填原因；部分短收（0<实收<送货）建议但不强制；无差异清空原因。

@@ -1,6 +1,7 @@
 package com.lin.distribution.mapper;
 
 import java.util.List;
+import java.time.LocalDate;
 
 import com.lin.distribution.domain.SaleOrderDetail;
 import org.apache.ibatis.annotations.Param;
@@ -29,6 +30,19 @@ public interface SaleOrderDetailMapper {
      * @return 销售订单详情集合
      */
     List<SaleOrderDetail> selectSaleOrderDetailList(SaleOrderDetail saleOrderDetail);
+
+    /**
+     * 验收应送行数据源（D-055）：查 客户+配送日期+配送点 的有效订单明细（已确认订单，含变更标记），
+     * 按订单明细行展开（含加单/换货/退货标记行，按 sort 升序）。
+     *
+     * @param customerId     客户ID
+     * @param customerDeptId 配送点ID
+     * @param deliveryDate   配送日期
+     * @return 订单明细行（含标记）
+     */
+    List<SaleOrderDetail> selectValidByCustomerPointDate(@Param("customerId") Long customerId,
+                                                         @Param("customerDeptId") Long customerDeptId,
+                                                         @Param("deliveryDate") LocalDate deliveryDate);
 
     /**
      * 新增销售订单详情

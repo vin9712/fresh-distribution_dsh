@@ -35,6 +35,20 @@ public interface AcceptanceMapper {
     int countByDeliveryOrderId(Long deliveryOrderId);
 
     /**
+     * D-055 验收维度=客户+日期+配送点：查该维度验收单（首页最新 1 张）
+     */
+    Acceptance selectByCustomerPointDate(@org.apache.ibatis.annotations.Param("customerId") Long customerId,
+                                         @org.apache.ibatis.annotations.Param("customerDeptId") Long customerDeptId,
+                                         @org.apache.ibatis.annotations.Param("deliveryDate") java.time.LocalDate deliveryDate);
+
+    /**
+     * D-055：该 客户+日期+点 是否已有验收单（防止重复建）
+     */
+    int countByCustomerPointDate(@org.apache.ibatis.annotations.Param("customerId") Long customerId,
+                                 @org.apache.ibatis.annotations.Param("customerDeptId") Long customerDeptId,
+                                 @org.apache.ibatis.annotations.Param("deliveryDate") java.time.LocalDate deliveryDate);
+
+    /**
      * 查询来源订单最近一张已提交验收单的验收日期（月结调整追溯：订单归月用）
      *
      * @param saleOrderId 销售订单ID

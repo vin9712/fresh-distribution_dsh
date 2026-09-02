@@ -9,6 +9,7 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         <result property="code"    column="code"    />
         <result property="deliveryOrderId"    column="delivery_order_id"    />
         <result property="customerId"    column="customer_id"    />
+        <result property="deliveryDate"    column="delivery_date"    />
         <result property="deliveryPointId"    column="delivery_point_id"    />
         <result property="acceptDate"    column="accept_date"    />
         <result property="totalAmount"    column="total_amount"    />
@@ -27,7 +28,7 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
     </resultMap>
 
     <sql id="selectAcceptanceVo">
-        select a.id, a.code, a.delivery_order_id, a.customer_id, a.delivery_point_id, a.accept_date,
+        select a.id, a.code, a.delivery_order_id, a.customer_id, a.delivery_date, a.delivery_point_id, a.accept_date,
                a.total_amount, a.status, a.revoke_reason, a.revoked_by, a.revoked_time,
                a.create_by, a.create_time, a.update_by, a.update_time, a.remark,
                do.code as deliveryCode,
@@ -61,6 +62,24 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
 
     <select id="countByDeliveryOrderId" parameterType="Long" resultType="int">
         select count(1) from acceptance where delivery_order_id = #{deliveryOrderId}
+    </select>
+
+    <!-- D-055：按 客户+日期+点 查验收单（最新 1 张） -->
+    <select id="selectByCustomerPointDate" resultMap="AcceptanceResult">
+        <include refid="selectAcceptanceVo"/>
+        where a.customer_id = #{customerId}
+          and a.customer_dept_id = #{customerDeptId}
+          and a.delivery_date = #{deliveryDate}
+        order by a.id desc
+        limit 1
+    </select>
+
+    <!-- D-055：该 客户+日期+点 是否已有验收单（防重复建） -->
+    <select id="countByCustomerPointDate" resultType="int">
+        select count(1) from acceptance
+        where customer_id = #{customerId}
+          and customer_dept_id = #{customerDeptId}
+          and delivery_date = #{deliveryDate}
     </select>
 
     <!-- W0-3.2 列表提醒标色：批量查已有已提交验收单的送货单ID（与工作台口径一致 status=1） -->

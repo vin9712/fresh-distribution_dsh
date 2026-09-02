@@ -46,6 +46,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -773,5 +774,76 @@ class AcceptanceServiceImplTest {
         assertEquals(2, items.get(0).getSources().size());
         assertEquals("XS001", items.get(0).getSources().get(0).getOrderCode());
         assertEquals("XS002", items.get(0).getSources().get(1).getOrderCode());
+    }
+
+    // ==================== D-055 验收=订单维度（客户+日期+点） ====================
+
+    @Test
+    void 订单维度验收_应送行来自订单明细且默认实收等于应送() {
+        when(acceptanceMapper.countByCustomerPointDate(10L, 2L, LocalDate.of(2026, 9, 1))).thenReturn(0);
+        SaleOrderDetail normal = new SaleOrderDetail();
+        normal.setId(1001L);
+        normal.setCustomerDeptId(2L);
+        normal.setSkuId(88L);
+        normal.setProductName("白菜");
+        normal.setProductSpec("");
+        normal.setProductUnit("斤");
+        normal.setNum(new BigDecimal("5"));
+        normal.setProductPrice(new BigDecimal("2.00"));
+        normal.setChangeType(0);
+        SaleOrderDetail supplement = new SaleOrderDetail();
+        supplement.setId(1002L);
+        supplement.setCustomerDeptId(2L);
+        supplement.setSkuId(88L);
+        supplement.setProductName("白菜");
+        supplement.setProductSpec("");
+        supplement.setProductUnit("斤");
+        supplement.setNum(new BigDecimal("3"));
+        supplement.setProductPrice(new BigDecimal("2.00"));
+        supplement.setChangeType(1);
+        supplement.setActualNum(new BigDecimal("3"));
+        when(saleOrderDetailMapper.selectValidByCustomerPointDate(10L, 2L, LocalDate.of(2026, 9, 1)))
+                .thenReturn(new ArrayList<>(List.of(normal, supplement)));
+        when(bizCodeService.nextDailyCode(eq("acceptance"), anyString(), eq(3))).thenReturn("YS20260901001");
+
+        Acceptance acceptance = acceptanceService.createByCustomerPoint(10L, 2L, LocalDate.of(2026, 9, 1));
+
+        assertEquals("YS20260901001", acceptance.getCode());
+        assertEquals(LocalDate.of(2026, 9, 1), acceptance.getDeliveryDate());
+        assertEquals(Long.valueOf(2L), acceptance.getDeliveryPointId());
+        // 批量插入的明细行：应送=订单 num；加单行默认实收=actual_num
+        ArgumentCaptor<List> captor = ArgumentCaptor.forClass(List.class);
+        verify(acceptanceItemMapper).insertAcceptanceItemBatch(captor.capture());
+        List<AcceptanceItem> items = captor.getValue();
+        assertEquals(2, items.size());
+        assertEquals(0, new BigDecimal("5").compareTo(items.get(0).getDeliveredQuantity()));
+        assertEquals(0, new BigDecimal("5").compareTo(items.get(0).getActualQuantity()));
+        assertEquals(0, new BigDecimal("3").compareTo(items.get(1).getActualQuantity()), "加单行默认实收=actual_num");
+    }
+
+    @Test
+    void 订单维度验收_退货标记行应送实收均为零() {
+        when(acceptanceMapper.countByCustomerPointDate(10L, 2L, LocalDate.of(2026, 9, 1))).thenReturn(0);
+        SaleOrderDetail returned = new SaleOrderDetail();
+        returned.setId(2001L);
+        returned.setCustomerDeptId(2L);
+        returned.setSkuId(99L);
+        returned.setProductName("土豆");
+        returned.setProductSpec("");
+        returned.setProductUnit("斤");
+        returned.setNum(new BigDecimal("4"));
+        returned.setProductPrice(new BigDecimal("3.50"));
+        returned.setChangeType(3);
+        when(saleOrderDetailMapper.selectValidByCustomerPointDate(10L, 2L, LocalDate.of(2026, 9, 1)))
+                .thenReturn(new ArrayList<>(List.of(returned)));
+        when(bizCodeService.nextDailyCode(eq("acceptance"), anyString(), eq(3))).thenReturn("YS20260901002");
+
+        Acceptance acceptance = acceptanceService.createByCustomerPoint(10L, 2L, LocalDate.of(2026, 9, 1));
+
+        ArgumentCaptor<List> captor = ArgumentCaptor.forClass(List.class);
+        verify(acceptanceItemMapper).insertAcceptanceItemBatch(captor.capture());
+        List<AcceptanceItem> items = captor.getValue();
+        assertEquals(0, BigDecimal.ZERO.compareTo(items.get(0).getDeliveredQuantity()), "退货行应送=0");
+        assertEquals(0, BigDecimal.ZERO.compareTo(items.get(0).getActualQuantity()), "退货行实收=0");
     }
 }

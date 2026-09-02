@@ -25,9 +25,14 @@ public class Acceptance extends BaseEntity {
     @Excel(name = "验收单号")
     private String code;
 
-    /** 送货单ID（唯一，一单一验） */
+    /** 送货单ID（唯一，一单一验；D-055 后不再使用，保留历史兼容） */
     @Excel(name = "送货单ID")
     private Long deliveryOrderId;
+
+    /** D-055：验收维度=客户+日期+配送点 */
+    @JsonFormat(pattern = "yyyy-MM-dd")
+    @Excel(name = "配送日期", width = 30, dateFormat = "yyyy-MM-dd")
+    private LocalDate deliveryDate;
 
     /** 客户ID */
     @Excel(name = "客户ID")
