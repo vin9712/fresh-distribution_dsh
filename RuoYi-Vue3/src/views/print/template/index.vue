@@ -94,17 +94,6 @@
           >导入模板</el-button
         >
       </el-col>
-      <el-col :span="1.5">
-        <el-button
-          type="info"
-          plain
-          :icon="Picture"
-          size="small"
-          @click="openAssetDialog"
-          v-hasPermi="['print:template:list']"
-          >资源管理</el-button
-        >
-      </el-col>
       <right-toolbar v-model:showSearch="showSearch" @queryTable="getPageList"></right-toolbar>
     </el-row>
 
@@ -463,50 +452,6 @@
       </el-table>
     </el-dialog>
 
-    <!-- W0-6 资源管理：上传/列表/删除（被引用资源不可删除） -->
-    <el-dialog v-model="assetOpen" title="打印资源管理（Logo/底图，PNG/JPG ≤5MB）" width="760px" append-to-body>
-      <div style="margin-bottom: 8px; color: #909399; font-size: 12px">
-        资源存于本机文件目录并与数据库同批备份；content 可直接引用返回的 URL；历史引用资源不可物理删除。
-      </div>
-      <div style="margin-bottom: 12px">
-        <el-upload
-          :show-file-list="false"
-          :before-upload="handleAssetUpload"
-          accept=".png,.jpg,.jpeg"
-        >
-          <el-button type="primary" :icon="Upload" size="small">上传资源</el-button>
-        </el-upload>
-      </div>
-      <el-table :data="assetList" size="small" border max-height="420">
-        <el-table-column label="预览" align="center" width="80">
-          <template #default="scope">
-            <el-image
-              :src="scope.row.url"
-              style="width: 40px; height: 40px"
-              fit="cover"
-            />
-          </template>
-        </el-table-column>
-        <el-table-column label="原始文件名" align="center" prop="originName" :show-overflow-tooltip="true" />
-        <el-table-column label="URL" align="center" prop="url" :show-overflow-tooltip="true" />
-        <el-table-column label="大小" align="center" width="90">
-          <template #default="scope">{{ (scope.row.sizeBytes / 1024).toFixed(1) }} KB</template>
-        </el-table-column>
-        <el-table-column label="操作" align="center" width="100">
-          <template #default="scope">
-            <el-button
-              size="small"
-              link
-              type="danger"
-              :icon="Delete"
-              @click="handleAssetDelete(scope.row)"
-              v-hasPermi="['print:template:edit']"
-              >删除</el-button
-            >
-          </template>
-        </el-table-column>
-      </el-table>
-    </el-dialog>
   </div>
 </template>
 
@@ -523,9 +468,6 @@ import {
   listPrintTemplateVersions,
   exportPrintTemplate,
   importPrintTemplate,
-  listPrintAsset,
-  uploadPrintAsset,
-  delPrintAsset,
 } from "@/api/print/template";
 import { issuePrintTicket } from "@/api/print/ticket";
 import { listJimuReports } from "@/api/print/template";
@@ -595,10 +537,6 @@ export default {
       versionsLoading: false,
       versionsTemplate: null,
       versionsList: [],
-      // W0-6 模板导入导出与资源治理
-      assetOpen: false,
-      assetList: [],
-      assetLoading: false,
       // 客户/配送点选择树（绑定类型 1/2），bindSelection 为树节点值 c{id}/d{id}
       customerTree: [],
       bindSelection: null,
@@ -998,45 +936,6 @@ export default {
           .catch(() => {});
       };
       reader.readAsText(file);
-    },
-    /** 打开资源管理弹窗 */
-    openAssetDialog() {
-      this.assetOpen = true;
-      this.loadAssetList();
-    },
-    loadAssetList() {
-      this.assetLoading = true;
-      listPrintAsset({}).then((res) => {
-        this.assetList = res.data || [];
-        this.assetLoading = false;
-      }).catch(() => { this.assetLoading = false; });
-    },
-    /** 上传资源（before-upload 返回 false 阻止默认上传） */
-    handleAssetUpload(file) {
-      const okTypes = ["image/png", "image/jpeg", "image/jpg"];
-      if (!okTypes.includes(file.type)) {
-        this.$modal.msgError("仅支持 PNG/JPG/JPEG");
-        return false;
-      }
-      if (file.size > 5 * 1024 * 1024) {
-        this.$modal.msgError("资源大小超出 5MB 上限");
-        return false;
-      }
-      uploadPrintAsset(file).then(() => {
-        this.$modal.msgSuccess("上传成功");
-        this.loadAssetList();
-      }).catch(() => {});
-      return false;
-    },
-    /** 删除资源（被引用则服务端拒绝） */
-    handleAssetDelete(row) {
-      this.$modal.confirm("确认删除资源「" + (row.originName || row.fileName) + "」？若被模板/历史版本引用将拒绝删除。")
-        .then(() => delPrintAsset(row.id))
-        .then(() => {
-          this.$modal.msgSuccess("删除成功");
-          this.loadAssetList();
-        })
-        .catch(() => {});
     },
   },
 };

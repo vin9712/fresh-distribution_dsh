@@ -43,6 +43,15 @@ export function createAcceptance(data) {
   })
 }
 
+// D-055 按 客户+配送日期+配送点 生成验收单（应送行=订单明细，含加单/换货/退货标记）
+export function createAcceptanceByPoint(data) {
+  return request({
+    url: '/acceptance/create-by-point',
+    method: 'post',
+    data: data
+  })
+}
+
 // 录入/修改验收单（仅草稿，后端重算金额与损耗）
 export function updateAcceptance(data) {
   return request({

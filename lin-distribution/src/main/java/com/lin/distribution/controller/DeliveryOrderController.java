@@ -135,6 +135,17 @@ public class DeliveryOrderController extends BaseController {
     }
 
     /**
+     * 点单视图（D-055：客户+日期+配送点 的订单明细行，含加单/换货/退货标记）——客户日总表页「按配送点查看」口径
+     */
+    @PreAuthorize("@ss.hasPermi('order:delivery:batch')")
+    @GetMapping("/batch/point-view")
+    public AjaxResult pointView(@RequestParam("customerId") Long customerId,
+                                @RequestParam("deptId") Long deptId,
+                                @RequestParam("date") String date) {
+        return success(deliveryBatchService.selectPointView(customerId, deptId, date));
+    }
+
+    /**
      * 矩阵总表（D-044/D-047/D-051）：行=送货明细行（不同价必拆行）、列=配送点快照（含当日无单空列）、
      * 格=source_item 分配量透视；纸面不打单价与金额，同名多行以 (档①) 标记区分（D-046）。
      * 页面与打印共用本接口，附恒等式自检结果（D-047）。

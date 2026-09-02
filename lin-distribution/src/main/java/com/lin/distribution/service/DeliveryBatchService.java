@@ -4,6 +4,7 @@ import java.util.List;
 
 import com.lin.distribution.domain.DeliveryBatch;
 import com.lin.distribution.vo.DeliveryBatchViewVO;
+import com.lin.distribution.domain.SaleOrderDetail;
 import com.lin.distribution.vo.DeliveryMatrixLayout;
 import com.lin.distribution.vo.DeliveryMatrixVO;
 
@@ -23,6 +24,17 @@ public interface DeliveryBatchService {
      * @return 按 标准品名+规格+单位 聚合的视图行（depts 按点名升序）
      */
     List<DeliveryBatchViewVO> selectBatchView(Long customerId, String deliveryDate);
+
+    /**
+     * D-055 点单视图：按 客户+日期+配送点 返回订单明细行（含变更标记），
+     * 供客户日总表页「按配送点查看」口径（订单号+明细+加单/换货/退货 tag）。
+     *
+     * @param customerId     客户ID
+     * @param customerDeptId 配送点ID
+     * @param deliveryDate   配送日期
+     * @return 订单明细行（sort 升序）
+     */
+    List<SaleOrderDetail> selectPointView(Long customerId, Long customerDeptId, String deliveryDate);
 
     /**
      * 矩阵总表（D-044/D-047/D-051）：行=送货明细行、列=配送点快照（含空列）、格=分配量透视。

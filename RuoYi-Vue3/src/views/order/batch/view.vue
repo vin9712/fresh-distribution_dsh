@@ -20,7 +20,13 @@
         <el-radio-group v-model="mode" size="small" @change="loadView">
           <el-radio-button value="matrix">矩阵总表（菜品×配送点）</el-radio-button>
           <el-radio-button value="pick">配货总表（不拆价）</el-radio-button>
+          <el-radio-button value="point">点单（按配送点）</el-radio-button>
         </el-radio-group>
+      </el-form-item>
+      <el-form-item v-if="mode === 'point'" label="配送点">
+        <el-select v-model="deptId" placeholder="请选择配送点" filterable clearable style="width: 190px">
+          <el-option v-for="d in depts" :key="d.id" :label="d.name" :value="d.id" />
+        </el-select>
       </el-form-item>
       <el-form-item>
         <el-button type="primary" :icon="Search" :disabled="!customerId || !deliveryDate" @click="loadView"
@@ -139,7 +145,7 @@
       </template>
 
       <!-- 配货总表：标准品名 + 总量 + 各点小计折叠，不因价格拆行（D-027/28） -->
-      <template v-else>
+      <template v-else-if="mode === 'pick'">
         <el-table v-loading="loading" :data="pickRows" size="small" border>
           <el-table-column type="expand">
             <template #default="scope">
@@ -170,18 +176,60 @@
         </el-table>
         <div class="batch-footer">共 {{ pickRows.length }} 个品种 · 合计 {{ pickTotalCount }}</div>
       </template>
+
+      <!-- 点单：客户+日期+配送点 的订单明细行（D-055：含加单/换货/退货标记 + 打印/验收） -->
+      <template v-else>
+        <el-alert
+          v-if="!deptId"
+          type="info"
+          :closable="false"
+          show-icon
+          class="matrix-alert"
+          title="请选择配送点查看该点的点单明细（订单号 + 应送 + 变更标记）"
+        />
+        <el-table v-loading="loading" :data="pointRows" size="small" border>
+          <el-table-column label="订单号" align="center" prop="orderCode" min-width="130" :show-overflow-tooltip="true" />
+          <el-table-column label="商品" align="center" prop="productName" min-width="140" :show-overflow-tooltip="true" />
+          <el-table-column label="规格" align="center" prop="productSpec" width="110" :show-overflow-tooltip="true" />
+          <el-table-column label="单位" align="center" prop="productUnit" width="70" />
+          <el-table-column label="应送" align="center" prop="num" width="90" />
+          <el-table-column label="实收" align="center" width="90">
+            <template #default="scope">
+              <span>{{ scope.row.actualNum ?? "—" }}</span>
+            </template>
+          </el-table-column>
+          <el-table-column label="标记" align="center" width="110">
+            <template #default="scope">
+              <el-tag v-if="scope.row.changeType == 1" size="small" type="warning" effect="plain">加单</el-tag>
+              <el-tag v-else-if="scope.row.changeType == 2" size="small" type="success" effect="plain">换货</el-tag>
+              <el-tag v-else-if="scope.row.changeType == 3" size="small" type="danger" effect="plain">退货</el-tag>
+              <span v-else>—</span>
+            </template>
+          </el-table-column>
+          <el-table-column label="说明" align="center" prop="changeRemark" min-width="130" :show-overflow-tooltip="true" />
+        </el-table>
+        <div class="batch-footer">
+          共 {{ pointRows.length }} 行（含标记行）· 应送合计 {{ pointTotalNum }}· 实收合计 {{ pointTotalActual }}
+          <el-button v-if="deptId" size="small" type="primary" plain :icon="Printer" @click="handlePointPrint">打印点单</el-button>
+          <el-button v-if="deptId" size="small" type="warning" plain @click="handleAcceptance">生成验收单</el-button>
+        </div>
+      </template>
     </div>
   </div>
 </template>
 
 <script>
-import { batchView, deliveryMatrix } from "@/api/order/delivery";
+import { batchView, deliveryMatrix, pointViewDelivery } from "@/api/order/delivery";
+import { createAcceptanceByPoint } from "@/api/acceptance/acceptance";
 import { listCustomer } from "@/api/partner/customer";
+import { listCustomerDept } from "@/api/partner/customerDept";
 import { issuePrintTicket } from "@/api/print/ticket";
 import { Search, Printer } from "@element-plus/icons-vue";
 
 // 总单通用模板（s18：客户总单矩阵，司机对单 A4）——所有客户共用
 const TOTAL_MATRIX_TEMPLATE_ID = "2599000000000000001";
+// 点单模板（FLAT，全局默认）
+const POINT_FLAT_TEMPLATE_ID = "2099000000000000001";
 
 export default {
   name: "DeliveryBatchView",
@@ -194,11 +242,15 @@ export default {
       customers: [],
       customerId: null,
       deliveryDate: null,
-      // matrix=矩阵总表（菜品×配送点，D-044）；pick=配货总表（不拆价，D-027/28）
+      // matrix=矩阵总表（菜品×配送点，D-044）；pick=配货总表（不拆价，D-027/28）；point=点单（D-055）
       mode: "matrix",
       colBlock: 1,
       matrix: { columns: [], rows: [], mismatches: [] },
       pickRows: [],
+      // 点单口径（D-055）
+      depts: [],
+      deptId: null,
+      pointRows: [],
     };
   },
   computed: {
@@ -207,9 +259,13 @@ export default {
       return c ? c.name : "";
     },
     hasData() {
-      return this.mode === "matrix"
-        ? (this.matrix.rows || []).length > 0
-        : this.pickRows.length > 0;
+      if (this.mode === "matrix") {
+        return (this.matrix.rows || []).length > 0;
+      }
+      if (this.mode === "point") {
+        return this.pointRows.length > 0;
+      }
+      return this.pickRows.length > 0;
     },
     colBlocks() {
       return Math.max(1, Number(this.matrix.colBlocks || 1));
@@ -228,6 +284,12 @@ export default {
     pickTotalCount() {
       return this.pickRows.reduce((s, r) => s + Number(r.totalQuantity || 0), 0);
     },
+    pointTotalNum() {
+      return this.pointRows.reduce((s, r) => s + Number(r.num || 0), 0);
+    },
+    pointTotalActual() {
+      return this.pointRows.reduce((s, r) => s + Number(r.actualNum || 0), 0);
+    },
   },
   created() {
     // 支持送货单据页/客户抽屉带参跳转
@@ -242,6 +304,10 @@ export default {
       if (this.customerId && this.deliveryDate) {
         this.loadView();
       }
+    });
+    // 配送点下拉（点单口径用）
+    listCustomerDept({}).then((response) => {
+      this.depts = response.data || [];
     });
   },
   methods: {
@@ -262,6 +328,8 @@ export default {
             }
           })
           .finally(done);
+      } else if (this.mode === "point") {
+        this.loadPointView().finally(done);
       } else {
         batchView(this.customerId, this.deliveryDate)
           .then((response) => {
@@ -272,6 +340,38 @@ export default {
           })
           .finally(done);
       }
+    },
+    /** D-055 点单口径：按 客户+日期+点 拉订单明细行（含标记） */
+    loadPointView() {
+      if (!this.deptId) {
+        this.pointRows = [];
+        return Promise.resolve();
+      }
+      return pointViewDelivery(this.customerId, this.deptId, this.deliveryDate).then((response) => {
+        this.pointRows = response.data || [];
+      });
+    },
+    /** 点单打印（FLAT 通用模板，D-055：按 客户+日期+点 实时取数） */
+    handlePointPrint() {
+      this.$modal.msgWarning("点单打印数据接口正在接入（D-055 订单维度），请先使用矩阵/总表打印");
+    },
+    /** D-055 生成验收单（客户+日期+点，应送行=订单明细） */
+    handleAcceptance() {
+      this.$modal
+        .confirm("将为该 客户+配送日期+配送点 生成验收单草稿（应送行=订单明细，含加单/换货/退货标记），确认？")
+        .then(() => {
+          createAcceptanceByPoint({
+            customerId: this.customerId,
+            customerDeptId: this.deptId,
+            deliveryDate: this.deliveryDate,
+          }).then((resp) => {
+            this.$modal.msgSuccess("验收单已生成：" + (resp.data?.code || ""));
+            this.$router.push({
+              path: "/order/acceptance",
+              query: { id: resp.data?.id },
+            });
+          });
+        });
     },
     /** 格值：null=该点当日无此菜（空格）；历史单无台账打 — */
     cellText(row, col) {

@@ -475,13 +475,6 @@
       @success="getPageList"
     />
 
-    <!-- 打印包抽屉（P2/D-050：N 张点单一次输出 → 汇总预览 → 队列 → 回执） -->
-    <print-package-drawer
-      v-model="printPackageOpen"
-      :batch="printPackageBatch"
-      @done="getPageList"
-    />
-
     <!-- 打印对话框（W0-4.4：强制预览→确认→打印→回执；失败不增加成功打印次数） -->
     <el-dialog align-center title="打印送货单" v-model="printOpen" width="560px" append-to-body :close-on-click-modal="false">
       <el-form label-width="90px">
@@ -535,7 +528,6 @@ import {
   voidDelivery,
 } from "@/api/order/delivery";
 import GeneratePreviewDrawer from "./generatePreviewDrawer.vue";
-import PrintPackageDrawer from "./printPackageDrawer.vue";
 import { listCustomer } from "@/api/partner/customer";
 import { issuePrintTicket } from "@/api/print/ticket";
 import { listPrintTemplate, recordPrintPreview } from "@/api/print/template";
@@ -553,7 +545,7 @@ import {
 
 export default {
   name: "Delivery",
-  components: { GeneratePreviewDrawer, PrintPackageDrawer },
+  components: { GeneratePreviewDrawer },
   dicts: ["t_delivery_order_status", "delivery_no_print_reason", "delivery_void_reason"],
   setup() {
     return { Search, Refresh, Plus, Download, Printer, Van, View, Document, CircleClose };
@@ -576,9 +568,6 @@ export default {
       generateDate: null,
       // 待生成清单确认抽屉（D-039）
       generatePreviewOpen: false,
-      // 打印包抽屉（P2/D-050）
-      printPackageOpen: false,
-      printPackageBatch: {},
       // 明细对话框
       detailOpen: false,
       detailTitle: "",
@@ -693,11 +682,6 @@ export default {
         path: "/order/batch",
         query: { customerId: row.customerId, deliveryDate: row.deliveryDate },
       });
-    },
-    /** 批次打印包（P2/D-050）：N 张点单一次输出 */
-    handlePrintPackage(row) {
-      this.printPackageBatch = row;
-      this.printPackageOpen = true;
     },
     /** 展开批次子行：按 客户+配送日期 拉该批次下全部送货单（复用 listDelivery） */
     loadBatchChildren(row) {

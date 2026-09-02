@@ -1,6 +1,7 @@
 package com.lin.distribution.service.impl;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
@@ -26,6 +27,7 @@ import com.lin.distribution.mapper.CustomerDeptMapper;
 import com.lin.distribution.mapper.CustomerMapper;
 import com.lin.distribution.mapper.CustomerSkuMappingMapper;
 import com.lin.distribution.mapper.DeliveryBatchMapper;
+import com.lin.distribution.mapper.SaleOrderDetailMapper;
 import com.lin.distribution.service.DeliveryBatchService;
 import com.lin.distribution.vo.DeliveryBatchViewVO;
 import com.lin.distribution.vo.DeliveryMatrixLayout;
@@ -63,6 +65,7 @@ public class DeliveryBatchServiceImpl implements DeliveryBatchService {
     private final CustomerDeptMapper customerDeptMapper;
     private final CustomerMapper customerMapper;
     private final CustomerSkuMappingMapper customerSkuMappingMapper;
+    private final SaleOrderDetailMapper saleOrderDetailMapper;
 
     // ==================== 客户日总表（D-027/28） ====================
 
@@ -108,6 +111,17 @@ public class DeliveryBatchServiceImpl implements DeliveryBatchService {
             dept.setQuantity(dept.getQuantity().add(qty));
         }
         return new ArrayList<>(byProduct.values());
+    }
+
+    // ==================== 点单视图（D-055：客户+日期+点，订单明细行含标记） ====================
+
+    @Override
+    public List<SaleOrderDetail> selectPointView(Long customerId, Long customerDeptId, String deliveryDate) {
+        if (customerId == null || customerDeptId == null || StringUtils.isBlank(deliveryDate)) {
+            throw new ServiceException("客户/配送点/配送日期不能为空");
+        }
+        return saleOrderDetailMapper.selectValidByCustomerPointDate(customerId, customerDeptId,
+                LocalDate.parse(deliveryDate));
     }
 
     // ==================== 矩阵总表（D-044~D-053） ====================

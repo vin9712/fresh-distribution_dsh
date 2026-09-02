@@ -24,6 +24,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.time.LocalDate;
 import java.util.List;
 
 /**
@@ -100,6 +101,21 @@ public class AcceptanceController extends BaseController {
     @PostMapping
     public AjaxResult add(@RequestBody AcceptanceCreateDTO dto) {
         return success(acceptanceService.createByDeliveryOrder(dto.getDeliveryOrderId()));
+    }
+
+    /**
+     * D-055 按「客户+配送日期+配送点」生成验收单（应送行=订单明细，含加单/换货/退货标记）
+     */
+    @Operation(summary = "按客户+日期+点生成验收单")
+    @PreAuthorize("@ss.hasPermi('acceptance:add')")
+    @Log(title = "验收单", businessType = BusinessType.INSERT)
+    @PostMapping("/create-by-point")
+    public AjaxResult createByPoint(@RequestBody java.util.Map<String, Object> body) {
+        Long customerId = body.get("customerId") == null ? null : Long.valueOf(String.valueOf(body.get("customerId")));
+        Long deptId = body.get("customerDeptId") == null ? null : Long.valueOf(String.valueOf(body.get("customerDeptId")));
+        LocalDate deliveryDate = body.get("deliveryDate") == null ? null
+                : LocalDate.parse(String.valueOf(body.get("deliveryDate")).substring(0, 10));
+        return success(acceptanceService.createByCustomerPoint(customerId, deptId, deliveryDate));
     }
 
     /**

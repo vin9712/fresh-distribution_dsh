@@ -206,6 +206,15 @@ export function batchView(customerId, date) {
   })
 }
 
+// 点单视图（D-055：客户+日期+配送点 的订单明细行，含加单/换货/退货标记）
+export function pointViewDelivery(customerId, deptId, date) {
+  return request({
+    url: '/order/delivery/batch/point-view',
+    method: 'get',
+    params: { customerId: customerId, deptId: deptId, date: date }
+  })
+}
+
 // 矩阵总表（D-044/D-047/D-051：行=菜品明细行、列=配送点快照（含空列）、格=分配量）
 // 纸面不打单价与金额，同名多行以 (档①) 区分；页面与打印共用同一数据
 export function deliveryMatrix(customerId, deliveryDate) {
