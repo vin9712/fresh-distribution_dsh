@@ -258,6 +258,22 @@ public class DeliveryBatchServiceImpl implements DeliveryBatchService {
                         .build());
             }
         }
+        // 展示优化（D-055）：当日无单的列排到最后（有数据列保持原始顺序在前）
+        List<DeliveryMatrixVO.ColumnVO> sortedColumns = new ArrayList<>();
+        List<DeliveryMatrixVO.ColumnVO> emptyColumns = new ArrayList<>();
+        for (DeliveryMatrixVO.ColumnVO c : columns) {
+            (Boolean.TRUE.equals(c.getHasData()) ? sortedColumns : emptyColumns).add(c);
+        }
+        // 重排后重算 blockNo（列分页按新顺序）
+        int cp = colsPerPage > 0 ? colsPerPage : Math.max(sortedColumns.size(), 1);
+        for (int i = 0; i < sortedColumns.size(); i++) {
+            sortedColumns.get(i).setBlockNo(i / cp + 1);
+        }
+        sortedColumns.addAll(emptyColumns);
+        for (int i = sortedColumns.size() - emptyColumns.size(); i < sortedColumns.size(); i++) {
+            sortedColumns.get(i).setBlockNo(i / cp + 1);
+        }
+        vo.setColumns(sortedColumns);
         vo.setTotalQuantity(grandTotal);
         return vo;
     }

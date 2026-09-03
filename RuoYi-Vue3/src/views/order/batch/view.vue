@@ -3,7 +3,7 @@
     <!-- 查询条：客户 + 配送日期（矩阵总表 D-044 / 配货总表 D-027·28 两种口径共用一页） -->
     <el-form :inline="true" size="small" label-width="80px">
       <el-form-item label="客户">
-        <el-select v-model="customerId" placeholder="请选择客户" filterable style="width: 220px">
+        <el-select v-model="customerId" placeholder="请选择客户" filterable style="width: 220px" @change="onCustomerChange">
           <el-option v-for="c in customers" :key="c.id" :label="c.name" :value="c.id" />
         </el-select>
       </el-form-item>
@@ -305,13 +305,28 @@ export default {
         this.loadView();
       }
     });
-    // 配送点下拉（点单口径用）
-    listCustomerDept({}).then((response) => {
-      this.depts = response.data || [];
-    });
+    // 路由带客户时预拉该客户配送点（点单口径）
+    if (this.customerId) {
+      this.loadDepts();
+    }
   },
   methods: {
-    loadView() {
+    /** 客户切换：刷新该客户下属配送点（点单口径只显示本客户） */
+    onCustomerChange(customerId) {
+      this.deptId = null;
+      this.pointRows = [];
+      if (customerId) {
+        this.loadDepts();
+      } else {
+        this.depts = [];
+      }
+    },
+    /** 拉选中客户的下属配送点（排除父级单位 parent_id=0） */
+    loadDepts() {
+      listCustomerDept({ customerId: this.customerId }).then((response) => {
+        this.depts = (response.data || []).filter((d) => d.parentId && d.parentId !== 0);
+      });
+    },    loadView() {
       if (!this.customerId || !this.deliveryDate) {
         this.$modal.msgWarning("请选择客户与配送日期");
         return;

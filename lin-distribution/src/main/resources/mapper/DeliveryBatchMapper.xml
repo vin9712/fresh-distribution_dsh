@@ -176,6 +176,8 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         where tcd.customer_id = #{customerId}
           and tcd.valid = 1
           and tcd.is_deleted = 0
+          and tcd.parent_id is not null
+          and tcd.parent_id != 0
         order by tcd.code, tcd.id
     </select>
 
