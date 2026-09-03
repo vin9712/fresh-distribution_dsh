@@ -47,6 +47,7 @@ public class DeliveryChangeServiceImpl implements DeliveryChangeService {
         detail.setOrderId(orderId);
         detail.setCustomerId(order.getCustomerId());
         detail.setCustomerDeptId(order.getCustomerDeptId());
+        detail.setOrderCode(order.getCode());
         detail.setSkuId(skuId);
         detail.setProductName(productName);
         detail.setProductUnit(unit);
@@ -81,6 +82,7 @@ public class DeliveryChangeServiceImpl implements DeliveryChangeService {
         detail.setOrderId(orderId);
         detail.setCustomerId(order.getCustomerId());
         detail.setCustomerDeptId(order.getCustomerDeptId());
+        detail.setOrderCode(order.getCode());
         detail.setSkuId(skuId);
         detail.setProductName(productName);
         detail.setProductUnit(unit);

@@ -41,7 +41,7 @@
           and o.delivery_date &lt;= curdate()
           and not exists (select 1 from acceptance a
                           where a.customer_id = o.customer_id
-                            and a.customer_dept_id = o.customer_dept_id
+                            and a.delivery_point_id = o.customer_dept_id
                             and a.delivery_date = o.delivery_date
                             and a.status = 1)
         group by o.customer_id, o.customer_dept_id, o.delivery_date, coalesce(c.alias, c.name), cd.name

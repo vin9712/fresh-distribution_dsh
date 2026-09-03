@@ -68,7 +68,7 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
     <select id="selectByCustomerPointDate" resultMap="AcceptanceResult">
         <include refid="selectAcceptanceVo"/>
         where a.customer_id = #{customerId}
-          and a.customer_dept_id = #{customerDeptId}
+          and a.delivery_point_id = #{customerDeptId}
           and a.delivery_date = #{deliveryDate}
         order by a.id desc
         limit 1
@@ -78,7 +78,7 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
     <select id="countByCustomerPointDate" resultType="int">
         select count(1) from acceptance
         where customer_id = #{customerId}
-          and customer_dept_id = #{customerDeptId}
+          and delivery_point_id = #{customerDeptId}
           and delivery_date = #{deliveryDate}
     </select>
 

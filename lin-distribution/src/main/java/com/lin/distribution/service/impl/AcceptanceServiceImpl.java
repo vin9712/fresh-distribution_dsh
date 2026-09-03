@@ -413,8 +413,10 @@ public class AcceptanceServiceImpl implements AcceptanceService {
         for (SaleOrderDetail d : orderDetails) {
             boolean isReturned = d.getChangeType() != null && d.getChangeType() == 3;
             BigDecimal delivered = isReturned ? BigDecimal.ZERO : nvl(d.getNum());
+            // actual_num 为镜像列默认 0：<=0 视为未填，按应送兜底（加单行已录实收则取实收）
             BigDecimal actual = isReturned ? BigDecimal.ZERO
-                    : (d.getActualNum() != null ? d.getActualNum() : delivered);
+                    : (d.getActualNum() != null && d.getActualNum().compareTo(BigDecimal.ZERO) > 0
+                            ? d.getActualNum() : delivered);
             AcceptanceItem item = new AcceptanceItem();
             item.setSaleOrderDetailId(d.getId());
             item.setCustomerDeptId(d.getCustomerDeptId());
@@ -427,7 +429,8 @@ public class AcceptanceServiceImpl implements AcceptanceService {
             item.setUnitPrice(nvl(d.getProductPrice()));
             item.setDifferenceQuantity(actual.subtract(delivered));
             item.setSort(sort++);
-            total = total.add(scale(item.getUnitPrice().multiply(actual)));
+            item.setActualAmount(scale(item.getUnitPrice().multiply(actual)));
+            total = total.add(item.getActualAmount());
             items.add(item);
         }
 
