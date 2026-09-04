@@ -84,6 +84,30 @@ ON DUPLICATE KEY UPDATE
     `search_flag`= VALUES(`search_flag`),
     `update_time`= NOW();
 
+-- ---------- 2.5 统一数据集请求方法 = 0（GET） ----------
+-- jimu_report_db.api_method 语义是 '0'=GET / '1'=POST（建表注释），全库 90 个既有数据集均为 '0'。
+-- s18 曾误把 4 个打印数据集写成 'GET' 字符串，JimuReport 无法识别 → 落默认 POST，
+-- 打在 GET-only 的 /print/* 端点上必 405（报表页整页无数据）。统一回 '0'。
+UPDATE `jimu_report_db`
+SET `api_method` = '0'
+WHERE `id` IN ('2099000000000000002','2099000000000000003','2599000000000000002','2599000000000000003')
+  AND `api_method` <> '0';
+
+-- ---------- 2.6 MATRIX 数据集补转换适配器与分页关闭 ----------
+-- /print/deliveryMatrixData 返回 {head, columns, rows} 业务对象——head 与 rows 同响应，
+-- 两个数据集需配不同适配器拆开（lin-entry 注册的 ApiDataConvertAdapter）：
+--   hm 表头 → deliveryDataConvertAdapter（head 优先，包成单行）
+--   dm 明细 → deliveryRowsConvertAdapter（取 rows 列表；head 优先会拿错，明细渲染为空）
+-- s18 当年漏配 api_convert → 报表页整页无数据。is_page 对齐 FLAT 的 '0'（不分页，由列块分页）。
+UPDATE `jimu_report_db`
+SET `api_convert` = 'deliveryDataConvertAdapter',
+    `is_page` = '0'
+WHERE `id` = '2599000000000000002';
+UPDATE `jimu_report_db`
+SET `api_convert` = 'deliveryRowsConvertAdapter',
+    `is_page` = '0'
+WHERE `id` = '2599000000000000003';
+
 -- ---------- 3. 发布全局默认模板（打印解析只认 status=2 已发布） ----------
 -- 2026-09-02 真机验证时发现：预置的全局默认模板停在「已测试/未发布」态，
 -- selectBindTemplate 只取 status=2 → 打印无模板可用。此处幂等发布两支全局默认（点单 FLAT + 总单 MATRIX）。
