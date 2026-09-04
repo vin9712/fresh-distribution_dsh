@@ -287,19 +287,6 @@
           <span v-else>—</span>
         </template>
       </el-table-column>
-      <el-table-column label="打印包" align="center" width="120">
-        <template #default="scope">
-          <el-button
-            size="small"
-            link
-            type="primary"
-            :icon="Printer"
-            @click="handlePrintPackage(scope.row)"
-            v-hasPermi="['order:delivery:print']"
-            >打印包</el-button
-          >
-        </template>
-      </el-table-column>
     </el-table>
 
     <pagination
@@ -432,7 +419,7 @@
           <el-input v-model="voidForm.reasonNote" type="textarea" placeholder="选择“其他”时必填" />
         </el-form-item>
         <el-form-item label="重新生成">
-          <el-checkbox v-model="voidForm.regenerate">作废后立即按客户+日期重新生成（遗漏订单补齐）</el-checkbox>
+          <span style="margin-left: 8px; color: #909399">作废仅释放历史单据；D-055 后送货单为订单视图，无需重新生成</span>
         </el-form-item>
         <div class="dialog-hint">
           作废后来源分配即释放，订单回到"未进送货单"状态（可正常编辑/撤回）；已提交验收或来源订单已结算时后端将拒绝。
@@ -491,7 +478,6 @@ import {
   batchPageDelivery,
   listDeliveryDetail,
   listDeliverySources,
-  generateDeliveryForCustomer,
   printDelivery,
   printInfoDelivery,
   printCandidatesDelivery,
@@ -556,7 +542,7 @@ export default {
       voidOpen: false,
       voidSubmitting: false,
       voidRow: {},
-      voidForm: { reasonCode: null, reasonNote: null, regenerate: false },
+      voidForm: { reasonCode: null, reasonNote: null },
       voidRules: {
         reasonCode: [{ required: true, message: "作废原因不能为空", trigger: "change" }],
         reasonNote: [{ required: true, message: "选择“其他”时必须填写说明", trigger: "blur" }],
@@ -744,6 +730,17 @@ export default {
     chosenPrintTemplate() {
       return this.printTemplates.find((t) => t.id === this.printChosenRecordId);
     },
+    /** 打印视图 URL 参数：token/ticket 双传（W0-4.1 票据），customerId/deliveryDate 留空占位（历史单证主体） */
+    printParams(row, ticket) {
+      return (
+        "?token=" + ticket + "&ticket=" + ticket
+        + "&deliveryOrderId=" + row.id
+        + "&customerId=" + (row.customerId || "")
+        + "&deliveryDate=" + (row.deliveryDate || "")
+        + "&customerDeptId=" + (row.deliveryPointId || "")
+        + "&colBlock=1"
+      );
+    },
     /** 打开预览窗口并记录预览留痕（W0-4.4：每次正式打印前必须有预览记录） */
     openPrintPreview() {
       const template = this.chosenPrintTemplate();
@@ -753,7 +750,7 @@ export default {
       }
       issuePrintTicket({ deliveryOrderId: this.printRow.id, templateId: template.content }).then((res) => {
         window.open(
-          "/jmreport/view/" + template.content + "?token=" + res.ticket + "&deliveryOrderId=" + this.printRow.id,
+          "/jmreport/view/" + template.content + printParams(this.printRow, res.ticket),
           "_blank"
         );
         // 预览留痕（模板主键 + 送货单）
@@ -773,7 +770,7 @@ export default {
       issuePrintTicket({ deliveryOrderId: row.id, templateId: template.content }).then((res) => {
         this.printOpen = false;
         window.open(
-          "/jmreport/view/" + template.content + "?token=" + res.ticket + "&deliveryOrderId=" + row.id,
+          "/jmreport/view/" + template.content + printParams(row, res.ticket),
           "_blank"
         );
         this.$modal
@@ -831,7 +828,7 @@ export default {
     /** 作废送货单（PENDING/PRINTED；原因必填；可选作废后重新生成） */
     handleVoid(row) {
       this.voidRow = row;
-      this.voidForm = { reasonCode: null, reasonNote: null, regenerate: false };
+      this.voidForm = { reasonCode: null, reasonNote: null };
       this.voidOpen = true;
       this.$nextTick(() => {
         this.$refs["voidFormRef"] && this.$refs["voidFormRef"].clearValidate();
@@ -847,18 +844,6 @@ export default {
           reasonNote: this.voidForm.reasonNote || null,
         })
           .then(() => {
-            if (this.voidForm.regenerate) {
-              return generateDeliveryForCustomer(
-                this.voidRow.customerId,
-                this.voidRow.deliveryDate
-              ).then((resp) => {
-                const result = resp.data || {};
-                const created = result.createdOrders || [];
-                this.$modal.msgSuccess(
-                  "已作废并重新生成 " + created.length + " 张送货单（原纸面单号已失效）"
-                );
-              });
-            }
             this.$modal.msgSuccess("已作废，来源订单已释放");
           })
           .then(() => {

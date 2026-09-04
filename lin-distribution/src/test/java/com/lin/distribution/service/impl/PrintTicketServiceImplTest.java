@@ -65,6 +65,40 @@ class PrintTicketServiceImplTest {
         return new PrintTicketPayload("clerk", deliveryOrderId, 2099000000000000001L);
     }
 
+    private PrintTicketPayload bizPayload(String bizKey) {
+        return new PrintTicketPayload("clerk", null, bizKey, 2599000000000000001L);
+    }
+
+    @Test
+    void 签发绑定打印主体bizKey_视图化无送货单ID() {
+        String ticket = printTicketService.issueByBizKey("matrix:10:2026-09-03", 2599000000000000001L);
+
+        ArgumentCaptor<Object> valueCaptor = ArgumentCaptor.forClass(Object.class);
+        verify(redisCache).setCacheObject(eq(PrintTicketServiceImpl.UNUSED_KEY + ticket),
+                valueCaptor.capture(), eq(PrintTicketServiceImpl.UNUSED_TTL_SECONDS), eq(TimeUnit.SECONDS));
+        PrintTicketPayload stored = (PrintTicketPayload) valueCaptor.getValue();
+        assertEquals("matrix:10:2026-09-03", stored.getBizKey());
+        assertNull(stored.getDeliveryOrderId(), "视图化打印主体无送货单ID");
+    }
+
+    @Test
+    void 数据接口校验_票据与打印主体一致才放行() {
+        String ticket = PrintTicketService.TICKET_PREFIX + "biz1";
+        when(redisCache.getCacheObject(PrintTicketServiceImpl.UNUSED_KEY + ticket))
+                .thenReturn(bizPayload("point:10:6:2026-09-03"));
+        assertTrue(printTicketService.validateDataAccessByBizKey(ticket, "point:10:6:2026-09-03"));
+
+        // 跨客户/跨日期取数：主体不一致拒绝
+        String ticket2 = PrintTicketService.TICKET_PREFIX + "biz2";
+        when(redisCache.getCacheObject(PrintTicketServiceImpl.UNUSED_KEY + ticket2))
+                .thenReturn(bizPayload("point:10:6:2026-09-03"));
+        assertFalse(printTicketService.validateDataAccessByBizKey(ticket2, "point:11:6:2026-09-03"));
+
+        // 缺票据 / 缺主体一律拒绝
+        assertFalse(printTicketService.validateDataAccessByBizKey(null, "matrix:10:2026-09-03"));
+        assertFalse(printTicketService.validateDataAccessByBizKey(ticket, "  "));
+    }
+
     @Test
     void 签发绑定当前用户与送货单且写入未用票据() {
         String ticket = printTicketService.issue(500L, 2099000000000000001L);

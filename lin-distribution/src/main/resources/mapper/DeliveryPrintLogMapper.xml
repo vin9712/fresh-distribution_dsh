@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+"http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.lin.distribution.mapper.DeliveryPrintLogMapper">
+
+    <resultMap type="com.lin.distribution.domain.DeliveryPrintLog" id="DeliveryPrintLogResult">
+        <result property="id"             column="id"               />
+        <result property="customerId"     column="customer_id"      />
+        <result property="deliveryDate"   column="delivery_date"    />
+        <result property="customerDeptId" column="customer_dept_id" />
+        <result property="printTime"      column="print_time"       />
+        <result property="printBy"        column="print_by"         />
+        <result property="templateId"     column="template_id"      />
+        <result property="createBy"       column="create_by"        />
+        <result property="createTime"     column="create_time"      />
+    </resultMap>
+
+    <insert id="insertPrintLog" parameterType="com.lin.distribution.domain.DeliveryPrintLog" useGeneratedKeys="true" keyProperty="id">
+        insert into t_delivery_print_log
+            (customer_id, delivery_date, customer_dept_id, print_time, print_by, template_id, create_by, create_time)
+        values
+            (#{customerId}, #{deliveryDate}, #{customerDeptId}, #{printTime}, #{printBy}, #{templateId}, #{createBy}, #{createTime})
+    </insert>
+
+    <!-- 打印分界判定：该 客户+日期+点 存在记录 = 已打印 = 配送后（总单打印传 deptId=NULL 判整客户） -->
+    <select id="countPrinted" resultType="int">
+        select count(1) from t_delivery_print_log
+        where customer_id = #{customerId}
+          and delivery_date = #{deliveryDate}
+        <choose>
+            <when test="customerDeptId != null">and customer_dept_id = #{customerDeptId}</when>
+            <otherwise>and customer_dept_id is null</otherwise>
+        </choose>
+    </select>
+
+    <select id="selectPrintLogs" parameterType="com.lin.distribution.domain.DeliveryPrintLog" resultMap="DeliveryPrintLogResult">
+        select id, customer_id, delivery_date, customer_dept_id, print_time, print_by, template_id, create_by, create_time
+        from t_delivery_print_log
+        <where>
+            <if test="customerId != null">and customer_id = #{customerId}</if>
+            <if test="deliveryDate != null">and delivery_date = #{deliveryDate}</if>
+            <if test="customerDeptId != null">and customer_dept_id = #{customerDeptId}</if>
+        </where>
+        order by print_time desc, id desc
+    </select>
+</mapper>

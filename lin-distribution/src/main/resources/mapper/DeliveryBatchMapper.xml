@@ -56,16 +56,6 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         limit 1
     </select>
 
-    <!-- S14/T3 统一生成：同上但 FOR UPDATE 锁行，UPSERT 批次防并发重复建批次 -->
-    <select id="selectByCustomerAndDateForUpdate" resultMap="DeliveryBatchResult">
-        <include refid="selectDeliveryBatchVo"/>
-        where b.customer_id = #{customerId}
-          and b.delivery_date = #{deliveryDate}
-          and b.is_deleted = 0
-        limit 1
-        for update
-    </select>
-
     <insert id="insertDeliveryBatch" parameterType="com.lin.distribution.domain.DeliveryBatch" useGeneratedKeys="true" keyProperty="id">
         insert into t_delivery_batch
         <trim prefix="(" suffix=")" suffixOverrides=",">
@@ -121,7 +111,8 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         where id = #{id}
     </update>
 
-    <!-- 客户日总表（S14/D-027/28）：source_item 台账聚合，标准品名=coalesce(sku.name, 快照品名)，不拆价不显价。
+    <!-- 【历史只读·D-055 前】客户日总表（S14/D-027/28）：source_item 台账聚合，标准品名=coalesce(sku.name, 快照品名)，不拆价不显价。
+         主口径已改走 selectBatchViewRowsFromOrder（订单明细），本查询仅供 D-055 前旧日期展示。
          行键含规格与单位（P0-A 修正：原只到 sku_id 会把同 SKU 不同规格/单位错并成一行） -->
     <select id="selectBatchViewRowsBySource" resultType="com.lin.distribution.vo.DeliveryBatchViewVO$Row">
         select si.sku_id                                          as skuId,
@@ -144,7 +135,7 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         order by productName, spec, unit, deptName
     </select>
 
-    <!-- 客户日总表历史回退：无台账历史单按送货明细行聚合，配送点回退单据 delivery_point_id -->
+    <!-- 【历史只读·D-055 前】客户日总表历史回退：无台账历史单按送货明细行聚合，配送点回退单据 delivery_point_id -->
     <select id="selectBatchViewRowsByDetail" resultType="com.lin.distribution.vo.DeliveryBatchViewVO$Row">
         select dod.sku_id                                         as skuId,
                coalesce(sku.name, dod.product_name)               as productName,
@@ -165,7 +156,7 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         order by productName, spec, unit, deptName
     </select>
 
-    <!-- ================= 矩阵总表（D-044~D-053，《送货单矩阵总表与批次视图设计》§三/§四） ================= -->
+    <!-- ================= 矩阵总表（D-044~D-053 + D-055 视图化，《送货单矩阵总表与批次视图设计》§三/§四/§十八） ================= -->
 
     <!-- 列快照源：仅启用点进列（停用点不进列，当日有单时由服务层 adHoc 临时补列），code/id 稳定排序 -->
     <select id="selectMatrixColumns" resultType="com.lin.distribution.vo.DeliveryMatrixLayout$Column">
@@ -181,7 +172,81 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         order by tcd.code, tcd.id
     </select>
 
-    <!-- 矩阵行：批次内全部有效送货单（原单 + 补充单）的合并明细行，行身份即 detail.id（D-047 不重新聚合） -->
+    <!-- 【主口径 · D-055 视图化】数据源 = 订单明细 t_sale_order_detail（送货单不再写入） -->
+
+    <!-- 矩阵行（D-055 视图化·主口径）：行=订单明细按五元组合并（D-024 不同价必拆行），应送=SUM(num)。
+         退货行 num 已归 0 自然不计、加单/换货入行按 num 计入；全组应送为 0 的行（纯退货）不进矩阵——司机对单只关心要送什么。
+         detailId 取组内最小明细ID，仅作展示/排查，行身份由服务层的五元组键决定。 -->
+    <select id="selectMatrixDetailsFromOrder" resultType="com.lin.distribution.vo.DeliveryMatrixVO$DetailRow">
+        select min(d.id)                                            as detailId,
+               null                                                 as deliveryId,
+               null                                                 as deliveryCode,
+               null                                                 as docKind,
+               d.sku_id                                             as skuId,
+               d.product_name                                       as productName,
+               coalesce(sku.name, d.product_name)                   as stdProductName,
+               d.product_spec                                       as spec,
+               d.product_unit                                       as unit,
+               sum(d.num)                                           as num,
+               d.product_price                                      as price
+        from t_sale_order_detail d
+        join t_sale_order o on o.id = d.order_id and o.is_deleted = 0 and o.status &gt;= 1
+        left join t_product_sku sku on sku.id = d.sku_id
+        where d.is_deleted = 0
+          and o.customer_id = #{customerId}
+          and o.delivery_date = #{deliveryDate}
+        group by d.sku_id, d.product_name, coalesce(sku.name, d.product_name),
+                 d.product_spec, d.product_unit, d.product_price
+        having sum(d.num) &gt; 0
+        order by stdProductName, spec, unit, price
+    </select>
+
+    <!-- 矩阵格（D-055 视图化·主口径）：订单明细按 (五元组, 配送点) 透视应送量。
+         行身份用五元组键（服务层按 skuId/productName/spec/unit/price 计算），故此处必须回传同一组字段。 -->
+    <select id="selectMatrixCellsFromOrder" resultType="com.lin.distribution.vo.DeliveryMatrixVO$CellRow">
+        select min(d.id)                                            as detailId,
+               coalesce(d.customer_dept_id, o.customer_dept_id)     as deptId,
+               d.sku_id                                             as skuId,
+               d.product_name                                       as productName,
+               d.product_spec                                       as spec,
+               d.product_unit                                       as unit,
+               d.product_price                                      as price,
+               sum(d.num)                                           as quantity
+        from t_sale_order_detail d
+        join t_sale_order o on o.id = d.order_id and o.is_deleted = 0 and o.status &gt;= 1
+        where d.is_deleted = 0
+          and o.customer_id = #{customerId}
+          and o.delivery_date = #{deliveryDate}
+        group by d.sku_id, d.product_name, d.product_spec, d.product_unit, d.product_price,
+                 coalesce(d.customer_dept_id, o.customer_dept_id)
+        having sum(d.num) &gt; 0
+    </select>
+
+    <!-- 客户日总表·配货口径（D-055 视图化·主口径）：订单明细聚合 标准品名×配送点（不拆价不显价 D-027/28） -->
+    <select id="selectBatchViewRowsFromOrder" resultType="com.lin.distribution.vo.DeliveryBatchViewVO$Row">
+        select d.sku_id                                             as skuId,
+               coalesce(sku.name, d.product_name)                   as productName,
+               d.product_spec                                       as spec,
+               d.product_unit                                       as unit,
+               coalesce(d.customer_dept_id, o.customer_dept_id)     as deptId,
+               cd.name                                              as deptName,
+               sum(d.num)                                           as quantity
+        from t_sale_order_detail d
+        join t_sale_order o on o.id = d.order_id and o.is_deleted = 0 and o.status &gt;= 1
+        left join t_product_sku sku on sku.id = d.sku_id
+        left join t_customer_dept cd on cd.id = coalesce(d.customer_dept_id, o.customer_dept_id)
+        where d.is_deleted = 0
+          and o.customer_id = #{customerId}
+          and o.delivery_date = #{deliveryDate}
+        group by d.sku_id, coalesce(sku.name, d.product_name), d.product_spec, d.product_unit,
+                 coalesce(d.customer_dept_id, o.customer_dept_id), cd.name
+        having sum(d.num) &gt; 0
+        order by productName, spec, unit, deptName
+    </select>
+
+    <!-- 【历史只读口径 · D-055 前生成的送货单】仅供旧日期展示与对账 -->
+
+    <!-- 矩阵行（D-047 旧口径·历史只读）：批次内全部有效送货单（原单+补充单）的合并明细行，行身份即 detail.id -->
     <select id="selectMatrixDetails" resultType="com.lin.distribution.vo.DeliveryMatrixVO$DetailRow">
         select d.id                                              as detailId,
                d.delivery_id                                     as deliveryId,
@@ -203,7 +268,7 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         order by o.doc_kind, o.id, d.id
     </select>
 
-    <!-- 矩阵格：按 (明细行, 配送点) 透视分配量（恒等式右值来源） -->
+    <!-- 矩阵格（D-047 旧口径·历史只读）：按 (送货明细行, 配送点) 透视 source_item 分配量（恒等式右值来源） -->
     <select id="selectMatrixCells" resultType="com.lin.distribution.vo.DeliveryMatrixVO$CellRow">
         select si.delivery_detail_id                             as detailId,
                si.customer_dept_id                               as deptId,

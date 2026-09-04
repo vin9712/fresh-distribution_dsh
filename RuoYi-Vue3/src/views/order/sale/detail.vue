@@ -395,15 +395,6 @@
                 @click="handleCopyAsNew()"
                 >复制为新单</el-button
               >
-              <el-button
-                v-if="canEditOrder"
-                type="success"
-                plain
-                :icon="Van"
-                @click="openDeliveryDrawer()"
-                v-hasPermi="['order:delivery:generateCustomer']"
-                >选订单·生成送货单</el-button
-              >
               <el-button @click="close()">返回</el-button>
             </el-form-item>
           </el-form>
@@ -596,16 +587,6 @@
       </template>
     </split-workspace>
 
-    <!-- 「选订单 · 生成送货单」抽屉（S14 出单主路径）：自带客户/日期筛选，
-         不依赖当前表单（旧按钮在「自动新增」重置后必然被 customerId 前置校验拦死） -->
-    <delivery-generate-drawer
-      v-model="deliveryDrawerVisible"
-      :customer-options="customerOptions"
-      :default-customer-id="lastSavedCustomerId"
-      :default-delivery-date="lastSavedDeliveryDate"
-      @success="onDeliveryGenerated"
-    />
-
     <!-- 草稿箱（S1-1.5：草稿可见、可恢复、可删除、可解释） -->
     <el-dialog v-model="draftBoxVisible" title="我的订单草稿" width="560px" append-to-body>
       <el-alert
@@ -644,9 +625,8 @@ import { listTemp } from "@/api/product/temp";
 import { queryPrice } from "@/api/price/query";
 import { listCustomer } from "@/api/partner/customer";
 import { listCustomerDept } from "@/api/partner/customerDept";
-import { Refresh, Rank, Plus, Minus, Search, Van, DocumentCopy } from "@element-plus/icons-vue";
+import { Refresh, Rank, Plus, Minus, Search, DocumentCopy } from "@element-plus/icons-vue";
 import SplitWorkspace from "@/components/SplitWorkspace/index.vue";
-import DeliveryGenerateDrawer from "./deliveryGenerateDrawer.vue";
 import { registerShortcuts, setEnabledByOwner, SCOPE } from "@/utils/shortcut";
 
 import XEUtils from "xe-utils";
@@ -743,11 +723,11 @@ function deepEqual(obj1, obj2, path = '') {
 
 export default {
   name: "SaleDetail",
-  components: { SplitWorkspace, DeliveryGenerateDrawer },
+  components: { SplitWorkspace },
   // 损耗原因固定字典（验收实收差异行必选）
   dicts: ["biz_loss_reason"],
   setup() {
-    return { Refresh, Rank, Plus, Minus, Search, Van, DocumentCopy };
+    return { Refresh, Rank, Plus, Minus, Search, DocumentCopy };
   },
   data() {
     return {
@@ -869,11 +849,6 @@ export default {
       maxRows: 15,
       // 是否继续添加订单
       isContinueAdd: true,
-      /* ========== 「选订单·生成送货单」抽屉 ========== */
-      deliveryDrawerVisible: false,
-      // 本次会话最后一次保存订单的客户/配送日期（自动新增重置表单后仍可带出抽屉筛选条件）
-      lastSavedCustomerId: null,
-      lastSavedDeliveryDate: null,
       // 编辑已有草稿订单后的提示横幅（点错了？返回重开新单）
       showEditExistingBanner: false,
       // 当前正在编辑的草稿订单ID（用于重开新单后清空）
@@ -1441,9 +1416,6 @@ export default {
           }
 
           // S1-1.3 手工定价：已去除必填原因弹窗与二次确认，改价即生效；来源/原价/操作者时间由服务端确认时审计
-          // 记住本次保存的客户+配送日期：「自动新增」会重置表单，抽屉需靠这两个值带出筛选条件
-          this.lastSavedCustomerId = this.orderForm.customerId;
-          this.lastSavedDeliveryDate = this.orderForm.deliveryDate;
           const proceedSave = Promise.resolve();
           proceedSave.then(() => {
           if (this.orderForm.orderId) {
@@ -1476,20 +1448,6 @@ export default {
           });
         }
       });
-    },
-    /**
-     * 打开「选订单 · 生成送货单」抽屉（S14 §6.1 入口①，手工生成为主路径）。
-     * 客户/日期由抽屉自身筛选，不依赖当前表单；未保存改动在抽屉里勾不到，天然规避旧按钮死结。
-     */
-    openDeliveryDrawer() {
-      this.deliveryDrawerVisible = true;
-    },
-    /** 抽屉出单成功：刷新「最近」列表（草稿转已确认会自然消失）与当前订单（送货单号/冻结态） */
-    onDeliveryGenerated() {
-      this.handleRecentQuery();
-      if (this.orderForm.orderId && !this.isOrderDirty) {
-        this.initOrderDetailPage(this.orderForm.orderId);
-      }
     },
     /** 返回按钮 */
     close() {

@@ -38,6 +38,8 @@
 -- 【已跳过（不纳入本脚本）】
 --   - s0_3_jimureport_init.sql         JimuReport 报表引擎初始化（依赖按需单独导入）
 --   - s6_2_print_seed.sql              JimuReport 送货单打印模板种子（依赖 jimu_* 表，按需单独导入）
+--   - s18_universal_print_templates.sql   通用总单矩阵模板（依赖 jimu_* 表，见 [41] 节说明）
+--   - s22_print_data_params.sql         打印数据集取数主体参数（依赖 jimu_* 表，见 [41] 节说明）
 --   - db_bak/*.nb3                     数据库备份文件
 --
 -- 【注意事项】
@@ -4367,6 +4369,7 @@ WHERE NOT EXISTS (SELECT 1 FROM `sys_dict_data` WHERE `dict_type` = 'delivery_vo
 
 -- ============================================================
 -- [34] W0-2.2 送货单打印拆分配置（配置模型+版本表）  |  源: w03_delivery_print_split.sql
+--      ⚠ 该特性已随 D-055 退役（前端 0 调用、后端代码已删），表在 [40] 节删除
 -- ============================================================
 
 -- t_delivery_print_config：一张送货单一份当前打印拆分/输出配置
@@ -4406,6 +4409,110 @@ CREATE TABLE IF NOT EXISTS `t_delivery_print_config_version` (
     PRIMARY KEY (`id`),
     KEY `idx_delivery_version` (`delivery_order_id`, `version_no`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='送货单打印配置版本记录(未打印单每保存一次一份快照,审计与恢复)';
+
+
+-- ============================================================
+-- [35] P0-A 矩阵布局快照列加宽  | 源: s15_matrix_layout.sql
+-- ============================================================
+
+ALTER TABLE `t_delivery_batch`
+    MODIFY COLUMN `layout_json` text DEFAULT NULL
+        COMMENT '矩阵布局快照（列/价档 append-only，D-045；D-055 后仅历史批次有值）';
+
+-- ============================================================
+-- [36] P1/D-048 打印模板绑定加维 print_form  | 源: s16_print_template_bind_scope.sql
+-- ============================================================
+
+ALTER TABLE `t_print_template`
+    ADD COLUMN `print_form` varchar(16) NOT NULL DEFAULT 'FLAT'
+        COMMENT '打印形态：MATRIX=跨点总单矩阵 / FLAT=点单平铺（P1/D-048）' AFTER `bind_type`;
+
+ALTER TABLE `t_print_template_version`
+    ADD COLUMN `print_form` varchar(16) NOT NULL DEFAULT 'FLAT'
+        COMMENT '打印形态快照：MATRIX/FLAT（P1/D-048）' AFTER `bind_type`;
+
+-- ============================================================
+-- [37] D-055 送货单视图化：订单明细变更标记 + 打印分界日志  | 源: s19_delivery_change_marks.sql
+-- ============================================================
+
+ALTER TABLE `t_sale_order_detail`
+    ADD COLUMN `change_type` tinyint NOT NULL DEFAULT 0
+        COMMENT '变更标记:0正常(含配送前更新) 1加单(配送后补充) 2换货 3退货（D-055）' AFTER `sort`,
+    ADD COLUMN `change_group` bigint unsigned DEFAULT NULL
+        COMMENT '换货组号(被换行与换货行同组关联, 非换货为 NULL)' AFTER `change_type`,
+    ADD COLUMN `change_remark` varchar(200) DEFAULT NULL
+        COMMENT '变更说明(如:换货 原土豆→大白菜)' AFTER `change_group`;
+
+CREATE TABLE IF NOT EXISTS `t_delivery_print_log` (
+    `id`               bigint unsigned NOT NULL AUTO_INCREMENT COMMENT '主键',
+    `customer_id`      bigint unsigned NOT NULL COMMENT '客户ID',
+    `delivery_date`    date            NOT NULL COMMENT '配送日期',
+    `customer_dept_id` bigint unsigned DEFAULT NULL COMMENT '配送点ID（点单打印；总单打印为 NULL）',
+    `print_time`       datetime        NOT NULL COMMENT '打印时间',
+    `print_by`         varchar(64)     DEFAULT '' COMMENT '打印人',
+    `template_id`      bigint unsigned DEFAULT NULL COMMENT '模板ID',
+    `create_by`        varchar(64)     DEFAULT '' COMMENT '创建者',
+    `create_time`      datetime        DEFAULT NULL COMMENT '创建时间',
+    PRIMARY KEY (`id`),
+    KEY `idx_customer_date` (`customer_id`, `delivery_date`),
+    KEY `idx_dept` (`customer_id`, `delivery_date`, `customer_dept_id`)
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COMMENT ='送货单打印日志（打印分界：已打印=配送后，变更需标记 D-055）';
+
+-- ============================================================
+-- [38] D-055 验收维度：验收单挂 客户+日期+点、应送行=订单明细  | 源: s20_acceptance_point_dimension.sql
+-- ============================================================
+
+ALTER TABLE `acceptance`
+    MODIFY COLUMN `delivery_order_id` bigint unsigned DEFAULT NULL
+        COMMENT '送货单ID（D-055 后不再使用，保留历史兼容）',
+    ADD COLUMN `delivery_date` date DEFAULT NULL
+        COMMENT '配送日期（D-055 验收维度=客户+日期+点）' AFTER `customer_id`;
+
+ALTER TABLE `acceptance_item`
+    ADD COLUMN `sale_order_detail_id` bigint unsigned DEFAULT NULL
+        COMMENT '来源订单明细ID（D-055 应送行=订单明细，含加单/换货/退货标记）' AFTER `delivery_item_id`;
+
+ALTER TABLE `t_return_item`
+    ADD COLUMN `sale_order_detail_id` bigint unsigned DEFAULT NULL
+        COMMENT '来源订单明细ID（D-055 与验收行同维度对齐）' AFTER `acceptance_item_id`;
+
+-- ============================================================
+-- [39] D-055 送货单据菜单下线（路由/组件保留，历史单证只读）  | 源: s21_delivery_menu_offline.sql
+-- ============================================================
+
+UPDATE `sys_menu`
+SET `visible` = '1',
+    `update_by` = 'system',
+    `update_time` = NOW()
+WHERE `menu_id` = 2036;
+
+-- ============================================================
+-- [40] D-055 退役对象清理  | 源: s23_dead_print_objects_retire.sql
+--      统一生成服务（含打印包 P2/D-050、打印拆分配置 W0-2.2、打印资源登记 W0-6）代码已删。
+--      新库重建：[34] 节的打印拆分配置表建完即在此删除；打印包/资源表本就不创建。
+-- ============================================================
+
+-- 2114「送货单补生成」按钮停用（生成服务已删，order:delivery:generateCustomer 无调用方）
+UPDATE `sys_menu`
+SET `status` = '1',
+    `update_by` = 'system',
+    `update_time` = NOW()
+WHERE `menu_id` = 2114;
+
+DROP TABLE IF EXISTS `t_delivery_print_config`;
+DROP TABLE IF EXISTS `t_delivery_print_config_version`;
+DROP TABLE IF EXISTS `t_print_asset`;
+DROP TABLE IF EXISTS `t_print_package`;
+DROP TABLE IF EXISTS `t_print_task`;
+
+-- ============================================================
+-- [41] 打印模板数据与 D-055 取数主体（不入本脚本，按需单独导入）
+-- ============================================================
+-- 本脚本明确跳过 JimuReport 初始化（见头部【已跳过】），故以下两支不在这里执行：
+--   s18_universal_print_templates.sql  通用总单矩阵模板（jimu_report / jimu_report_db / t_print_template id=12）
+--   s22_print_data_params.sql          打印数据集 URL 与参数补声明（客户+日期(+点) 主体 + ticket 透传）
+-- 导入顺序：s0_3_jimureport_init.sql → s6_2_print_seed（FLAT 点单默认模板）→ s18 → s22
+-- （s16 的 print_form 列已在 [36] 节建好，s18/s22 依赖它）
 
 -- ============================================================
 -- 初始化结束

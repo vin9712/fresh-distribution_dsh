@@ -32,7 +32,9 @@
         <el-button type="primary" :icon="Search" :disabled="!customerId || !deliveryDate" @click="loadView"
           >查询</el-button
         >
-        <el-button :icon="Printer" :disabled="!hasData" @click="handlePrint">打印</el-button>
+        <el-button :icon="Printer" :disabled="!hasData" @click="handlePrint">{{
+          mode === "pick" ? "打印本页" : "打印总单"
+        }}</el-button>
       </el-form-item>
     </el-form>
 
@@ -40,7 +42,7 @@
       v-if="!loading && !hasData"
       :description="
         customerId && deliveryDate
-          ? '该客户在此日期没有有效送货单（未生成或已全部作废）'
+          ? '该客户在此日期没有已确认订单（D-055：送货单=订单的视图，下单即有数据）'
           : '请选择客户与配送日期'
       "
     />
@@ -210,6 +212,18 @@
         </el-table>
         <div class="batch-footer">
           共 {{ pointRows.length }} 行（含标记行）· 应送合计 {{ pointTotalNum }}· 实收合计 {{ pointTotalActual }}
+          <el-tag
+            v-if="deptId"
+            :type="pointPrinted ? 'danger' : 'info'"
+            size="small"
+            effect="plain"
+            style="margin-right: 8px"
+            >{{
+              pointPrinted
+                ? "已打印（配送后，改动请走带标记的配送后变更）"
+                : "未打印（配送前，直接改订单即可）"
+            }}</el-tag
+          >
           <el-button v-if="deptId" size="small" type="primary" plain :icon="Printer" @click="handlePointPrint">打印点单</el-button>
           <el-button v-if="deptId" size="small" type="warning" plain @click="handleAcceptance">生成验收单</el-button>
         </div>
@@ -219,7 +233,7 @@
 </template>
 
 <script>
-import { batchView, deliveryMatrix, pointViewDelivery } from "@/api/order/delivery";
+import { batchView, deliveryMatrix, pointViewDelivery, markDeliveryPrinted, getDeliveryPrintState } from "@/api/order/delivery";
 import { createAcceptanceByPoint } from "@/api/acceptance/acceptance";
 import { listCustomer } from "@/api/partner/customer";
 import { listCustomerDept } from "@/api/partner/customerDept";
@@ -248,6 +262,7 @@ export default {
       matrix: { columns: [], rows: [], mismatches: [] },
       pickRows: [],
       // 点单口径（D-055）
+      pointPrinted: false,
       depts: [],
       deptId: null,
       pointRows: [],
@@ -326,7 +341,8 @@ export default {
       listCustomerDept({ customerId: this.customerId }).then((response) => {
         this.depts = (response.data || []).filter((d) => d.parentId && d.parentId !== 0);
       });
-    },    loadView() {
+    },
+    loadView() {
       if (!this.customerId || !this.deliveryDate) {
         this.$modal.msgWarning("请选择客户与配送日期");
         return;
@@ -339,7 +355,7 @@ export default {
           .then((response) => {
             this.matrix = response.data || { columns: [], rows: [], mismatches: [] };
             if (!(this.matrix.rows || []).length) {
-              this.$modal.msgWarning("该客户在此日期没有有效送货单数据");
+              this.$modal.msgWarning("该客户在此日期没有已确认订单明细");
             }
           })
           .finally(done);
@@ -350,7 +366,7 @@ export default {
           .then((response) => {
             this.pickRows = response.data || [];
             if (!this.pickRows.length) {
-              this.$modal.msgWarning("该客户在此日期没有有效送货单数据");
+              this.$modal.msgWarning("该客户在此日期没有已确认订单明细");
             }
           })
           .finally(done);
@@ -360,15 +376,56 @@ export default {
     loadPointView() {
       if (!this.deptId) {
         this.pointRows = [];
+        this.pointPrinted = false;
         return Promise.resolve();
       }
+      this.loadPrintState();
       return pointViewDelivery(this.customerId, this.deptId, this.deliveryDate).then((response) => {
         this.pointRows = response.data || [];
       });
     },
     /** 点单打印（FLAT 通用模板，D-055：按 客户+日期+点 实时取数） */
     handlePointPrint() {
-      this.$modal.msgWarning("点单打印数据接口正在接入（D-055 订单维度），请先使用矩阵/总表打印");
+      if (!this.customerId || !this.deptId || !this.deliveryDate) {
+        this.$modal.msgWarning("请先选择客户、配送日期与配送点");
+        return;
+      }
+      const bizKey = `point:${this.customerId}:${this.deptId}:${this.deliveryDate}`;
+      issuePrintTicket({ bizKey, templateId: POINT_FLAT_TEMPLATE_ID }).then((res) => {
+        const ticket = res.ticket;
+        window.open(
+          "/jmreport/view/" + POINT_FLAT_TEMPLATE_ID
+            + "?token=" + ticket + "&ticket=" + ticket
+            + "&deliveryOrderId="
+            + "&customerId=" + this.customerId
+            + "&customerDeptId=" + this.deptId
+            + "&deliveryDate=" + this.deliveryDate,
+          "_blank"
+        );
+        // 打印分界登记（D-055）：点单按 客户+日期+点 记，已打印=配送后
+        markDeliveryPrinted({
+          customerId: this.customerId,
+          deliveryDate: this.deliveryDate,
+          customerDeptId: this.deptId,
+          templateId: POINT_FLAT_TEMPLATE_ID,
+        })
+          .then(() => this.loadPrintState())
+          .catch(() => {});
+      });
+    },
+    /** 查该 客户+日期+点 是否已打印（D-055 打印分界） */
+    loadPrintState() {
+      if (!this.customerId || !this.deliveryDate || !this.deptId) {
+        this.pointPrinted = false;
+        return Promise.resolve();
+      }
+      return getDeliveryPrintState(this.customerId, this.deliveryDate, this.deptId)
+        .then((res) => {
+          this.pointPrinted = !!(res && res.printed);
+        })
+        .catch(() => {
+          this.pointPrinted = false;
+        });
     },
     /** D-055 生成验收单（客户+日期+点，应送行=订单明细） */
     handleAcceptance() {
@@ -404,19 +461,39 @@ export default {
     matrixRowClass({ row }) {
       return row.identityOk === false ? "row-identity-bad" : "";
     },
-    /** 打印（通用总单矩阵模板：行=菜品、列=配送点、格=数量，标题=<客户>总单） */
+    /** 总单打印：矩阵口径走 JimuReport 总单模板（D-055 按 客户+日期 实时取数）；配货口径走浏览器打印本页 */
     handlePrint() {
-      const row = (this.matrix.rows || [])[0];
-      if (!row || !row.deliveryId) {
-        this.$modal.msgWarning("暂无可用送货单，无法打开总单打印");
+      if (this.mode === "pick") {
+        window.print();
         return;
       }
-      // 矩阵数据按 客户+日期 聚合；打印接口经 deliveryOrderId 校验票据（批次下任一有效单）
-      issuePrintTicket({ deliveryOrderId: row.deliveryId, templateId: TOTAL_MATRIX_TEMPLATE_ID }).then((res) => {
+      if (!this.customerId || !this.deliveryDate) {
+        this.$modal.msgWarning("请先选择客户与配送日期");
+        return;
+      }
+      // D-055 视图化：总单主体 = 客户+配送日期（无送货单ID），票据按 bizKey 绑定
+      const bizKey = `matrix:${this.customerId}:${this.deliveryDate}`;
+      issuePrintTicket({ bizKey, templateId: TOTAL_MATRIX_TEMPLATE_ID }).then((res) => {
+        const ticket = res.ticket;
         window.open(
-          "/jmreport/view/" + TOTAL_MATRIX_TEMPLATE_ID + "?token=" + res.ticket + "&deliveryOrderId=" + row.deliveryId,
+          "/jmreport/view/" + TOTAL_MATRIX_TEMPLATE_ID
+            + "?token=" + ticket + "&ticket=" + ticket
+            + "&deliveryOrderId="
+            + "&customerId=" + this.customerId
+            + "&deliveryDate=" + this.deliveryDate,
           "_blank"
         );
+        // 打印分界登记（D-055）：总单打印不拆点，customerDeptId 传空
+        markDeliveryPrinted({
+          customerId: this.customerId,
+          deliveryDate: this.deliveryDate,
+          templateId: TOTAL_MATRIX_TEMPLATE_ID,
+        })
+          .then(() => {
+            this.pointPrinted = false;
+            this.loadPrintState();
+          })
+          .catch(() => {});
       });
     },
   },

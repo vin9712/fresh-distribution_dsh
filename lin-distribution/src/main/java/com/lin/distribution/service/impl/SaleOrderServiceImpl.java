@@ -380,7 +380,7 @@ public class SaleOrderServiceImpl implements SaleOrderService {
         }
         if (SaleOrderStatus.CONFIRMED.getCode().equals(status)
                 && saleOrderDetailMapper.existsValidAllocation(order.getId())) {
-            throw new ServiceException("订单已生成送货单，请先作废对应送货单：" + order.getCode());
+            throw new ServiceException("该订单已进入 D-055 前的历史送货单，请先作废对应送货单后再修改：" + order.getCode());
         }
     }
 

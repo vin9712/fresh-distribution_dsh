@@ -5,13 +5,18 @@ import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Objects;
 
 import com.lin.distribution.domain.CustomerDept;
 import com.lin.distribution.domain.DeliveryBatch;
+import com.lin.distribution.domain.DeliveryPrintLog;
+import com.lin.distribution.domain.SaleOrderDetail;
 import com.lin.distribution.mapper.CustomerDeptMapper;
 import com.lin.distribution.mapper.CustomerMapper;
 import com.lin.distribution.mapper.CustomerSkuMappingMapper;
 import com.lin.distribution.mapper.DeliveryBatchMapper;
+import com.lin.distribution.mapper.DeliveryPrintLogMapper;
+import com.lin.distribution.mapper.SaleOrderDetailMapper;
 import com.lin.distribution.vo.DeliveryBatchViewVO;
 import com.lin.distribution.vo.DeliveryMatrixLayout;
 import com.lin.distribution.vo.DeliveryMatrixLayout.Column;
@@ -21,7 +26,6 @@ import com.lin.distribution.vo.DeliveryMatrixVO;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
-import org.mockito.Captor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -32,16 +36,17 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * 配送批次视图测试：客户日总表（D-027/28）+ 矩阵总表（D-044~D-053）。
+ * 配送批次视图测试：客户日总表（D-027/28）+ 矩阵总表（D-044~D-053）+ D-055 视图化取数口径。
  *
- * <p>矩阵覆盖：空列保留、恒等式自检与不一致、同名不同价拆行打档标、档号 append-only 不重排、
- * 停用点临时补列（adHoc）、布局快照优先不回落实时主数据、无快照实时推导、
- * refreshLayout 首次建版/无变化不刷版本/新增点追加末尾。</p>
+ * <p>矩阵覆盖：主口径（订单明细）优先、无订单数据回退历史送货单口径、空列保留、
+ * 恒等式自检与不一致、同名不同价拆行打档标、档号 append-only 不重排、停用点临时补列（adHoc）、
+ * 布局快照优先不回落实时主数据、无快照实时推导；另含点单/配货口径同源校验。</p>
  */
 @ExtendWith(MockitoExtension.class)
 class DeliveryBatchServiceImplTest {
@@ -60,12 +65,13 @@ class DeliveryBatchServiceImplTest {
     private CustomerMapper customerMapper;
     @Mock
     private CustomerSkuMappingMapper customerSkuMappingMapper;
+    @Mock
+    private SaleOrderDetailMapper saleOrderDetailMapper;
+    @Mock
+    private DeliveryPrintLogMapper deliveryPrintLogMapper;
 
     @InjectMocks
     private DeliveryBatchServiceImpl service;
-
-    @Captor
-    private ArgumentCaptor<DeliveryBatch> batchCaptor;
 
     // ==================== 造数工具 ====================
 
@@ -144,11 +150,39 @@ class DeliveryBatchServiceImplTest {
         when(deliveryBatchMapper.selectByCustomerAndDate(CUSTOMER, DATE)).thenReturn(batch);
     }
 
+    /** 主口径下 {@link #stubCells} 需要参照的行集 */
+    private List<DeliveryMatrixVO.DetailRow> stubbedDetails = List.of();
+
     private void stubDetails(List<DeliveryMatrixVO.DetailRow> details) {
-        when(deliveryBatchMapper.selectMatrixDetails(CUSTOMER, DATE)).thenReturn(details);
+        this.stubbedDetails = details;
+        when(deliveryBatchMapper.selectMatrixDetailsFromOrder(CUSTOMER, DATE)).thenReturn(details);
     }
 
+    /**
+     * 主口径格（D-055）：测试内用 detailId 引用 {@link #stubDetails} 的行，
+     * 此处回填同一组五元组字段——真实 SQL 里行/格两侧回传同一组字段，服务层按五元组对位。
+     */
     private void stubCells(List<DeliveryMatrixVO.CellRow> cells) {
+        for (DeliveryMatrixVO.CellRow c : cells) {
+            stubbedDetails.stream()
+                    .filter(d -> Objects.equals(d.getDetailId(), c.getDetailId()))
+                    .findFirst()
+                    .ifPresent(d -> {
+                        c.setSkuId(d.getSkuId());
+                        c.setProductName(d.getProductName());
+                        c.setSpec(d.getSpec());
+                        c.setUnit(d.getUnit());
+                        c.setPrice(d.getPrice());
+                    });
+        }
+        when(deliveryBatchMapper.selectMatrixCellsFromOrder(CUSTOMER, DATE)).thenReturn(cells);
+    }
+
+    /** 历史只读口径（D-055 前的送货单）：订单明细无数据 → 回退送货明细行 + source_item 台账（行身份=detailId） */
+    private void stubLegacy(List<DeliveryMatrixVO.DetailRow> details, List<DeliveryMatrixVO.CellRow> cells) {
+        when(deliveryBatchMapper.selectMatrixDetailsFromOrder(CUSTOMER, DATE)).thenReturn(List.of());
+        when(deliveryBatchMapper.selectMatrixCellsFromOrder(CUSTOMER, DATE)).thenReturn(List.of());
+        when(deliveryBatchMapper.selectMatrixDetails(CUSTOMER, DATE)).thenReturn(details);
         when(deliveryBatchMapper.selectMatrixCells(CUSTOMER, DATE)).thenReturn(cells);
     }
 
@@ -395,12 +429,11 @@ class DeliveryBatchServiceImplTest {
         assertFalse(vo.getRows().get(0).getIdentityOk());
     }
 
-    /** 历史单无台账：点列全空、合计取明细数量、不误报恒等式不一致（D-051） */
+    /** 历史只读口径（D-055 前送货单）无台账：点列全空、合计取明细数量、不误报恒等式不一致（D-051） */
     @Test
     void 历史单无台账回退() {
         stubBatch(batchWith(layoutJson(Arrays.asList(col(POINT_1, "D01", "人民路店")), null, 1)));
-        stubDetails(List.of(detail(901L, 801L, "HS001", 11L, "白菜", "", "斤", "5", "2.00")));
-        stubCells(List.of());
+        stubLegacy(List.of(detail(901L, 801L, "HS001", 11L, "白菜", "", "斤", "5", "2.00")), List.of());
 
         DeliveryMatrixVO vo = service.selectMatrix(CUSTOMER, DATE);
 
@@ -418,6 +451,135 @@ class DeliveryBatchServiceImplTest {
                 expectError(() -> service.selectMatrix(CUSTOMER, "  "))).stream().allMatch(b -> b));
     }
 
+    // ==================== D-055 视图化取数口径 ====================
+
+    /** 主口径优先：订单明细有数据时不得回退历史送货单口径 */
+    @Test
+    void 订单明细口径优先于历史送货单() {
+        stubBatch(batchWith(null));
+        when(deliveryBatchMapper.selectMatrixColumns(CUSTOMER)).thenReturn(List.of(col(POINT_1, "D01", "人民路店")));
+        stubDetails(List.of(detail(901L, null, null, 11L, "白菜", "", "斤", "5", "2.00")));
+        stubCells(List.of(cell(901L, POINT_1, "5")));
+        // 旧口径同时有数据（D-055 前遗留单）：应被完全忽略，不得参与取数
+        lenient().when(deliveryBatchMapper.selectMatrixDetails(CUSTOMER, DATE)).thenReturn(List.of(
+                detail(777L, 888L, "HS-OLD", 99L, "旧单菜", "", "斤", "9", "9.00")));
+
+        DeliveryMatrixVO vo = service.selectMatrix(CUSTOMER, DATE);
+
+        assertEquals(1, vo.getRows().size());
+        assertEquals("白菜", vo.getRows().get(0).getProductName());
+        assertNull(vo.getRows().get(0).getDeliveryId(), "主口径行不属任何送货单");
+        assertFalse(vo.getHistoryFallback(), "走主口径不应标历史回退");
+        verify(deliveryBatchMapper, never()).selectMatrixCells(CUSTOMER, DATE);
+    }
+
+    /** 无订单明细时回退历史口径，格按送货明细行ID对位（旧日期仍可展示） */
+    @Test
+    void 无订单明细回退历史送货单口径() {
+        stubBatch(batchWith(layoutJson(Arrays.asList(col(POINT_1, "D01", "人民路店")), null, 1)));
+        stubLegacy(Arrays.asList(
+                detail(901L, 801L, "HS001", 11L, "白菜", "", "斤", "5", "2.00"),
+                detail(902L, 801L, "HS001", 12L, "土豆", "", "斤", "3", "3.50")),
+                Arrays.asList(cell(901L, POINT_1, "5"), cell(902L, POINT_1, "3")));
+
+        DeliveryMatrixVO vo = service.selectMatrix(CUSTOMER, DATE);
+
+        assertEquals(2, vo.getRows().size());
+        assertEquals(0, new BigDecimal("5").compareTo(vo.getRows().get(0).getTotalQuantity()));
+        assertEquals(801L, vo.getRows().get(0).getDeliveryId(), "历史口径保留送货单归属");
+        assertFalse(vo.getHistoryFallback(), "历史口径但有台账 → 不打 —");
+        assertTrue(vo.getIdentityOk());
+    }
+
+    /** 同 SKU 不同价在订单明细口径下仍拆两行并分档（D-024/D-046） */
+    @Test
+    void 订单明细口径同名不同价拆行() {
+        stubBatch(batchWith(null));
+        when(deliveryBatchMapper.selectMatrixColumns(CUSTOMER)).thenReturn(Arrays.asList(
+                col(POINT_1, "D01", "人民路店"), col(POINT_2, "D02", "公园路店")));
+        stubDetails(Arrays.asList(
+                detail(901L, null, null, 11L, "白菜", "", "斤", "8", "2.00"),
+                detail(902L, null, null, 11L, "白菜", "", "斤", "3", "2.50")));
+        stubCells(Arrays.asList(
+                cell(901L, POINT_1, "5"), cell(901L, POINT_2, "3"),
+                cell(902L, POINT_1, "3")));
+
+        DeliveryMatrixVO vo = service.selectMatrix(CUSTOMER, DATE);
+
+        assertEquals(2, vo.getRows().size());
+        assertEquals("档①", vo.getRows().get(0).getRemark());
+        assertEquals("档②", vo.getRows().get(1).getRemark());
+        assertEquals(0, new BigDecimal("8").compareTo(vo.getRows().get(0).getTotalQuantity()));
+        assertTrue(vo.getIdentityOk(), "行应送=各点合计");
+        assertTrue(vo.getLayoutDerived(), "无快照批次按启用点实时推导");
+    }
+
+    /** 点单视图走只读口径（status&gt;=1），不得误用验收创建口径（status=1） */
+    @Test
+    void 点单视图走只读口径查询() {
+        SaleOrderDetail d = new SaleOrderDetail();
+        d.setId(901L);
+        when(saleOrderDetailMapper.selectValidByCustomerPointDateForView(CUSTOMER, POINT_1, LocalDate.parse(DATE)))
+                .thenReturn(List.of(d));
+
+        assertEquals(1, service.selectPointView(CUSTOMER, POINT_1, DATE).size());
+
+        verify(saleOrderDetailMapper, never())
+                .selectValidByCustomerPointDate(anyLong(), anyLong(), any());
+    }
+
+    /** 配货口径优先订单明细，不再读旧送货单台账 */
+    @Test
+    void 配货口径优先订单明细() {
+        when(deliveryBatchMapper.selectBatchViewRowsFromOrder(CUSTOMER, DATE)).thenReturn(List.of(
+                row(11L, "白菜", 201L, "A点", "7"),
+                row(11L, "白菜", 202L, "B点", "3")));
+
+        List<DeliveryBatchViewVO> result = service.selectBatchView(CUSTOMER, DATE);
+
+        assertEquals(1, result.size());
+        assertEquals(0, new BigDecimal("10").compareTo(result.get(0).getTotalQuantity()));
+        verify(deliveryBatchMapper, never()).selectBatchViewRowsBySource(anyLong(), any());
+    }
+
+    /** 打印分界登记（D-055）：总单不拆点（deptId=null），点单带点 */
+    @Test
+    void 打印登记写入打印日志() {
+        service.markPrinted(CUSTOMER, DATE, POINT_1, 12L);
+
+        ArgumentCaptor<DeliveryPrintLog> captor = ArgumentCaptor.forClass(DeliveryPrintLog.class);
+        verify(deliveryPrintLogMapper).insertPrintLog(captor.capture());
+        DeliveryPrintLog log = captor.getValue();
+        assertEquals(CUSTOMER, log.getCustomerId());
+        assertEquals(LocalDate.parse(DATE), log.getDeliveryDate());
+        assertEquals(POINT_1, log.getCustomerDeptId());
+        assertEquals(12L, log.getTemplateId());
+        assertTrue(log.getPrintTime() != null && log.getCreateTime() != null);
+        assertEquals("system", log.getPrintBy(), "无安全上下文回落 system");
+    }
+
+    /** 打印分界判定：无客户/日期直接 false，不得发查询 */
+    @Test
+    void 打印状态查询参数兼底() {
+        assertFalse(service.isPrinted(null, DATE, POINT_1));
+        assertFalse(service.isPrinted(CUSTOMER, "  ", POINT_1));
+        verify(deliveryPrintLogMapper, never()).countPrinted(any(), any(), any());
+
+        when(deliveryPrintLogMapper.countPrinted(CUSTOMER, LocalDate.parse(DATE), POINT_1)).thenReturn(1);
+        assertTrue(service.isPrinted(CUSTOMER, DATE, POINT_1));
+
+        // 总单维度：deptId=null 同样可判
+        when(deliveryPrintLogMapper.countPrinted(CUSTOMER, LocalDate.parse(DATE), null)).thenReturn(0);
+        assertFalse(service.isPrinted(CUSTOMER, DATE, null));
+    }
+
+    /** 打印登记参数缺失应报错 */
+    @Test
+    void 打印登记参数校验() {
+        assertTrue(expectError(() -> service.markPrinted(null, DATE, null, null)));
+        assertTrue(expectError(() -> service.markPrinted(CUSTOMER, "", null, null)));
+    }
+
     private boolean expectError(Runnable runnable) {
         try {
             runnable.run();
@@ -427,74 +589,5 @@ class DeliveryBatchServiceImplTest {
         }
     }
 
-    // ==================== refreshLayout（D-045） ====================
-
-    /** 首次建快照：版本 1、列取启用点、价档落库 */
-    @Test
-    void 首次刷新布局建版本1() {
-        DeliveryBatch batch = batchWith(null);
-        when(deliveryBatchMapper.selectMatrixColumns(CUSTOMER)).thenReturn(Arrays.asList(
-                col(POINT_1, "D01", "人民路店"), col(POINT_2, "D02", "公园路店")));
-        stubDetails(List.of(detail(901L, 801L, "HS001", 11L, "白菜", "", "斤", "5", "2.00")));
-        stubCells(List.of(cell(901L, POINT_1, "5")));
-
-        DeliveryMatrixLayout layout = service.refreshLayout(batch, "admin");
-
-        assertEquals(1, layout.getLayoutVersion());
-        assertEquals(2, layout.getColumns().size());
-        assertEquals(1, layout.getPriceTiers().size());
-        verify(deliveryBatchMapper).updateDeliveryBatch(batchCaptor.capture());
-        assertEquals(700L, batchCaptor.getValue().getId());
-        assertNotNullJson(batchCaptor.getValue().getLayoutJson());
-        assertEquals(layout.toJson(), batch.getLayoutJson(), "内存批次同步，供同事务后续读取");
-    }
-
-    /** 内容无变化：不刷版本、不落库（幂等生成不产生布局噪声） */
-    @Test
-    void 无变化不刷版本不落库() {
-        String json = layoutJson(Arrays.asList(col(POINT_1, "D01", "人民路店")),
-                List.of(tierGroupWithRank1()), 3);
-        DeliveryBatch batch = batchWith(json);
-        stubDetails(List.of(detail(901L, 801L, "HS001", 11L, "白菜", "", "斤", "5", "3.20")));
-        stubCells(List.of(cell(901L, POINT_1, "5")));
-        when(deliveryBatchMapper.selectMatrixColumns(CUSTOMER)).thenReturn(List.of(col(POINT_1, "D01", "人民路店")));
-
-        DeliveryMatrixLayout layout = service.refreshLayout(batch, "admin");
-
-        assertEquals(3, layout.getLayoutVersion());
-        verify(deliveryBatchMapper, never()).updateDeliveryBatch(any(DeliveryBatch.class));
-    }
-
-    /** 新增启用点追加到末尾，原列顺序与点名保留 */
-    @Test
-    void 新增点追加末尾且不改原列顺序() {
-        String json = layoutJson(Arrays.asList(col(POINT_1, "D01", "旧点名")), null, 2);
-        DeliveryBatch batch = batchWith(json);
-        when(deliveryBatchMapper.selectMatrixColumns(CUSTOMER)).thenReturn(Arrays.asList(
-                col(POINT_1, "D01", "改名后的点"), col(POINT_2, "D02", "公园路店")));
-        stubDetails(List.of(detail(901L, 801L, "HS001", 11L, "白菜", "", "斤", "5", "2.00")));
-        stubCells(List.of(cell(901L, POINT_1, "5")));
-
-        DeliveryMatrixLayout layout = service.refreshLayout(batch, "admin");
-
-        assertEquals(2, layout.getColumns().size());
-        assertEquals("旧点名", layout.getColumns().get(0).getName(), "点名快照不被实时主数据覆盖");
-        assertEquals(POINT_2, layout.getColumns().get(1).getDeptId());
-        assertEquals(3, layout.getLayoutVersion());
-        verify(deliveryBatchMapper).updateDeliveryBatch(any(DeliveryBatch.class));
-    }
-
-    private TierGroup tierGroupWithRank1() {
-        TierGroup group = TierGroup.builder()
-                .groupKey(DeliveryMatrixLayout.groupKey(11L, "白菜", "", "斤"))
-                .productName("白菜").spec("").unit("斤")
-                .tiers(new ArrayList<>(List.of(Tier.builder().rank(1).price(new BigDecimal("3.20"))
-                        .priceKey("3.2").build())))
-                .build();
-        return group;
-    }
-
-    private void assertNotNullJson(String json) {
-        assertTrue(json != null && json.contains("\"columns\""), "布局 JSON 应含列快照");
-    }
+    // ==================== 工具 ====================
 }

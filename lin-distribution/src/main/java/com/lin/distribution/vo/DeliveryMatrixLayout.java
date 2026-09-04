@@ -18,16 +18,17 @@ import lombok.NoArgsConstructor;
  * <p>序列化为 {@code t_delivery_batch.layout_json}（该列建表至今从未被写入，本期启用）。
  * 承载三件事：</p>
  * <ul>
- *   <li><b>列集合快照</b>：生成瞬间客户<b>启用</b>配送点（{@code valid=1}），当日无单的点保留空列；
+ *   <li><b>列集合快照</b>：建快照时客户<b>启用</b>配送点（{@code valid=1}），当日无单的点保留空列；
  *       停用点不进列，但当日有单时以 {@code adHoc=true} 临时补列（D-053）；</li>
  *   <li><b>价档快照（append-only）</b>：同一「品名+规格+单位」下的不同单价按升序定 rank，
- *       补单/重建只追加新档、<b>已有档号永不重排</b>，保证已打印纸面的档标不变；</li>
+ *       新价只追加新档、<b>已有档号永不重排</b>，保证已打印纸面的档标不变；</li>
  *   <li><b>分页参数</b>：{@code colsPerPage} 默认 6（单客户最多 5~6 点，A4 纵向一页放得下），
  *       超出走横向列分页兜底。</li>
  * </ul>
  *
- * <p>列顺序与点名的读取一律以本快照为准，不回落实时主数据——点改名/停用后历史总表重打版式不变
- * （对齐 D-016 批次期内快照不变）。</p>
+ * <p>D-055 视图化后布局不再由生成动作定格：无快照的批次按启用配送点<b>实时推导</b>
+ * （{@code layoutDerived=true}）；本快照仅对 D-055 前已落库的历史批次生效，
+ * 读取时以快照为准不回落实时主数据——点改名/停用后历史总表重打版式不变（对齐 D-016）。</p>
  *
  * @author dsh
  */
@@ -84,7 +85,7 @@ public class DeliveryMatrixLayout implements Serializable {
         }
     }
 
-    /** 新建批次用的空骨架（列/档在生成后由 refreshLayout 填充） */
+    /** 新建空骨架（D-055 后矩阵按启用点实时推导，仅历史批次会带列/档快照） */
     public static DeliveryMatrixLayout newInstance() {
         return DeliveryMatrixLayout.builder()
                 .printForm(FORM_MATRIX)

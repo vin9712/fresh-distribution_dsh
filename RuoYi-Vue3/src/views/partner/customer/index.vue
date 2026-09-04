@@ -182,14 +182,6 @@
           <el-button
             size="small"
             link
-            :icon="Van"
-            @click="handleDeliveryView(scope.row)"
-            v-hasPermi="['order:delivery:list']"
-            >送货单</el-button
-          >
-          <el-button
-            size="small"
-            link
             :icon="Edit"
             @click="handleUpdate(scope.row)"
             v-hasPermi="['partner:customer:edit']"
@@ -304,12 +296,6 @@
       </template>
     </el-dialog>
 
-    <!-- 客户维度送货单抽屉（D-040：策略来源 + 待生成清单 + 当日单 + 一键生成/补单） -->
-    <customer-delivery-drawer
-      v-model="deliveryOpen"
-      :customer="deliveryCustomer"
-    />
-
     <!-- 客户导入对话框 -->
     <el-dialog align-center
       :title="upload.title"
@@ -365,15 +351,14 @@ import {
 } from "@/api/partner/customer";
 import { getToken } from "@/utils/auth";
 import { listPrintTemplate } from "@/api/print/template";
-import CustomerDeliveryDrawer from "./customerDeliveryDrawer.vue";
-import { Search, Refresh, Plus, Edit, Delete, Upload, Download, Van } from "@element-plus/icons-vue";
+import { Search, Refresh, Plus, Edit, Delete, Upload, Download } from "@element-plus/icons-vue";
 
 export default {
   name: "Customer",
-  components: { CustomerDeliveryDrawer },
+
   dicts: ["biz_yes_no", "t_customer_type"],
   setup() {
-    return { Search, Refresh, Plus, Edit, Delete, Upload, Download, Van };
+    return { Search, Refresh, Plus, Edit, Delete, Upload, Download };
   },
   data() {
     return {
@@ -395,9 +380,6 @@ export default {
       title: "",
       // 是否显示弹出层
       open: false,
-      // 客户维度送货单抽屉
-      deliveryOpen: false,
-      deliveryCustomer: {},
       // 客户绑定送货单打印模板（已发布，bind_type 1=客户+点 2=客户级）
       boundTemplates: [],
       templateLoading: false,
@@ -515,17 +497,6 @@ export default {
       this.boundTemplates = [];
       this.open = true;
       this.title = "添加客户";
-    },
-    /** 客户维度送货单视图（D-040）：看策略来源 + 待生成清单 + 当日单，并可直接生成/补单 */
-    handleDeliveryView(row) {
-      this.deliveryCustomer = {
-        id: row.id,
-        name: row.name,
-        alias: row.alias,
-        docScopeType: row.docScopeType,
-        docMergeSameItem: row.docMergeSameItem,
-      };
-      this.deliveryOpen = true;
     },
     /** 修改按钮操作 */
     handleUpdate(row) {

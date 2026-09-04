@@ -107,11 +107,6 @@ public interface SaleOrderMapper {
                                  @Param("toStatus") Integer toStatus);
 
     /**
-     * 查“遗漏订单”集 O_missed（S14/T3 统一生成服务，DESIGN.md §5.1 步骤① / 附录 A）
-     *
-     * <p>口径：CONFIRMED 且未进入任何有效送货单。有效判定两路：
-     * ① 新模型——t_delivery_source_item 有效分配（作废释放/软删即视为遗漏）；
-     * ② 历史兼容——S14 前生成的送货单无台账，按 t_delivery_order_detail.order_id 直挂且所属单未作废判定。
      * 查询同配送点+同日期的草稿订单（新增订单防重复提示用：选中客户后检测是否已有可继续添加的草稿）
      *
      * @param customerDeptId 配送点ID

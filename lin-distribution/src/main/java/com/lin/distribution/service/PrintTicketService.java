@@ -29,6 +29,15 @@ public interface PrintTicketService {
     String issue(Long deliveryOrderId, Long templateId);
 
     /**
+     * 签发打印票据（D-055 视图化：无送货单ID 的 客户+日期(+点) 打印主体）
+     *
+     * @param bizKey     打印主体键（如 {@code matrix:10:2026-09-03} / {@code point:10:6:2026-09-03}）
+     * @param templateId 绑定报表模板（可空）
+     * @return ptk_ 前缀票据，TTL 300 秒
+     */
+    String issueByBizKey(String bizKey, Long templateId);
+
+    /**
      * 兑换票据（JimuReport 桥接调用）：首次调用消费未用票据，宽限窗口内复用返回同一用户
      *
      * @param ticket ptk_ 前缀票据
@@ -44,4 +53,13 @@ public interface PrintTicketService {
      * @return true 允许取数
      */
     boolean validateDataAccess(String ticket, Long deliveryOrderId);
+
+    /**
+     * 数据接口取数校验（D-055 视图化打印主体）：票据有效且绑定的 bizKey 与请求主体一致
+     *
+     * @param ticket 票据
+     * @param bizKey 请求的打印主体键
+     * @return true 允许取数
+     */
+    boolean validateDataAccessByBizKey(String ticket, String bizKey);
 }

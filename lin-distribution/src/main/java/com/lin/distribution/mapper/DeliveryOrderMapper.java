@@ -1,5 +1,4 @@
 package com.lin.distribution.mapper;
-import java.time.LocalDate;
 
 import java.util.Collection;
 import java.util.List;
@@ -29,19 +28,6 @@ public interface DeliveryOrderMapper {
      * @return
      */
     List<DeliveryOrder> selectListByIds(@Param("ids") Collection<Long> ids);
-
-    /**
-     * 查该客户当日未作废的有效送货单（S14/T3 统一生成三态分支判定用）
-     *
-     * <p>含 batch_id 为空的历史单（S14 前生成），用于平滑迁移：
-     * 全部未打印的历史单可被重建分支作废后按新模型重建。</p>
-     *
-     * @param customerId   客户ID
-     * @param deliveryDate 配送日期
-     * @return 未作废送货单集合（按 id 升序）
-     */
-    List<DeliveryOrder> selectActiveByCustomerAndDate(@Param("customerId") Long customerId,
-                                                      @Param("deliveryDate") LocalDate deliveryDate);
 
     /**
      * 查询送货单据列表

@@ -56,8 +56,8 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         </where>
     </select>
 
-    <!-- D-055 验收应送行：客户+日期+点 的有效订单明细（已确认，含变更标记），按 sort 升序 -->
-    <select id="selectValidByCustomerPointDate" resultMap="SaleOrderDetailResult">
+    <!-- D-055 点单/验收共用的订单明细取数列（含变更标记） -->
+    <sql id="pointViewColumns">
         select d.id, d.order_id, d.customer_id, d.customer_dept_id, d.sku_id, d.order_code,
                d.product_name, d.product_unit, d.product_price, d.product_spec, d.num,
                d.expect_amount, d.price_source, d.ref_price, d.price_reason, d.loss_reason,
@@ -66,9 +66,27 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
                d.is_deleted, d.version, d.create_by, d.create_time, d.update_by, d.update_time, d.remark
         from t_sale_order_detail d
         join t_sale_order o on o.id = d.order_id
+    </sql>
+
+    <!-- D-055 验收应送行：客户+日期+点 的订单明细（仅未配送的已确认单 status=1，与一维一验守卫配套） -->
+    <select id="selectValidByCustomerPointDate" resultMap="SaleOrderDetailResult">
+        <include refid="pointViewColumns"/>
         where d.is_deleted = 0
           and o.is_deleted = 0
           and o.status = 1
+          and o.customer_id = #{customerId}
+          and o.delivery_date = #{deliveryDate}
+          and d.customer_dept_id = #{customerDeptId}
+        order by d.sort, d.id
+    </select>
+
+    <!-- D-055 点单视图（只读口径）：与矩阵/配货一致取 已确认及以后（status&gt;=1），
+         仅排除草稿单与已删单，保证验收后回看本天不空表 -->
+    <select id="selectValidByCustomerPointDateForView" resultMap="SaleOrderDetailResult">
+        <include refid="pointViewColumns"/>
+        where d.is_deleted = 0
+          and o.is_deleted = 0
+          and o.status &gt;= 1
           and o.customer_id = #{customerId}
           and o.delivery_date = #{deliveryDate}
           and d.customer_dept_id = #{customerDeptId}

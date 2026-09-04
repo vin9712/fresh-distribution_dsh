@@ -261,9 +261,9 @@ public class DeliveryOrderController extends BaseController {
     }
 
     /**
-     * 作废送货单（S14/T4，DESIGN.md §5.2）：PENDING/PRINTED 可作废（原因必填，新号重建），
+     * 作废送货单（S14/T4，仅适用 D-055 前的历史单证）：PENDING/PRINTED 可作废（原因必填），
      * 来源分配软删释放订单；已提交验收或来源订单已结算时拒绝。
-     * 作废后重建/补充单走 POST /generate/customer/{customerId}/{deliveryDate}（三态自动分支）。
+     * D-055 视图化后新日期不再生成送货单，本接口仅用于历史单据处理。
      */
     @PreAuthorize("@ss.hasPermi('order:delivery:void')")
     @Log(title = "送货单作废", businessType = BusinessType.UPDATE)
@@ -272,5 +272,46 @@ public class DeliveryOrderController extends BaseController {
                                 @RequestBody @Validated DeliveryVoidDTO dto) {
         deliveryOrderService.voidDeliveryOrder(id, dto.getReasonCode(), dto.getReasonNote());
         return success();
+    }
+
+    /**
+     * 打印分界登记（D-055）：前端每次打开打印视图后调一次。
+     * 已打印 = 配送后，后续变更需走带标记的配送后变更（加单/换货/退货）。
+     *
+     * @param body {customerId, deliveryDate, customerDeptId?, templateId?}
+     */
+    @PreAuthorize("@ss.hasPermi('order:delivery:print')")
+    @Log(title = "送货打印登记", businessType = BusinessType.INSERT)
+    @PostMapping("/print-log")
+    public AjaxResult printLog(@RequestBody Map<String, Object> body) {
+        Long customerId = toLong(body.get("customerId"));
+        String deliveryDate = toStr(body.get("deliveryDate"));
+        Long customerDeptId = toLong(body.get("customerDeptId"));
+        Long templateId = toLong(body.get("templateId"));
+        return success(deliveryBatchService.markPrinted(customerId, deliveryDate, customerDeptId, templateId));
+    }
+
+    /**
+     * 打印分界查询（D-055）：该 客户+日期(+配送点) 是否已打印。
+     */
+    @PreAuthorize("@ss.hasPermi('order:delivery:batch')")
+    @GetMapping("/print-state")
+    public AjaxResult printState(@RequestParam("customerId") Long customerId,
+                                 @RequestParam("deliveryDate") String deliveryDate,
+                                 @RequestParam(value = "customerDeptId", required = false) Long customerDeptId) {
+        AjaxResult result = AjaxResult.success();
+        result.put("printed", deliveryBatchService.isPrinted(customerId, deliveryDate, customerDeptId));
+        return result;
+    }
+
+    private Long toLong(Object value) {
+        if (value == null || value.toString().trim().isEmpty()) {
+            return null;
+        }
+        return Long.valueOf(value.toString().trim());
+    }
+
+    private String toStr(Object value) {
+        return value == null ? null : value.toString().trim();
     }
 }

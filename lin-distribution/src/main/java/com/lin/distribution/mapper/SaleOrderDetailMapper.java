@@ -45,6 +45,19 @@ public interface SaleOrderDetailMapper {
                                                          @Param("deliveryDate") LocalDate deliveryDate);
 
     /**
+     * 点单视图数据源（D-055 只读口径）：与矩阵/配货一致取 已确认及以后（status&gt;=1）的订单明细，
+     * 仅排除草稿单与已删单——验收后回看本天不应空表。
+     *
+     * @param customerId     客户ID
+     * @param customerDeptId 配送点ID
+     * @param deliveryDate   配送日期
+     * @return 订单明细行（含标记，sort 升序）
+     */
+    List<SaleOrderDetail> selectValidByCustomerPointDateForView(@Param("customerId") Long customerId,
+                                                                @Param("customerDeptId") Long customerDeptId,
+                                                                @Param("deliveryDate") LocalDate deliveryDate);
+
+    /**
      * 新增销售订单详情
      *
      * @param saleOrderDetail 销售订单详情
@@ -87,7 +100,7 @@ public interface SaleOrderDetailMapper {
     int deleteSaleOrderDetailByIds(Long[] ids);
 
     /**
-     * 按指定订单ID集合查有效订单行原始明细（S14/T3 统一生成用，不聚合）
+     * 按指定订单ID集合查有效订单行原始明细（撤回级联用，不聚合）
      *
      * <p>聚合改在 Java 侧完成：需要保留 订单行→订单 映射以落 t_delivery_source_item 台账，
      * SQL GROUP BY 表达不了这个映射（DESIGN.md §5.1 删除说明）。</p>

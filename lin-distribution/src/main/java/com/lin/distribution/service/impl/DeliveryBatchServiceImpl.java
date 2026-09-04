@@ -16,18 +16,20 @@ import java.util.stream.Collectors;
 
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import com.lin.common.exception.ServiceException;
+import com.lin.common.utils.SecurityUtils;
 import com.lin.distribution.domain.Customer;
 import com.lin.distribution.domain.CustomerDept;
 import com.lin.distribution.domain.CustomerSkuMapping;
 import com.lin.distribution.domain.DeliveryBatch;
+import com.lin.distribution.domain.DeliveryPrintLog;
 import com.lin.distribution.domain.SaleOrderDetail;
 import com.lin.distribution.mapper.CustomerDeptMapper;
 import com.lin.distribution.mapper.CustomerMapper;
 import com.lin.distribution.mapper.CustomerSkuMappingMapper;
 import com.lin.distribution.mapper.DeliveryBatchMapper;
+import com.lin.distribution.mapper.DeliveryPrintLogMapper;
 import com.lin.distribution.mapper.SaleOrderDetailMapper;
 import com.lin.distribution.service.DeliveryBatchService;
 import com.lin.distribution.vo.DeliveryBatchViewVO;
@@ -43,14 +45,14 @@ import lombok.extern.slf4j.Slf4j;
 /**
  * 配送批次查询服务实现（S14 §6.1 / §八，D-027/D-028；矩阵总表 D-044~D-053）
  *
- * <p>两类视图都不落物理明细（设计 §3.1）：新模型由 {@code t_delivery_source_item} 台账实时聚合，
- * 历史单（无台账）回退送货明细行聚合。</p>
+ * <p>两类视图都不落物理明细（设计 §3.1）：D-055 主口径由 {@code t_sale_order_detail} 实时聚合，
+ * 无订单数据的历史日期回退 {@code t_delivery_order_detail} + {@code t_delivery_source_item} 台账口径。</p>
  *
  * <ul>
  *   <li><b>客户日总表</b>：标准品名+规格+单位 聚合、各点小计、不显价不拆价（D-027/28）；</li>
- *   <li><b>矩阵总表</b>：行=送货明细行（沿用 D-024 五元组，不同价必拆行）、
- *       列=批次布局快照的配送点（含空列）、格=(明细行×点) 分配量透视，
- *       打印前跑恒等式 {@code detail.num == Σ格} 自检（D-047）。</li>
+ *   <li><b>矩阵总表</b>：行=菜品（订单明细五元组合并行，沿用 D-024 不同价必拆行）、
+ *       列=启用配送点（含空列）、格=(行×点) 应送量透视，
+ *       打印前跑恒等式 {@code 行应送 == Σ格} 自检（D-047）。</li>
  * </ul>
  *
  * @author dsh
@@ -67,12 +69,56 @@ public class DeliveryBatchServiceImpl implements DeliveryBatchService {
     private final CustomerMapper customerMapper;
     private final CustomerSkuMappingMapper customerSkuMappingMapper;
     private final SaleOrderDetailMapper saleOrderDetailMapper;
+    private final DeliveryPrintLogMapper deliveryPrintLogMapper;
 
-    // ==================== 客户日总表（D-027/28） ====================
+    // ==================== 打印分界登记（D-055） ====================
+
+    @Override
+    public java.util.Date markPrinted(Long customerId, String deliveryDate, Long customerDeptId, Long templateId) {
+        if (customerId == null || StringUtils.isBlank(deliveryDate)) {
+            throw new ServiceException("打印登记须指定客户与配送日期");
+        }
+        java.util.Date now = new java.util.Date();
+        String operator = currentUsername();
+        deliveryPrintLogMapper.insertPrintLog(DeliveryPrintLog.builder()
+                .customerId(customerId)
+                .deliveryDate(LocalDate.parse(deliveryDate))
+                .customerDeptId(customerDeptId)
+                .printTime(now)
+                .printBy(operator)
+                .templateId(templateId)
+                .createBy(operator)
+                .createTime(now)
+                .build());
+        return now;
+    }
+
+    @Override
+    public boolean isPrinted(Long customerId, String deliveryDate, Long customerDeptId) {
+        if (customerId == null || StringUtils.isBlank(deliveryDate)) {
+            return false;
+        }
+        return deliveryPrintLogMapper.countPrinted(customerId, LocalDate.parse(deliveryDate), customerDeptId) > 0;
+    }
+
+    /** 打印登记可能无安全上下文（内部调用），回落 system */
+    private String currentUsername() {
+        try {
+            return SecurityUtils.getUsername();
+        } catch (Exception e) {
+            return "system";
+        }
+    }
+
+    // ==================== 客户日总表（D-027/28 + D-055 视图化） ====================
 
     @Override
     public List<DeliveryBatchViewVO> selectBatchView(Long customerId, String deliveryDate) {
-        List<DeliveryBatchViewVO.Row> rows = deliveryBatchMapper.selectBatchViewRowsBySource(customerId, deliveryDate);
+        // 主口径（D-055）：订单明细聚合；无订单数据时回退 D-055 前的送货单台账口径（历史日期只读）
+        List<DeliveryBatchViewVO.Row> rows = deliveryBatchMapper.selectBatchViewRowsFromOrder(customerId, deliveryDate);
+        if (rows.isEmpty()) {
+            rows = deliveryBatchMapper.selectBatchViewRowsBySource(customerId, deliveryDate);
+        }
         if (rows.isEmpty()) {
             // 历史单回退：无 source_item 台账时按送货明细行聚合
             rows = deliveryBatchMapper.selectBatchViewRowsByDetail(customerId, deliveryDate);
@@ -121,11 +167,12 @@ public class DeliveryBatchServiceImpl implements DeliveryBatchService {
         if (customerId == null || customerDeptId == null || StringUtils.isBlank(deliveryDate)) {
             throw new ServiceException("客户/配送点/配送日期不能为空");
         }
-        return saleOrderDetailMapper.selectValidByCustomerPointDate(customerId, customerDeptId,
+        // 展示口径与矩阵/配货一致：已确认及以后（status>=1）都算应送，仅排除草稿与已删单
+        return saleOrderDetailMapper.selectValidByCustomerPointDateForView(customerId, customerDeptId,
                 LocalDate.parse(deliveryDate));
     }
 
-    // ==================== 矩阵总表（D-044~D-053） ====================
+    // ==================== 矩阵总表（D-044~D-053 + D-055 视图化） ====================
 
     @Override
     public DeliveryMatrixVO selectMatrix(Long customerId, String deliveryDate) {
@@ -146,11 +193,19 @@ public class DeliveryBatchServiceImpl implements DeliveryBatchService {
             vo.setScopeType(batch.getScopeType());
         }
 
-        List<DeliveryMatrixVO.DetailRow> details = deliveryBatchMapper.selectMatrixDetails(customerId, deliveryDate);
-        List<DeliveryMatrixVO.CellRow> cellRows = deliveryBatchMapper.selectMatrixCells(customerId, deliveryDate);
+        List<DeliveryMatrixVO.DetailRow> details = deliveryBatchMapper.selectMatrixDetailsFromOrder(customerId, deliveryDate);
+        List<DeliveryMatrixVO.CellRow> cellRows = deliveryBatchMapper.selectMatrixCellsFromOrder(customerId, deliveryDate);
+        boolean legacy = false;
+        if (details.isEmpty()) {
+            // 历史回退：D-055 前生成的送货单（订单明细口径无数据）按送货明细行 + source_item 台账展示，只读
+            details = deliveryBatchMapper.selectMatrixDetails(customerId, deliveryDate);
+            cellRows = deliveryBatchMapper.selectMatrixCells(customerId, deliveryDate);
+            legacy = !details.isEmpty();
+        }
         if (details.isEmpty()) {
             return vo;
         }
+        vo.setHistoryFallback(legacy);
 
         // 布局：批次快照优先；无快照或快照无列（历史批次/未走过生成）按主数据实时推导，只读不落库（D-045）
         DeliveryMatrixLayout rawSnapshot = batch == null ? null : DeliveryMatrixLayout.fromJson(batch.getLayoutJson());
@@ -181,23 +236,32 @@ public class DeliveryBatchServiceImpl implements DeliveryBatchService {
         vo.setColumns(columns);
         vo.setColBlocks(colsPerPage > 0 ? Math.max(1, (int) Math.ceil(columns.size() / (double) colsPerPage)) : 1);
 
-        // 格：detailId → (deptId → 数量)
-        Map<Long, Map<Long, BigDecimal>> cellIndex = new LinkedHashMap<>();
+        // 格：行身份键 → (deptId → 数量)。主口径按五元组对位，历史口径按送货明细行ID对位
+        Map<String, Map<Long, BigDecimal>> cellIndex = new LinkedHashMap<>();
         for (DeliveryMatrixVO.CellRow cell : cellRows) {
-            if (cell.getDetailId() == null || cell.getDeptId() == null) {
+            if (cell.getDeptId() == null) {
                 continue;
             }
-            cellIndex.computeIfAbsent(cell.getDetailId(), k -> new LinkedHashMap<>())
+            String key = legacy ? legacyRowKey(cell.getDetailId())
+                    : matrixRowKey(cell.getSkuId(), cell.getProductName(), cell.getSpec(), cell.getUnit(), cell.getPrice());
+            if (key == null) {
+                continue;
+            }
+            cellIndex.computeIfAbsent(key, k -> new LinkedHashMap<>())
                     .merge(cell.getDeptId(), nvl(cell.getQuantity()), BigDecimal::add);
         }
-        // 全部明细都无台账 = 历史单，点列打 —（D-051）
-        vo.setHistoryFallback(cellIndex.isEmpty());
+        // 历史单完全无点级分配台账 = 旧旧数据，点列打 —（D-051）
+        vo.setHistoryFallback(legacy && cellIndex.isEmpty());
 
         Map<Long, String> aliasBySku = customerAliasBySku(customerId);
 
         BigDecimal grandTotal = BigDecimal.ZERO;
         for (DeliveryMatrixVO.DetailRow detail : details) {
-            Map<Long, BigDecimal> rowCells = cellIndex.getOrDefault(detail.getDetailId(), Collections.emptyMap());
+            Map<Long, BigDecimal> rowCells = cellIndex.getOrDefault(
+                    legacy ? legacyRowKey(detail.getDetailId())
+                            : matrixRowKey(detail.getSkuId(), detail.getProductName(), detail.getSpec(),
+                            detail.getUnit(), detail.getPrice()),
+                    Collections.emptyMap());
             String groupKey = DeliveryMatrixLayout.groupKey(detail.getSkuId(), detail.getProductName(),
                     detail.getSpec(), detail.getUnit());
             TierGroup group = layout.tierGroup(groupKey);
@@ -279,32 +343,8 @@ public class DeliveryBatchServiceImpl implements DeliveryBatchService {
     }
 
     // ==================== 布局快照（D-045/D-053） ====================
-
-    @Override
-    @Transactional(rollbackFor = Exception.class)
-    public DeliveryMatrixLayout refreshLayout(DeliveryBatch batch, String operator) {
-        if (batch == null || batch.getId() == null) {
-            return null;
-        }
-        String deliveryDate = batch.getDeliveryDate() == null ? null : batch.getDeliveryDate().toString();
-        List<DeliveryMatrixVO.DetailRow> details = deliveryBatchMapper
-                .selectMatrixDetails(batch.getCustomerId(), deliveryDate);
-        List<DeliveryMatrixVO.CellRow> cells = deliveryBatchMapper
-                .selectMatrixCells(batch.getCustomerId(), deliveryDate);
-
-        DeliveryMatrixLayout snapshot = DeliveryMatrixLayout.fromJson(batch.getLayoutJson());
-        // 写入路径：启用点全部并进列（新点追加末尾），档号 append-only
-        DeliveryMatrixLayout target = composeLayout(snapshot, batch.getCustomerId(), details, cells, true);
-        if (snapshot != null && Objects.equals(snapshot.getLayoutVersion(), target.getLayoutVersion())) {
-            // 内容无变化：不刷版本、不落库（幂等生成不产生布局噪声）
-            return target;
-        }
-        DeliveryBatch update = DeliveryBatch.builder().id(batch.getId()).layoutJson(target.toJson()).build();
-        update.setUpdateBy(operator);
-        deliveryBatchMapper.updateDeliveryBatch(update);
-        batch.setLayoutJson(target.toJson());
-        return target;
-    }
+    // D-055 视图化后「生成成功后定格布局」的写入路径（refreshLayout）已随生成服务一并退役：
+    // 矩阵完全按 订单明细 + 启用点 实时推导；历史批次已有的 layout_json 快照仍优先采用。
 
     /**
      * 组装目标布局：列与价档均 append-only（已有列顺序、点名快照、档号一律保留）。
@@ -425,6 +465,20 @@ public class DeliveryBatchServiceImpl implements DeliveryBatchService {
     }
 
     // ==================== 辅助 ====================
+
+    /**
+     * 矩阵行身份键（D-055 主口径）：五元组 = 档分组键（sku/品名快照 + 规格 + 单位）+ 单价。
+     * 行查询与格查询回传同一组字段，故两侧算出的键一致（不同价必拆行 D-024）。
+     */
+    private static String matrixRowKey(Long skuId, String productName, String spec, String unit, BigDecimal price) {
+        return DeliveryMatrixLayout.groupKey(skuId, productName, spec, unit)
+                + "|" + DeliveryMatrixLayout.priceKey(price);
+    }
+
+    /** 历史口径行身份键（D-055 前送货明细行，行身份即 detail.id，D-047 不重新聚合） */
+    private static String legacyRowKey(Long detailId) {
+        return detailId == null ? null : "d:" + detailId;
+    }
 
     private void fillCustomer(DeliveryMatrixVO vo, Long customerId) {
         Customer customer = customerMapper.selectCustomerById(customerId);

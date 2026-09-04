@@ -458,10 +458,10 @@
 
     <!-- 订单调整对话框（S14 退役：写入口已下线，验收后真实退货走退货单 /order/return，补货走新增销售订单） -->
 
-    <!-- 生成采购单/送货单抽屉（三步：汇总预览 → 填写信息 → 确认生成） -->
+    <!-- 生成采购单抽屉（三步：汇总预览 → 填写信息 → 确认生成；D-055 后送货单不再生成，本抽屉只留采购链路） -->
     <el-drawer
       v-model="buildDrawerVisible"
-      :title="buildMode === 'purchase' ? '生成采购单' : '生成送货单'"
+      title="生成采购单"
       size="600px"
       append-to-body
       :destroy-on-close="false"
@@ -537,39 +537,20 @@
       <!-- 第二步：填写信息 -->
       <div v-show="buildActiveStep === 1">
         <el-form label-width="90px">
-          <template v-if="buildMode === 'purchase'">
-            <el-form-item label="供货商">
-              <el-input
-                v-model="buildForm.supplierName"
-                placeholder="请输入供货商名称（可空，确认时后补）"
-                clearable
-              />
-            </el-form-item>
-            <el-form-item label="采购员">
-              <el-input
-                v-model="buildForm.purchaser"
-                placeholder="请输入采购员（可空）"
-                clearable
-              />
-            </el-form-item>
-          </template>
-          <template v-else>
-            <el-form-item label="配送日期" required>
-              <el-date-picker
-                v-model="buildForm.deliveryDate"
-                type="date"
-                value-format="YYYY-MM-DD"
-                placeholder="请选择配送日期"
-                style="width: 100%"
-              />
-            </el-form-item>
-            <el-alert
-              title="按各客户的组单策略生成批次与送货单（跨点总单/每点一单、明细是否合并由客户配置决定）；已生成过的订单会自动幂等跳过，遗漏订单按补单规则补齐"
-              type="info"
-              :closable="false"
-              show-icon
+          <el-form-item label="供货商">
+            <el-input
+              v-model="buildForm.supplierName"
+              placeholder="请输入供货商名称（可空，确认时后补）"
+              clearable
             />
-          </template>
+          </el-form-item>
+          <el-form-item label="采购员">
+            <el-input
+              v-model="buildForm.purchaser"
+              placeholder="请输入采购员（可空）"
+              clearable
+            />
+          </el-form-item>
         </el-form>
       </div>
 
@@ -577,7 +558,7 @@
       <div v-show="buildActiveStep === 2">
         <el-descriptions :column="1" border size="small">
           <el-descriptions-item label="单据类型">
-            {{ buildMode === 'purchase' ? '采购单' : '送货单' }}
+            采购单
           </el-descriptions-item>
           <el-descriptions-item label="订单数量">
             {{ previewData.orders.length }} 个
@@ -588,24 +569,15 @@
           <el-descriptions-item label="总金额">
             ¥{{ previewData.totalAmount }}
           </el-descriptions-item>
-          <el-descriptions-item
-            v-if="buildMode === 'purchase'"
-            label="供货商"
-          >
+          <el-descriptions-item label="供货商">
             {{ buildForm.supplierName || '-' }}
           </el-descriptions-item>
-          <el-descriptions-item
-            v-if="buildMode === 'purchase'"
-            label="采购员"
-          >
+          <el-descriptions-item label="采购员">
             {{ buildForm.purchaser || '-' }}
-          </el-descriptions-item>
-          <el-descriptions-item v-else label="配送日期">
-            {{ buildForm.deliveryDate }}
           </el-descriptions-item>
         </el-descriptions>
         <el-alert
-          title="同一订单不可重复生成单据，生成后列表行将显示采购/送货图标（悬浮可见单号）"
+          title="同一订单不可重复生成采购单，生成后列表行将显示采购图标（悬浮可见单号）"
           type="info"
           :closable="false"
           show-icon
@@ -657,7 +629,6 @@ import {
 } from "@/api/order/sale";
 import { generatePurchaseByOrders } from "@/api/purchase/purchase";
 import { getOrderAdjustmentSummary } from "@/api/order/monthAdjustment";
-import { generateDeliveryByOrders } from "@/api/order/delivery";
 import { listCustomerDept } from "@/api/partner/customerDept";
 import { locateAcceptanceByOrder } from "@/api/acceptance/acceptance";
 import { listDrafts, removeDraft } from "@/utils/saleDraft";
@@ -781,13 +752,11 @@ export default {
         receivableTotal: "0",
         costTotal: "0",
       },
-      buildMode: "purchase", // purchase | delivery
       buildActiveStep: 0,
       buildSelectedOrders: [],
       buildForm: {
         supplierName: null,
         purchaser: null,
-        deliveryDate: null,
       },
       previewLoading: false,
       previewData: {
@@ -801,11 +770,8 @@ export default {
     };
   },
   computed: {
-    /** 第二步可进入：采购单无需必填；送货单需配送日期 */
+    /** 第二步可进入：采购单无必填项（D-055 后本抽屉只剩采购链路） */
     buildStep2Valid() {
-      if (this.buildMode === "delivery") {
-        return !!this.buildForm.deliveryDate;
-      }
       return true;
     },
   },
@@ -1135,30 +1101,15 @@ export default {
         this.$modal.msgError("请选择审核状态的订单");
         return;
       }
-      this.openBuildDrawer("purchase");
-    },
-    /** 生成送货单 */
-    handleBuildDelivery() {
-      const selected = this.formSelectedOptions;
-      if (!selected.length) {
-        this.$modal.msgWarning("请先勾选要生成送货单的订单");
-        return;
-      }
-      if (selected.some((item) => item.status !== 1)) {
-        this.$modal.msgError("请选择审核状态的订单");
-        return;
-      }
-      this.openBuildDrawer("delivery");
+      this.openBuildDrawer();
     },
     /** 打开抽屉并加载预览 */
-    openBuildDrawer(mode) {
-      this.buildMode = mode;
+    openBuildDrawer() {
       this.buildSelectedOrders = [...this.formSelectedOptions];
       this.buildActiveStep = 0;
       this.buildForm = {
         supplierName: null,
         purchaser: null,
-        deliveryDate: null,
       };
       this.buildSubmitting = false;
       this.buildDrawerVisible = true;
@@ -1177,11 +1128,6 @@ export default {
             totalQuantity: 0,
             totalAmount: 0,
           };
-          // 默认配送日期 = 订单配送日期
-          if (!this.buildForm.deliveryDate && this.buildSelectedOrders[0]) {
-            this.buildForm.deliveryDate =
-              this.buildSelectedOrders[0].deliveryDate;
-          }
         })
         .finally(() => {
           this.previewLoading = false;
@@ -1203,25 +1149,13 @@ export default {
     confirmBuild() {
       this.buildSubmitting = true;
       const orderIds = this.buildSelectedOrders.map((o) => o.id);
-      const request =
-        this.buildMode === "purchase"
-          ? generatePurchaseByOrders({
-              orderIds,
-              supplierName: this.buildForm.supplierName,
-              purchaser: this.buildForm.purchaser,
-            })
-          : generateDeliveryByOrders({
-              orderIds,
-              deliveryDate: this.buildForm.deliveryDate,
-            });
-      request
+      generatePurchaseByOrders({
+        orderIds,
+        supplierName: this.buildForm.supplierName,
+        purchaser: this.buildForm.purchaser,
+      })
         .then((response) => {
-          const codes =
-            this.buildMode === "purchase"
-              ? response.data && response.data.code
-              : (response.data || [])
-                  .map((d) => d.code)
-                  .join("、");
+          const codes = response.data && response.data.code;
           this.$modal.msgSuccess("生成成功：" + (codes || ""));
           this.buildDrawerVisible = false;
           this.getPageList();

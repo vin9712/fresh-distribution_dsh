@@ -34,11 +34,21 @@ public class PrintTicketServiceImpl implements PrintTicketService {
 
     @Override
     public String issue(Long deliveryOrderId, Long templateId) {
+        return issue(deliveryOrderId, templateId, null);
+    }
+
+    @Override
+    public String issueByBizKey(String bizKey, Long templateId) {
+        return issue(null, templateId, bizKey);
+    }
+
+    private String issue(Long deliveryOrderId, Long templateId, String bizKey) {
         String username = SecurityUtils.getUsername();
         String ticket = TICKET_PREFIX + IdUtils.fastSimpleUUID();
-        PrintTicketPayload payload = new PrintTicketPayload(username, deliveryOrderId, templateId);
+        PrintTicketPayload payload = new PrintTicketPayload(username, deliveryOrderId, bizKey, templateId);
         redisCache.setCacheObject(UNUSED_KEY + ticket, payload, UNUSED_TTL_SECONDS, TimeUnit.SECONDS);
-        log.info("[print-ticket] issued user={} deliveryOrderId={} templateId={}", username, deliveryOrderId, templateId);
+        log.info("[print-ticket] issued user={} deliveryOrderId={} bizKey={} templateId={}",
+                username, deliveryOrderId, bizKey, templateId);
         return ticket;
     }
 
@@ -57,18 +67,38 @@ public class PrintTicketServiceImpl implements PrintTicketService {
 
     @Override
     public boolean validateDataAccess(String ticket, Long deliveryOrderId) {
-        if (StringUtils.isBlank(ticket) || deliveryOrderId == null) {
+        if (deliveryOrderId == null) {
             return false;
+        }
+        PrintTicketPayload payload = redeemForDataAccess(ticket);
+        // 绑定校验：票据必须绑定该送货单，防跨单越权取数；无绑定票据（设计器场景）不允许取业务数据
+        return payload != null && deliveryOrderId.equals(payload.getDeliveryOrderId());
+    }
+
+    @Override
+    public boolean validateDataAccessByBizKey(String ticket, String bizKey) {
+        if (StringUtils.isBlank(bizKey)) {
+            return false;
+        }
+        PrintTicketPayload payload = redeemForDataAccess(ticket);
+        return payload != null && bizKey.equals(payload.getBizKey());
+    }
+
+    /**
+     * 取数校验用的票据兑换（非消费式）：首次命中未用票据时转入宽限期，
+     * 同一报表会话（渲染 + 多个数据集回调 + 导出）可复用。
+     */
+    private PrintTicketPayload redeemForDataAccess(String ticket) {
+        if (StringUtils.isBlank(ticket)) {
+            return null;
         }
         PrintTicketPayload payload = claimUnused(ticket);
         if (payload == null) {
-            payload = redisCache.getCacheObject(USED_KEY + ticket);
-        } else {
-            // 数据接口取数属于报表会话的一部分：保持宽限语义，不阻断后续数据集回调
-            redisCache.setCacheObject(USED_KEY + ticket, payload, USED_GRACE_SECONDS, TimeUnit.SECONDS);
+            return redisCache.getCacheObject(USED_KEY + ticket);
         }
-        // 绑定校验：票据必须绑定该送货单，防跨单越权取数；无绑定票据（设计器场景）不允许取业务数据
-        return payload != null && deliveryOrderId.equals(payload.getDeliveryOrderId());
+        // 数据接口取数属于报表会话的一部分：保持宽限语义，不阻断后续数据集回调
+        redisCache.setCacheObject(USED_KEY + ticket, payload, USED_GRACE_SECONDS, TimeUnit.SECONDS);
+        return payload;
     }
 
     /**

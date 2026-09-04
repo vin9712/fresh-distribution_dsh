@@ -2,10 +2,8 @@ package com.lin.distribution.service;
 
 import java.util.List;
 
-import com.lin.distribution.domain.DeliveryBatch;
-import com.lin.distribution.vo.DeliveryBatchViewVO;
 import com.lin.distribution.domain.SaleOrderDetail;
-import com.lin.distribution.vo.DeliveryMatrixLayout;
+import com.lin.distribution.vo.DeliveryBatchViewVO;
 import com.lin.distribution.vo.DeliveryMatrixVO;
 
 /**
@@ -17,7 +15,7 @@ public interface DeliveryBatchService {
 
     /**
      * 客户日总表（内部配货/采购视图）：标准品名 + 总量 + 各配送点小计，无价格、不因价格拆行。
-     * 新模型按 t_delivery_source_item 实时聚合；历史单（无台账）回退送货明细行聚合。
+     * D-055 主口径按订单明细聚合；无订单数据时回退 D-055 前的送货单台账/送货明细行口径（历史日期只读）。
      *
      * @param customerId   客户ID
      * @param deliveryDate 配送日期（yyyy-MM-dd）
@@ -37,10 +35,11 @@ public interface DeliveryBatchService {
     List<SaleOrderDetail> selectPointView(Long customerId, Long customerDeptId, String deliveryDate);
 
     /**
-     * 矩阵总表（D-044/D-047/D-051）：行=送货明细行、列=配送点快照（含空列）、格=分配量透视。
+     * 矩阵总表（D-044/D-047/D-051 + D-055 视图化）：行=菜品（订单明细五元组合并行）、
+     * 列=配送点（含空列）、格=应送量透视。
      *
-     * <p>纸面不打单价与金额（D-046），同名多行以 {@code (档①)} 标记区分；页面与打印共用本方法。
-     * 批次无布局快照时按主数据实时推导（{@code layoutDerived=true}，只读不落库）。</p>
+     * <p>纸面不打单价与金额（D-046），同名多行以备注列 {@code 档①} 区分；页面与打印共用本方法。
+     * 批次无布局快照时按启用配送点实时推导（{@code layoutDerived=true}，只读不落库）。</p>
      *
      * @param customerId   客户ID
      * @param deliveryDate 配送日期（yyyy-MM-dd）
@@ -49,14 +48,24 @@ public interface DeliveryBatchService {
     DeliveryMatrixVO selectMatrix(Long customerId, String deliveryDate);
 
     /**
-     * 刷新批次布局快照（D-045/D-053）：生成/补单/作废重建后调用，写 {@code t_delivery_batch.layout_json}。
+     * 打印分界登记（D-055）：一次打印动作记一条。已打印 = 配送后，
+     * 后续变更需走带标记的配送后变更（加单/换货/退货）。
      *
-     * <p>列与价档均 <b>append-only</b>：已有列顺序、点名快照与档号一律保留，只追加新列/新档；
-     * 内容有变化才 {@code layoutVersion+1} 并落库（无变化不写版本，避免每次幂等生成都刷版本）。</p>
-     *
-     * @param batch    批次（须已落库，含 layoutJson 旧值）
-     * @param operator 操作人
-     * @return 刷新后的布局快照（batch.layoutJson 同步更新）
+     * @param customerId     客户ID
+     * @param deliveryDate   配送日期（yyyy-MM-dd）
+     * @param customerDeptId 配送点ID（点单打印）；总单打印传 null
+     * @param templateId     本次使用的报表模板（可空）
+     * @return 登记时间
      */
-    DeliveryMatrixLayout refreshLayout(DeliveryBatch batch, String operator);
+    java.util.Date markPrinted(Long customerId, String deliveryDate, Long customerDeptId, Long templateId);
+
+    /**
+     * 该 客户+日期(+配送点) 是否已打印（D-055 打印分界判定）
+     *
+     * @param customerId     客户ID
+     * @param deliveryDate   配送日期（yyyy-MM-dd）
+     * @param customerDeptId 配送点ID；传 null 则判总单维度
+     * @return true=已有打印记录
+     */
+    boolean isPrinted(Long customerId, String deliveryDate, Long customerDeptId);
 }

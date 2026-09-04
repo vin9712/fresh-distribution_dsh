@@ -123,7 +123,7 @@ class SaleOrderServiceImplTest {
 
         ServiceException ex = assertThrows(ServiceException.class,
                 () -> saleOrderService.updateSaleOrderWithDetails(updateRequest()));
-        assertTrue(ex.getMessage().contains("已生成送货单"));
+        assertTrue(ex.getMessage().contains("历史送货单"), "D-055 后该护栏仅对已进入历史送货单的订单生效");
         // 拒改时不得触发物理删重插（切断关联/清零镜像的风险路径）
         verify(saleOrderDetailMapper, never()).deleteSaleOrderDetailByOrderId(anyLong());
         verify(saleOrderMapper, never()).updateSaleOrder(any(SaleOrder.class));

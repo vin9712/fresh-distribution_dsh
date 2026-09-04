@@ -16,10 +16,13 @@ import lombok.NoArgsConstructor;
  * 矩阵总表视图（D-044/D-047/D-051，《送货单矩阵总表与批次视图设计》§三）
  *
  * <pre>
- * 行  = t_delivery_order_detail（批次内全部有效送货单的合并明细行，沿用 D-024 五元组：不同价必拆行）
- * 列  = t_delivery_batch.layout_json.columns（客户启用配送点快照，当日无单保留空列）
- * 格  = Σ t_delivery_source_item.allocated_quantity GROUP BY (delivery_detail_id, customer_dept_id)
+ * 行  = 订单明细 t_sale_order_detail 按五元组合并（D-055 视图化主口径；沿用 D-024 不同价必拆行）
+ * 列  = 客户启用配送点（parent_id != 0），批次布局快照优先、无快照按主数据实时推导（D-045）
+ * 格  = Σ 应送 num GROUP BY (五元组, customer_dept_id)
  * </pre>
+ *
+ * <p>D-055 前的旧日期（已生成送货单且无订单明细口径数据）回退到
+ * {@code t_delivery_order_detail} + {@code t_delivery_source_item} 台账口径，仅读不写。</p>
  *
  * <p>纸面<b>不打单价与金额</b>（D-046）：同一「品名+规格+单位」因不同价拆出的多行，
  * 用品名后的 {@code (档①)} 标记区分（{@link DeliveryMatrixLayout#displayProductName}）。</p>
@@ -59,10 +62,10 @@ public class DeliveryMatrixVO implements Serializable {
     /** 布局版本号 */
     private Integer layoutVersion;
 
-    /** true=批次无布局快照，本次按主数据实时推导（历史批次/未走过生成），只读不落库 */
+    /** true=批次无布局快照，本次按主数据实时推导（D-055 视图化后不再由生成动作定格），只读不落库 */
     private Boolean layoutDerived = Boolean.FALSE;
 
-    /** true=批次内全部单据均无 source_item 台账（历史单），点列打 — */
+    /** true=本次走 D-055 前的历史送货单台账口径（无订单明细数据），点列无分配台账时打 — */
     private Boolean historyFallback = Boolean.FALSE;
 
     /** 列（含空列与临时补列），顺序即纸面列顺序 */
@@ -200,7 +203,7 @@ public class DeliveryMatrixVO implements Serializable {
     }
 
     /**
-     * Mapper 扁平行：矩阵行（送货明细行）
+     * Mapper 扁平行：矩阵行（D-055 主口径=订单明细五元组合并行；历史口径=送货明细行）
      */
     @Data
     public static class DetailRow implements Serializable {
@@ -222,7 +225,10 @@ public class DeliveryMatrixVO implements Serializable {
     }
 
     /**
-     * Mapper 扁平行：矩阵格（明细行 × 配送点 分配量合计）
+     * Mapper 扁平行：矩阵格（行 × 配送点 应送量合计）
+     *
+     * <p>D-055 主口径下格行与行行靠<b>五元组</b>对位（detailId 仅历史口径作行身份用），
+     * 故本类必须回传与 {@link DetailRow} 同名的五个字段。</p>
      */
     @Data
     public static class CellRow implements Serializable {
@@ -231,5 +237,11 @@ public class DeliveryMatrixVO implements Serializable {
         private Long detailId;
         private Long deptId;
         private BigDecimal quantity;
+        /** 以下五字段仅订单明细口径回传（历史口径为 null，服务层改按 detailId 对位） */
+        private Long skuId;
+        private String productName;
+        private String spec;
+        private String unit;
+        private BigDecimal price;
     }
 }
