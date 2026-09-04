@@ -193,8 +193,10 @@ public class PrintController extends BaseController {
                 return resp;
             }
             Map<Long, String> aliasBySku = customerAliasBySku(order.getCustomerId());
+            int seq = 1;
             for (DeliveryOrderDetail detail : deliveryOrderDetailMapper.selectListByDeliveryId(deliveryOrderId)) {
                 Map<String, Object> row = new LinkedHashMap<>();
+                row.put("seq", seq++);
                 String productName = detail.getSkuId() != null ? aliasBySku.get(detail.getSkuId()) : null;
                 row.put("productName", StringUtils.isBlank(productName) ? detail.getProductName() : productName);
                 row.put("productSpec", detail.getProductSpec());
@@ -211,8 +213,10 @@ public class PrintController extends BaseController {
         }
         PointPrint point = loadPointPrint(customerId, customerDeptId, deliveryDate, ticket);
         Map<Long, String> aliasBySku = customerAliasBySku(point.customerId);
+        int seq = 1;
         for (SaleOrderDetail detail : point.details) {
             Map<String, Object> row = new LinkedHashMap<>();
+            row.put("seq", seq++);
             String alias = detail.getSkuId() != null ? aliasBySku.get(detail.getSkuId()) : null;
             row.put("productName", StringUtils.isBlank(alias) ? detail.getProductName() : alias);
             row.put("productSpec", detail.getProductSpec());
