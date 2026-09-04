@@ -36,6 +36,7 @@
           clearable
           collapse-tags
           collapse-tags-tooltip
+          style="width: 300px"
         />
       </el-form-item>
       <el-form-item label="订单编号" prop="code">
@@ -1365,6 +1366,22 @@ export default {
   }
   .el-cascader-node__postfix {
     pointer-events: none;
+  }
+}
+
+/* 已选标签与内联搜索框保持单行：
+   否则选中多个送货单位时「客户 / 点」标签 + 「+N」标签 + filterable 的搜索框会换行，
+   把选择框撑成两行高，与同行的订单编号/来源/类型控件错位（看起来像文案错乱） */
+:deep(.el-cascader__tags) {
+  flex-wrap: nowrap;
+  overflow: hidden;
+
+  .el-tag {
+    flex-shrink: 0;
+  }
+
+  .el-cascader__search-input {
+    min-width: 40px;
   }
 }
 </style>
