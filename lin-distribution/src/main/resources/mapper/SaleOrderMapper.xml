@@ -68,6 +68,7 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
     <select id="selectSaleOrderList" parameterType="com.lin.distribution.domain.SaleOrder" resultMap="SaleOrderResult">
         <include refid="selectSaleOrderVo"/>
         <where>
+            so.is_deleted = 0
             <if test="customerId != null "> and so.customer_id = #{customerId}</if>
             <if test="customerDeptId != null "> and so.customer_dept_id = #{customerDeptId}</if>
             <if test="customerDeptIds != null and customerDeptIds.size() > 0"> and so.customer_dept_id in

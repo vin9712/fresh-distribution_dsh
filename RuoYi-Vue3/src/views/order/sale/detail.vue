@@ -398,6 +398,14 @@
                 @click="handleCopyAsNew()"
                 >复制为新单</el-button
               >
+              <el-button
+                v-if="canEditOrder"
+                type="success"
+                plain
+                :icon="Check"
+                @click="openBatchConfirmDrawer()"
+                >按客户批量确认</el-button
+              >
               <el-button @click="close()">返回</el-button>
             </el-form-item>
           </el-form>
@@ -616,11 +624,88 @@
         </el-table-column>
       </el-table>
     </el-dialog>
+
+    <!-- 按客户批量确认草稿订单（D-055：确认后才会进入客户日总表与验收链路） -->
+    <el-drawer
+      v-model="batchConfirmVisible"
+      title="按客户批量确认草稿订单"
+      size="620px"
+      append-to-body
+    >
+      <el-form :inline="true" size="small" @submit.prevent>
+        <el-form-item label="客户">
+          <el-select
+            v-model="batchConfirmCustomerId"
+            filterable
+            clearable
+            placeholder="请选择客户"
+            style="width: 200px"
+          >
+            <el-option
+              v-for="item in customerOptions"
+              :key="item.id"
+              :label="item.alias ? item.alias : item.name"
+              :value="item.id"
+            />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="配送日期">
+          <el-date-picker
+            v-model="batchConfirmDeliveryDate"
+            type="date"
+            value-format="YYYY-MM-DD"
+            placeholder="不限"
+            clearable
+            style="width: 150px"
+          />
+        </el-form-item>
+        <el-form-item>
+          <el-button type="primary" :icon="Search" :loading="batchConfirmLoading" @click="queryBatchConfirmList"
+            >查询</el-button
+          >
+        </el-form-item>
+      </el-form>
+
+      <el-table
+        v-loading="batchConfirmLoading"
+        :data="batchConfirmRows"
+        size="small"
+        border
+        row-key="id"
+        empty-text="该客户没有待确认的草稿订单"
+        @selection-change="batchConfirmSelection = $event"
+      >
+        <el-table-column type="selection" width="46" />
+        <el-table-column label="订单编号" prop="code" min-width="150" show-overflow-tooltip />
+        <el-table-column label="送货单位" prop="deliveryName" min-width="120" show-overflow-tooltip />
+        <el-table-column label="配送日期" prop="deliveryDate" width="110" align="center">
+          <template #default="scope">{{ parseTime(scope.row.deliveryDate, "{y}-{m}-{d}") }}</template>
+        </el-table-column>
+        <el-table-column label="总金额" prop="amount" width="90" align="right" />
+      </el-table>
+
+      <div class="batch-confirm-footer">
+        <span>
+          已选 <b>{{ batchConfirmSelection.length }}</b> / {{ batchConfirmRows.length }} 条草稿，
+          合计金额 {{ batchConfirmAmountTotal }}
+        </span>
+        <el-button
+          type="primary"
+          :disabled="!batchConfirmSelection.length"
+          :loading="batchConfirmSubmitting"
+          @click="submitBatchConfirm"
+          >确认选中订单</el-button
+        >
+      </div>
+      <div class="batch-confirm-tip">
+        确认后订单变为「已确认」，即进入客户日总表（矩阵/配货/点单）与验收链路；确认后的订单不可再修改。
+      </div>
+    </el-drawer>
   </div>
 </template>
 
 <script>
-import { pageSaleOrder, getSaleOrder, genOrderCode, createSaleOrder, updateSaleOrder, recentSaleOrder, checkExistingDraft } from "@/api/order/sale";
+import { pageSaleOrder, getSaleOrder, genOrderCode, createSaleOrder, updateSaleOrder, recentSaleOrder, checkExistingDraft, listSale, updateOrderStatus } from "@/api/order/sale";
 import { listSaleDetail, frequentSaleDetail } from "@/api/order/saleDetail";
 import { listDrafts, saveDraft, removeDraft, restoreDraft, syncDraftToServer, fetchDraftFromServer, removeDraftFromServer, draftKeyOf } from "@/utils/saleDraft";
 import { listCustomerSku } from "@/api/product/customerSku";
@@ -628,7 +713,7 @@ import { listTemp } from "@/api/product/temp";
 import { queryPrice } from "@/api/price/query";
 import { listCustomer } from "@/api/partner/customer";
 import { listCustomerDept } from "@/api/partner/customerDept";
-import { Refresh, Rank, Plus, Minus, Search, DocumentCopy } from "@element-plus/icons-vue";
+import { Refresh, Rank, Plus, Minus, Search, DocumentCopy, Check } from "@element-plus/icons-vue";
 import SplitWorkspace from "@/components/SplitWorkspace/index.vue";
 import { registerShortcuts, setEnabledByOwner, SCOPE } from "@/utils/shortcut";
 
@@ -728,9 +813,9 @@ export default {
   name: "SaleDetail",
   components: { SplitWorkspace },
   // 损耗原因固定字典（验收实收差异行必选）
-  dicts: ["biz_loss_reason"],
+  dicts: ["biz_loss_reason", "t_sale_order_status"],
   setup() {
-    return { Refresh, Rank, Plus, Minus, Search, DocumentCopy };
+    return { Refresh, Rank, Plus, Minus, Search, DocumentCopy, Check };
   },
   data() {
     return {
@@ -863,6 +948,14 @@ export default {
       // S1-1.3 手工定价：已去除必填原因弹窗（简化录价），仅保留价格来源/原建议价/操作者时间的服务端审计
       // 草稿箱弹窗（S1-1.5）
       draftBoxVisible: false,
+      // 按客户批量确认（草稿 → 已确认）
+      batchConfirmVisible: false,
+      batchConfirmLoading: false,
+      batchConfirmSubmitting: false,
+      batchConfirmCustomerId: null,
+      batchConfirmDeliveryDate: null,
+      batchConfirmRows: [],
+      batchConfirmSelection: [],
       // 配送日期变更提示（S1-1.4）用的旧值缓存
       _prevDeliveryDate: null,
       // 撤销栈（S1-1.2 撤销最近编辑）：每次进入单元格编辑/结构性变更前推入快照
@@ -1012,6 +1105,12 @@ export default {
     }
   },
   computed: {
+    /** 批量确认抽屉：所选草稿订单合计金额 */
+    batchConfirmAmountTotal() {
+      return (this.batchConfirmSelection || [])
+        .reduce((sum, o) => sum + Number(o.amount || 0), 0)
+        .toFixed(2);
+    },
     // 计算表格容器的高度
     tableHeight() {
       const headerFooterHeight = 120; // 头部和底部的高度总和，可以根据实际情况调整
@@ -1188,6 +1287,66 @@ export default {
       });
     },
     /** 查询客户列表 */
+    /** 按客户批量确认：打开抽屉（默认带出当前表单客户与配送日期） */
+    openBatchConfirmDrawer() {
+      this.batchConfirmCustomerId = this.orderForm.customerId || null;
+      this.batchConfirmDeliveryDate = this.orderForm.deliveryDate || null;
+      this.batchConfirmRows = [];
+      this.batchConfirmSelection = [];
+      this.batchConfirmVisible = true;
+      this.queryBatchConfirmList();
+    },
+    /** 查询该客户（可限配送日期）的草稿订单（status=0，后端列表已排除已删除） */
+    queryBatchConfirmList() {
+      if (!this.batchConfirmCustomerId) {
+        this.$modal.msgWarning("请先选择客户");
+        this.batchConfirmRows = [];
+        return;
+      }
+      this.batchConfirmLoading = true;
+      listSale({
+        customerId: this.batchConfirmCustomerId,
+        status: 0,
+        deliveryDate: this.batchConfirmDeliveryDate || undefined,
+      })
+        .then((response) => {
+          this.batchConfirmRows = response.data || [];
+          this.batchConfirmSelection = [];
+        })
+        .finally(() => {
+          this.batchConfirmLoading = false;
+        });
+    },
+    /** 批量确认所选草稿订单（后端要求全部为制单状态，确认后进入客户日总表与验收链路） */
+    submitBatchConfirm() {
+      const orderIds = this.batchConfirmSelection.map((o) => o.id);
+      if (!orderIds.length) {
+        return;
+      }
+      this.$modal
+        .confirm(
+          "将把选中的 " +
+            orderIds.length +
+            " 条草稿订单确认为「已确认」，确认后订单不可再修改，是否继续？"
+        )
+        .then(() => {
+          this.batchConfirmSubmitting = true;
+          return updateOrderStatus({ orderIds, status: 1 });
+        })
+        .then(() => {
+          this.$modal.msgSuccess("已确认 " + orderIds.length + " 条订单，可在「单据管理 → 客户日总表」查看与打印");
+          // 若当前正在编辑的订单也在其中，同步状态避免页面残留旧状态
+          if (this.orderForm.orderId && orderIds.includes(this.orderForm.orderId)) {
+            this.orderStatus = 1;
+          }
+          this.queryBatchConfirmList();
+          this.handleRecentQuery();
+        })
+        .catch(() => {})
+        .finally(() => {
+          this.batchConfirmSubmitting = false;
+        });
+    },
     getCustomerList() {
       listCustomer().then((response) => {
         this.customerOptions = response.data;
@@ -3048,5 +3207,22 @@ export default {
   color: #e6a23c;
   border: 1px solid #e6a23c;
   border-radius: 3px;
+}
+
+/* 按客户批量确认抽屉底部 */
+.batch-confirm-footer {
+  margin-top: 14px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 13px;
+  color: #606266;
+}
+
+.batch-confirm-tip {
+  margin-top: 10px;
+  font-size: 12px;
+  color: #909399;
+  line-height: 18px;
 }
 </style>
