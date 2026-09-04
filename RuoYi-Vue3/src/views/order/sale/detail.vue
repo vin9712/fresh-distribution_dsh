@@ -138,10 +138,13 @@
               <el-form-item prop="orderCode">
                 <template #label>
                   订单编号
+                  <!-- 仅新建订单可换号：订单编号是录单时固化的快照标识（后端 checkSnapshotImmutable 拒改），
+                       修改已有订单时点刷新只会拿到新号再被拒，故编辑态隐去 -->
                   <el-icon
-                    v-if="!orderInfoReadonly"
+                    v-if="!orderInfoReadonly && !orderForm.orderId"
                     @click="refreshOrderCode"
                     style="cursor: pointer"
+                    title="重新生成订单编号"
                   >
                     <Refresh />
                   </el-icon>
