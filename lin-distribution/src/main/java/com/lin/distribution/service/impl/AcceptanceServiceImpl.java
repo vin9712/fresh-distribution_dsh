@@ -570,14 +570,65 @@ public class AcceptanceServiceImpl implements AcceptanceService {
         acceptanceMapper.updateAcceptance(update);
 
         // 仅回写本验收单对应送货单的来源订单（S14/G3：IN 子查询，替代同组推断，DESIGN.md §4.2）
-        saleOrderMapper.updateStatusByDeliveryId(
-                acceptance.getDeliveryOrderId(),
-                SaleOrderStatus.DELIVERED.getCode(),
-                SaleOrderStatus.ACCEPTED.getCode());
-
-        syncActualMirror(id, acceptance.getDeliveryOrderId());
+        if (acceptance.getDeliveryOrderId() != null) {
+            saleOrderMapper.updateStatusByDeliveryId(
+                    acceptance.getDeliveryOrderId(),
+                    SaleOrderStatus.DELIVERED.getCode(),
+                    SaleOrderStatus.ACCEPTED.getCode());
+            syncActualMirror(id, acceptance.getDeliveryOrderId());
+        } else {
+            // D-055 点单验收（无送货单）：应送行=订单明细，实收 1:1 回写 actual_* 镜像；
+            // 来源订单 CONFIRMED→ACCEPTED（验收后订单冻结，再要退补走退货单/新订单）
+            syncActualMirrorFromOrderDetails(id);
+            List<Long> orderIds = sourceOrderIdsFromItems(id);
+            if (!orderIds.isEmpty()) {
+                saleOrderMapper.updateStatusByIds(orderIds,
+                        SaleOrderStatus.CONFIRMED.getCode(), SaleOrderStatus.ACCEPTED.getCode());
+            }
+        }
         acceptance.setStatus(AcceptanceStatus.SUBMITTED.getCode());
         return acceptance;
+    }
+
+    /**
+     * D-055 点单验收的 actual_* 镜像同步：验收行与订单明细一一对应（应送行即订单明细行），
+     * 故无需占比分摊，直接按行回写实收数量/单价/金额与差异原因。
+     */
+    private void syncActualMirrorFromOrderDetails(Long acceptanceId) {
+        for (AcceptanceItem item : CollectionUtils.emptyIfNull(acceptanceItemMapper.selectListByAcceptanceId(acceptanceId))) {
+            if (item.getSaleOrderDetailId() == null) {
+                continue;
+            }
+            SaleOrderDetail mirror = new SaleOrderDetail();
+            mirror.setId(item.getSaleOrderDetailId());
+            mirror.setActualNum(item.getActualQuantity());
+            mirror.setActualPrice(item.getUnitPrice());
+            mirror.setActualAmount(item.getActualAmount() != null
+                    ? item.getActualAmount()
+                    : scale(nvl(item.getUnitPrice()).multiply(nvl(item.getActualQuantity()))));
+            mirror.setLossReason(item.getLossReason());
+            saleOrderDetailMapper.updateActualBatch(mirror);
+        }
+    }
+
+    /**
+     * D-055 点单验收：由验收行携带的 sale_order_detail_id 反查去重后的来源订单ID集合
+     * （一个订单只属一个配送点，因此回写面与一维一验口径天然对齐）。
+     */
+    private List<Long> sourceOrderIdsFromItems(Long acceptanceId) {
+        List<Long> detailIds = CollectionUtils.emptyIfNull(acceptanceItemMapper.selectListByAcceptanceId(acceptanceId)).stream()
+                .map(AcceptanceItem::getSaleOrderDetailId)
+                .filter(Objects::nonNull)
+                .distinct()
+                .collect(Collectors.toList());
+        if (detailIds.isEmpty()) {
+            return List.of();
+        }
+        return saleOrderDetailMapper.selectByIdIn(detailIds).stream()
+                .map(SaleOrderDetail::getOrderId)
+                .filter(Objects::nonNull)
+                .distinct()
+                .collect(Collectors.toList());
     }
 
     /**
@@ -636,7 +687,10 @@ public class AcceptanceServiceImpl implements AcceptanceService {
         checkNotSettled(acceptance.getCustomerId(), acceptance.getAcceptDate());
 
         // 任一来源订单已结算 → 拒绝（结算依据链不可断）
-        List<Long> sourceOrderIds = deliverySourceItemMapper.selectListByDeliveryId(acceptance.getDeliveryOrderId())
+        boolean pointBased = acceptance.getDeliveryOrderId() == null;
+        List<Long> sourceOrderIds = pointBased
+                ? sourceOrderIdsFromItems(id)
+                : deliverySourceItemMapper.selectListByDeliveryId(acceptance.getDeliveryOrderId())
                 .stream()
                 .map(DeliverySourceItem::getSaleOrderId)
                 .filter(Objects::nonNull)
@@ -674,11 +728,18 @@ public class AcceptanceServiceImpl implements AcceptanceService {
         update.setUpdateTime(DateUtils.getNowDate());
         acceptanceMapper.updateAcceptance(update);
 
-        // 3) 来源订单 ACCEPTED→DELIVERED（IN 回写）
-        saleOrderMapper.updateStatusByDeliveryId(
-                acceptance.getDeliveryOrderId(),
-                SaleOrderStatus.ACCEPTED.getCode(),
-                SaleOrderStatus.DELIVERED.getCode());
+        // 3) 来源订单状态回退：历史送货单 ACCEPTED→DELIVERED；D-055 点单验收 ACCEPTED→CONFIRMED（回到未配送可继续改单）
+        if (pointBased) {
+            if (!sourceOrderIds.isEmpty()) {
+                saleOrderMapper.updateStatusByIds(sourceOrderIds,
+                        SaleOrderStatus.ACCEPTED.getCode(), SaleOrderStatus.CONFIRMED.getCode());
+            }
+        } else {
+            saleOrderMapper.updateStatusByDeliveryId(
+                    acceptance.getDeliveryOrderId(),
+                    SaleOrderStatus.ACCEPTED.getCode(),
+                    SaleOrderStatus.DELIVERED.getCode());
+        }
 
         // 4) 清空来源订单行 actual_* 镜像（验收回到草稿，镜像待重新提交后同步）
         sourceOrderIds.forEach(orderId -> saleOrderDetailMapper.clearActualByOrderId(orderId));

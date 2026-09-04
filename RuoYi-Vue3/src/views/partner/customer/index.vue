@@ -30,17 +30,6 @@
           />
         </el-select>
       </el-form-item>
-      <el-form-item label="组单策略" prop="docScopeType">
-        <el-select
-          v-model="queryParams.docScopeType"
-          placeholder="送货单组单方式"
-          clearable
-          style="width: 170px"
-        >
-          <el-option label="每配送点一张单" value="DELIVERY_POINT_DATE" />
-          <el-option label="跨点总单（按客户日合并）" value="CUSTOMER_DATE" />
-        </el-select>
-      </el-form-item>
       <el-form-item>
         <el-button
           type="primary"
@@ -153,25 +142,7 @@
           <dict-tag :options="dict.type.biz_yes_no" :value="scope.row.valid" />
         </template>
       </el-table-column>
-      <!-- 送货单客户维度（D-040）：组单口径在列表直接可见，不必进编辑弹窗 -->
-      <el-table-column label="送货单组单策略" align="center" width="150">
-        <template #default="scope">
-          <el-tag
-            :type="scope.row.docScopeType === 'CUSTOMER_DATE' ? 'primary' : 'info'"
-            size="small"
-            effect="plain"
-          >
-            {{ scope.row.docScopeType === "CUSTOMER_DATE" ? "跨点总单" : "每点一单" }}
-          </el-tag>
-        </template>
-      </el-table-column>
-      <el-table-column label="相同商品合并" align="center" width="110">
-        <template #default="scope">
-          <el-tag :type="scope.row.docMergeSameItem === false ? 'warning' : 'success'" size="small" effect="plain">
-            {{ scope.row.docMergeSameItem === false ? "不合行" : "合并" }}
-          </el-tag>
-        </template>
-      </el-table-column>
+      <!-- 送货单组单策略/相同商品合并两列已随 D-055 下线（送货单=订单视图，不再按客户策略组单） -->
       <el-table-column label="备注" align="center" prop="remark" />
       <el-table-column
         label="操作"
@@ -242,18 +213,8 @@
             >
           </el-radio-group>
         </el-form-item>
-        <el-form-item label="组单策略" prop="docScopeType">
-          <el-select v-model="form.docScopeType" placeholder="请选择组单策略" style="width: 100%">
-            <el-option label="每配送点一张单" value="DELIVERY_POINT_DATE" />
-            <el-option label="跨点总单（按客户日合并）" value="CUSTOMER_DATE" />
-          </el-select>
-          <div class="scope-hint">生成送货单时的单据范围：默认每配送点一张；跨点总单适合统一配送的客户（配送点不可单独覆盖）</div>
-          <div class="scope-hint">生效时机：仅对尚未建批次的「客户+配送日期」生效；当日已生成过送货单则按当日批次快照不变</div>
-        </el-form-item>
-        <el-form-item label="相同商品合并" prop="docMergeSameItem">
-          <el-switch v-model="form.docMergeSameItem" />
-          <span class="scope-hint">开：同一客户多张订单的相同商品合并为一行（不同价必拆行）；关：一订单行一行</span>
-        </el-form-item>
+        <!-- 组单策略 / 相同商品合并两字段已随 D-055 下线：送货单不再是独立单证，
+             矩阵/配货/点单均按订单明细实时取数；DB 列与批次快照保留历史值不再参与业务 -->
         <el-form-item label="打印模板">
           <div v-loading="templateLoading" style="width: 100%">
             <template v-if="form.id != null">
@@ -404,7 +365,6 @@ export default {
         name: null,
         type: null,
         valid: null,
-        docScopeType: null,
       },
       // 表单参数
       form: {},

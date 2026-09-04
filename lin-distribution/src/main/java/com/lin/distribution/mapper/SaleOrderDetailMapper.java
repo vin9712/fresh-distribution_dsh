@@ -111,6 +111,14 @@ public interface SaleOrderDetailMapper {
     List<SaleOrderDetail> selectValidByOrderIdIn(@Param("orderIds") java.util.Collection<Long> orderIds);
 
     /**
+     * D-055 点单验收回写：按明细ID集合反查（取 order_id 等归属字段）。
+     *
+     * @param ids 订单明细ID集合（非空）
+     * @return 明细行（含 order_id）
+     */
+    List<SaleOrderDetail> selectByIdIn(@Param("ids") java.util.Collection<Long> ids);
+
+    /**
      * 生成单据预览：按指定订单ID集合聚合已确认订单明细并关联品类名称
      * 分组：品类 + SKU/品名/单位/规格；临时商品（sku_id 空）归“临时商品”品类。
      *

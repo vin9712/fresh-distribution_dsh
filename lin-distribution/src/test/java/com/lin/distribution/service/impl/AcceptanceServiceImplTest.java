@@ -475,6 +475,99 @@ class AcceptanceServiceImplTest {
         assertEquals(0, new BigDecimal("4.00").compareTo(mirrors.get(1).getActualAmount()));
     }
 
+    /** D-055 点单验收（无送货单）：提交时实收 1:1 回写订单明细镜像，来源订单 CONFIRMED→ACCEPTED */
+    @Test
+    void 点单验收提交回写实收镜像与订单状态() {
+        Acceptance point = draftAcceptance();
+        point.setDeliveryOrderId(null);
+        when(acceptanceMapper.selectAcceptanceById(1L)).thenReturn(point);
+        AcceptanceItem it = item(900L, 1L, "5.00", "2.00");
+        it.setSaleOrderDetailId(9001L);
+        it.setActualQuantity(new BigDecimal("4.00"));
+        it.setActualAmount(new BigDecimal("8.00"));
+        it.setLossReason("客户临时减量");
+        when(acceptanceItemMapper.selectListByAcceptanceId(1L)).thenReturn(Collections.singletonList(it));
+        SaleOrderDetail detail = new SaleOrderDetail();
+        detail.setId(9001L);
+        detail.setOrderId(1000L);
+        when(saleOrderDetailMapper.selectByIdIn(Collections.singletonList(9001L)))
+                .thenReturn(Collections.singletonList(detail));
+
+        Acceptance result = acceptanceService.submit(1L);
+
+        assertEquals(AcceptanceStatus.SUBMITTED.getCode(), result.getStatus());
+        ArgumentCaptor<SaleOrderDetail> captor = ArgumentCaptor.forClass(SaleOrderDetail.class);
+        verify(saleOrderDetailMapper).updateActualBatch(captor.capture());
+        SaleOrderDetail mirror = captor.getValue();
+        assertEquals(9001L, mirror.getId());
+        assertEquals(0, new BigDecimal("4.00").compareTo(mirror.getActualNum()));
+        assertEquals(0, new BigDecimal("2.00").compareTo(mirror.getActualPrice()));
+        assertEquals(0, new BigDecimal("8.00").compareTo(mirror.getActualAmount()));
+        assertEquals("客户临时减量", mirror.getLossReason());
+        verify(saleOrderMapper).updateStatusByIds(Collections.singletonList(1000L),
+                SaleOrderStatus.CONFIRMED.getCode(), SaleOrderStatus.ACCEPTED.getCode());
+        // 点单口径不得走送货单 IN 回写，也不走 source_item 占比分摊
+        verify(saleOrderMapper, never()).updateStatusByDeliveryId(any(), any(), any());
+        verify(deliverySourceItemMapper, never()).selectListByDeliveryId(any());
+    }
+
+    /** D-055 点单验收撤销：来源订单 ACCEPTED→CONFIRMED（回到未配送可继续改单）并清镜像 */
+    @Test
+    void 点单验收撤销回退订单状态并清镜像() {
+        Acceptance point = submittedAcceptance();
+        point.setDeliveryOrderId(null);
+        when(acceptanceMapper.selectAcceptanceById(1L)).thenReturn(point);
+        AcceptanceItem it = item(900L, 1L, "5.00", "2.00");
+        it.setSaleOrderDetailId(9001L);
+        when(acceptanceItemMapper.selectListByAcceptanceId(1L)).thenReturn(Collections.singletonList(it));
+        SaleOrderDetail detail = new SaleOrderDetail();
+        detail.setId(9001L);
+        detail.setOrderId(1000L);
+        when(saleOrderDetailMapper.selectByIdIn(Collections.singletonList(9001L)))
+                .thenReturn(Collections.singletonList(detail));
+        SaleOrder order = new SaleOrder();
+        order.setId(1000L);
+        order.setCode("XD202609030001");
+        order.setStatus(SaleOrderStatus.ACCEPTED.getCode());
+        when(saleOrderMapper.selectSaleOrderByIdIn(Collections.singletonList(1000L)))
+                .thenReturn(Collections.singletonList(order));
+
+        Acceptance result = acceptanceService.revoke(1L, "现场数量复核有误");
+
+        assertEquals(AcceptanceStatus.DRAFT.getCode(), result.getStatus());
+        verify(saleOrderMapper).updateStatusByIds(Collections.singletonList(1000L),
+                SaleOrderStatus.ACCEPTED.getCode(), SaleOrderStatus.CONFIRMED.getCode());
+        verify(saleOrderDetailMapper).clearActualByOrderId(1000L);
+        verify(saleOrderMapper, never()).updateStatusByDeliveryId(any(), any(), any());
+    }
+
+    /** D-055 点单验收：来源订单已结算时禁止撤销（结算依据链不可断） */
+    @Test
+    void 点单验收来源订单已结算禁止撤销() {
+        Acceptance point = submittedAcceptance();
+        point.setDeliveryOrderId(null);
+        when(acceptanceMapper.selectAcceptanceById(1L)).thenReturn(point);
+        AcceptanceItem it = item(900L, 1L, "5.00", "2.00");
+        it.setSaleOrderDetailId(9001L);
+        when(acceptanceItemMapper.selectListByAcceptanceId(1L)).thenReturn(Collections.singletonList(it));
+        SaleOrderDetail detail = new SaleOrderDetail();
+        detail.setId(9001L);
+        detail.setOrderId(1000L);
+        when(saleOrderDetailMapper.selectByIdIn(Collections.singletonList(9001L)))
+                .thenReturn(Collections.singletonList(detail));
+        SaleOrder settled = new SaleOrder();
+        settled.setId(1000L);
+        settled.setCode("XD202609030001");
+        settled.setStatus(SaleOrderStatus.SETTLED.getCode());
+        when(saleOrderMapper.selectSaleOrderByIdIn(Collections.singletonList(1000L)))
+                .thenReturn(Collections.singletonList(settled));
+
+        ServiceException ex = assertThrows(ServiceException.class, () -> acceptanceService.revoke(1L, "要改数"));
+        assertTrue(ex.getMessage().contains("XD202609030001"));
+        verify(saleOrderMapper, never()).updateStatusByIds(any(), any(), any());
+        verify(acceptanceRevokeLogMapper, never()).insertAcceptanceRevokeLog(any());
+    }
+
     @Test
     void 已提交不可重复提交() {
         Acceptance acceptance = draftAcceptance();

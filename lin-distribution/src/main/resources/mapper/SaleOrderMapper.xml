@@ -210,6 +210,18 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
           )
     </update>
 
+    <!-- D-055 点单验收回写：按订单ID集合 IN 改状态（仅 fromStatus 命中才更新） -->
+    <update id="updateStatusByIds">
+        update t_sale_order
+        set status = #{toStatus}, update_time = now()
+        where status = #{fromStatus}
+          and is_deleted = 0
+          and id in
+        <foreach item="orderId" collection="orderIds" open="(" separator="," close=")">
+            #{orderId}
+        </foreach>
+    </update>
+
     <!-- S14/T3 统一生成：查“遗漏订单” O_missed = CONFIRMED 且未进入任何有效送货单
          有效判定两路：① 新模型 source_item 有效分配（作废释放/软删即视为遗漏）；
          ② 历史兼容——S14 前生成的送货单无台账，按 detail.order_id 直挂且所属单未作废判定，

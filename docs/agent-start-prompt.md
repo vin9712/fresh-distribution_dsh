@@ -1,7 +1,8 @@
 # Agent 开工提示词（D-055 收尾：三口径同源 + 打印接通后）
 
 > **用途**：下次让 AI/Agent 接手本项目时，先给它看这份；它读完即可理解项目当前状态、约定与易踩坑，避免重复调研或走错方向。
-> **最近更新**：2026-09-04（D-055 收尾落地：矩阵/配货改订单明细口径、打印按客户+日期(+点)取数、打印分界登记、s15~s23 脚本入库）
+> **最近更新**：2026-09-04（D-055 收尾一期：三口径同源 + 打印接通 + s15~s23 脚本入库；
+> 同日下午收尾二期：验收提交回写接通 + 客户组单策略字段下线 + 浏览器级 E2E 17 项全过）
 
 ---
 
@@ -38,9 +39,11 @@
   │    ├─ 换货：被换行标 change_type=3 + 换入行标 change_type=2（同 change_group）
   │    ├─ 退货：原行标 change_type=3（应送/实收归 0）
   │    └─ 例外：实收>应收（现场多加）正常，不标记
-  ├─ 验收 = 客户+日期+配送点（方案乙，一维一验）
+  ├─ 验收 = 客户+日期+配送点（方案乙，一维一验；入口=点单区「生成验收单」）
   │    ├─ 应送行 = 订单明细（含标记），实收=文员录入
-  │    └─ AcceptanceService#createByCustomerPoint(customerId, deptId, date)   ← 写口径仍 status=1
+  │    ├─ AcceptanceService#createByCustomerPoint(customerId, deptId, date)   ← 建单仍只取 status=1
+  │    └─ 提交回写（09-04 接通）：实收 1:1 回写订单明细 actual_* 镜像 + 来源订单 CONFIRMED→ACCEPTED（冻结）
+  │         撤销：ACCEPTED→CONFIRMED + 清镜像；来源订单已结算拒撤销   ← 写口径仍 status=1
   └─ 打印分界 = t_delivery_print_log（前端每次打印后 POST /order/delivery/print-log 登记；有记录=已打印=配送后）
 ```
 
@@ -62,7 +65,7 @@
 
 ## 五、报表数据库约定
 
-- **测试基线**：`mvn -pl lin-distribution test` = **246/246 全绿**
+- **测试基线**：`mvn -pl lin-distribution clean test` = **249/249 全绿**
   - **JDK 17 必需**：macOS `export JAVA_HOME=/opt/homebrew/opt/openjdk`；Windows 本机 mvn 已默认 `D:\Java\jdk17\azul-17.0.13`
   - **计数要 `clean` 后才准**：`target/surefire-reports` 里 2026-08-23 的 `DeliverySkuOverrideServiceImplTest` 陈旧报告会被捞起（多算 2 例），`target/classes/mapper/DeliverySkuOverrideMapper.xml` 同理
 - **改 Mapper XML 后必须** `mvn -pl lin-distribution install -DskipTests` **再重启后端**（否则 ~/.m2 陈旧 jar → 新接口 404 / 旧 XML 生效）；**改了兄弟模块（lin-admin 的 SecurityConfig 等）要全量 `mvn install -DskipTests`**（曾踩：`/print/deliveryMatrixData` 放行配置在陈旧 lin-admin jar 里 → 401）
@@ -92,14 +95,16 @@
 
 ## 七、待办/边界（下次可能接的）
 
-1. **执行 s22 / s23 到远端库**（备份后）：否则新主体打印的 JimuReport 数据集取不到参数；s23 B 段（DROP 退役表）默认注释保护
-2. **验收提交后的回写缺口**（已查实未改，需业务确认）：点单验收 `deliveryOrderId=null` → `submit` 的 `syncActualMirror` 与订单状态回写双双空转（实收不回写 `t_sale_order_detail.actual_*`、订单停在 status=1 不进 ACCEPTED）；结算以验收单 `total_amount` 为准故不影响金额，但点单页「实收」列不会更新
-3. **打印后编辑护栏未联动**：`checkOrderEditable` 不看打印分界，「已打印仍可直接改单」不被拦截（只以带标记入口引导）
-4. **点单针式双列三联模板**：待硬件（W0-4.2/4.3 本地打印助手）到位后在 JimuReport 配针式版式（每列 10 行、三联）
-5. **客户页「送货单组单策略」两字段**（docScopeType/docMergeSameItem）与提示语在 D-055 后已无实际作用，待确认是否下线
-6. **历史送货单数据**：保留只读（审计/对账），新流程不写 `t_delivery_order`；彻底清理需单独迁移方案
-7. `order/delivery` 页面组件保留（路由兼容），菜单已 s21 下线；确认不需要可删组件
-8. 测试临时数据（YS20260903002、t_print_package/t_print_task 里的 09-02 验证数据）可清理
+1. **执行 s22 / s23 到远端库**（备份后）：否则新主体打印在 JimuReport 侧仍取不到参数（接口层已可用，页面三口径/矩阵/配货不受影响）；s23 B 段（DROP 退役表）默认注释保护
+2. **打印后直接改单 = 预期行为**（2026-09-04 业务定稿）：`checkOrderEditable` 不看打印分界，已打印仍可改单，
+   仅以点单区「已打印/未打印」标识与「配送后变更」入口引导——**不要“顺手”加硬拦截**
+3. **点单针式双列三联模板**：待硬件（W0-4.2/4.3 本地打印助手）到位后在 JimuReport 配针式版式（每列 10 行、三联）
+4. **历史送货单数据**：保留只读（审计/对账），新流程不写 `t_delivery_order`；客户表 `doc_scope_type`/`doc_merge_same_item`
+   两列前端已下线但 **DB 列与实体字段保留**（历史批次快照仍可读），彻底清理需单独迁移方案
+5. `order/delivery` 页面组件保留（路由兼容），菜单已 s21 下线；确认不需要可删组件
+6. 测试临时数据：`t_delivery_print_log` 1 条（客户11/2026-08-28/棠下）、YS20260903002、t_print_package/t_print_task 里的 09-02 验证数据——可清理或留作演示
+7. 浏览器级 E2E 脚本当前在 `tests/e2e-d055-closeout.mjs`（17 项断言；依赖 playwright-core 不入库，
+   `npm i -D playwright-core` 于仓库根或 tests/ 后运行；浏览器走系统 Edge，channel 可改 chrome）
 
 ## 八、开工提示词（复制用）
 
@@ -110,7 +115,7 @@ D-055 送货单视图化 + 09-04 收尾已落地：送货单=订单的视图（�
 客户日总表页 /order/batch 是唯一入口（矩阵/配货/点单三口径同源），
 打印按 客户+日期(+配送点) 实时取数（票据 bizKey），打印分界记 t_delivery_print_log。开工前：
 1. 读 docs/01-design/订单-送货-验收链路开发进度.md 最后一条（最新状态）
-2. 检查并保持基线：mvn -pl lin-distribution test 246 全绿（JDK17；计数需 clean 后才准）
+2. 检查并保持基线：mvn -pl lin-distribution clean test 249 全绿（JDK17；计数需 clean 后才准）
 3. 改 Mapper XML 必须 mvn install 后重启后端；改兄弟模块要全量 install；sql 不主动执行远端
 4. 需要真机验证：dev(_windows).sh build → 后端 8090 + 前端 1025（nohup 后台启动）
 任务：<在这里写具体任务>

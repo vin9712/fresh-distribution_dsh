@@ -98,6 +98,16 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         where id = #{id}
     </select>
 
+    <!-- D-055 点单验收回写：按验收行携带的订单明细ID 反查归属订单 -->
+    <select id="selectByIdIn" resultMap="SaleOrderDetailResult">
+        <include refid="selectSaleOrderDetailVo"/>
+        where is_deleted = 0
+          and id in
+        <foreach item="id" collection="ids" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+    </select>
+
     <insert id="insertSaleOrderDetail" parameterType="com.lin.distribution.domain.SaleOrderDetail" useGeneratedKeys="true" keyProperty="id">
         insert into t_sale_order_detail
         <trim prefix="(" suffix=")" suffixOverrides=",">

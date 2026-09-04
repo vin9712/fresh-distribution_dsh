@@ -107,6 +107,19 @@ public interface SaleOrderMapper {
                                  @Param("toStatus") Integer toStatus);
 
     /**
+     * D-055 点单验收回写：按订单ID集合精确改状态（仅 fromStatus 命中才更新）。
+     * 点单验收无送货单，来源订单由验收行的 sale_order_detail_id 反查得到。
+     *
+     * @param orderIds   订单ID集合（非空）
+     * @param fromStatus 原状态
+     * @param toStatus   目标状态
+     * @return 更新行数
+     */
+    int updateStatusByIds(@Param("orderIds") java.util.Collection<Long> orderIds,
+                          @Param("fromStatus") Integer fromStatus,
+                          @Param("toStatus") Integer toStatus);
+
+    /**
      * 查询同配送点+同日期的草稿订单（新增订单防重复提示用：选中客户后检测是否已有可继续添加的草稿）
      *
      * @param customerDeptId 配送点ID
