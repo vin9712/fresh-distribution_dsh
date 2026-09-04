@@ -10,8 +10,14 @@
     >
       <template #title>
         <span class="draft-banner-title">
-          检测到 {{ availableDrafts.length }} 个未完成的订单草稿{{ availableDrafts[0].deptName ? '【' + availableDrafts[0].deptName + '】' : '' }}（保存于 {{ formatSavedTime(availableDrafts[0].savedAt) }}）
-          <el-button link type="primary" @click="recoverLatestDraft">去恢复</el-button>
+          检测到 {{ availableDrafts.length }} 个未完成的订单草稿{{
+            availableDrafts[0].deptName
+              ? "【" + availableDrafts[0].deptName + "】"
+              : ""
+          }}（保存于 {{ formatSavedTime(availableDrafts[0].savedAt) }}）
+          <el-button link type="primary" @click="recoverLatestDraft"
+            >去恢复</el-button
+          >
           <el-button link @click="discardAllDrafts">全部忽略</el-button>
         </span>
       </template>
@@ -31,7 +37,11 @@
           placeholder="请选择送货单位（支持多选）"
           :options="customerDeptOptions"
           @change="handleFormOptionsChanged"
-          :props="{ expandTrigger: 'hover', multiple: true, checkOnClickNode: true }"
+          :props="{
+            expandTrigger: 'hover',
+            multiple: true,
+            checkOnClickNode: true,
+          }"
           filterable
           clearable
           collapse-tags
@@ -342,7 +352,11 @@
     <!-- 月结调整摘要对话框（蓝图 §2「月结调整追溯」：客户+结算月粒度，不改写原订单快照） -->
     <el-dialog
       align-center
-      :title="adjustmentSummary.orderCode ? '月结调整摘要 - ' + adjustmentSummary.orderCode : '月结调整摘要'"
+      :title="
+        adjustmentSummary.orderCode
+          ? '月结调整摘要 - ' + adjustmentSummary.orderCode
+          : '月结调整摘要'
+      "
       v-model="adjustmentSummary.open"
       width="640px"
       append-to-body
@@ -356,20 +370,43 @@
       />
       <template v-else>
         <div class="adjustment-summary-tip">
-          结算月 <b>{{ adjustmentSummary.billMonth }}</b>，该客户该结算月共
+          结算月 <b>{{ adjustmentSummary.billMonth }}</b
+          >，该客户该结算月共
           {{ adjustmentSummary.adjustments.length }} 张调整单（含草稿）:
         </div>
         <el-table :data="adjustmentSummary.adjustments" size="small" border>
-          <el-table-column label="调整单号" align="center" prop="code" min-width="150" />
+          <el-table-column
+            label="调整单号"
+            align="center"
+            prop="code"
+            min-width="150"
+          />
           <el-table-column label="状态" align="center" width="90">
             <template #default="scope">
-              <el-tag v-if="scope.row.status === 1" size="small" type="success">已提交</el-tag>
+              <el-tag v-if="scope.row.status === 1" size="small" type="success"
+                >已提交</el-tag
+              >
               <el-tag v-else size="small" type="info">草稿</el-tag>
             </template>
           </el-table-column>
-          <el-table-column label="应收调整" align="center" prop="receivableAmount" width="110" />
-          <el-table-column label="成本调整" align="center" prop="purchaseCostAmount" width="110" />
-          <el-table-column label="备注" align="center" prop="remark" :show-overflow-tooltip="true" />
+          <el-table-column
+            label="应收调整"
+            align="center"
+            prop="receivableAmount"
+            width="110"
+          />
+          <el-table-column
+            label="成本调整"
+            align="center"
+            prop="purchaseCostAmount"
+            width="110"
+          />
+          <el-table-column
+            label="备注"
+            align="center"
+            prop="remark"
+            :show-overflow-tooltip="true"
+          />
         </el-table>
         <div class="adjustment-summary-total">
           合计：应收调整
@@ -390,7 +427,13 @@
     />
 
     <!-- 添加或修改销售订单对话框 -->
-    <el-dialog align-center :title="title" v-model="open" width="500px" append-to-body>
+    <el-dialog
+      align-center
+      :title="title"
+      v-model="open"
+      width="500px"
+      append-to-body
+    >
       <el-form ref="form" :model="form" :rules="rules" label-width="80px">
         <el-form-item label="订单编号" prop="code">
           <el-input v-model="form.code" placeholder="请输入订单编号" />
@@ -482,7 +525,9 @@
       <!-- 第一步：按品类分组的商品汇总 -->
       <div v-show="buildActiveStep === 0">
         <div class="build-orders-summary">
-          <span class="build-orders-label">已选 {{ buildSelectedOrders.length }} 个订单：</span>
+          <span class="build-orders-label"
+            >已选 {{ buildSelectedOrders.length }} 个订单：</span
+          >
           <el-tag
             v-for="o in buildSelectedOrders"
             :key="o.id"
@@ -492,7 +537,11 @@
           >
         </div>
         <div v-loading="previewLoading" class="build-preview-body">
-          <template v-if="previewData && previewData.groups && previewData.groups.length">
+          <template
+            v-if="
+              previewData && previewData.groups && previewData.groups.length
+            "
+          >
             <div
               v-for="g in previewData.groups"
               :key="g.categoryName"
@@ -511,11 +560,7 @@
                   min-width="120"
                   :show-overflow-tooltip="true"
                 />
-                <el-table-column
-                  label="规格"
-                  prop="productSpec"
-                  width="80"
-                />
+                <el-table-column label="规格" prop="productSpec" width="80" />
                 <el-table-column label="单位" prop="productUnit" width="60" />
                 <el-table-column label="数量" prop="quantity" width="70" />
                 <el-table-column label="单价" prop="price" width="80" />
@@ -558,9 +603,7 @@
       <!-- 第三步：确认生成 -->
       <div v-show="buildActiveStep === 2">
         <el-descriptions :column="1" border size="small">
-          <el-descriptions-item label="单据类型">
-            采购单
-          </el-descriptions-item>
+          <el-descriptions-item label="单据类型"> 采购单 </el-descriptions-item>
           <el-descriptions-item label="订单数量">
             {{ previewData.orders.length }} 个
           </el-descriptions-item>
@@ -571,10 +614,10 @@
             ¥{{ previewData.totalAmount }}
           </el-descriptions-item>
           <el-descriptions-item label="供货商">
-            {{ buildForm.supplierName || '-' }}
+            {{ buildForm.supplierName || "-" }}
           </el-descriptions-item>
           <el-descriptions-item label="采购员">
-            {{ buildForm.purchaser || '-' }}
+            {{ buildForm.purchaser || "-" }}
           </el-descriptions-item>
         </el-descriptions>
         <el-alert
@@ -589,9 +632,7 @@
       <template #footer>
         <div class="build-drawer-footer">
           <el-button @click="buildDrawerVisible = false">取 消</el-button>
-          <el-button
-            v-if="buildActiveStep > 0"
-            @click="buildActiveStep--"
+          <el-button v-if="buildActiveStep > 0" @click="buildActiveStep--"
             >上一步</el-button
           >
           <el-button
@@ -613,7 +654,11 @@
     </el-drawer>
 
     <!-- D-055 配送后变更抽屉（加单/换货/退货） -->
-    <sale-change-drawer v-model="changeOpen" :order="changeOrder" @done="getPageList" />
+    <sale-change-drawer
+      v-model="changeOpen"
+      :order="changeOrder"
+      @done="getPageList"
+    />
   </div>
 </template>
 
@@ -655,7 +700,21 @@ export default {
   components: { SaleChangeDrawer },
   dicts: ["t_sale_order_status", "t_sale_order_type", "t_sale_order_source"],
   setup() {
-    return { Search, Refresh, Plus, ShoppingBag, Van, Edit, Delete, Check, RefreshLeft, Close, Box, TrendCharts, CircleClose };
+    return {
+      Search,
+      Refresh,
+      Plus,
+      ShoppingBag,
+      Van,
+      Edit,
+      Delete,
+      Check,
+      RefreshLeft,
+      Close,
+      Box,
+      TrendCharts,
+      CircleClose,
+    };
   },
   data() {
     return {
@@ -952,7 +1011,7 @@ export default {
       this.changeOpen = true;
     },
     handleGoAcceptance(row) {
-      locateAcceptanceByOrder(row.id)
+      locateAcceptanceByOrder(row.id);
       locateAcceptanceByOrder(row.id)
         .then((response) => {
           const info = response.data || {};
@@ -966,7 +1025,9 @@ export default {
             query.acceptanceId = info.acceptanceId;
           } else if (info.deliveryStatus !== 2) {
             this.$modal.msgWarning(
-              "该订单所在送货单【" + info.deliveryCode + "】尚未送达，送达后才能验收"
+              "该订单所在送货单【" +
+                info.deliveryCode +
+                "】尚未送达，送达后才能验收"
             );
             return;
           } else {
@@ -1071,7 +1132,8 @@ export default {
             orderCode: row.code,
             billMonth: data.billMonth || null,
             adjustments: data.adjustments || [],
-            receivableTotal: data.receivableTotal != null ? data.receivableTotal : "0",
+            receivableTotal:
+              data.receivableTotal != null ? data.receivableTotal : "0",
             costTotal: data.costTotal != null ? data.costTotal : "0",
           };
         })
@@ -1190,7 +1252,8 @@ export default {
       // 不再按客户过滤，避免与配送点交叉导致漏筛
       this.queryParams.customerIds = [];
       // 兼容：仅选中一个配送点时设置单个字段
-      this.queryParams.customerDeptId = deptIds.length === 1 ? deptIds[0] : null;
+      this.queryParams.customerDeptId =
+        deptIds.length === 1 ? deptIds[0] : null;
       this.queryParams.customerId = null;
       this.handleQuery();
     },
