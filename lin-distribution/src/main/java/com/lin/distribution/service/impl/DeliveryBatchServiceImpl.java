@@ -33,6 +33,7 @@ import com.lin.distribution.mapper.DeliveryPrintLogMapper;
 import com.lin.distribution.mapper.SaleOrderDetailMapper;
 import com.lin.distribution.service.DeliveryBatchService;
 import com.lin.distribution.vo.DeliveryBatchViewVO;
+import com.lin.distribution.vo.DeliveryPointViewVO;
 import com.lin.distribution.vo.DeliveryMatrixLayout;
 import com.lin.distribution.vo.DeliveryMatrixLayout.Column;
 import com.lin.distribution.vo.DeliveryMatrixLayout.Tier;
@@ -170,6 +171,51 @@ public class DeliveryBatchServiceImpl implements DeliveryBatchService {
         // 展示口径与矩阵/配货一致：已确认及以后（status>=1）都算应送，仅排除草稿与已删单
         return saleOrderDetailMapper.selectValidByCustomerPointDateForView(customerId, customerDeptId,
                 LocalDate.parse(deliveryDate));
+    }
+
+    @Override
+    public List<DeliveryPointViewVO> selectPointViewAll(Long customerId, String deliveryDate) {
+        if (customerId == null || StringUtils.isBlank(deliveryDate)) {
+            throw new ServiceException("客户与配送日期不能为空");
+        }
+        List<SaleOrderDetail> rows = saleOrderDetailMapper.selectValidByCustomerDateForView(customerId,
+                LocalDate.parse(deliveryDate));
+        if (rows.isEmpty()) {
+            return new ArrayList<>();
+        }
+        // 按（配送点）保序分组：SQL 已按 cd.code, cd.id 排序（与矩阵列序一致），组内行保持 sort 升序；
+        // 「按当天实际情况」——当天没有单的点不出 tab
+        LinkedHashMap<Long, DeliveryPointViewVO> byDept = new LinkedHashMap<>();
+        for (SaleOrderDetail d : rows) {
+            Long deptId = d.getCustomerDeptId();
+            if (deptId == null) {
+                continue;
+            }
+            DeliveryPointViewVO group = byDept.computeIfAbsent(deptId, k -> DeliveryPointViewVO.builder()
+                    .deptId(deptId)
+                    .deptName(d.getCustomerDeptName())
+                    .rowCount(0)
+                    .totalNum(BigDecimal.ZERO)
+                    .totalActual(BigDecimal.ZERO)
+                    .rows(new ArrayList<>())
+                    .build());
+            group.getRows().add(d);
+            group.setRowCount(group.getRows().size());
+            group.setTotalNum(group.getTotalNum().add(d.getNum() == null ? BigDecimal.ZERO : d.getNum()));
+            group.setTotalActual(group.getTotalActual()
+                    .add(d.getActualNum() == null ? BigDecimal.ZERO : d.getActualNum()));
+            if (StringUtils.isBlank(group.getDeptName()) && StringUtils.isNotBlank(d.getCustomerDeptName())) {
+                group.setDeptName(d.getCustomerDeptName());
+            }
+        }
+        // 点名兑底回查（防御历史数据点被删）
+        for (DeliveryPointViewVO group : byDept.values()) {
+            if (StringUtils.isBlank(group.getDeptName())) {
+                CustomerDept dept = customerDeptMapper.selectCustomerDeptById(group.getDeptId());
+                group.setDeptName(dept == null ? "配送点" + group.getDeptId() : dept.getName());
+            }
+        }
+        return new ArrayList<>(byDept.values());
     }
 
     // ==================== 矩阵总表（D-044~D-053 + D-055 视图化） ====================

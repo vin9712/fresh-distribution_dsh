@@ -158,6 +158,15 @@ export function pointViewDelivery(customerId, deptId, date) {
   })
 }
 
+// 点单全点视图（D-055 收尾：按 客户+日期 返回当天实际有单的配送点分组，点单口径分 tab 展示）
+export function pointViewAllDelivery(customerId, date) {
+  return request({
+    url: '/order/delivery/batch/point-view-all',
+    method: 'get',
+    params: { customerId: customerId, date: date }
+  })
+}
+
 // ==================== 打印分界（D-055） ====================
 
 // 打印分界登记：每次打开打印视图后记一条（总单 customerDeptId 传空，点单传配送点）

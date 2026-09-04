@@ -20,13 +20,8 @@
         <el-radio-group v-model="mode" size="small" @change="loadView">
           <el-radio-button value="matrix">矩阵总表（菜品×配送点）</el-radio-button>
           <el-radio-button value="pick">配货总表（不拆价）</el-radio-button>
-          <el-radio-button value="point">点单（按配送点）</el-radio-button>
+          <el-radio-button value="point">点单（分配送点 tab）</el-radio-button>
         </el-radio-group>
-      </el-form-item>
-      <el-form-item v-if="mode === 'point'" label="配送点">
-        <el-select v-model="deptId" placeholder="请选择配送点" filterable clearable style="width: 190px">
-          <el-option v-for="d in depts" :key="d.id" :label="d.name" :value="d.id" />
-        </el-select>
       </el-form-item>
       <el-form-item>
         <el-button type="primary" :icon="Search" :disabled="!customerId || !deliveryDate" @click="loadView"
@@ -49,9 +44,17 @@
 
     <div v-show="hasData" ref="printArea" class="batch-print-area">
       <div class="batch-title">
-        {{ mode === "matrix" ? "配送矩阵总表" : "配送总表" }}（{{ customerName }} / {{ deliveryDate }}）
+        {{
+          mode === "matrix" ? "配送矩阵总表" : mode === "point" ? "配送点单" : "配货总表"
+        }}（{{ customerName }} / {{ deliveryDate }}）
         <span class="batch-sub">
-          {{ mode === "matrix" ? "行=菜品（品名+规格+单价相同为一行）· 列=配送点 · 格=数量 · 不含价格" : "内部配货·采购参考，不含价格" }}
+          {{
+            mode === "matrix"
+              ? "行=菜品（品名+规格+单价相同为一行）· 列=配送点 · 格=数量 · 不含价格"
+              : mode === "point"
+                ? "客户+日期+配送点 的订单明细（含配送后变更标记），可打印点单 / 生成验收单"
+                : "内部配货·采购参考，不含价格"
+          }}
         </span>
       </div>
 
@@ -181,62 +184,68 @@
 
       <!-- 点单：客户+日期+配送点 的订单明细行（D-055：含加单/换货/退货标记 + 打印/验收） -->
       <template v-else>
-        <el-alert
-          v-if="!deptId"
-          type="info"
-          :closable="false"
-          show-icon
-          class="matrix-alert"
-          title="请选择配送点查看该点的点单明细（订单号 + 应送 + 变更标记）"
+        <el-empty
+          v-if="!pointGroups.length && !loading"
+          description="该客户在此日期没有已确认订单明细（配送点 tab 按当天实际有单的点展示）"
         />
-        <el-table v-loading="loading" :data="pointRows" size="small" border>
-          <el-table-column label="订单号" align="center" prop="orderCode" min-width="130" :show-overflow-tooltip="true" />
-          <el-table-column label="商品" align="center" prop="productName" min-width="140" :show-overflow-tooltip="true" />
-          <el-table-column label="规格" align="center" prop="productSpec" width="110" :show-overflow-tooltip="true" />
-          <el-table-column label="单位" align="center" prop="productUnit" width="70" />
-          <el-table-column label="应送" align="center" prop="num" width="90" />
-          <el-table-column label="实收" align="center" width="90">
-            <template #default="scope">
-              <span>{{ scope.row.actualNum ?? "—" }}</span>
+        <el-tabs v-else v-model="pointTab" class="point-tabs" v-loading="loading" @tab-change="onPointTabChange">
+          <el-tab-pane v-for="g in pointGroups" :key="g.deptId" :name="String(g.deptId)">
+            <template #label>
+              <span class="point-tab-label">
+                {{ g.deptName }}
+                <el-tag size="small" effect="plain" round type="info">应送 {{ g.totalNum }}</el-tag>
+              </span>
             </template>
-          </el-table-column>
-          <el-table-column label="标记" align="center" width="110">
-            <template #default="scope">
-              <el-tag v-if="scope.row.changeType == 1" size="small" type="warning" effect="plain">加单</el-tag>
-              <el-tag v-else-if="scope.row.changeType == 2" size="small" type="success" effect="plain">换货</el-tag>
-              <el-tag v-else-if="scope.row.changeType == 3" size="small" type="danger" effect="plain">退货</el-tag>
-              <span v-else>—</span>
+            <template v-if="String(deptId) === String(g.deptId)">
+              <el-table :data="pointRows" size="small" border>
+                <el-table-column label="订单号" align="center" prop="orderCode" min-width="130" :show-overflow-tooltip="true" />
+                <el-table-column label="商品" align="center" prop="productName" min-width="140" :show-overflow-tooltip="true" />
+                <el-table-column label="规格" align="center" prop="productSpec" width="110" :show-overflow-tooltip="true" />
+                <el-table-column label="单位" align="center" prop="productUnit" width="70" />
+                <el-table-column label="应送" align="center" prop="num" width="90" />
+                <el-table-column label="实收" align="center" width="90">
+                  <template #default="scope">
+                    <span>{{ scope.row.actualNum ?? "—" }}</span>
+                  </template>
+                </el-table-column>
+                <el-table-column label="标记" align="center" width="110">
+                  <template #default="scope">
+                    <el-tag v-if="scope.row.changeType == 1" size="small" type="warning" effect="plain">加单</el-tag>
+                    <el-tag v-else-if="scope.row.changeType == 2" size="small" type="success" effect="plain">换货</el-tag>
+                    <el-tag v-else-if="scope.row.changeType == 3" size="small" type="danger" effect="plain">退货</el-tag>
+                    <span v-else>—</span>
+                  </template>
+                </el-table-column>
+                <el-table-column label="说明" align="center" prop="changeRemark" min-width="130" :show-overflow-tooltip="true" />
+              </el-table>
+              <div class="batch-footer">
+                共 {{ pointRows.length }} 行（含标记行）· 应送合计 {{ pointTotalNum }}· 实收合计 {{ pointTotalActual }}
+                <el-tag
+                  :type="pointPrinted ? 'danger' : 'info'"
+                  size="small"
+                  effect="plain"
+                  style="margin-right: 8px"
+                  >{{
+                    pointPrinted
+                      ? "已打印（配送后，改动请走带标记的配送后变更）"
+                      : "未打印（配送前，直接改订单即可）"
+                  }}</el-tag
+                >
+                <el-button size="small" type="primary" plain :icon="Printer" @click="handlePointPrint">打印点单</el-button>
+                <el-button size="small" type="warning" plain @click="handleAcceptance">生成验收单</el-button>
+              </div>
             </template>
-          </el-table-column>
-          <el-table-column label="说明" align="center" prop="changeRemark" min-width="130" :show-overflow-tooltip="true" />
-        </el-table>
-        <div class="batch-footer">
-          共 {{ pointRows.length }} 行（含标记行）· 应送合计 {{ pointTotalNum }}· 实收合计 {{ pointTotalActual }}
-          <el-tag
-            v-if="deptId"
-            :type="pointPrinted ? 'danger' : 'info'"
-            size="small"
-            effect="plain"
-            style="margin-right: 8px"
-            >{{
-              pointPrinted
-                ? "已打印（配送后，改动请走带标记的配送后变更）"
-                : "未打印（配送前，直接改订单即可）"
-            }}</el-tag
-          >
-          <el-button v-if="deptId" size="small" type="primary" plain :icon="Printer" @click="handlePointPrint">打印点单</el-button>
-          <el-button v-if="deptId" size="small" type="warning" plain @click="handleAcceptance">生成验收单</el-button>
-        </div>
+          </el-tab-pane>
+        </el-tabs>
       </template>
     </div>
   </div>
 </template>
 
 <script>
-import { batchView, deliveryMatrix, pointViewDelivery, markDeliveryPrinted, getDeliveryPrintState } from "@/api/order/delivery";
+import { batchView, deliveryMatrix, pointViewAllDelivery, markDeliveryPrinted, getDeliveryPrintState } from "@/api/order/delivery";
 import { createAcceptanceByPoint } from "@/api/acceptance/acceptance";
 import { listCustomer } from "@/api/partner/customer";
-import { listCustomerDept } from "@/api/partner/customerDept";
 import { issuePrintTicket } from "@/api/print/ticket";
 import { Search, Printer } from "@element-plus/icons-vue";
 
@@ -261,9 +270,10 @@ export default {
       colBlock: 1,
       matrix: { columns: [], rows: [], mismatches: [] },
       pickRows: [],
-      // 点单口径（D-055）
+      // 点单口径（D-055 收尾：按当天实际有单的配送点分 tab）
       pointPrinted: false,
-      depts: [],
+      pointGroups: [],
+      pointTab: "",
       deptId: null,
       pointRows: [],
     };
@@ -320,27 +330,14 @@ export default {
         this.loadView();
       }
     });
-    // 路由带客户时预拉该客户配送点（点单口径）
-    if (this.customerId) {
-      this.loadDepts();
-    }
   },
   methods: {
-    /** 客户切换：刷新该客户下属配送点（点单口径只显示本客户） */
+    /** 客户切换：清空点单 tab（等查询后按当天实际数据重建） */
     onCustomerChange(customerId) {
       this.deptId = null;
+      this.pointGroups = [];
+      this.pointTab = "";
       this.pointRows = [];
-      if (customerId) {
-        this.loadDepts();
-      } else {
-        this.depts = [];
-      }
-    },
-    /** 拉选中客户的下属配送点（排除父级单位 parent_id=0） */
-    loadDepts() {
-      listCustomerDept({ customerId: this.customerId }).then((response) => {
-        this.depts = (response.data || []).filter((d) => d.parentId && d.parentId !== 0);
-      });
     },
     loadView() {
       if (!this.customerId || !this.deliveryDate) {
@@ -374,15 +371,30 @@ export default {
     },
     /** D-055 点单口径：按 客户+日期+点 拉订单明细行（含标记） */
     loadPointView() {
-      if (!this.deptId) {
-        this.pointRows = [];
-        this.pointPrinted = false;
-        return Promise.resolve();
-      }
-      this.loadPrintState();
-      return pointViewDelivery(this.customerId, this.deptId, this.deliveryDate).then((response) => {
-        this.pointRows = response.data || [];
+      this.pointGroups = [];
+      this.pointTab = "";
+      this.deptId = null;
+      this.pointRows = [];
+      this.pointPrinted = false;
+      return pointViewAllDelivery(this.customerId, this.deliveryDate).then((response) => {
+        this.pointGroups = response.data || [];
+        if (this.pointGroups.length) {
+          // 默认选中第一个有单的配送点
+          this.onPointTabChange(String(this.pointGroups[0].deptId));
+        }
       });
+    },
+    /** tab 切换：同步当前配送点并加载该点打印分界状态 */
+    onPointTabChange(name) {
+      const group = this.pointGroups.find((g) => String(g.deptId) === String(name));
+      if (!group) {
+        this.deptId = null;
+        this.pointRows = [];
+        return;
+      }
+      this.deptId = group.deptId;
+      this.pointRows = group.rows || [];
+      this.loadPrintState();
     },
     /** 点单打印（FLAT 通用模板，D-055：按 客户+日期+点 实时取数） */
     handlePointPrint() {
@@ -572,6 +584,22 @@ export default {
 }
 :deep(.col-empty) {
   background-color: #fafafa;
+}
+
+/* 点单口径：分点 tab（D-055 收尾，按当天实际有单的配送点） */
+:deep(.point-tabs) {
+  .el-tabs__header {
+    margin-bottom: 10px;
+  }
+  .point-tab-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+
+    .el-tag {
+      font-weight: normal;
+    }
+  }
 }
 
 /* 打印态：只保留总表正文 */

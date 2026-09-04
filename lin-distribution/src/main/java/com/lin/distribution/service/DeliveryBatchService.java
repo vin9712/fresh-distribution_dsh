@@ -5,6 +5,7 @@ import java.util.List;
 import com.lin.distribution.domain.SaleOrderDetail;
 import com.lin.distribution.vo.DeliveryBatchViewVO;
 import com.lin.distribution.vo.DeliveryMatrixVO;
+import com.lin.distribution.vo.DeliveryPointViewVO;
 
 /**
  * 配送批次查询服务（S14 §6.1 / §八，D-027/D-028；矩阵总表 D-044~D-053）
@@ -33,6 +34,19 @@ public interface DeliveryBatchService {
      * @return 订单明细行（sort 升序）
      */
     List<SaleOrderDetail> selectPointView(Long customerId, Long customerDeptId, String deliveryDate);
+
+    /**
+     * 点单全点视图（D-055 收尾）：按 客户+日期 返回当天实际有单的配送点分组，
+     * 客户日总表页点单口径据分 tab 展示（不再需要配送点选择器）。
+     *
+     * <p>分组由订单明细实际归属点聚合（"按当天实际情况"），当天没有单的点不出 tab；
+     * 同口径（status&gt;=1）与按点视图、矩阵、配货一致，仅排除草稿单与已删单。</p>
+     *
+     * @param customerId   客户ID
+     * @param deliveryDate 配送日期（yyyy-MM-dd）
+     * @return 分点分组（cd.code/cd.id 顺序，与矩阵列序一致；组内行按 sort 升序）
+     */
+    List<DeliveryPointViewVO> selectPointViewAll(Long customerId, String deliveryDate);
 
     /**
      * 矩阵总表（D-044/D-047/D-051 + D-055 视图化）：行=菜品（订单明细五元组合并行）、

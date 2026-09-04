@@ -58,6 +58,17 @@ public interface SaleOrderDetailMapper {
                                                                 @Param("deliveryDate") LocalDate deliveryDate);
 
     /**
+     * 点单全点视图数据源（D-055 收尾）：与按点视图同口径（status&gt;=1）但不按点过滤，
+     * 行附带配送点名称（coalesce 明细行点/订单点），供服务层按点分组出 tab。
+     *
+     * @param customerId   客户ID
+     * @param deliveryDate 配送日期
+     * @return 订单明细行（cd.code, cd.id, d.sort 升序）
+     */
+    List<SaleOrderDetail> selectValidByCustomerDateForView(@Param("customerId") Long customerId,
+                                                           @Param("deliveryDate") LocalDate deliveryDate);
+
+    /**
      * 新增销售订单详情
      *
      * @param saleOrderDetail 销售订单详情

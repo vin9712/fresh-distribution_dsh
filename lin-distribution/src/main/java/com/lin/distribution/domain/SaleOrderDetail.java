@@ -175,6 +175,12 @@ public class SaleOrderDetail extends BaseEntity {
     private String categoryName;
 
     /**
+     * 查询字段：配送点名称（D-055 收尾：点单全点视图按点分组，tab 标签用）
+     */
+    @TableField(exist = false)
+    private String customerDeptName;
+
+    /**
      * 查询字段：常用商品统计-最近下单时间（frequent 接口）
      */
     @TableField(exist = false)
