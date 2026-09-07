@@ -247,7 +247,9 @@ public class PrintController extends BaseController {
      * @param deliveryOrderId 送货单ID（历史单证打印）
      * @param customerId      客户ID（D-055 视图化打印）
      * @param deliveryDate    配送日期 yyyy-MM-dd（D-055 视图化打印）
-     * @param colBlock        列块序号（1 起，缺省 1）
+     * @param colBlock        列块序号（1 起，缺省 1；仅 rowsType=wide 有意义）
+     * @param rowsType        行形态：wide=槽位宽表（默认，c1~cN，套打）；long=全交叉长表（菜品×配送点，
+     *                        一格一行，横向动态列模板用；deptSeq 全列输出保证首条数据完整）
      * @param ticket          打印票据（报表视图 URL 透传）
      * @return {head:{...}, columns:[...], rows:[...]}
      */
@@ -257,6 +259,7 @@ public class PrintController extends BaseController {
                                                   @RequestParam(value = "customerId", required = false) String customerIdParam,
                                                   @RequestParam(value = "deliveryDate", required = false) String deliveryDateParam,
                                                   @RequestParam(value = "colBlock", required = false, defaultValue = "1") Integer colBlock,
+                                                  @RequestParam(value = "rowsType", required = false, defaultValue = "wide") String rowsTypeParam,
                                                   @RequestParam(value = "ticket", required = false) String ticket) {
         Long deliveryOrderId = toIdOrNull(deliveryOrderIdParam);
         Long customerId = toIdOrNull(customerIdParam);
@@ -299,26 +302,49 @@ public class PrintController extends BaseController {
         int slots = matrix.getColsPerPage() == null || matrix.getColsPerPage() <= 0
                 ? Math.max(blockColumns.size(), 1) : matrix.getColsPerPage();
 
-        // 列头（未用槽位补空列，套打列位固定）
+        // 列头（未用槽位补空列，套打列位固定；long 模式不补空槽、只输出实际配送点）
+        boolean longRows = "long".equalsIgnoreCase(rowsTypeParam);
         List<Map<String, Object>> columnMetas = new ArrayList<>();
-        for (int i = 0; i < slots; i++) {
-            Map<String, Object> meta = new LinkedHashMap<>();
-            DeliveryMatrixVO.ColumnVO column = i < blockColumns.size() ? blockColumns.get(i) : null;
-            meta.put("seq", i + 1);
-            meta.put("deptName", column == null ? "" : StringUtils.defaultString(column.getName()));
-            meta.put("adHoc", column != null && Boolean.TRUE.equals(column.getAdHoc()));
-            meta.put("empty", column == null);
-            columnMetas.add(meta);
+        if (longRows) {
+            int deptSeq = 1;
+            for (DeliveryMatrixVO.ColumnVO column : blockColumns) {
+                Map<String, Object> meta = new LinkedHashMap<>();
+                meta.put("deptSeq", deptSeq);
+                meta.put("seq", meta.get("deptSeq"));
+                meta.put("deptId", column.getDeptId());
+                meta.put("deptCode", StringUtils.defaultString(column.getCode()));
+                meta.put("deptName", StringUtils.defaultString(column.getName()));
+                // 列头显示名：带零填充序号（01·点心）。横向动态列的组序由引擎决定不受控，
+                // 序号前缀保证纸面列序可读可对位（引擎按字符串序/首现序均稳定）
+                meta.put("deptLabel", String.format("%02d·%s", deptSeq, StringUtils.defaultString(column.getName())));
+                meta.put("adHoc", column != null && Boolean.TRUE.equals(column.getAdHoc()));
+                meta.put("hasData", column != null && Boolean.TRUE.equals(column.getHasData()));
+                meta.put("empty", Boolean.FALSE);
+                columnMetas.add(meta);
+                deptSeq++;
+            }
+        } else {
+            for (int i = 0; i < slots; i++) {
+                Map<String, Object> meta = new LinkedHashMap<>();
+                DeliveryMatrixVO.ColumnVO column = i < blockColumns.size() ? blockColumns.get(i) : null;
+                meta.put("seq", i + 1);
+                meta.put("deptName", column == null ? "" : StringUtils.defaultString(column.getName()));
+                meta.put("adHoc", column != null && Boolean.TRUE.equals(column.getAdHoc()));
+                meta.put("empty", column == null);
+                columnMetas.add(meta);
+            }
         }
         resp.put("columns", columnMetas);
 
         // 行：历史送货单主体只打本单行；D-055 视图化主体打该客户该日全部行
         List<Map<String, Object>> rowMetas = new ArrayList<>();
         int seq = 1;
+        int dishCount = 0;
         for (DeliveryMatrixVO.RowVO row : matrix.getRows()) {
             if (deliveryOrderId != null && !deliveryOrderId.equals(row.getDeliveryId())) {
                 continue;
             }
+            dishCount++;
             Map<String, Object> line = new LinkedHashMap<>();
             line.put("seq", seq++);
             // 打印品名客户叫法优先（DESIGN 不变量 8），品名本身保持干净；档位标注进备注列（D-046/D-053 修订）
@@ -328,6 +354,36 @@ public class PrintController extends BaseController {
             line.put("productUnit", row.getUnit());
             // 备注列：承载档位标注（同名多行不同价时），单档为空保持干净
             line.put("remark", row.getRemark() == null ? "" : row.getRemark());
+            if (longRows) {
+                // 全交叉：每个配送点一格一行（num=null=当日无此菜，渲染空白）；列序 deptSeq 稳定，
+                // 保证横向动态列“第一条数据包含全部分组值”规则（通用模板设计文档 §4.4）。
+                // 交叉报表要求横向分组格与数据格同一数据集：行键 rowKey = 显示品名(+档位标注)，
+                // 同菜品多档（品名+规格+单价不同）拆行由 rowKey 区分。
+                String rowKey = line.get("productName")
+                        + (StringUtils.isBlank((String) line.get("remark")) ? "" : "·" + line.get("remark"));
+                int deptSeq = 1;
+                for (DeliveryMatrixVO.ColumnVO column : blockColumns) {
+                    Map<String, Object> cell = new LinkedHashMap<>();
+                    cell.put("seq", line.get("seq"));
+                    cell.put("rowKey", rowKey);
+                    cell.put("productName", line.get("productName"));
+                    cell.put("productSpec", line.get("productSpec"));
+                    cell.put("productUnit", line.get("productUnit"));
+                    cell.put("remark", line.get("remark"));
+                    cell.put("deptSeq", deptSeq);
+                    cell.put("deptId", column.getDeptId());
+                    cell.put("deptName", StringUtils.defaultString(column.getName()));
+                    // 列头显示名带零填充序号（01·点心）：横向动态列组序由引擎决定，序号前缀保证纸面列序稳定可读
+                    cell.put("deptLabel", String.format("%02d·%s", deptSeq, StringUtils.defaultString(column.getName())));
+                    cell.put("deptCode", StringUtils.defaultString(column.getCode()));
+                    BigDecimal qty = row.getCells().get(column.getDeptId());
+                    cell.put("num", qty);                          // null=空格
+                    cell.put("rowTotal", row.getTotalQuantity());
+                    rowMetas.add(cell);
+                    deptSeq++;
+                }
+                continue;
+            }
             for (int i = 0; i < slots; i++) {
                 DeliveryMatrixVO.ColumnVO column = i < blockColumns.size() ? blockColumns.get(i) : null;
                 BigDecimal qty = column == null ? null : row.getCells().get(column.getDeptId());
@@ -355,6 +411,12 @@ public class PrintController extends BaseController {
             head.put("c" + (i + 1) + "Name", column == null ? "" : StringUtils.defaultString(column.getName()));
         }
         head.put("totalQuantity", matrix.getTotalQuantity());
+        // 通用契约新增字段（只增不改名，老模板不失效）：打印主体键/批次/品项数/点数/打印时间
+        head.put("bizKey", order == null ? matrixBizKey(subjectCustomerId, subjectDate) : "delivery:" + deliveryOrderId);
+        head.put("batchId", matrix.getBatchId());
+        head.put("totalKinds", dishCount);
+        head.put("pointCount", blockColumns.size());
+        head.put("printTime", java.time.LocalDateTime.now().format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")));
         head.put("layoutVersion", matrix.getLayoutVersion());
         List<String> warnings = new ArrayList<>();
         if (Boolean.TRUE.equals(matrix.getLayoutDerived())) {

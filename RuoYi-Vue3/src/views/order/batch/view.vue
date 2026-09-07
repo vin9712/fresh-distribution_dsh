@@ -14,6 +14,7 @@
           value-format="YYYY-MM-DD"
           placeholder="请选择配送日期"
           clearable
+          @change="loadView"
         />
       </el-form-item>
       <el-form-item label="口径">
@@ -25,7 +26,7 @@
       </el-form-item>
       <el-form-item>
         <el-button type="primary" :icon="Search" :disabled="!customerId || !deliveryDate" @click="loadView"
-          >查询</el-button
+          >刷新</el-button
         >
         <el-button :icon="Printer" :disabled="!hasData" @click="handlePrint">{{
           mode === "pick" ? "打印本页" : "打印总单"
@@ -332,16 +333,23 @@ export default {
     });
   },
   methods: {
-    /** 客户切换：清空点单 tab（等查询后按当天实际数据重建） */
+    /** 客户切换：清空点单 tab，两个条件齐了自动加载 */
     onCustomerChange(customerId) {
       this.deptId = null;
       this.pointGroups = [];
       this.pointTab = "";
       this.pointRows = [];
+      this.loadView();
     },
     loadView() {
       if (!this.customerId || !this.deliveryDate) {
-        this.$modal.msgWarning("请选择客户与配送日期");
+        // 自动触发下条件不全属正常过程：静默清空旧数据，展示空态引导
+        this.matrix = { columns: [], rows: [], mismatches: [] };
+        this.pickRows = [];
+        this.pointGroups = [];
+        this.pointTab = "";
+        this.pointRows = [];
+        this.deptId = null;
         return;
       }
       this.loading = true;
@@ -384,7 +392,7 @@ export default {
         }
       });
     },
-    /** tab 切换：同步当前配送点并加载该点打印分界状态 */
+    /** tab 切换：同步当前配送点并加载该点打印分界状态（含程序化选中首个 tab） */
     onPointTabChange(name) {
       const group = this.pointGroups.find((g) => String(g.deptId) === String(name));
       if (!group) {
@@ -392,6 +400,7 @@ export default {
         this.pointRows = [];
         return;
       }
+      this.pointTab = String(group.deptId);
       this.deptId = group.deptId;
       this.pointRows = group.rows || [];
       this.loadPrintState();
