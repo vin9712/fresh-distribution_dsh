@@ -1,5 +1,13 @@
 <template>
   <div class="app-container">
+    <!-- OA：验收主入口已迁移至订单页（订单明细页验收模式），本页降级为台账（查询/查看/撤销/历史单补录） -->
+    <el-alert
+      type="info"
+      :closable="false"
+      show-icon
+      title="验收主入口：订单列表「去验收」（订单明细页内验收）；本页仅作验收单台账查询、撤销与历史单补录"
+      style="margin-bottom: 10px"
+    />
     <el-form
       :model="queryParams"
       ref="queryForm"
@@ -29,9 +37,6 @@
       <el-form-item>
         <el-button type="primary" :icon="Search" size="small" @click="handleQuery">搜索</el-button>
         <el-button :icon="Refresh" size="small" @click="resetQuery">重置</el-button>
-        <el-button type="success" plain :icon="Plus" size="small" @click="handleAdd" v-hasPermi="['acceptance:add']"
-          >生成验收单（客户日）</el-button
-        >
       </el-form-item>
     </el-form>
 
@@ -134,38 +139,13 @@
       @pagination="getPageList"
     />
 
-    <!-- 生成验收单（AC-1 客户日维度，新流程唯一入口） -->
-    <el-dialog align-center :title="addTitle" v-model="addOpen" width="560px" append-to-body>
-      <el-form label-width="90px">
-        <el-form-item label="客户">
-          <el-select v-model="addForm.customerId" placeholder="请选择客户" filterable style="width: 100%">
-            <el-option v-for="c in customerOptions" :key="c.id" :label="c.name" :value="c.id" />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="配送日期">
-          <el-date-picker
-            v-model="addForm.deliveryDate"
-            type="date"
-            value-format="YYYY-MM-DD"
-            placeholder="请选择配送日期"
-            style="width: 100%"
-          />
-        </el-form-item>
-        <div class="hint">一客户日一验：应送行 = 该客户当日全部订单明细（跨配送点平铺，含加单/换货/退货标记）。</div>
-      </el-form>
-      <template #footer>
-        <div class="dialog-footer">
-          <el-button type="primary" @click="submitAddForm">确 定</el-button>
-          <el-button @click="addOpen = false">取 消</el-button>
-        </div>
-      </template>
-    </el-dialog>
+    <!-- 生成验收单（AC-1 客户日维度）弹窗已随 OA 下线（Q2 确认：验收逐单进行，主入口=订单页「去验收」） -->
 
     <!-- 历史单补建（送货单维度，@Deprecated 接口，仅历史日期维护用） -->
     <el-dialog align-center title="历史单补建验收（送货单维度）" v-model="legacyOpen" width="560px" append-to-body>
       <el-form label-width="90px">
         <el-form-item label="送货单">
-          <el-select v-model="addForm.deliveryOrderId" placeholder="请选择已送达的历史送货单" filterable style="width: 100%">
+          <el-select v-model="legacyForm.deliveryOrderId" placeholder="请选择已送达的历史送货单" filterable style="width: 100%">
             <el-option
               v-for="d in deliveryOptions"
               :key="d.id"
@@ -392,13 +372,11 @@ import {
   listAcceptanceItems,
   getAcceptance,
   createAcceptance,
-  createAcceptanceByCustomerDate,
   updateAcceptance,
   submitAcceptance,
   revokeAcceptance,
   delAcceptance,
 } from "@/api/acceptance/acceptance";
-import { listCustomer } from "@/api/partner/customer";
 import { listDelivery } from "@/api/order/delivery";
 import { Search, Refresh, Plus, Delete, Edit, Check, View, Iphone, ArrowLeft, RefreshLeft, Aim } from "@element-plus/icons-vue";
 
@@ -417,13 +395,10 @@ export default {
       // 选中数组
       ids: [],
       multiple: true,
-      // 新增对话框（AC-1：客户日维度）
-      addOpen: false,
-      addTitle: "生成验收单（客户日）",
-      addForm: { customerId: null, deliveryDate: null },
-      customerOptions: [],
+      // 新增对话框（AC-1 客户日维度）已随 OA 下线；保留历史单补建
       // 历史单补建对话框（送货单维度，仅历史单使用）
       legacyOpen: false,
+      legacyForm: { deliveryOrderId: null },
       deliveryOptions: [],
       // 撤销验收弹窗（S14/D-014）
       revokeOpen: false,
@@ -478,12 +453,10 @@ export default {
   },
   created() {
     this.getPageList();
-    listCustomer().then((response) => {
-      this.customerOptions = response.data || [];
-    });
-    // 跳转承接：① 订单页「去验收」（AC-5：customerId+deliveryDate+create 一键建草稿 / acceptanceId 直开）；
-    // ② 历史单（status=2）：deliveryId 引导建草稿；③ highlightOrder/highlightCode 高亮定位
-    const { acceptanceId, deliveryId, customerId, deliveryDate, create, highlightOrder, highlightCode } = this.$route.query;
+    // 跳转承接：① 订单页「去验收」历史回退（deliveryId 引导建草稿 / acceptanceId 直开）；
+    // ② highlightOrder/highlightCode 高亮定位。
+    // （OA 后：customerId+deliveryDate+create 的新流程跳转已不再指向本页，主入口=订单页验收模式）
+    const { acceptanceId, deliveryId, create, highlightOrder, highlightCode } = this.$route.query;
     if (highlightOrder) {
       this.highlightOrder = Number(highlightOrder);
     }
@@ -492,15 +465,8 @@ export default {
     }
     if (acceptanceId) {
       this.openById(Number(acceptanceId), highlightOrder ? "去验收" : undefined);
-    } else if (create && customerId && deliveryDate) {
-      this.createForCustomerDate(Number(customerId), String(deliveryDate), true);
     } else if (create && deliveryId) {
       this.createForDelivery(Number(deliveryId), true);
-    } else if (customerId && deliveryDate) {
-      // 该客户日已有验收单：定位到最近一张（后端守卫重复建单，这里直接查列表）
-      this.queryParams.customerId = Number(customerId);
-      this.queryParams.deliveryDate = String(deliveryDate);
-      this.getPageList();
     }
   },
   methods: {
@@ -547,36 +513,9 @@ export default {
           if (!silent) this.getPageList();
         });
     },
-    /** 生成验收单（AC-1 客户日维度）：选客户+日期 → create-by-customer-date → 直开录入 */
-    handleAdd() {
-      this.addForm = { customerId: null, deliveryDate: null };
-      this.addOpen = true;
-    },
-    submitAddForm() {
-      if (!this.addForm.customerId || !this.addForm.deliveryDate) {
-        this.$modal.msgWarning("请选择客户与配送日期");
-        return;
-      }
-      this.createForCustomerDate(this.addForm.customerId, this.addForm.deliveryDate).then(() => {
-        this.addOpen = false;
-        this.getPageList();
-      });
-    },
-    /** 为 客户+配送日期 创建验收草稿并直接进入录入（无验收单引导创建；重复建单由后端拦截并提示单号） */
-    createForCustomerDate(customerId, deliveryDate, silent) {
-      return createAcceptanceByCustomerDate({ customerId: customerId, deliveryDate: deliveryDate })
-        .then((response) => {
-          const acc = response.data || {};
-          this.$modal.msgSuccess("验收单【" + (acc.code || "") + "】已生成，请录入实收数量");
-          this.handleEdit(acc, "客户日");
-        })
-        .catch(() => {
-          if (!silent) this.getPageList();
-        });
-    },
     /** 历史单补建（送货单维度，@Deprecated 接口，仅历史日期维护用） */
     handleAddLegacy() {
-      this.addForm = { customerId: null, deliveryDate: null };
+      this.legacyForm = { deliveryOrderId: null };
       listDelivery({ status: 2 }).then((response) => {
         this.deliveryOptions = response.data || [];
         if (this.deliveryOptions.length === 0) {
@@ -587,11 +526,11 @@ export default {
       });
     },
     submitLegacyForm() {
-      if (!this.addForm.deliveryOrderId) {
+      if (!this.legacyForm.deliveryOrderId) {
         this.$modal.msgWarning("请选择送货单");
         return;
       }
-      this.createForDelivery(this.addForm.deliveryOrderId).then(() => {
+      this.createForDelivery(this.legacyForm.deliveryOrderId).then(() => {
         this.legacyOpen = false;
         this.getPageList();
       });
@@ -740,18 +679,8 @@ export default {
       this.scanCode = "";
       this.$nextTick(() => this.focusScanInput());
     },
-    /** 保存录入（差异≠0 必填原因前端预检，后端双向校验兜底） */
+    /** 保存录入（差异原因选填，OA 定稿 2026-09-09；后端重算金额与类型） */
     submitEditForm() {
-      const missing = this.detailList.filter(
-        (row) => this.diffOf(row) !== 0 && !String(row.lossReason || "").trim()
-      );
-      if (missing.length) {
-        const name = missing[0].productName + (missing[0].customerDeptName ? "（" + missing[0].customerDeptName + "）" : "");
-        this.$modal.msgError(
-          (this.diffOf(missing[0]) < 0 ? "短收差异必须填写原因：" : "超收差异必须填写原因：") + name
-        );
-        return;
-      }
       const items = this.detailList.map((row) => ({
         id: row.id,
         actualQuantity: row.actualQuantity,

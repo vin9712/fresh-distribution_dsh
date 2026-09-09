@@ -70,6 +70,17 @@ public interface SaleOrderDetailMapper {
                                                            @Param("deliveryDate") LocalDate deliveryDate);
 
     /**
+     * 订单维度验收应送行数据源（OA，《订单页一键验收链路设计》）：
+     * 查单张订单的全部有效明细行（o.status&gt;=1 且未删除，含加单/换货/退货标记），
+     * 口径与 {@link #selectValidByCustomerDateForView} 完全一致，仅把过滤条件从
+     * 「客户+配送日期」换为「订单ID」。用于一订单一验的建单/补行。
+     *
+     * @param orderId 销售订单ID
+     * @return 订单明细行（d.sort, d.id 升序）
+     */
+    List<SaleOrderDetail> selectValidByOrderIdForView(@Param("orderId") Long orderId);
+
+    /**
      * 当日打印清单数据源（PT-2，《客户日报表打印优化设计》§3.2）：
      * 按 配送日期 返回 客户×配送点×应送量 扁平行（口径与点单一致：o.status&gt;=1 且未删除），
      * 客户名 alias 优先；分组/printed 判定由服务层完成。

@@ -5,6 +5,7 @@ import java.util.List;
 
 import com.lin.distribution.domain.Acceptance;
 import com.lin.distribution.domain.AcceptanceItem;
+import com.lin.distribution.dto.AcceptanceQuickAcceptDTO;
 import com.lin.distribution.dto.AcceptanceUpdateDTO;
 import com.lin.distribution.vo.AcceptanceByOrderVO;
 
@@ -39,19 +40,52 @@ public interface AcceptanceService {
     List<AcceptanceItem> selectItemListByAcceptanceId(Long acceptanceId);
 
     /**
-     * 「去验收」定位（S14 §6.1/§八 + AC-5 订单视角优先）。
+     * 「去验收」定位（S14 §6.1/§八 + AC-5 + OA 订单维度优先）。
      *
-     * <p>订单视角（新流程，status=1 主场景）：按订单行取 客户+配送日期，
-     * 查该客户日是否已有新口径验收单 → 返回 customerId/deliveryDate + 命中的验收单信息，
-     * 无单时前端带 create 参数引导一键建草稿；</p>
-     * <p>历史回退（status=2 已配送的历史单）：原样保留送货单反查链路——
+     * <p>① OA 订单维度优先（《订单页一键验收链路设计》）：sale_order_id 反查订单维度验收单，
+     * 命中返回 orderView=true + 验收单信息；</p>
+     * <p>② 客户日维度过渡兼容（AC-5）：订单行取 客户+配送日期，查该客户日是否已有客户日验收单，
+     * 命中同标 orderView=true（旧维度单只读打开，新单据不再创建）；</p>
+     * <p>③ 新流程订单（status=1 已确认）无单可验：返回 orderView=true + customerId/deliveryDate，
+     * 前端引导一键建草稿；</p>
+     * <p>④ 历史回退（status=2 已配送的历史单）：原样保留送货单反查链路——
      * source_item 有效分配台账 → 历史单送货明细行 order_id → 排除作废 →
      * 补充单场景优先取已建验收单的最新一张。</p>
      *
      * @param orderId 来源销售订单ID
-     * @return 定位结果（仅回显 orderId = 既无客户日验收单也未进历史送货单）
+     * @return 定位结果（仅回显 orderId = 无任何可验收单）
      */
     AcceptanceByOrderVO locateBySaleOrder(Long orderId);
+
+    /**
+     * OA：按订单生成（或同步）验收草稿——《订单页一键验收链路设计》§4.3：
+     * 一订单一验：无单则建草稿（应送行=该订单全部有效明细，含 D-055 标记行）；
+     * 已有草稿则同步缺失行（验收中途做了加单/换货/退货），幂等返回草稿；
+     * 已提交则拒绝（提示先撤销）。
+     *
+     * @param orderId 来源销售订单ID
+     * @return 验收草稿
+     */
+    Acceptance createByOrder(Long orderId);
+
+    /**
+     * OA：订单一键验收——《订单页一键验收链路设计》§4.5：
+     * 建单（如无）→ 同步缺失行 → 应用实收覆盖（可选，缺省=全部实收等于下单数量）→
+     * 重算金额 → 提交（订单 → 已验收，回写 actual_* 镜像），事务内原子完成。
+     *
+     * @param dto 一键验收请求（orderId 必填）
+     * @return 验收单（已提交）
+     */
+    Acceptance quickAccept(AcceptanceQuickAcceptDTO dto);
+
+    /**
+     * OA：同步订单维度验收草稿的缺失行（验收中途做了加单/换货/退货后调用）：
+     * 只补插订单新增的明细行、重置被标退货的行（应送实收归0），不删旧行、不覆盖已录实收。
+     *
+     * @param acceptanceId 验收单ID（须为订单维度草稿）
+     * @return 同步后的验收单（重算 totalAmount）
+     */
+    Acceptance syncMissingItems(Long acceptanceId);
 
     /**
      * 按送货单生成验收单草稿（一单一验，明细由送货单明细复制）

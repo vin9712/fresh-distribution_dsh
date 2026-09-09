@@ -29,6 +29,13 @@ public class Acceptance extends BaseEntity {
     @Excel(name = "送货单ID")
     private Long deliveryOrderId;
 
+    /** 订单维度验收（OA，《订单页一键验收链路设计》）：来源销售订单ID，一订单一验；
+     *  历史/客户日维度验收单此列为 NULL（唯一键仅约束非 NULL） */
+    private Long saleOrderId;
+
+    /** 来源订单号（订单维度验收列表/详情展示用，查询时关联填充，非表字段） */
+    private String saleOrderCode;
+
     /** D-055：验收维度=客户+日期+配送点 */
     @JsonFormat(pattern = "yyyy-MM-dd")
     @Excel(name = "配送日期", width = 30, dateFormat = "yyyy-MM-dd")

@@ -40,22 +40,22 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
     <select id="selectAcceptanceItemList" parameterType="com.lin.distribution.domain.AcceptanceItem" resultMap="AcceptanceItemResult">
         <include refid="selectAcceptanceItemVo"/>
         <where>
-            <if test="acceptanceId != null "> and acceptance_id = #{acceptanceId}</if>
-            <if test="skuId != null "> and sku_id = #{skuId}</if>
-            <if test="productName != null  and productName != ''"> and product_name like concat('%', #{productName}, '%')</if>
+            <if test="acceptanceId != null "> and ai.acceptance_id = #{acceptanceId}</if>
+            <if test="skuId != null "> and ai.sku_id = #{skuId}</if>
+            <if test="productName != null  and productName != ''"> and ai.product_name like concat('%', #{productName}, '%')</if>
         </where>
         order by sort
     </select>
 
     <select id="selectListByAcceptanceId" parameterType="Long" resultMap="AcceptanceItemResult">
         <include refid="selectAcceptanceItemVo"/>
-        where acceptance_id = #{acceptanceId}
-        order by sort
+        where ai.acceptance_id = #{acceptanceId}
+        order by ai.sort
     </select>
 
     <select id="selectAcceptanceItemById" parameterType="Long" resultMap="AcceptanceItemResult">
         <include refid="selectAcceptanceItemVo"/>
-        where id = #{id}
+        where ai.id = #{id}
     </select>
 
     <insert id="insertAcceptanceItem" parameterType="com.lin.distribution.domain.AcceptanceItem" useGeneratedKeys="true" keyProperty="id">

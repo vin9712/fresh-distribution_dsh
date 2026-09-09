@@ -14,6 +14,7 @@ import com.lin.distribution.domain.DeliverySourceItem;
 import com.lin.distribution.domain.ReturnItem;
 import com.lin.distribution.domain.SaleOrder;
 import com.lin.distribution.domain.SaleOrderDetail;
+import com.lin.distribution.dto.AcceptanceQuickAcceptDTO;
 import com.lin.distribution.dto.AcceptanceUpdateDTO;
 import com.lin.distribution.mapper.AcceptanceItemMapper;
 import com.lin.distribution.mapper.AcceptanceMapper;
@@ -339,17 +340,19 @@ class AcceptanceServiceImplTest {
     }
 
     @Test
-    void 全部拒收实收为零必须填写原因() {
+    void 全部拒收不填原因允许且记短收类型() {
         when(acceptanceMapper.selectAcceptanceById(1L)).thenReturn(draftAcceptance());
         AcceptanceItem dbItem = item(900L, 1L, "5.00", "2.00");
         when(acceptanceItemMapper.selectAcceptanceItemById(900L)).thenReturn(dbItem);
 
-        // 实收=0（全部拒收），未填原因 → 拒绝（蓝图 W0-2.6）
-        ServiceException ex = assertThrows(ServiceException.class,
-                () -> acceptanceService.updateDraft(singleItemDto("0.00", null)));
-        assertTrue(ex.getMessage().contains("全部拒收必须填写原因"));
-        assertTrue(ex.getMessage().contains("白菜"));
-        verify(acceptanceItemMapper, never()).updateAcceptanceItem(any(AcceptanceItem.class));
+        // OA 定稿：原因选填，全部拒收也允许不填，类型仍自动记录
+        Acceptance result = acceptanceService.updateDraft(singleItemDto("0.00", null));
+
+        assertEquals(0, BigDecimal.ZERO.compareTo(result.getTotalAmount()));
+        ArgumentCaptor<AcceptanceItem> captor = ArgumentCaptor.forClass(AcceptanceItem.class);
+        verify(acceptanceItemMapper).updateAcceptanceItem(captor.capture());
+        assertEquals(1, captor.getValue().getReasonType());
+        assertNull(captor.getValue().getLossReason());
     }
 
     @Test
@@ -371,15 +374,19 @@ class AcceptanceServiceImplTest {
     }
 
     @Test
-    void 超收差异未填原因拒绝() {
+    void 超收未填原因允许且记超收类型() {
         when(acceptanceMapper.selectAcceptanceById(1L)).thenReturn(draftAcceptance());
         AcceptanceItem dbItem = item(900L, 1L, "5.00", "2.00");
         when(acceptanceItemMapper.selectAcceptanceItemById(900L)).thenReturn(dbItem);
 
-        ServiceException ex = assertThrows(ServiceException.class,
-                () -> acceptanceService.updateDraft(singleItemDto("6.00", "  ")));
-        assertTrue(ex.getMessage().contains("超收差异必须填写原因"));
-        verify(acceptanceItemMapper, never()).updateAcceptanceItem(any(AcceptanceItem.class));
+        // OA 定稿：原因选填，超收不填也允许保存，类型仍自动记录
+        Acceptance result = acceptanceService.updateDraft(singleItemDto("6.00", "  "));
+
+        assertEquals(0, new BigDecimal("12.00").compareTo(result.getTotalAmount()));
+        ArgumentCaptor<AcceptanceItem> captor = ArgumentCaptor.forClass(AcceptanceItem.class);
+        verify(acceptanceItemMapper).updateAcceptanceItem(captor.capture());
+        assertEquals(2, captor.getValue().getReasonType());
+        assertNull(captor.getValue().getLossReason());
     }
 
     @Test
@@ -1021,5 +1028,325 @@ class AcceptanceServiceImplTest {
 
         assertEquals(Long.valueOf(500L), vo.getDeliveryId(), "无客户日验收单但有历史送货单 → 回退送货单视角");
         assertEquals(Boolean.FALSE, vo.getHasAcceptance());
+    }
+
+    // ==================== OA：订单维度验收（《订单页一键验收链路设计》） ====================
+
+    private SaleOrder confirmedOrder() {
+        SaleOrder order = new SaleOrder();
+        order.setId(1000L);
+        order.setCode("XS20260901001");
+        order.setCustomerId(10L);
+        order.setCustomerDeptId(2L);
+        order.setDeliveryDate(LocalDate.of(2026, 9, 1));
+        order.setStatus(SaleOrderStatus.CONFIRMED.getCode());
+        return order;
+    }
+
+    private SaleOrderDetail orderDetail(Long id, String num, String price, int changeType) {
+        SaleOrderDetail d = new SaleOrderDetail();
+        d.setId(id);
+        d.setOrderId(1000L);
+        d.setCustomerDeptId(2L);
+        d.setSkuId(88L);
+        d.setProductName("白菜");
+        d.setProductSpec("");
+        d.setProductUnit("斤");
+        d.setNum(new BigDecimal(num));
+        d.setProductPrice(new BigDecimal(price));
+        d.setChangeType(changeType);
+        return d;
+    }
+
+    private Acceptance orderAcceptance(Long id, Integer status) {
+        Acceptance acc = new Acceptance();
+        acc.setId(id);
+        acc.setCode("YS20260901001");
+        acc.setSaleOrderId(1000L);
+        acc.setCustomerId(10L);
+        acc.setDeliveryDate(LocalDate.of(2026, 9, 1));
+        acc.setAcceptDate(LocalDate.of(2026, 9, 1));
+        acc.setStatus(status);
+        return acc;
+    }
+
+    @Test
+    void 订单验收_建单应送行来自单张订单明细且标记行规则一致() {
+        when(saleOrderMapper.selectSaleOrderById(1000L)).thenReturn(confirmedOrder());
+        when(acceptanceMapper.selectBySaleOrder(1000L)).thenReturn(null);
+        SaleOrderDetail normal = orderDetail(1001L, "5", "2.00", 0);
+        SaleOrderDetail supplement = orderDetail(1002L, "3", "2.00", 1);
+        supplement.setActualNum(new BigDecimal("3"));
+        SaleOrderDetail returned = orderDetail(1003L, "4", "3.50", 3);
+        when(saleOrderDetailMapper.selectValidByOrderIdForView(1000L))
+                .thenReturn(new ArrayList<>(List.of(normal, supplement, returned)));
+        when(bizCodeService.nextDailyCode(eq("acceptance"), anyString(), eq(3))).thenReturn("YS20260901001");
+
+        Acceptance acceptance = acceptanceService.createByOrder(1000L);
+
+        assertEquals("YS20260901001", acceptance.getCode());
+        assertEquals(Long.valueOf(1000L), acceptance.getSaleOrderId(), "表头挂订单维度");
+        assertEquals(Long.valueOf(10L), acceptance.getCustomerId());
+        assertEquals(LocalDate.of(2026, 9, 1), acceptance.getAcceptDate(), "缺省验收日期=配送日期");
+
+        ArgumentCaptor<Acceptance> accCaptor = ArgumentCaptor.forClass(Acceptance.class);
+        verify(acceptanceMapper).insertAcceptance(accCaptor.capture());
+        assertEquals(Long.valueOf(1000L), accCaptor.getValue().getSaleOrderId());
+
+        ArgumentCaptor<List> captor = ArgumentCaptor.forClass(List.class);
+        verify(acceptanceItemMapper).insertAcceptanceItemBatch(captor.capture());
+        List<AcceptanceItem> items = captor.getValue();
+        assertEquals(3, items.size());
+        assertEquals(Long.valueOf(1001L), items.get(0).getSaleOrderDetailId());
+        assertEquals(0, new BigDecimal("5").compareTo(items.get(0).getActualQuantity()), "普通行默认实收=应送");
+        assertEquals(0, new BigDecimal("3").compareTo(items.get(1).getActualQuantity()), "加单行默认实收=actual_num 镜像");
+        assertEquals(0, BigDecimal.ZERO.compareTo(items.get(2).getDeliveredQuantity()), "退货行应送=0");
+        assertEquals(0, BigDecimal.ZERO.compareTo(items.get(2).getActualQuantity()), "退货行实收=0");
+        // 总额 = 5×2 + 3×2 + 0 = 16.00
+        assertEquals(0, new BigDecimal("16.00").compareTo(accCaptor.getValue().getTotalAmount()));
+    }
+
+    @Test
+    void 订单验收_一订单一验已提交拒绝() {
+        when(saleOrderMapper.selectSaleOrderById(1000L)).thenReturn(confirmedOrder());
+        when(acceptanceMapper.selectBySaleOrder(1000L)).thenReturn(orderAcceptance(9L, AcceptanceStatus.SUBMITTED.getCode()));
+
+        ServiceException ex = assertThrows(ServiceException.class, () -> acceptanceService.createByOrder(1000L));
+        assertTrue(ex.getMessage().contains("YS20260901001"));
+        verify(acceptanceItemMapper, never()).insertAcceptanceItemBatch(anyList());
+    }
+
+    @Test
+    void 订单验收_已有草稿幂等返回并同步缺失行() {
+        when(saleOrderMapper.selectSaleOrderById(1000L)).thenReturn(confirmedOrder());
+        Acceptance draft = orderAcceptance(5L, AcceptanceStatus.DRAFT.getCode());
+        when(acceptanceMapper.selectBySaleOrder(1000L)).thenReturn(draft);
+        when(acceptanceMapper.selectAcceptanceById(5L)).thenReturn(draft);
+        // 订单当前明细：只有行 1001（验收单中也已有）→ 无缺失行，幂等返回
+        when(saleOrderDetailMapper.selectValidByOrderIdForView(1000L))
+                .thenReturn(new ArrayList<>(List.of(orderDetail(1001L, "5", "2.00", 0))));
+        AcceptanceItem existing = item(501L, 5L, "5.00", "2.00");
+        existing.setSaleOrderDetailId(1001L);
+        when(acceptanceItemMapper.selectListByAcceptanceId(5L)).thenReturn(List.of(existing));
+
+        Acceptance result = acceptanceService.createByOrder(1000L);
+
+        assertEquals(Long.valueOf(5L), result.getId(), "已有草稿直接返回");
+        verify(acceptanceItemMapper, never()).insertAcceptanceItemBatch(anyList());
+    }
+
+    @Test
+    void 订单验收_同步缺失行只补新行不覆盖已录实收且退货行归零() {
+        Acceptance draft = orderAcceptance(5L, AcceptanceStatus.DRAFT.getCode());
+        when(acceptanceMapper.selectAcceptanceById(5L)).thenReturn(draft);
+        // 行1001 后来被标退货（原行已在验收单中）；行1002 验收中途新增的加单行
+        SaleOrderDetail nowReturned = orderDetail(1001L, "5", "2.00", 3);
+        SaleOrderDetail newSupplement = orderDetail(1002L, "3", "2.00", 1);
+        newSupplement.setActualNum(new BigDecimal("3"));
+        when(saleOrderDetailMapper.selectValidByOrderIdForView(1000L))
+                .thenReturn(new ArrayList<>(List.of(nowReturned, newSupplement)));
+        AcceptanceItem existing = item(501L, 5L, "5.00", "2.00");
+        existing.setSaleOrderDetailId(1001L);
+        existing.setActualQuantity(new BigDecimal("4")); // 已录实收
+        when(acceptanceItemMapper.selectListByAcceptanceId(5L)).thenReturn(List.of(existing));
+
+        Acceptance result = acceptanceService.syncMissingItems(5L);
+
+        assertEquals(Long.valueOf(5L), result.getId());
+        // 新增行：仅补 1002，默认实收=actual_num=3
+        ArgumentCaptor<List> insertCaptor = ArgumentCaptor.forClass(List.class);
+        verify(acceptanceItemMapper).insertAcceptanceItemBatch(insertCaptor.capture());
+        List<AcceptanceItem> inserted = insertCaptor.getValue();
+        assertEquals(1, inserted.size());
+        assertEquals(Long.valueOf(1002L), inserted.get(0).getSaleOrderDetailId());
+        assertEquals(0, new BigDecimal("3").compareTo(inserted.get(0).getActualQuantity()));
+        // 已有行被标退货：应送/实收归 0
+        ArgumentCaptor<AcceptanceItem> updateCaptor = ArgumentCaptor.forClass(AcceptanceItem.class);
+        verify(acceptanceItemMapper).updateAcceptanceItem(updateCaptor.capture());
+        assertEquals(Long.valueOf(501L), updateCaptor.getValue().getId());
+        assertEquals(0, BigDecimal.ZERO.compareTo(updateCaptor.getValue().getDeliveredQuantity()));
+        assertEquals(0, BigDecimal.ZERO.compareTo(updateCaptor.getValue().getActualQuantity()));
+    }
+
+    @Test
+    void 订单验收_非草稿或非订单维度不可同步() {
+        Acceptance submitted = orderAcceptance(5L, AcceptanceStatus.SUBMITTED.getCode());
+        when(acceptanceMapper.selectAcceptanceById(5L)).thenReturn(submitted);
+        assertThrows(ServiceException.class, () -> acceptanceService.syncMissingItems(5L));
+
+        Acceptance legacy = draftAcceptance(); // deliveryOrderId 维度，saleOrderId=null
+        when(acceptanceMapper.selectAcceptanceById(1L)).thenReturn(legacy);
+        assertThrows(ServiceException.class, () -> acceptanceService.syncMissingItems(1L));
+        verify(acceptanceItemMapper, never()).insertAcceptanceItemBatch(anyList());
+    }
+
+    @Test
+    void 订单一键验收_建单覆盖提交原子完成() {
+        when(saleOrderMapper.selectSaleOrderById(1000L)).thenReturn(confirmedOrder());
+        when(acceptanceMapper.selectBySaleOrder(1000L)).thenReturn(null);
+        when(saleOrderDetailMapper.selectValidByOrderIdForView(1000L))
+                .thenReturn(new ArrayList<>(List.of(orderDetail(1001L, "5", "2.00", 0))));
+        when(bizCodeService.nextDailyCode(eq("acceptance"), anyString(), eq(3))).thenReturn("YS20260901001");
+        when(acceptanceMapper.insertAcceptance(any(Acceptance.class))).thenAnswer(inv -> {
+            inv.getArgument(0, Acceptance.class).setId(1L);
+            return 1;
+        });
+        Acceptance draft = orderAcceptance(1L, AcceptanceStatus.DRAFT.getCode());
+        when(acceptanceMapper.selectAcceptanceById(1L)).thenReturn(draft);
+        AcceptanceItem it = item(501L, 1L, "5.00", "2.00");
+        it.setSaleOrderDetailId(1001L);
+        it.setActualAmount(new BigDecimal("10.00"));
+        when(acceptanceItemMapper.selectListByAcceptanceId(1L)).thenReturn(List.of(it));
+
+        AcceptanceQuickAcceptDTO dto = new AcceptanceQuickAcceptDTO();
+        dto.setOrderId(1000L);
+        dto.setAcceptDate(LocalDate.of(2026, 9, 1));
+        AcceptanceQuickAcceptDTO.Item override = new AcceptanceQuickAcceptDTO.Item();
+        override.setSaleOrderDetailId(1001L);
+        override.setActualQuantity(new BigDecimal("3")); // 部分短收：原因可不填
+        dto.setItems(List.of(override));
+
+        Acceptance result = acceptanceService.quickAccept(dto);
+
+        assertEquals(AcceptanceStatus.SUBMITTED.getCode(), result.getStatus());
+        // 覆盖行实收/差异/金额按覆盖值重算
+        ArgumentCaptor<AcceptanceItem> updateCaptor = ArgumentCaptor.forClass(AcceptanceItem.class);
+        verify(acceptanceItemMapper).updateAcceptanceItem(updateCaptor.capture());
+        assertEquals(0, new BigDecimal("3").compareTo(updateCaptor.getValue().getActualQuantity()));
+        assertEquals(0, new BigDecimal("-2").compareTo(updateCaptor.getValue().getDifferenceQuantity()));
+        assertEquals(0, new BigDecimal("6.00").compareTo(updateCaptor.getValue().getActualAmount()));
+        // 提交：镜像回写 + 订单 CONFIRMED→ACCEPTED（不走送货单回写）
+        verify(saleOrderDetailMapper, org.mockito.Mockito.atLeastOnce()).updateActualBatch(any(SaleOrderDetail.class));
+        verify(saleOrderMapper).updateStatusByIds(List.of(1000L),
+                SaleOrderStatus.CONFIRMED.getCode(), SaleOrderStatus.ACCEPTED.getCode());
+        verify(saleOrderMapper, never()).updateStatusByDeliveryId(any(), any(), any());
+    }
+
+    @Test
+    void 订单一键验收_配送日期未到拒绝提交() {
+        SaleOrder future = confirmedOrder();
+        future.setDeliveryDate(LocalDate.now().plusDays(2));
+        when(saleOrderMapper.selectSaleOrderById(1000L)).thenReturn(future);
+        when(acceptanceMapper.selectBySaleOrder(1000L)).thenReturn(null);
+        when(saleOrderDetailMapper.selectValidByOrderIdForView(1000L))
+                .thenReturn(new ArrayList<>(List.of(orderDetail(1001L, "5", "2.00", 0))));
+        when(bizCodeService.nextDailyCode(eq("acceptance"), anyString(), eq(3))).thenReturn("YS20260901001");
+        when(acceptanceMapper.insertAcceptance(any(Acceptance.class))).thenAnswer(inv -> {
+            inv.getArgument(0, Acceptance.class).setId(1L);
+            return 1;
+        });
+
+        AcceptanceQuickAcceptDTO dto = new AcceptanceQuickAcceptDTO();
+        dto.setOrderId(1000L);
+
+        ServiceException ex = assertThrows(ServiceException.class, () -> acceptanceService.quickAccept(dto));
+        assertTrue(ex.getMessage().contains("未到"));
+        verify(saleOrderMapper, never()).updateStatusByIds(any(), any(), any());
+    }
+
+    @Test
+    void 订单一键验收_已提交幂等直接返回() {
+        when(saleOrderMapper.selectSaleOrderById(1000L)).thenReturn(confirmedOrder());
+        Acceptance submitted = orderAcceptance(9L, AcceptanceStatus.SUBMITTED.getCode());
+        when(acceptanceMapper.selectBySaleOrder(1000L)).thenReturn(submitted);
+
+        AcceptanceQuickAcceptDTO dto = new AcceptanceQuickAcceptDTO();
+        dto.setOrderId(1000L);
+
+        Acceptance result = acceptanceService.quickAccept(dto);
+
+        assertEquals(Long.valueOf(9L), result.getId());
+        verify(acceptanceMapper, never()).insertAcceptance(any(Acceptance.class));
+        verify(saleOrderDetailMapper, never()).selectValidByOrderIdForView(any());
+    }
+
+    @Test
+    void 订单一键验收_验收单不属于该订单时拒绝() {
+        when(saleOrderMapper.selectSaleOrderById(1000L)).thenReturn(confirmedOrder());
+        Acceptance other = orderAcceptance(9L, AcceptanceStatus.DRAFT.getCode());
+        other.setSaleOrderId(9999L);
+        when(acceptanceMapper.selectAcceptanceById(9L)).thenReturn(other);
+
+        AcceptanceQuickAcceptDTO dto = new AcceptanceQuickAcceptDTO();
+        dto.setOrderId(1000L);
+        dto.setAcceptanceId(9L);
+
+        ServiceException ex = assertThrows(ServiceException.class, () -> acceptanceService.quickAccept(dto));
+        assertTrue(ex.getMessage().contains("不属于该订单"));
+    }
+
+    @Test
+    void 订单一键验收_超收覆盖未填原因允许并完成提交() {
+        when(saleOrderMapper.selectSaleOrderById(1000L)).thenReturn(confirmedOrder());
+        when(acceptanceMapper.selectBySaleOrder(1000L)).thenReturn(null);
+        when(saleOrderDetailMapper.selectValidByOrderIdForView(1000L))
+                .thenReturn(new ArrayList<>(List.of(orderDetail(1001L, "5", "2.00", 0))));
+        when(bizCodeService.nextDailyCode(eq("acceptance"), anyString(), eq(3))).thenReturn("YS20260901001");
+        when(acceptanceMapper.insertAcceptance(any(Acceptance.class))).thenAnswer(inv -> {
+            inv.getArgument(0, Acceptance.class).setId(1L);
+            return 1;
+        });
+        when(acceptanceMapper.selectAcceptanceById(1L)).thenReturn(orderAcceptance(1L, AcceptanceStatus.DRAFT.getCode()));
+        AcceptanceItem it = item(501L, 1L, "5.00", "2.00");
+        it.setSaleOrderDetailId(1001L);
+        it.setActualAmount(new BigDecimal("10.00"));
+        when(acceptanceItemMapper.selectListByAcceptanceId(1L)).thenReturn(List.of(it));
+
+        AcceptanceQuickAcceptDTO dto = new AcceptanceQuickAcceptDTO();
+        dto.setOrderId(1000L);
+        AcceptanceQuickAcceptDTO.Item override = new AcceptanceQuickAcceptDTO.Item();
+        override.setSaleOrderDetailId(1001L);
+        override.setActualQuantity(new BigDecimal("6")); // 超收未填原因：允许，仅自动记录类型
+        dto.setItems(List.of(override));
+
+        Acceptance result = acceptanceService.quickAccept(dto);
+
+        assertEquals(AcceptanceStatus.SUBMITTED.getCode(), result.getStatus());
+        ArgumentCaptor<AcceptanceItem> updateCaptor = ArgumentCaptor.forClass(AcceptanceItem.class);
+        verify(acceptanceItemMapper).updateAcceptanceItem(updateCaptor.capture());
+        assertEquals(2, updateCaptor.getValue().getReasonType(), "超收类型自动记录");
+        assertNull(updateCaptor.getValue().getLossReason(), "原因选填，未填则不落库");
+        verify(saleOrderMapper).updateStatusByIds(List.of(1000L),
+                SaleOrderStatus.CONFIRMED.getCode(), SaleOrderStatus.ACCEPTED.getCode());
+    }
+
+    @Test
+    void 订单验收撤销_回退订单状态并清镜像() {
+        Acceptance submitted = orderAcceptance(1L, AcceptanceStatus.SUBMITTED.getCode());
+        when(acceptanceMapper.selectAcceptanceById(1L)).thenReturn(submitted);
+        when(monthSettlementMapper.selectByCustomerAndMonth(10L, "2026-09")).thenReturn(null);
+        SaleOrder order = confirmedOrder();
+        order.setStatus(SaleOrderStatus.ACCEPTED.getCode());
+        when(saleOrderMapper.selectSaleOrderByIdIn(List.of(1000L))).thenReturn(List.of(order));
+        when(acceptanceItemMapper.selectListByAcceptanceId(1L)).thenReturn(List.of());
+
+        Acceptance result = acceptanceService.revoke(1L, "实收数量复核有误");
+
+        assertEquals(AcceptanceStatus.DRAFT.getCode(), result.getStatus());
+        verify(saleOrderMapper).updateStatusByIds(List.of(1000L),
+                SaleOrderStatus.ACCEPTED.getCode(), SaleOrderStatus.CONFIRMED.getCode());
+        verify(saleOrderDetailMapper).clearActualByOrderId(1000L);
+        verify(saleOrderMapper, never()).updateStatusByDeliveryId(any(), any(), any());
+    }
+
+    @Test
+    void 去验收定位_OA订单维度优先命中() {
+        SaleOrder order = new SaleOrder();
+        order.setId(1000L);
+        order.setCustomerId(10L);
+        order.setDeliveryDate(LocalDate.of(2026, 9, 1));
+        when(saleOrderMapper.selectSaleOrderById(1000L)).thenReturn(order);
+        Acceptance hit = orderAcceptance(88L, AcceptanceStatus.SUBMITTED.getCode());
+        when(acceptanceMapper.selectBySaleOrder(1000L)).thenReturn(hit);
+
+        AcceptanceByOrderVO vo = acceptanceService.locateBySaleOrder(1000L);
+
+        assertEquals(Boolean.TRUE, vo.getOrderView());
+        assertEquals(Boolean.TRUE, vo.getHasAcceptance());
+        assertEquals(Long.valueOf(88L), vo.getAcceptanceId());
+        assertEquals(Long.valueOf(10L), vo.getCustomerId());
+        assertEquals("2026-09-01", vo.getDeliveryDate());
+        verify(acceptanceMapper, never()).selectByCustomerDate(any(), any());
+        verify(deliverySourceItemMapper, never()).selectDeliverySourceItemList(any());
     }
 }

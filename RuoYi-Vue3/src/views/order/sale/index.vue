@@ -299,7 +299,7 @@
             <span class="op-disabled-tip">撤回</span>
           </el-tooltip>
           <el-button
-            v-if="scope.row.status == 2"
+            v-if="scope.row.status == 1 || scope.row.status == 2"
             size="small"
             link
             type="primary"
@@ -307,6 +307,15 @@
             @click="handleGoAcceptance(scope.row)"
             v-hasPermi="['acceptance:query']"
             >去验收</el-button
+          >
+          <el-button
+            v-if="scope.row.status == 3 || scope.row.status == 4"
+            size="small"
+            link
+            :icon="View"
+            @click="handleGoAcceptance(scope.row)"
+            v-hasPermi="['acceptance:query']"
+            >验收单</el-button
           >
           <el-button
             v-if="scope.row.status == 1"
@@ -693,6 +702,7 @@ import {
   Box,
   TrendCharts,
   CircleClose,
+  View,
 } from "@element-plus/icons-vue";
 
 export default {
@@ -1004,7 +1014,7 @@ export default {
           this.handleQuery();
         });
     },
-    /** 去验收（AC-5：status=1 新流程走订单视角（客户+日期，可一键建草稿）；status=2 历史单走送货单反查） */
+    /** 去验收（OA：订单维度优先 → 订单页验收模式；历史单回退旧验收页送货单反查链路） */
     /** D-055 配送后变更（加单/换货/退货）：原订单不变，标记附加订单明细 */
     handleDeliveryChange(row) {
       this.changeOrder = row;
@@ -1014,21 +1024,20 @@ export default {
       locateAcceptanceByOrder(row.id)
         .then((response) => {
           const info = response.data || {};
-          // ① 订单视角命中：该客户日已有验收单 → 直开；无单且订单仍在流程内（status=1）→ 一键建草稿
-          if (info.customerId && info.deliveryDate) {
-            const query = { customerId: info.customerId, deliveryDate: info.deliveryDate, highlightCode: row.code };
-            if (info.hasAcceptance) {
-              query.acceptanceId = info.acceptanceId;
-            } else if (row.status == 1) {
-              query.create = 1;
-            } else {
-              this.$modal.msgWarning("该订单尚无验收单且已历史配送，请到验收页用「历史单补建」");
-              return;
-            }
-            this.$router.push({ path: "/order/acceptance", query });
+          // ① OA 订单维度：跳订单明细页验收模式（orderId 携带，页面自动定位/建草稿）
+          if (info.orderView) {
+            this.$router.push({
+              // 注意：子路由路径为 /index/，直接 push 父路径会因无子路由匹配而白屏
+              path: "/order/sale-detail/index",
+              query: {
+                mode: "acceptance",
+                orderId: row.id,
+                acceptanceId: info.hasAcceptance ? info.acceptanceId : undefined,
+              },
+            });
             return;
           }
-          // ② 历史回退：送货单反查链路（status=2 历史单）
+          // ② 历史回退：送货单反查链路（status=2 历史单，旧验收页）
           if (!info.deliveryId) {
             this.$modal.msgError("该订单尚未进入有效送货单，无法验收");
             return;

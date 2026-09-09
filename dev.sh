@@ -111,10 +111,25 @@ stop_service() {
 }
 
 # ---- 后端 ----
+# 兄弟模块源码比已安装产物新（或无产物）→ 需要重装：
+# -pl lin-entry spring-boot:run 只编译入口模块，依赖模块从 ~/.m2 解析，
+# 若只看 target/classes 是否存在会误跳过 install，导致后端跑旧包（OA 链路曾因此不生效）
+needs_build() {
+  local mod jar newest
+  for mod in $(cd "$ROOT" && ls -d lin-* 2>/dev/null); do
+    [ -d "$ROOT/$mod/src" ] || continue
+    jar=$(ls -t "$ROOT/$mod/target/$mod-"*.jar 2>/dev/null | grep -v sources | head -1)
+    [ -n "$jar" ] || return 0
+    newest=$(find "$ROOT/$mod/src" -type f -newer "$jar" -print -quit 2>/dev/null)
+    [ -n "$newest" ] && return 0
+  done
+  return 1
+}
+
 start_backend() {
   if is_listening "$BACKEND_PORT"; then echo "后端已在运行 (端口 $BACKEND_PORT)"; return 0; fi
-  if [ ! -d "$ROOT/$BACKEND_DIR/target/classes" ]; then
-    echo "${C_CYAN}首次构建后端依赖（mvn install -DskipTests，可能较慢）...${C_OFF}"
+  if needs_build; then
+    echo "${C_CYAN}检测到模块源码有更新，重建后端依赖（mvn install -DskipTests）...${C_OFF}"
     ( cd "$ROOT" && mvn -T 1C install -DskipTests ) || { echo "${C_RED}后端构建失败${C_OFF}"; return 1; }
   fi
   warn_deps

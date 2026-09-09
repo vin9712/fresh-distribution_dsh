@@ -31,13 +31,14 @@
         <el-button :icon="Printer" :disabled="!hasData" @click="handlePrint">{{
           mode === "pick" ? "打印本页" : "打印总单"
         }}</el-button>
+        <!-- OA：验收改订单维度（一订单一验），此入口改为按客户批量验收（配送点 tab + 批量一键验收） -->
         <el-button
           type="success"
           plain
           :icon="CircleCheck"
           :disabled="!customerId || !deliveryDate"
           @click="handleAcceptance"
-          >生成验收单（客户日）</el-button
+          >按客户验收</el-button
         >
         <el-button type="warning" plain :icon="Printer" @click="handlePrintManifest">当日打印（全部客户）</el-button>
       </el-form-item>
@@ -45,6 +46,78 @@
 
     <!-- 当日打印清单抽屉（PT-2：全客户总单+点单批量队列出纸） -->
     <print-manifest-drawer v-model="manifestOpen" :delivery-date="deliveryDate" @printed="onManifestPrinted" />
+
+    <!-- OA：按客户批量验收（配送点 tab 区分，逐单/批量一键验收；跳转订单页验收模式） -->
+    <el-dialog align-center title="按客户验收" v-model="accOpen" width="760px" append-to-body>
+      <el-alert
+        type="info"
+        :closable="false"
+        show-icon
+        title="批量一键验收 = 勾选订单按下单数量与金额整单确认（已保存过实收草稿的按草稿提交）；需逐行调整请点「去验收」进订单明细页"
+        style="margin-bottom: 10px"
+      />
+      <el-tabs v-model="accActiveTab">
+        <el-tab-pane v-for="g in accGroups" :key="g.key" :name="g.key">
+          <template #label>
+            {{ g.name }}<span v-if="g.pending > 0" class="acc-tab-pending">（未验收 {{ g.pending }}）</span>
+          </template>
+        </el-tab-pane>
+      </el-tabs>
+      <div class="acc-batch-bar">
+        <el-checkbox
+          :model-value="accCurrentAllSelected"
+          :indeterminate="accCurrentIndeterminate"
+          :disabled="!accCurrentSelectable.length"
+          @change="toggleCurrentTabSelection"
+        >本点全选（{{ accCurrentSelectable.length }} 单可验收）</el-checkbox>
+        <el-button
+          type="primary"
+          size="small"
+          :disabled="!accCurrentSelected.length"
+          :loading="accBatchRunning"
+          @click="handleBatchAccept"
+        >批量一键验收（{{ accCurrentSelected.length }}）</el-button>
+      </div>
+      <el-table
+        v-loading="accLoading"
+        :data="accCurrentRows"
+        size="small"
+        max-height="420"
+        empty-text="该配送点在此日期没有订单"
+      >
+        <el-table-column width="46" align="center">
+          <template #default="{ row }">
+            <el-checkbox v-if="accRowSelectable(row)" v-model="row._selected" />
+          </template>
+        </el-table-column>
+        <el-table-column label="订单编号" prop="code" min-width="150" show-overflow-tooltip />
+        <el-table-column label="订单金额" width="100" align="right">
+          <template #default="{ row }">{{ row.amount != null ? Number(row.amount).toFixed(2) : "" }}</template>
+        </el-table-column>
+        <el-table-column label="订单状态" width="95" align="center">
+          <template #default="{ row }">
+            <el-tag v-if="row.status === 1" type="primary" effect="plain">已确认</el-tag>
+            <el-tag v-else-if="row.status === 3" type="success">已验收</el-tag>
+            <el-tag v-else-if="row.status === 4" type="success" effect="dark">已结算</el-tag>
+            <el-tag v-else type="info">{{ row.status }}</el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column label="验收状态" width="150" align="center">
+          <template #default="{ row }">
+            <span v-if="row.accSubmitted">验收单 {{ row.accCode || '—' }}</span>
+            <el-tag v-else-if="row.accDraft" type="warning" effect="plain">草稿（已录实收）</el-tag>
+            <el-tag v-else type="info" effect="plain">未验收</el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column label="操作" width="100" align="center" fixed="right">
+          <template #default="{ row }">
+            <el-button link type="primary" size="small" @click="goAcceptance(row)">{{
+              row.accSubmitted ? "查看验收" : "去验收"
+            }}</el-button>
+          </template>
+        </el-table-column>
+      </el-table>
+    </el-dialog>
 
     <el-empty
       v-if="!loading && !hasData"
@@ -65,7 +138,7 @@
             mode === "matrix"
               ? "行=菜品（品名+规格+单价相同为一行）· 列=配送点 · 格=数量 · 不含价格"
               : mode === "point"
-                ? "客户+日期+配送点 的订单明细（含配送后变更标记），可打印点单；验收单按客户日生成（查询条）"
+                ? "客户+日期+配送点 的订单明细（含配送后变更标记），可打印点单；验收逐单进行（查询条「验收状态」）"
                 : "内部配货·采购参考，不含价格"
           }}
         </span>
@@ -256,7 +329,8 @@
 
 <script>
 import { batchView, deliveryMatrix, pointViewAllDelivery, getDeliveryPrintState, getPrintManifest } from "@/api/order/delivery";
-import { createAcceptanceByCustomerDate } from "@/api/acceptance/acceptance";
+import { listSale } from "@/api/order/sale";
+import { locateAcceptanceByOrder, quickAcceptOrder } from "@/api/acceptance/acceptance";
 import { listCustomer } from "@/api/partner/customer";
 import { issuePrintTicket } from "@/api/print/ticket";
 import { resolvePrintTemplate } from "@/api/print/template";
@@ -288,9 +362,52 @@ export default {
       pointRows: [],
       // 当日打印清单抽屉（PT-2 批量打印）
       manifestOpen: false,
+      // OA：按客户批量验收（配送点 tab + 勾选批量一键验收）
+      accOpen: false,
+      accLoading: false,
+      accOrders: [],
+      accActiveTab: "_all",
+      accBatchRunning: false,
     };
   },
   computed: {
+    /* ===== OA：按客户批量验收（配送点 tab 分组） ===== */
+    /** 按「全部 + 各配送点」分组 tab */
+    accGroups() {
+      const map = {};
+      (this.accOrders || []).forEach((o) => {
+        const name = o.customerDeptName || "未分点";
+        if (!map[name]) map[name] = { key: "dp_" + name, name, rows: [] };
+        map[name].rows.push(o);
+      });
+      const groups = Object.values(map);
+      groups.forEach((g) => {
+        g.pending = g.rows.filter((r) => !r.accSubmitted).length;
+      });
+      return [{ key: "_all", name: "全部", rows: this.accOrders || [], pending: (this.accOrders || []).filter((r) => !r.accSubmitted).length }, ...groups];
+    },
+    accCurrentGroup() {
+      return this.accGroups.find((g) => g.key === this.accActiveTab) || this.accGroups[0];
+    },
+    accCurrentRows() {
+      return (this.accCurrentGroup && this.accCurrentGroup.rows) || [];
+    },
+    accRowSelectable() {
+      return (row) => row.status === 1 && !row.accSubmitted;
+    },
+    accCurrentSelectable() {
+      return this.accCurrentRows.filter((r) => this.accRowSelectable(r));
+    },
+    accCurrentSelected() {
+      return this.accCurrentSelectable.filter((r) => r._selected);
+    },
+    accCurrentAllSelected() {
+      return this.accCurrentSelectable.length > 0 && this.accCurrentSelected.length === this.accCurrentSelectable.length;
+    },
+    accCurrentIndeterminate() {
+      const n = this.accCurrentSelected.length;
+      return n > 0 && n < this.accCurrentSelectable.length;
+    },
     customerName() {
       const c = this.customers.find((x) => x.id === this.customerId);
       return c ? c.name : "";
@@ -472,22 +589,93 @@ export default {
           this.pointPrinted = false;
         });
     },
-    /** AC-1 生成验收单（客户日维度，一客户日一验；应送行=该客户当日全部订单明细行，跨点平铺含标记） */
+    /** OA：按客户批量验收——展示该客户日逐单状态（配送点 tab），支持勾选批量一键验收与跳转订单页验收模式（Q2 确认：不再按客户日建单） */
     handleAcceptance() {
-      this.$modal
-        .confirm("将为该 客户+配送日期 生成一张验收单草稿（应送行=当日全部订单明细，跨配送点平铺，含加单/换货/退货标记），确认？")
-        .then(() => {
-          createAcceptanceByCustomerDate({
-            customerId: this.customerId,
-            deliveryDate: this.deliveryDate,
-          }).then((resp) => {
-            this.$modal.msgSuccess("验收单已生成：" + (resp.data?.code || ""));
-            this.$router.push({
-              path: "/order/acceptance",
-              query: { id: resp.data?.id },
-            });
-          });
+      this.accOpen = true;
+      this.loadAccOrders();
+    },
+    loadAccOrders() {
+      this.accLoading = true;
+      listSale({ customerId: this.customerId, deliveryDate: this.deliveryDate })
+        .then(async (resp) => {
+          const orders = resp.data || [];
+          // 逐单定位验收单（客户日订单数少，N 次轻量查询可接受）
+          for (const o of orders) {
+            o.accCode = null;
+            o.accDraft = false;
+            o.accSubmitted = false;
+            o._selected = false;
+            try {
+              const loc = await locateAcceptanceByOrder(o.id);
+              const info = loc.data || {};
+              if (info.hasAcceptance && info.acceptanceId) {
+                o.accCode = info.acceptanceCode;
+                if (info.acceptanceStatus === 0) {
+                  o.accDraft = true;
+                } else {
+                  o.accSubmitted = true;
+                }
+              }
+            } catch (e) {
+              /* 定位失败按未验收展示 */
+            }
+          }
+          this.accOrders = orders;
+          // 默认定位到第一个还有未验收订单的配送点 tab
+          const firstPending = this.accGroups.find((g) => g.pending > 0);
+          this.accActiveTab = firstPending ? firstPending.key : "_all";
+        })
+        .catch(() => {
+          this.accOrders = [];
+        })
+        .finally(() => {
+          this.accLoading = false;
         });
+    },
+    toggleCurrentTabSelection(v) {
+      this.accCurrentSelectable.forEach((r) => (r._selected = !!v));
+    },
+    /** 批量一键验收：逐单调 quick-accept（后端幂等，失败中断并提示已完成数） */
+    handleBatchAccept() {
+      const targets = this.accCurrentSelected.slice();
+      if (!targets.length) return;
+      this.$modal
+        .confirm(
+          `将按下单数量与金额整单确认 ${targets.length} 张订单（已保存过实收草稿的按草稿提交），确认？`
+        )
+        .then(async () => {
+          this.accBatchRunning = true;
+          let ok = 0;
+          for (const o of targets) {
+            try {
+              await quickAcceptOrder({ orderId: o.id });
+              ok += 1;
+              o.accSubmitted = true;
+              o.accDraft = false;
+              o._selected = false;
+            } catch (e) {
+              this.$modal.msgError(
+                `订单【${o.code}】验收失败：` + ((e && e.message) || "未知错误") +
+                  (ok > 0 ? `（已成功 ${ok} 张，后续已中断）` : "")
+              );
+              break;
+            }
+          }
+          if (ok === targets.length) {
+            this.$modal.msgSuccess(`已批量验收 ${ok} 张订单`);
+          }
+          this.accBatchRunning = false;
+        })
+        .catch(() => {});
+    },
+    /** 跳转订单页验收模式（未验收/草稿=可录入；已验收=只读查看） */
+    goAcceptance(row) {
+      this.accOpen = false;
+      // 子路由路径为 /index/，push 父路径会白屏
+      this.$router.push({
+        path: "/order/sale-detail/index",
+        query: { mode: "acceptance", orderId: row.id },
+      });
     },
     /** 格值：null=该点当日无此菜（空格）；历史单无台账打 — */
     cellText(row, col) {
@@ -550,6 +738,17 @@ export default {
 };
 </script>
 <style lang="scss" scoped>
+/* OA 按客户批量验收 */
+.acc-batch-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+.acc-tab-pending {
+  color: #e6a23c;
+  font-size: 12px;
+}
 .batch-view-page {
   .batch-print-area {
     max-width: 1100px;

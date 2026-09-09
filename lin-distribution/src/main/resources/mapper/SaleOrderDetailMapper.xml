@@ -115,6 +115,25 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         order by cd.code, cd.id, d.sort, d.id
     </select>
 
+    <!-- OA：订单维度验收应送行（一订单一验）：口径与客户日视图一致，过滤条件换为订单ID -->
+    <select id="selectValidByOrderIdForView" resultMap="SaleOrderDetailResult">
+        select d.id, d.order_id, d.customer_id, d.customer_dept_id, d.sku_id, d.order_code,
+               d.product_name, d.product_unit, d.product_price, d.product_spec, d.num,
+               d.expect_amount, d.price_source, d.ref_price, d.price_reason, d.loss_reason,
+               d.actual_price, d.actual_num, d.actual_amount, d.sort,
+               d.change_type, d.change_group, d.change_remark,
+               d.is_deleted, d.version, d.create_by, d.create_time, d.update_by, d.update_time, d.remark,
+               cd.name as customer_dept_name
+        from t_sale_order_detail d
+        join t_sale_order o on o.id = d.order_id
+        left join t_customer_dept cd on cd.id = coalesce(d.customer_dept_id, o.customer_dept_id)
+        where d.is_deleted = 0
+          and o.is_deleted = 0
+          and o.status &gt;= 1
+          and o.id = #{orderId}
+        order by d.sort, d.id
+    </select>
+
     <select id="selectSaleOrderDetailById" parameterType="Long" resultMap="SaleOrderDetailResult">
         <include refid="selectSaleOrderDetailVo"/>
         where id = #{id}

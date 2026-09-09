@@ -33,6 +33,10 @@
               :value="d.id"
             />
           </el-select>
+          <!-- Q3 定稿（2026-09-09）：退货 v1 仅支持整行；部分退货走退货单（D-032） -->
+          <div v-if="changeType === 3" class="form-tip">
+            整行退货：确认后该行应送/实收全部归 0（验收金额不计）；部分退货请改走「退货单」按实收数量级退回
+          </div>
         </el-form-item>
 
         <!-- 加单/换货：新商品信息 -->
@@ -76,6 +80,10 @@ export default {
   props: {
     modelValue: { type: Boolean, default: false },
     order: { type: Object, default: () => ({}) },
+    /** OA 预填：打开时预设变更类型（1加单/2换货/3退货，行级快唗入口） */
+    initialType: { type: Number, default: null },
+    /** OA 预填：换/退的原明细行ID（验收页行内发起时直接定位） */
+    initialTargetDetailId: { type: Number, default: null },
   },
   emits: ["update:modelValue", "done"],
   data() {
@@ -103,6 +111,10 @@ export default {
   watch: {
     visible(v) {
       if (v && this.order.id) {
+        // OA 预填：验收页行级入口预设 变更类型/原明细行，并重置表单
+        this.changeType = this.initialType || 1;
+        this.targetDetailId = this.initialTargetDetailId || null;
+        this.form = { productName: null, spec: null, unit: null, num: null, actualNum: null, remark: null };
         this.loadDetails();
       }
     },

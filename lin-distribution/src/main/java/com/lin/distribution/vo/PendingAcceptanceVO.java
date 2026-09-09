@@ -15,6 +15,11 @@ import java.util.Date;
 public class PendingAcceptanceVO implements Serializable {
     private static final long serialVersionUID = 1L;
 
+    /** OA：待验收订单ID（订单维度，一单一行） */
+    private Long orderId;
+    /** OA：待验收订单号 */
+    private String orderCode;
+    /** 历史口径遗留：送货单ID/号（订单维度下不再填充，保留兼容） */
     private Long deliveryId;
     private String deliveryCode;
     private Long customerId;

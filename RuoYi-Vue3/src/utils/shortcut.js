@@ -158,14 +158,22 @@ export function registerShortcut(binding) {
     description: binding.description || '',
     owner: binding.owner || '',
     allowInInput: !!binding.allowInInput,
+    // 意图链式：同作用域同键多绑定为「责任链」设计（先返回 false 下传），非冲突，免重复提示
+    chain: binding.chain === true,
     enabled: binding.enabled !== false
   }
   registry.set(id, record)
 
-  // 开发环境重复注册提示（同作用域同键）
+  // 开发环境重复注册提示（同作用域同键；任一方声明 chain=true 则视为有意链式，不提示）
   if (isDev) {
     registry.forEach((other) => {
-      if (other.id !== id && other.scope === record.scope && other.combo === record.combo) {
+      if (
+        other.id !== id &&
+        other.scope === record.scope &&
+        other.combo === record.combo &&
+        !other.chain &&
+        !record.chain
+      ) {
         console.warn(
           `[shortcut] 冲突：${record.combo} 在 ${record.scope} 作用域重复注册 ` +
             `(${other.owner || other.id} / ${record.owner || id})，后注册者仅在前者返回 false 时生效`

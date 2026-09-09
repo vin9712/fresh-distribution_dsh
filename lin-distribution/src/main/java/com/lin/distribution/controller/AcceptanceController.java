@@ -7,6 +7,7 @@ import com.lin.common.core.page.TableDataInfo;
 import com.lin.common.enums.BusinessType;
 import com.lin.distribution.domain.Acceptance;
 import com.lin.distribution.dto.AcceptanceCreateDTO;
+import com.lin.distribution.dto.AcceptanceQuickAcceptDTO;
 import com.lin.distribution.dto.AcceptanceRevokeDTO;
 import com.lin.distribution.dto.AcceptanceUpdateDTO;
 import com.lin.distribution.service.AcceptanceService;
@@ -82,8 +83,8 @@ public class AcceptanceController extends BaseController {
     }
 
     /**
-     * 「去验收」定位（S14 §6.1/§八）：订单列表已配送行跳转验收页，
-     * 反查该订单所在有效送货单与验收单（无验收单时带 deliveryId 引导创建草稿）
+     * 「去验收」定位（OA 订单维度优先）：订单列表已配送行跳转验收，
+     * 订单维度命中/可建单时返回 orderView=true；历史单回退送货单反查链路
      */
     @Operation(summary = "按订单定位验收单")
     @PreAuthorize("@ss.hasPermi('acceptance:query')")
@@ -108,12 +109,14 @@ public class AcceptanceController extends BaseController {
     }
 
     /**
-     * 按「客户+配送日期」生成验收单草稿（AC-1，《验收模块订单明细视角重构设计》）：
-     * 一客户日一张，应送行=该客户当日全部订单明细行（跨配送点平铺，含加单/换货/退货标记）。
+     * 按「客户+配送日期」生成验收单草稿（AC-1，《验收模块订单明细视角重构设计》）。
      *
+     * @deprecated 已被 OA 订单维度验收取代（《订单页一键验收链路设计》§七，Q2 确认 2026-09-09：
+     *             验收逐单进行，主入口=订单页「去验收」）；本接口无前端调用方，仅保留过渡期兼容
      * @param body {customerId, deliveryDate}
      */
-    @Operation(summary = "按客户+配送日期生成验收单")
+    @Deprecated
+    @Operation(summary = "按客户+配送日期生成验收单（已废弃：请用订单页「去验收」）")
     @PreAuthorize("@ss.hasPermi('acceptance:add')")
     @Log(title = "验收单", businessType = BusinessType.INSERT)
     @PostMapping("/create-by-customer-date")
@@ -122,6 +125,34 @@ public class AcceptanceController extends BaseController {
         LocalDate deliveryDate = body.get("deliveryDate") == null ? null
                 : LocalDate.parse(String.valueOf(body.get("deliveryDate")).substring(0, 10));
         return success(acceptanceService.createByCustomerDate(customerId, deliveryDate));
+    }
+
+    /**
+     * OA：按订单生成（或同步）验收草稿（《订单页一键验收链路设计》§4.3）：
+     * 一订单一验；无单建草稿，已有草稿则幂等同步缺失行（验收中途加单/换货/退货）。
+     *
+     * @param body {orderId}
+     */
+    @Operation(summary = "按订单生成/同步验收草稿")
+    @PreAuthorize("@ss.hasPermi('acceptance:add')")
+    @Log(title = "验收单", businessType = BusinessType.INSERT)
+    @PostMapping("/create-by-order")
+    public AjaxResult createByOrder(@RequestBody java.util.Map<String, Object> body) {
+        Long orderId = body.get("orderId") == null ? null : Long.valueOf(String.valueOf(body.get("orderId")));
+        return success(acceptanceService.createByOrder(orderId));
+    }
+
+    /**
+     * OA：订单一键验收（《订单页一键验收链路设计》§4.5）：
+     * 建单（如无）→ 同步缺失行 → 应用实收覆盖（可选）→ 提交，原子完成；
+     * 订单 → 已验收，回写 actual_* 镜像。
+     */
+    @Operation(summary = "订单一键验收")
+    @PreAuthorize("@ss.hasPermi('acceptance:submit')")
+    @Log(title = "验收单一键验收", businessType = BusinessType.UPDATE)
+    @PostMapping("/quick-accept")
+    public AjaxResult quickAccept(@RequestBody AcceptanceQuickAcceptDTO dto) {
+        return success(acceptanceService.quickAccept(dto));
     }
 
     /**

@@ -35,6 +35,22 @@ public interface AcceptanceMapper {
     int countByDeliveryOrderId(Long deliveryOrderId);
 
     /**
+     * OA：按来源订单查订单维度验收单（最新 1 张，一订单一验定位用）
+     *
+     * @param saleOrderId 来源销售订单ID
+     * @return 验收单，无则 null
+     */
+    Acceptance selectBySaleOrder(@org.apache.ibatis.annotations.Param("saleOrderId") Long saleOrderId);
+
+    /**
+     * OA：该订单是否已有订单维度验收单（一订单一验守卫）
+     *
+     * @param saleOrderId 来源销售订单ID
+     * @return 数量
+     */
+    int countBySaleOrder(@org.apache.ibatis.annotations.Param("saleOrderId") Long saleOrderId);
+
+    /**
      * D-055 验收维度=客户+日期+配送点：查该维度验收单（首页最新 1 张）
      */
     Acceptance selectByCustomerPointDate(@org.apache.ibatis.annotations.Param("customerId") Long customerId,

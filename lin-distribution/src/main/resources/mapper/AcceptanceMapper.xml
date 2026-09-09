@@ -8,6 +8,8 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         <result property="id"    column="id"    />
         <result property="code"    column="code"    />
         <result property="deliveryOrderId"    column="delivery_order_id"    />
+        <result property="saleOrderId"    column="sale_order_id"    />
+        <result property="saleOrderCode"    column="saleOrderCode"    />
         <result property="customerId"    column="customer_id"    />
         <result property="deliveryDate"    column="delivery_date"    />
         <result property="deliveryPointId"    column="delivery_point_id"    />
@@ -28,14 +30,16 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
     </resultMap>
 
     <sql id="selectAcceptanceVo">
-        select a.id, a.code, a.delivery_order_id, a.customer_id, a.delivery_date, a.delivery_point_id, a.accept_date,
+        select a.id, a.code, a.delivery_order_id, a.sale_order_id, a.customer_id, a.delivery_date, a.delivery_point_id, a.accept_date,
                a.total_amount, a.status, a.revoke_reason, a.revoked_by, a.revoked_time,
                a.create_by, a.create_time, a.update_by, a.update_time, a.remark,
                do.code as deliveryCode,
+               so.code as saleOrderCode,
                coalesce(customer.alias, customer.name) as customerName,
                cd.name as customerDeptName
         from acceptance a
         left join t_delivery_order do on do.id = a.delivery_order_id
+        left join t_sale_order so on so.id = a.sale_order_id
         left join t_customer_dept cd on cd.id = a.delivery_point_id
         left join t_customer customer on customer.id = a.customer_id
     </sql>
@@ -45,6 +49,7 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         <where>
             <if test="code != null  and code != ''"> and a.code = #{code}</if>
             <if test="deliveryOrderId != null "> and a.delivery_order_id = #{deliveryOrderId}</if>
+            <if test="saleOrderId != null "> and a.sale_order_id = #{saleOrderId}</if>
             <if test="customerId != null "> and a.customer_id = #{customerId}</if>
             <if test="deliveryDate != null "> and a.delivery_date = #{deliveryDate}</if>
             <if test="deliveryPointId != null "> and a.delivery_point_id = #{deliveryPointId}</if>
@@ -63,6 +68,19 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
 
     <select id="countByDeliveryOrderId" parameterType="Long" resultType="int">
         select count(1) from acceptance where delivery_order_id = #{deliveryOrderId}
+    </select>
+
+    <!-- OA：按来源订单查验收单（最新 1 张，一订单一验守卫与定位共用） -->
+    <select id="selectBySaleOrder" resultMap="AcceptanceResult">
+        <include refid="selectAcceptanceVo"/>
+        where a.sale_order_id = #{saleOrderId}
+        order by a.id desc
+        limit 1
+    </select>
+
+    <!-- OA：该订单是否已有订单维度验收单（一订单一验守卫） -->
+    <select id="countBySaleOrder" resultType="int">
+        select count(1) from acceptance where sale_order_id = #{saleOrderId}
     </select>
 
     <!-- D-055：按 客户+日期+点 查验收单（最新 1 张） -->
@@ -127,6 +145,7 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         <trim prefix="(" suffix=")" suffixOverrides=",">
             <if test="code != null and code != ''">code,</if>
             <if test="deliveryOrderId != null">delivery_order_id,</if>
+            <if test="saleOrderId != null">sale_order_id,</if>
             <if test="customerId != null">customer_id,</if>
             <if test="deliveryPointId != null">delivery_point_id,</if>
             <if test="deliveryDate != null">delivery_date,</if>
@@ -145,6 +164,7 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         <trim prefix="values (" suffix=")" suffixOverrides=",">
             <if test="code != null and code != ''">#{code},</if>
             <if test="deliveryOrderId != null">#{deliveryOrderId},</if>
+            <if test="saleOrderId != null">#{saleOrderId},</if>
             <if test="customerId != null">#{customerId},</if>
             <if test="deliveryPointId != null">#{deliveryPointId},</if>
             <if test="deliveryDate != null">#{deliveryDate},</if>
@@ -167,6 +187,7 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         <trim prefix="SET" suffixOverrides=",">
             <if test="code != null and code != ''">code = #{code},</if>
             <if test="deliveryOrderId != null">delivery_order_id = #{deliveryOrderId},</if>
+            <if test="saleOrderId != null">sale_order_id = #{saleOrderId},</if>
             <if test="customerId != null">customer_id = #{customerId},</if>
             <if test="deliveryPointId != null">delivery_point_id = #{deliveryPointId},</if>
             <if test="deliveryDate != null">delivery_date = #{deliveryDate},</if>

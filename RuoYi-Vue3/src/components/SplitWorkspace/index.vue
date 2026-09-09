@@ -12,6 +12,7 @@
     </div>
 
     <div
+      v-if="!rightHidden"
       class="split-workspace__handle"
       role="separator"
       :aria-orientation="'vertical'"
@@ -26,7 +27,10 @@
       @keydown="onHandleKeydown"
     ></div>
 
-    <div class="split-workspace__pane split-workspace__pane--right">
+    <div
+      v-if="!rightHidden"
+      class="split-workspace__pane split-workspace__pane--right"
+    >
       <slot name="right"></slot>
     </div>
   </div>
@@ -71,6 +75,11 @@ const props = defineProps({
   maxRatio: {
     type: Number,
     default: 0.95
+  },
+  /** 隐藏右侧面板（OA 验收模式：单栏全宽，选单区不渲染） */
+  rightHidden: {
+    type: Boolean,
+    default: false
   }
 })
 
@@ -202,6 +211,7 @@ defineExpose({ resetLayout })
 // ---------------- 样式与生命周期 ----------------
 
 const leftPaneStyle = computed(() => {
+  if (props.rightHidden) return { width: '100%' }
   const collapsed = containerWidth.value > 0
   return collapsed
     ? { width: `${(leftRatio.value * 100).toFixed(3)}%` }

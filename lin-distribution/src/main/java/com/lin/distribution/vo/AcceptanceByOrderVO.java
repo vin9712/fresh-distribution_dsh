@@ -18,6 +18,12 @@ public class AcceptanceByOrderVO {
     /** 来源销售订单ID（查询入参回显） */
     private Long orderId;
 
+    /**
+     * OA：订单视角标记（《订单页一键验收链路设计》）——true=订单维度链路（订单页验收模式），
+     * false=历史送货单维度（旧验收页只读维护）。仅回显 orderId 时为 false。
+     */
+    private Boolean orderView = false;
+
     /** 客户ID（AC-5 订单视角定位必返；历史回退路径可为空） */
     private Long customerId;
 

@@ -77,7 +77,7 @@
 </template>
 
 <script setup>
-import { ref, computed, nextTick, onBeforeUnmount } from 'vue'
+import { ref, computed, nextTick, onMounted, onBeforeUnmount } from 'vue'
 import { useRouter } from 'vue-router'
 import { globalSearch } from '@/api/search'
 import { SCOPE } from '@/utils/shortcut'
@@ -91,6 +91,14 @@ const loading = ref(false)
 const isComposing = ref(false)
 const uid = ref(-1)
 const router = useRouter()
+
+/** 弹窗宽度：窄屏收敛为 94vw，避免溢出（修复 dialogWidth 未定义告警） */
+const windowWidth = ref(window.innerWidth)
+const onWindowResize = () => {
+  windowWidth.value = window.innerWidth
+}
+onMounted(() => window.addEventListener('resize', onWindowResize))
+const dialogWidth = computed(() => (windowWidth.value < 640 ? '94vw' : '560px'))
 /** 请求序号：只有最新一次请求的响应才允许写入结果（W0-5.4 竞态修复） */
 let seq = 0
 let abortCtrl = null
@@ -342,6 +350,8 @@ useShortcuts([
     description: '关闭全局搜索弹窗',
     owner: 'GlobalSearch',
     allowInInput: true,
+    // 意图链式：TagsView(Esc 退出全屏，不处理时下传) → GlobalSearch(关闭弹窗)，非重复冲突
+    chain: true,
     handler: () => {
       if (!visible.value) return false // 未打开时下传给低优先级绑定
       close()

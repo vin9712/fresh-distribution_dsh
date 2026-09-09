@@ -69,8 +69,7 @@ export function submitAcceptance(id) {
   })
 }
 
-// 「去验收」定位：按来源订单反查所在有效送货单与验收单
-// （有验收单→跳转验收单；无→带 deliveryId 引导创建草稿）
+// 「去验收」定位：OA 订单维度优先（orderView=true，订单页验收模式），历史单回退送货单反查
 export function locateAcceptanceByOrder(orderId) {
   return request({
     url: '/acceptance/by-order/' + orderId,
@@ -92,5 +91,26 @@ export function delAcceptance(id) {
   return request({
     url: '/acceptance/' + id,
     method: 'delete'
+  })
+}
+
+// ======== OA：订单维度验收（《订单页一键验收链路设计》） ========
+
+// OA：按订单生成（或同步）验收草稿（一订单一验；已有草稿幂等同步缺失行）
+export function createAcceptanceByOrder(orderId) {
+  return request({
+    url: '/acceptance/create-by-order',
+    method: 'post',
+    data: { orderId: orderId }
+  })
+}
+
+// OA：订单一键验收（建单如无 → 同步缺失行 → 实收覆盖可选 → 提交，原子完成）
+// items 键 = saleOrderDetailId；不传 items 即全部实收=下单数量
+export function quickAcceptOrder(data) {
+  return request({
+    url: '/acceptance/quick-accept',
+    method: 'post',
+    data: data
   })
 }

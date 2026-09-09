@@ -101,6 +101,12 @@ public class AcceptanceItem implements Serializable {
     /** 来源订单号（AC-6，《验收模块订单明细视角重构设计》：新口径验收行=订单明细行，按 sale_order_detail_id 反查）——非持久化字段 */
     private transient String orderCode;
 
+    /** 变更标记（OA：1加单 2换货 3退货，按 sale_order_detail_id 反查订单明细，供前端行首 tag）——非持久化字段 */
+    private transient Integer changeType;
+
+    /** 变更备注（OA：D-055 标记行说明，如「换货 土豆→番茄」）——非持久化字段 */
+    private transient String changeRemark;
+
     /**
      * @deprecated S14 已更名 {@link #differenceQuantity}，保留一个版本兼容旧 JSON/调用方
      */
