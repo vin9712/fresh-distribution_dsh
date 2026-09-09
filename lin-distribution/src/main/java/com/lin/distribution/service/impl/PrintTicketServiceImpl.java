@@ -85,6 +85,23 @@ public class PrintTicketServiceImpl implements PrintTicketService {
     }
 
     /**
+     * 打印回执领取（PT-3）：语义与数据取数兑换同构（非消费式占位→宽限复用），
+     * 但未用票据也转入宽限——报表页可能未发数据集回调就直接打印。
+     */
+    @Override
+    public PrintTicketPayload consumeForReceipt(String ticket) {
+        if (StringUtils.isBlank(ticket)) {
+            return null;
+        }
+        PrintTicketPayload payload = claimUnused(ticket);
+        if (payload != null) {
+            redisCache.setCacheObject(USED_KEY + ticket, payload, USED_GRACE_SECONDS, TimeUnit.SECONDS);
+            return payload;
+        }
+        return redisCache.getCacheObject(USED_KEY + ticket);
+    }
+
+    /**
      * 取数校验用的票据兑换（非消费式）：首次命中未用票据时转入宽限期，
      * 同一报表会话（渲染 + 多个数据集回调 + 导出）可复用。
      */

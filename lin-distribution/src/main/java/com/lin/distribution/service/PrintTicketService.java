@@ -1,5 +1,7 @@
 package com.lin.distribution.service;
 
+import com.lin.distribution.dto.PrintTicketPayload;
+
 /**
  * 打印票据服务（W0-4.1：打印鉴权改短时一次性票据，废除 URL 携带 JWT）
  *
@@ -62,4 +64,15 @@ public interface PrintTicketService {
      * @return true 允许取数
      */
     boolean validateDataAccessByBizKey(String ticket, String bizKey);
+
+    /**
+     * 打印回执领取（PT-3，《客户日报表打印优化设计》§3.3）：
+     * JimuReport 页面在真实打印动作后回传票据，取回负载以定位打印主体（登记打印分界）。
+     * 未用票据一次性领取转宽限（页面可能未发数据集回调就直接打印）；
+     * 已用票据宽限期内复用；无效/过期返回 null（回执端永远 2xx，不打断打印）。
+     *
+     * @param ticket ptk_ 前缀票据
+     * @return 票据负载；无效/过期返回 null
+     */
+    PrintTicketPayload consumeForReceipt(String ticket);
 }

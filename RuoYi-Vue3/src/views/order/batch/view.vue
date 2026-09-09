@@ -31,8 +31,20 @@
         <el-button :icon="Printer" :disabled="!hasData" @click="handlePrint">{{
           mode === "pick" ? "打印本页" : "打印总单"
         }}</el-button>
+        <el-button
+          type="success"
+          plain
+          :icon="CircleCheck"
+          :disabled="!customerId || !deliveryDate"
+          @click="handleAcceptance"
+          >生成验收单（客户日）</el-button
+        >
+        <el-button type="warning" plain :icon="Printer" @click="handlePrintManifest">当日打印（全部客户）</el-button>
       </el-form-item>
     </el-form>
+
+    <!-- 当日打印清单抽屉（PT-2：全客户总单+点单批量队列出纸） -->
+    <print-manifest-drawer v-model="manifestOpen" :delivery-date="deliveryDate" @printed="onManifestPrinted" />
 
     <el-empty
       v-if="!loading && !hasData"
@@ -53,7 +65,7 @@
             mode === "matrix"
               ? "行=菜品（品名+规格+单价相同为一行）· 列=配送点 · 格=数量 · 不含价格"
               : mode === "point"
-                ? "客户+日期+配送点 的订单明细（含配送后变更标记），可打印点单 / 生成验收单"
+                ? "客户+日期+配送点 的订单明细（含配送后变更标记），可打印点单；验收单按客户日生成（查询条）"
                 : "内部配货·采购参考，不含价格"
           }}
         </span>
@@ -233,7 +245,6 @@
                   }}</el-tag
                 >
                 <el-button size="small" type="primary" plain :icon="Printer" @click="handlePointPrint">打印点单</el-button>
-                <el-button size="small" type="warning" plain @click="handleAcceptance">生成验收单</el-button>
               </div>
             </template>
           </el-tab-pane>
@@ -244,21 +255,19 @@
 </template>
 
 <script>
-import { batchView, deliveryMatrix, pointViewAllDelivery, markDeliveryPrinted, getDeliveryPrintState } from "@/api/order/delivery";
-import { createAcceptanceByPoint } from "@/api/acceptance/acceptance";
+import { batchView, deliveryMatrix, pointViewAllDelivery, getDeliveryPrintState, getPrintManifest } from "@/api/order/delivery";
+import { createAcceptanceByCustomerDate } from "@/api/acceptance/acceptance";
 import { listCustomer } from "@/api/partner/customer";
 import { issuePrintTicket } from "@/api/print/ticket";
-import { Search, Printer } from "@element-plus/icons-vue";
-
-// 总单通用模板（s18：客户总单矩阵，司机对单 A4）——所有客户共用
-const TOTAL_MATRIX_TEMPLATE_ID = "2599000000000000001";
-// 点单模板（FLAT，全局默认）
-const POINT_FLAT_TEMPLATE_ID = "2099000000000000001";
+import { resolvePrintTemplate } from "@/api/print/template";
+import PrintManifestDrawer from "./printManifestDrawer.vue";
+import { Search, Printer, CircleCheck } from "@element-plus/icons-vue";
 
 export default {
   name: "DeliveryBatchView",
+  components: { PrintManifestDrawer },
   setup() {
-    return { Search, Printer };
+    return { Search, Printer, CircleCheck };
   },
   data() {
     return {
@@ -277,6 +286,8 @@ export default {
       pointTab: "",
       deptId: null,
       pointRows: [],
+      // 当日打印清单抽屉（PT-2 批量打印）
+      manifestOpen: false,
     };
   },
   computed: {
@@ -325,6 +336,8 @@ export default {
     if (this.$route.query.deliveryDate) {
       this.deliveryDate = String(this.$route.query.deliveryDate);
     }
+    // 打印回执（PT-3）：报表页真实打印后写 localStorage['print_receipt']，本页监听刷新分界标识
+    window.addEventListener("storage", this.onPrintReceipt);
     listCustomer().then((response) => {
       this.customers = response.data || [];
       if (this.customerId && this.deliveryDate) {
@@ -332,7 +345,22 @@ export default {
       }
     });
   },
+  beforeUnmount() {
+    window.removeEventListener("storage", this.onPrintReceipt);
+  },
   methods: {
+    /** 报表页回执（PT-3）：本客户日的打印分界标识刷新 */
+    onPrintReceipt(e) {
+      if (!e || e.key !== "print_receipt" || !e.newValue) return;
+      try {
+        const payload = JSON.parse(e.newValue);
+        if (String(payload.customerId || "") === String(this.customerId || "") || !payload.customerId) {
+          this.loadPrintState();
+        }
+      } catch (err) {
+        /* 忽略非法回执 */
+      }
+    },
     /** 客户切换：清空点单 tab，两个条件齐了自动加载 */
     onCustomerChange(customerId) {
       this.deptId = null;
@@ -405,17 +433,22 @@ export default {
       this.pointRows = group.rows || [];
       this.loadPrintState();
     },
-    /** 点单打印（FLAT 通用模板，D-055：按 客户+日期+点 实时取数） */
-    handlePointPrint() {
+    /** 点单打印（PT-1：后端三级绑定解析模板，替代硬编码；PT-3：开窗不登记，真实打印后由报表页回执登记） */
+    async handlePointPrint() {
       if (!this.customerId || !this.deptId || !this.deliveryDate) {
         this.$modal.msgWarning("请先选择客户、配送日期与配送点");
         return;
       }
       const bizKey = `point:${this.customerId}:${this.deptId}:${this.deliveryDate}`;
-      issuePrintTicket({ bizKey, templateId: POINT_FLAT_TEMPLATE_ID }).then((res) => {
+      const resolved = await resolvePrintTemplate(bizKey).then((r) => r.data).catch(() => null);
+      if (!resolved || !resolved.reportViewId) {
+        this.$modal.msgWarning((resolved && resolved.warning) || "未找到可用的点单打印模板");
+        return;
+      }
+      issuePrintTicket({ bizKey, templateId: resolved.templateId }).then((res) => {
         const ticket = res.ticket;
         window.open(
-          "/jmreport/view/" + POINT_FLAT_TEMPLATE_ID
+          "/jmreport/view/" + resolved.reportViewId
             + "?token=" + ticket + "&ticket=" + ticket
             + "&deliveryOrderId="
             + "&customerId=" + this.customerId
@@ -423,15 +456,6 @@ export default {
             + "&deliveryDate=" + this.deliveryDate,
           "_blank"
         );
-        // 打印分界登记（D-055）：点单按 客户+日期+点 记，已打印=配送后
-        markDeliveryPrinted({
-          customerId: this.customerId,
-          deliveryDate: this.deliveryDate,
-          customerDeptId: this.deptId,
-          templateId: POINT_FLAT_TEMPLATE_ID,
-        })
-          .then(() => this.loadPrintState())
-          .catch(() => {});
       });
     },
     /** 查该 客户+日期+点 是否已打印（D-055 打印分界） */
@@ -448,14 +472,13 @@ export default {
           this.pointPrinted = false;
         });
     },
-    /** D-055 生成验收单（客户+日期+点，应送行=订单明细） */
+    /** AC-1 生成验收单（客户日维度，一客户日一验；应送行=该客户当日全部订单明细行，跨点平铺含标记） */
     handleAcceptance() {
       this.$modal
-        .confirm("将为该 客户+配送日期+配送点 生成验收单草稿（应送行=订单明细，含加单/换货/退货标记），确认？")
+        .confirm("将为该 客户+配送日期 生成一张验收单草稿（应送行=当日全部订单明细，跨配送点平铺，含加单/换货/退货标记），确认？")
         .then(() => {
-          createAcceptanceByPoint({
+          createAcceptanceByCustomerDate({
             customerId: this.customerId,
-            customerDeptId: this.deptId,
             deliveryDate: this.deliveryDate,
           }).then((resp) => {
             this.$modal.msgSuccess("验收单已生成：" + (resp.data?.code || ""));
@@ -482,8 +505,8 @@ export default {
     matrixRowClass({ row }) {
       return row.identityOk === false ? "row-identity-bad" : "";
     },
-    /** 总单打印：矩阵口径走 JimuReport 总单模板（D-055 按 客户+日期 实时取数）；配货口径走浏览器打印本页 */
-    handlePrint() {
+    /** 总单打印（PT-1：后端解析模板；PT-3：开窗不登记，真实打印后由报表页回执登记）；配货口径走浏览器打印本页 */
+    async handlePrint() {
       if (this.mode === "pick") {
         window.print();
         return;
@@ -494,28 +517,34 @@ export default {
       }
       // D-055 视图化：总单主体 = 客户+配送日期（无送货单ID），票据按 bizKey 绑定
       const bizKey = `matrix:${this.customerId}:${this.deliveryDate}`;
-      issuePrintTicket({ bizKey, templateId: TOTAL_MATRIX_TEMPLATE_ID }).then((res) => {
+      const resolved = await resolvePrintTemplate(bizKey).then((r) => r.data).catch(() => null);
+      if (!resolved || !resolved.reportViewId) {
+        this.$modal.msgWarning((resolved && resolved.warning) || "未找到可用的总单打印模板");
+        return;
+      }
+      issuePrintTicket({ bizKey, templateId: resolved.templateId }).then((res) => {
         const ticket = res.ticket;
         window.open(
-          "/jmreport/view/" + TOTAL_MATRIX_TEMPLATE_ID
+          "/jmreport/view/" + resolved.reportViewId
             + "?token=" + ticket + "&ticket=" + ticket
             + "&deliveryOrderId="
             + "&customerId=" + this.customerId
             + "&deliveryDate=" + this.deliveryDate,
           "_blank"
         );
-        // 打印分界登记（D-055）：总单打印不拆点，customerDeptId 传空
-        markDeliveryPrinted({
-          customerId: this.customerId,
-          deliveryDate: this.deliveryDate,
-          templateId: TOTAL_MATRIX_TEMPLATE_ID,
-        })
-          .then(() => {
-            this.pointPrinted = false;
-            this.loadPrintState();
-          })
-          .catch(() => {});
       });
+    },
+    /** 当日打印清单抽屉（PT-2 批量打印：全客户总单+点单一次队列出纸） */
+    handlePrintManifest() {
+      if (!this.deliveryDate) {
+        this.$modal.msgWarning("请先选择配送日期");
+        return;
+      }
+      this.manifestOpen = true;
+    },
+    /** 清单抽屉打印完成回调：刷新点单分界标识 */
+    onManifestPrinted() {
+      this.loadPrintState();
     },
   },
 };

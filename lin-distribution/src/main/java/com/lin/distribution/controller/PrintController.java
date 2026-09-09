@@ -3,6 +3,7 @@ package com.lin.distribution.controller;
 import com.lin.common.core.controller.BaseController;
 import com.lin.common.core.domain.AjaxResult;
 import com.lin.common.exception.ServiceException;
+import com.lin.distribution.dto.PrintTicketPayload;
 import com.lin.distribution.domain.Customer;
 import com.lin.distribution.domain.CustomerDept;
 import com.lin.distribution.domain.CustomerSkuMapping;
@@ -16,11 +17,14 @@ import com.lin.distribution.mapper.DeliveryOrderDetailMapper;
 import com.lin.distribution.mapper.DeliveryOrderMapper;
 import com.lin.distribution.mapper.SaleOrderDetailMapper;
 import com.lin.distribution.service.DeliveryBatchService;
+import com.lin.distribution.service.PrintTemplateService;
 import com.lin.distribution.service.PrintTicketService;
+import com.lin.distribution.util.PrintBizKeys;
 import com.lin.distribution.vo.DeliveryMatrixLayout;
 import com.lin.distribution.vo.DeliveryMatrixVO;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -51,6 +55,7 @@ import java.util.stream.Collectors;
  *
  * @author dsh
  */
+@Slf4j
 @Tag(name = "打印数据接口")
 @RestController
 @RequestMapping("/print")
@@ -71,6 +76,23 @@ public class PrintController extends BaseController {
     private DeliveryBatchService deliveryBatchService;
     @Autowired
     private PrintTicketService printTicketService;
+    @Autowired
+    private PrintTemplateService printTemplateService;
+
+    /**
+     * 按打印主体键解析打印模板（PT-1，《客户日报表打印优化设计》§3.1）：
+     * 替代前端硬编码模板ID——bizKey 前缀判形态（matrix→MATRIX / point→FLAT），
+     * 后端三级绑定解析（客户+点 &gt; 客户 &gt; 全局默认，同形态已发布），返回报表视图ID 供前端 open。
+     *
+     * @param bizKey 打印主体键（matrix:{customerId}:{date} / point:{customerId}:{deptId}:{date}）
+     * @return PrintTemplateResolveVO（无已发布模板时 templateId=null + warning）
+     */
+    @Operation(summary = "按打印主体键解析打印模板")
+    @PreAuthorize("@ss.hasAnyPermi('order:delivery:print,print:template:list')")
+    @GetMapping("/resolve-template")
+    public AjaxResult resolveTemplate(@RequestParam("bizKey") String bizKey) {
+        return success(printTemplateService.resolveByBizKey(bizKey));
+    }
 
     /**
      * 签发短时一次性打印票据（W0-4.1：替代 URL 携带长期 JWT）
@@ -100,6 +122,71 @@ public class PrintController extends BaseController {
             return null;
         }
         return String.valueOf(value).trim();
+    }
+
+    /**
+     * 票据批量签发（PT-4，《客户日报表打印优化设计》§3.4）：批量打印队列预取下一张票据用，
+     * 语义与单签完全一致（各自 TTL）。上限 50，超出拒绝。
+     *
+     * @param body {bizKeys: ["matrix:10:2026-09-08", ...]}
+     * @return {tickets: {bizKey: ticket}}
+     */
+    @Operation(summary = "批量签发打印票据")
+    @PreAuthorize("@ss.hasAnyPermi('order:delivery:print,print:template:list')")
+    @PostMapping("/ticket/batch")
+    public AjaxResult issueTicketsBatch(@RequestBody Map<String, Object> body) {
+        Object raw = body == null ? null : body.get("bizKeys");
+        if (!(raw instanceof List)) {
+            throw new ServiceException("bizKeys 不能为空");
+        }
+        List<?> keys = (List<?>) raw;
+        if (keys.isEmpty()) {
+            return AjaxResult.success(new LinkedHashMap<String, String>());
+        }
+        if (keys.size() > 50) {
+            throw new ServiceException("单次批量签发上限 50 张");
+        }
+        Map<String, String> tickets = new LinkedHashMap<>();
+        for (Object key : keys) {
+            String bizKey = toBizKey(key);
+            if (bizKey != null) {
+                tickets.put(bizKey, printTicketService.issueByBizKey(bizKey, null));
+            }
+        }
+        AjaxResult result = AjaxResult.success();
+        result.put("tickets", tickets);
+        return result;
+    }
+
+    /**
+     * 打印回执（PT-3，《客户日报表打印优化设计》§3.3）：
+     * JimuReport 页面（print-annotation.js，s26 起 v=11）在真实打印动作后回传票据，
+     * 凭票据定位打印主体并登记打印分界（开窗不登记，真实打印才登记）。
+     * 安全：SecurityConfig 放行 + 票据自证（与数据集回调同源同强度，负载含签发人与主体绑定）；
+     * 历史单主体（deliveryOrderId 绑定）忽略——历史单走 /order/delivery/{id}/mark-printed，不混写。
+     *
+     * @param body {ticket: "ptk_..."}
+     */
+    @Operation(summary = "打印回执登记")
+    @PostMapping("/receipt")
+    public AjaxResult receipt(@RequestBody(required = false) Map<String, Object> body) {
+        String ticket = body == null ? null : toBizKey(body.get("ticket"));
+        PrintTicketPayload payload = printTicketService.consumeForReceipt(ticket);
+        AjaxResult result = AjaxResult.success();
+        result.put("registered", false);
+        if (payload != null && StringUtils.isNotBlank(payload.getBizKey())) {
+            try {
+                PrintBizKeys.BizKeyInfo info = PrintBizKeys.parse(payload.getBizKey());
+                deliveryBatchService.markPrinted(info.getCustomerId(), info.getDeliveryDate(),
+                        info.getCustomerDeptId(), payload.getTemplateId());
+                result.put("registered", true);
+                result.put("bizKey", payload.getBizKey());
+            } catch (Exception e) {
+                // 回执端永远 2xx：登记失败仅记录，不打断报表页打印（失败方向安全=保持未打印）
+                log.warn("[print-receipt] 登记失败 bizKey={}: {}", payload.getBizKey(), e.getMessage());
+            }
+        }
+        return result;
     }
 
     private Long toLong(Object value) {
@@ -448,14 +535,14 @@ public class PrintController extends BaseController {
 
     // ==================== D-055 视图化打印辅助 ====================
 
-    /** 矩阵总单打印主体键：matrix:{customerId}:{deliveryDate} */
+    /** 矩阵总单打印主体键：matrix:{customerId}:{deliveryDate}（PT-1 起委托 PrintBizKeys 统一契约） */
     static String matrixBizKey(Long customerId, String deliveryDate) {
-        return "matrix:" + customerId + ":" + deliveryDate;
+        return PrintBizKeys.matrix(customerId, deliveryDate);
     }
 
-    /** 点单打印主体键：point:{customerId}:{customerDeptId}:{deliveryDate} */
+    /** 点单打印主体键：point:{customerId}:{customerDeptId}:{deliveryDate}（PT-1 起委托 PrintBizKeys 统一契约） */
     static String pointBizKey(Long customerId, Long customerDeptId, String deliveryDate) {
-        return "point:" + customerId + ":" + customerDeptId + ":" + deliveryDate;
+        return PrintBizKeys.point(customerId, customerDeptId, deliveryDate);
     }
 
     /**

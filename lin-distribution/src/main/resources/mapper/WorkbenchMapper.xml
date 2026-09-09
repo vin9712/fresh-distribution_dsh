@@ -13,38 +13,39 @@
             (select count(1) from purchase_order where status = 1) as purchasePendingCost,
             (select count(1) from t_delivery_order where status = 0 and is_deleted = 0) as pendingPrint,
             (select count(1) from t_delivery_order where status = 1 and is_deleted = 0) as pendingMarkDelivered,
-            (select count(1) from t_delivery_order d
-              where d.status = 2 and d.is_deleted = 0
-                and not exists (select 1 from acceptance a where a.delivery_order_id = d.id)) as pendingAcceptance,
+            (select count(1) from (select o.customer_id, o.delivery_date from t_sale_order o
+              where o.status = 1 and o.is_deleted = 0 and o.delivery_date &lt;= curdate()
+                and not exists (select 1 from acceptance a
+                                where a.customer_id = o.customer_id
+                                  and a.delivery_date = o.delivery_date
+                                  and a.status = 1)
+              group by o.customer_id, o.delivery_date) t) as pendingAcceptance,
             (select count(1) from order_adjustment) as pendingAdjust
     </select>
 
-    <!-- 待验收提醒（W0-3.2）：已送达未提交验收的送货单，附打印时间/配送日期 -->
+    <!-- 待验收提醒（W0-3.2 + AC-7）：按 客户+配送日期 分组（订单明细视角，与客户日一验对齐），
+         附最近打印时间；已验收判定=该客户日已存在已提交(status=1)验收单（新口径 delivery_date 匹配，
+         历史单 delivery_date 为空天然隔离）；已送达未验收的历史送货单维度仍由 summary 子查询计数 -->
     <select id="selectPendingAcceptance" resultType="com.lin.distribution.vo.PendingAcceptanceVO">
-        select max(o.id) as deliveryId,
-               max(o.code) as deliveryCode,
-               o.customer_id as customerId,
+        select o.customer_id as customerId,
                coalesce(c.alias, c.name) as customerName,
-               o.customer_dept_id as deliveryPointId,
-               cd.name as deliveryPointName,
                o.delivery_date as deliveryDate,
                (select pl.print_time from t_delivery_print_log pl
                 where pl.customer_id = o.customer_id
                   and pl.delivery_date = o.delivery_date
-                  and pl.customer_dept_id = o.customer_dept_id
-                order by pl.print_time desc limit 1) as printTime
+                order by pl.print_time desc limit 1) as printTime,
+               max(o.id) as deliveryId,
+               max(o.code) as deliveryCode
         from t_sale_order o
         left join t_customer c on c.id = o.customer_id
-        left join t_customer_dept cd on cd.id = o.customer_dept_id
         where o.is_deleted = 0
           and o.status = 1
           and o.delivery_date &lt;= curdate()
           and not exists (select 1 from acceptance a
                           where a.customer_id = o.customer_id
-                            and a.delivery_point_id = o.customer_dept_id
                             and a.delivery_date = o.delivery_date
                             and a.status = 1)
-        group by o.customer_id, o.customer_dept_id, o.delivery_date, coalesce(c.alias, c.name), cd.name
+        group by o.customer_id, coalesce(c.alias, c.name), o.delivery_date
         order by o.delivery_date, o.customer_id
     </select>
 

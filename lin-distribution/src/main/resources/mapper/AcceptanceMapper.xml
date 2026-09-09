@@ -46,6 +46,7 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
             <if test="code != null  and code != ''"> and a.code = #{code}</if>
             <if test="deliveryOrderId != null "> and a.delivery_order_id = #{deliveryOrderId}</if>
             <if test="customerId != null "> and a.customer_id = #{customerId}</if>
+            <if test="deliveryDate != null "> and a.delivery_date = #{deliveryDate}</if>
             <if test="deliveryPointId != null "> and a.delivery_point_id = #{deliveryPointId}</if>
             <if test="acceptDate != null "> and a.accept_date = #{acceptDate}</if>
             <if test="beginAcceptDate != null "> and a.accept_date &gt;= #{beginAcceptDate}</if>
@@ -82,6 +83,25 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
           and delivery_date = #{deliveryDate}
     </select>
 
+    <!-- AC-1/AC-3：验收维度=客户+配送日期，查该维度验收单（最新 1 张）；
+         只匹配新口径（delivery_order_id is null），历史送货单验收单 delivery_date 为空天然隔离 -->
+    <select id="selectByCustomerDate" resultMap="AcceptanceResult">
+        <include refid="selectAcceptanceVo"/>
+        where a.customer_id = #{customerId}
+          and a.delivery_date = #{deliveryDate}
+          and a.delivery_order_id is null
+        order by a.id desc
+        limit 1
+    </select>
+
+    <!-- AC-3：一客户日一验守卫（含 D-055 期间按点建的验收单，防混维度重复建单） -->
+    <select id="countByCustomerDate" resultType="int">
+        select count(1) from acceptance
+        where customer_id = #{customerId}
+          and delivery_date = #{deliveryDate}
+          and delivery_order_id is null
+    </select>
+
     <!-- W0-3.2 列表提醒标色：批量查已有已提交验收单的送货单ID（与工作台口径一致 status=1） -->
     <select id="selectSubmittedDeliveryIds" resultType="Long">
         select distinct delivery_order_id from acceptance
@@ -109,6 +129,7 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
             <if test="deliveryOrderId != null">delivery_order_id,</if>
             <if test="customerId != null">customer_id,</if>
             <if test="deliveryPointId != null">delivery_point_id,</if>
+            <if test="deliveryDate != null">delivery_date,</if>
             <if test="acceptDate != null">accept_date,</if>
             <if test="totalAmount != null">total_amount,</if>
             <if test="status != null">status,</if>
@@ -126,6 +147,7 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
             <if test="deliveryOrderId != null">#{deliveryOrderId},</if>
             <if test="customerId != null">#{customerId},</if>
             <if test="deliveryPointId != null">#{deliveryPointId},</if>
+            <if test="deliveryDate != null">#{deliveryDate},</if>
             <if test="acceptDate != null">#{acceptDate},</if>
             <if test="totalAmount != null">#{totalAmount},</if>
             <if test="status != null">#{status},</if>
@@ -147,6 +169,7 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
             <if test="deliveryOrderId != null">delivery_order_id = #{deliveryOrderId},</if>
             <if test="customerId != null">customer_id = #{customerId},</if>
             <if test="deliveryPointId != null">delivery_point_id = #{deliveryPointId},</if>
+            <if test="deliveryDate != null">delivery_date = #{deliveryDate},</if>
             <if test="acceptDate != null">accept_date = #{acceptDate},</if>
             <if test="totalAmount != null">total_amount = #{totalAmount},</if>
             <if test="status != null">status = #{status},</if>

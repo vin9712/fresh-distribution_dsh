@@ -93,9 +93,13 @@ public class AcceptanceController extends BaseController {
     }
 
     /**
-     * 按送货单生成验收单草稿（一单一验）
+     * 按送货单生成验收单草稿（一单一验）。
+     *
+     * @deprecated 历史单专用（AC-4）：新流程唯一建单入口为 create-by-customer-date，
+     *             本接口仅为历史 status=2 订单补建验收保留
      */
-    @Operation(summary = "按送货单生成验收单")
+    @Deprecated
+    @Operation(summary = "按送货单生成验收单（历史单专用）")
     @PreAuthorize("@ss.hasPermi('acceptance:add')")
     @Log(title = "验收单", businessType = BusinessType.INSERT)
     @PostMapping
@@ -104,18 +108,20 @@ public class AcceptanceController extends BaseController {
     }
 
     /**
-     * D-055 按「客户+配送日期+配送点」生成验收单（应送行=订单明细，含加单/换货/退货标记）
+     * 按「客户+配送日期」生成验收单草稿（AC-1，《验收模块订单明细视角重构设计》）：
+     * 一客户日一张，应送行=该客户当日全部订单明细行（跨配送点平铺，含加单/换货/退货标记）。
+     *
+     * @param body {customerId, deliveryDate}
      */
-    @Operation(summary = "按客户+日期+点生成验收单")
+    @Operation(summary = "按客户+配送日期生成验收单")
     @PreAuthorize("@ss.hasPermi('acceptance:add')")
     @Log(title = "验收单", businessType = BusinessType.INSERT)
-    @PostMapping("/create-by-point")
-    public AjaxResult createByPoint(@RequestBody java.util.Map<String, Object> body) {
+    @PostMapping("/create-by-customer-date")
+    public AjaxResult createByCustomerDate(@RequestBody java.util.Map<String, Object> body) {
         Long customerId = body.get("customerId") == null ? null : Long.valueOf(String.valueOf(body.get("customerId")));
-        Long deptId = body.get("customerDeptId") == null ? null : Long.valueOf(String.valueOf(body.get("customerDeptId")));
         LocalDate deliveryDate = body.get("deliveryDate") == null ? null
                 : LocalDate.parse(String.valueOf(body.get("deliveryDate")).substring(0, 10));
-        return success(acceptanceService.createByCustomerPoint(customerId, deptId, deliveryDate));
+        return success(acceptanceService.createByCustomerDate(customerId, deliveryDate));
     }
 
     /**

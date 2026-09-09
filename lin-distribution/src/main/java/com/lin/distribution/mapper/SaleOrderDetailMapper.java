@@ -4,6 +4,7 @@ import java.util.List;
 import java.time.LocalDate;
 
 import com.lin.distribution.domain.SaleOrderDetail;
+import com.lin.distribution.vo.PrintManifestVO;
 import org.apache.ibatis.annotations.Param;
 
 import java.time.LocalDateTime;
@@ -67,6 +68,17 @@ public interface SaleOrderDetailMapper {
      */
     List<SaleOrderDetail> selectValidByCustomerDateForView(@Param("customerId") Long customerId,
                                                            @Param("deliveryDate") LocalDate deliveryDate);
+
+    /**
+     * 当日打印清单数据源（PT-2，《客户日报表打印优化设计》§3.2）：
+     * 按 配送日期 返回 客户×配送点×应送量 扁平行（口径与点单一致：o.status&gt;=1 且未删除），
+     * 客户名 alias 优先；分组/printed 判定由服务层完成。
+     * 注意：本查询不排除纯退货行（有单即可打总单），纯退货行 num=0 不影响合计与清单展示。
+     *
+     * @param deliveryDate 配送日期
+     * return 扁平行（c.id, c.py 全键；DISTINCT 语义由行级 num 聚合在服务层完成）
+     */
+    List<PrintManifestVO.Row> selectPrintManifestRows(@Param("deliveryDate") LocalDate deliveryDate);
 
     /**
      * 新增销售订单详情

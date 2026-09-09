@@ -18,6 +18,7 @@ import com.lin.distribution.dto.AcceptanceUpdateDTO;
 import com.lin.distribution.mapper.AcceptanceItemMapper;
 import com.lin.distribution.mapper.AcceptanceMapper;
 import com.lin.distribution.mapper.AcceptanceRevokeLogMapper;
+import com.lin.distribution.mapper.CustomerDeptMapper;
 import com.lin.distribution.mapper.DeliveryOrderDetailMapper;
 import com.lin.distribution.mapper.DeliveryOrderMapper;
 import com.lin.distribution.mapper.DeliverySourceItemMapper;
@@ -73,6 +74,8 @@ class AcceptanceServiceImplTest {
     private DeliveryOrderDetailMapper deliveryOrderDetailMapper;
     @Mock
     private DeliverySourceItemMapper deliverySourceItemMapper;
+    @Mock
+    private CustomerDeptMapper customerDeptMapper;
     @Mock
     private SaleOrderMapper saleOrderMapper;
     @Mock
@@ -869,11 +872,11 @@ class AcceptanceServiceImplTest {
         assertEquals("XS002", items.get(0).getSources().get(1).getOrderCode());
     }
 
-    // ==================== D-055 验收=订单维度（客户+日期+点） ====================
+    // ==================== AC-1/AC-2/AC-3 验收=客户日维度（订单明细视角） ====================
 
     @Test
-    void 订单维度验收_应送行来自订单明细且默认实收等于应送() {
-        when(acceptanceMapper.countByCustomerPointDate(10L, 2L, LocalDate.of(2026, 9, 1))).thenReturn(0);
+    void 客户日验收_应送行来自全部订单明细且默认实收等于应送() {
+        when(acceptanceMapper.selectByCustomerDate(10L, LocalDate.of(2026, 9, 1))).thenReturn(null);
         SaleOrderDetail normal = new SaleOrderDetail();
         normal.setId(1001L);
         normal.setCustomerDeptId(2L);
@@ -895,28 +898,29 @@ class AcceptanceServiceImplTest {
         supplement.setProductPrice(new BigDecimal("2.00"));
         supplement.setChangeType(1);
         supplement.setActualNum(new BigDecimal("3"));
-        when(saleOrderDetailMapper.selectValidByCustomerPointDate(10L, 2L, LocalDate.of(2026, 9, 1)))
+        when(saleOrderDetailMapper.selectValidByCustomerDateForView(10L, LocalDate.of(2026, 9, 1)))
                 .thenReturn(new ArrayList<>(List.of(normal, supplement)));
         when(bizCodeService.nextDailyCode(eq("acceptance"), anyString(), eq(3))).thenReturn("YS20260901001");
 
-        Acceptance acceptance = acceptanceService.createByCustomerPoint(10L, 2L, LocalDate.of(2026, 9, 1));
+        Acceptance acceptance = acceptanceService.createByCustomerDate(10L, LocalDate.of(2026, 9, 1));
 
         assertEquals("YS20260901001", acceptance.getCode());
         assertEquals(LocalDate.of(2026, 9, 1), acceptance.getDeliveryDate());
-        assertEquals(Long.valueOf(2L), acceptance.getDeliveryPointId());
-        // 批量插入的明细行：应送=订单 num；加单行默认实收=actual_num
+        assertNull(acceptance.getDeliveryPointId(), "客户日单表头不挂配送点");
+        // 批量插入的明细行：应送=订单 num；加单行默认实收=actual_num；行带订单明细引用
         ArgumentCaptor<List> captor = ArgumentCaptor.forClass(List.class);
         verify(acceptanceItemMapper).insertAcceptanceItemBatch(captor.capture());
         List<AcceptanceItem> items = captor.getValue();
         assertEquals(2, items.size());
+        assertEquals(Long.valueOf(1001L), items.get(0).getSaleOrderDetailId());
         assertEquals(0, new BigDecimal("5").compareTo(items.get(0).getDeliveredQuantity()));
         assertEquals(0, new BigDecimal("5").compareTo(items.get(0).getActualQuantity()));
         assertEquals(0, new BigDecimal("3").compareTo(items.get(1).getActualQuantity()), "加单行默认实收=actual_num");
     }
 
     @Test
-    void 订单维度验收_退货标记行应送实收均为零() {
-        when(acceptanceMapper.countByCustomerPointDate(10L, 2L, LocalDate.of(2026, 9, 1))).thenReturn(0);
+    void 客户日验收_退货标记行应送实收均为零() {
+        when(acceptanceMapper.selectByCustomerDate(10L, LocalDate.of(2026, 9, 1))).thenReturn(null);
         SaleOrderDetail returned = new SaleOrderDetail();
         returned.setId(2001L);
         returned.setCustomerDeptId(2L);
@@ -927,16 +931,95 @@ class AcceptanceServiceImplTest {
         returned.setNum(new BigDecimal("4"));
         returned.setProductPrice(new BigDecimal("3.50"));
         returned.setChangeType(3);
-        when(saleOrderDetailMapper.selectValidByCustomerPointDate(10L, 2L, LocalDate.of(2026, 9, 1)))
+        when(saleOrderDetailMapper.selectValidByCustomerDateForView(10L, LocalDate.of(2026, 9, 1)))
                 .thenReturn(new ArrayList<>(List.of(returned)));
         when(bizCodeService.nextDailyCode(eq("acceptance"), anyString(), eq(3))).thenReturn("YS20260901002");
 
-        Acceptance acceptance = acceptanceService.createByCustomerPoint(10L, 2L, LocalDate.of(2026, 9, 1));
+        Acceptance acceptance = acceptanceService.createByCustomerDate(10L, LocalDate.of(2026, 9, 1));
 
         ArgumentCaptor<List> captor = ArgumentCaptor.forClass(List.class);
         verify(acceptanceItemMapper).insertAcceptanceItemBatch(captor.capture());
         List<AcceptanceItem> items = captor.getValue();
         assertEquals(0, BigDecimal.ZERO.compareTo(items.get(0).getDeliveredQuantity()), "退货行应送=0");
         assertEquals(0, BigDecimal.ZERO.compareTo(items.get(0).getActualQuantity()), "退货行实收=0");
+    }
+
+    @Test
+    void 客户日验收_重复建单拦截并带已有单号() {
+        Acceptance existing = new Acceptance();
+        existing.setId(9L);
+        existing.setCode("YS20260901001");
+        when(acceptanceMapper.selectByCustomerDate(10L, LocalDate.of(2026, 9, 1))).thenReturn(existing);
+
+        ServiceException ex = assertThrows(ServiceException.class,
+                () -> acceptanceService.createByCustomerDate(10L, LocalDate.of(2026, 9, 1)));
+        assertTrue(ex.getMessage().contains("YS20260901001"), "提示须带已有验收单号");
+        verify(acceptanceItemMapper, never()).insertAcceptanceItemBatch(anyList());
+    }
+
+    @Test
+    void 去验收定位_订单视角命中客户日验收单() {
+        SaleOrder order = new SaleOrder();
+        order.setId(1000L);
+        order.setCustomerId(10L);
+        order.setDeliveryDate(LocalDate.of(2026, 9, 1));
+        when(saleOrderMapper.selectSaleOrderById(1000L)).thenReturn(order);
+        Acceptance hit = new Acceptance();
+        hit.setId(77L);
+        hit.setCode("YS20260901001");
+        hit.setStatus(AcceptanceStatus.SUBMITTED.getCode());
+        when(acceptanceMapper.selectByCustomerDate(10L, LocalDate.of(2026, 9, 1))).thenReturn(hit);
+
+        AcceptanceByOrderVO vo = acceptanceService.locateBySaleOrder(1000L);
+
+        assertEquals(Long.valueOf(10L), vo.getCustomerId());
+        assertEquals("2026-09-01", vo.getDeliveryDate());
+        assertEquals(Boolean.TRUE, vo.getHasAcceptance());
+        assertEquals(Long.valueOf(77L), vo.getAcceptanceId());
+        assertNull(vo.getDeliveryId(), "订单视角命中时不再反查送货单");
+        verify(deliverySourceItemMapper, never()).selectDeliverySourceItemList(any());
+    }
+
+    @Test
+    void 去验收定位_订单视角无单且无历史痕迹时引导建草稿() {
+        SaleOrder order = new SaleOrder();
+        order.setId(1000L);
+        order.setCustomerId(10L);
+        order.setDeliveryDate(LocalDate.of(2026, 9, 1));
+        when(saleOrderMapper.selectSaleOrderById(1000L)).thenReturn(order);
+        when(acceptanceMapper.selectByCustomerDate(10L, LocalDate.of(2026, 9, 1))).thenReturn(null);
+        when(deliverySourceItemMapper.selectDeliverySourceItemList(any(DeliverySourceItem.class)))
+                .thenReturn(Collections.emptyList());
+        when(deliveryOrderDetailMapper.selectListByOrderIdIn(any())).thenReturn(Collections.emptyList());
+
+        AcceptanceByOrderVO vo = acceptanceService.locateBySaleOrder(1000L);
+
+        assertEquals(Long.valueOf(10L), vo.getCustomerId());
+        assertEquals("2026-09-01", vo.getDeliveryDate());
+        assertEquals(Boolean.FALSE, vo.getHasAcceptance());
+        assertNull(vo.getDeliveryId());
+    }
+
+    @Test
+    void 去验收定位_新流程订单有历史送货单痕迹时回退送货单视角() {
+        SaleOrder order = new SaleOrder();
+        order.setId(1000L);
+        order.setCustomerId(10L);
+        order.setDeliveryDate(LocalDate.of(2026, 9, 1));
+        when(saleOrderMapper.selectSaleOrderById(1000L)).thenReturn(order);
+        when(acceptanceMapper.selectByCustomerDate(10L, LocalDate.of(2026, 9, 1))).thenReturn(null);
+        // 历史痕迹：source_item 台账命中
+        DeliverySourceItem si = source(DEPT_A, DETAIL_ID, 8001L, "5", "2.50");
+        si.setDeliveryId(500L);
+        when(deliverySourceItemMapper.selectDeliverySourceItemList(any(DeliverySourceItem.class)))
+                .thenReturn(List.of(si));
+        DeliveryOrder delivery = deliveredOrder();
+        when(deliveryOrderMapper.selectListByIds(anyList())).thenReturn(List.of(delivery));
+        when(acceptanceMapper.selectAcceptanceList(any(Acceptance.class))).thenReturn(Collections.emptyList());
+
+        AcceptanceByOrderVO vo = acceptanceService.locateBySaleOrder(1000L);
+
+        assertEquals(Long.valueOf(500L), vo.getDeliveryId(), "无客户日验收单但有历史送货单 → 回退送货单视角");
+        assertEquals(Boolean.FALSE, vo.getHasAcceptance());
     }
 }

@@ -4,6 +4,7 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
@@ -17,12 +18,14 @@ import com.lin.distribution.mapper.CustomerSkuMappingMapper;
 import com.lin.distribution.mapper.DeliveryBatchMapper;
 import com.lin.distribution.mapper.DeliveryPrintLogMapper;
 import com.lin.distribution.mapper.SaleOrderDetailMapper;
+import com.lin.common.exception.ServiceException;
 import com.lin.distribution.vo.DeliveryBatchViewVO;
 import com.lin.distribution.vo.DeliveryMatrixLayout;
 import com.lin.distribution.vo.DeliveryMatrixLayout.Column;
 import com.lin.distribution.vo.DeliveryMatrixLayout.Tier;
 import com.lin.distribution.vo.DeliveryMatrixLayout.TierGroup;
 import com.lin.distribution.vo.DeliveryMatrixVO;
+import com.lin.distribution.vo.PrintManifestVO;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -33,6 +36,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
@@ -590,4 +594,49 @@ class DeliveryBatchServiceImplTest {
     }
 
     // ==================== 工具 ====================
+
+    // ==================== 当日打印清单（PT-2，《客户日报表打印优化设计》§3.2） ====================
+
+    private PrintManifestVO.Row manifestRow(Long customerId, String customerName, Long deptId, String deptName, String num) {
+        return new PrintManifestVO.Row(customerId, customerName, deptId, deptName, new BigDecimal(num));
+    }
+
+    @Test
+    void 打印清单_按客户聚合并判定总单与点单打印分界() {
+        when(saleOrderDetailMapper.selectPrintManifestRows(LocalDate.of(2026, 9, 8))).thenReturn(List.of(
+                manifestRow(10L, "客户甲", 201L, "棠下", "5"),
+                manifestRow(10L, "客户甲", 201L, "棠下", "3"),
+                manifestRow(10L, "客户甲", 202L, "华铃", "2"),
+                manifestRow(11L, "客户乙", 201L, "棠下", "4")));
+        // 打印分界：客户甲总单已打；其余未打
+        when(deliveryPrintLogMapper.countPrinted(10L, LocalDate.of(2026, 9, 8), null)).thenReturn(1);
+        when(deliveryPrintLogMapper.countPrinted(10L, LocalDate.of(2026, 9, 8), 201L)).thenReturn(1);
+        when(deliveryPrintLogMapper.countPrinted(10L, LocalDate.of(2026, 9, 8), 202L)).thenReturn(0);
+        when(deliveryPrintLogMapper.countPrinted(11L, LocalDate.of(2026, 9, 8), null)).thenReturn(0);
+        when(deliveryPrintLogMapper.countPrinted(11L, LocalDate.of(2026, 9, 8), 201L)).thenReturn(0);
+
+        List<PrintManifestVO> manifest = service.selectPrintManifest("2026-09-08");
+
+        assertEquals(2, manifest.size());
+        PrintManifestVO c1 = manifest.get(0);
+        assertEquals(Long.valueOf(10L), c1.getCustomerId());
+        assertEquals("matrix:10:2026-09-08", c1.getMatrixBizKey());
+        assertTrue(c1.getMatrixPrinted());
+        assertEquals(2, c1.getPoints().size());
+        assertEquals(0, new BigDecimal("8").compareTo(c1.getPoints().get(0).getTotalNum()), "同客户同点多行应送合计");
+        assertTrue(c1.getPoints().get(0).getPrinted());
+        assertFalse(c1.getPoints().get(1).getPrinted());
+        assertEquals("point:10:202:2026-09-08", c1.getPoints().get(1).getBizKey());
+        PrintManifestVO c2 = manifest.get(1);
+        assertFalse(c2.getMatrixPrinted());
+        assertEquals("point:11:201:2026-09-08", c2.getPoints().get(0).getBizKey());
+    }
+
+    @Test
+    void 打印清单_空日期与非法日期() {
+        when(saleOrderDetailMapper.selectPrintManifestRows(LocalDate.of(2026, 9, 8))).thenReturn(Collections.emptyList());
+        assertTrue(service.selectPrintManifest("2026-09-08").isEmpty());
+        assertThrows(ServiceException.class, () -> service.selectPrintManifest("bad-date"));
+        assertThrows(ServiceException.class, () -> service.selectPrintManifest(" "));
+    }
 }

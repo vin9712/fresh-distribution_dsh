@@ -95,6 +95,15 @@
         where id = #{id}
     </select>
 
+    <!-- AC-6：验收明细配送点名批量回填 -->
+    <select id="selectCustomerDeptByIds" resultMap="CustomerDeptResult">
+        <include refid="selectCustomerDeptVo"/>
+        where id in
+        <foreach item="id" collection="ids" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+    </select>
+
     <insert id="insertCustomerDept" parameterType="com.lin.distribution.domain.CustomerDept" useGeneratedKeys="true"
             keyProperty="id">
         insert into t_customer_dept

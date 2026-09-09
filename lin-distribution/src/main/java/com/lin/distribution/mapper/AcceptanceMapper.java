@@ -49,6 +49,19 @@ public interface AcceptanceMapper {
                                  @org.apache.ibatis.annotations.Param("deliveryDate") java.time.LocalDate deliveryDate);
 
     /**
+     * 验收维度=客户+配送日期（AC-1，《验收模块订单明细视角重构设计》）：查该维度验收单（最新 1 张）。
+     * 只匹配新口径验收单（delivery_order_id is null）；历史送货单验收单 delivery_date 为空天然隔离。
+     */
+    Acceptance selectByCustomerDate(@org.apache.ibatis.annotations.Param("customerId") Long customerId,
+                                    @org.apache.ibatis.annotations.Param("deliveryDate") java.time.LocalDate deliveryDate);
+
+    /**
+     * 该 客户+日期 是否已有新口径验收单（AC-3 一客户日一验守卫，防混维度重复建单）
+     */
+    int countByCustomerDate(@org.apache.ibatis.annotations.Param("customerId") Long customerId,
+                            @org.apache.ibatis.annotations.Param("deliveryDate") java.time.LocalDate deliveryDate);
+
+    /**
      * 查询来源订单最近一张已提交验收单的验收日期（月结调整追溯：订单归月用）
      *
      * @param saleOrderId 销售订单ID

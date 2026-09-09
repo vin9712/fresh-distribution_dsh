@@ -10,7 +10,9 @@
  * 标注按「模板ID」存 localStorage（本机浏览器），重开自动恢复，可一键清空。
  *
  * 无第三方依赖；打印用 canvas 分片截图 + 标注合成（见 printAnno）。
- * 代码版本：v1（js_str 引导串里的 ?v= 与此同步递增以破缓存）
+ * v2（2026-09-08，对应 s26 引导版本 v=11）：新增打印回执 notifyPrinted——真实打印后写
+ * localStorage['print_receipt']（开窗方批量抽屉监听推进）+ POST /print/receipt 登记打印分界。
+ * 代码版本：v2（js_str 引导串里的 ?v= 与此同步递增以破缓存）
  */
 (function () {
   "use strict";
@@ -601,6 +603,30 @@
     return html;
   }
 
+  /** 打印回执（PT-3，《客户日报表打印优化设计》§3.3）：
+   *  真实打印动作后：(1) 写 localStorage['print_receipt'] 供开窗方（批量打印抽屉）监听推进；
+   *  (2) POST /print/receipt 回传票据登记打印分界（开窗不登记，真实打印才登记）。失败静默。 */
+  function notifyPrinted() {
+    try {
+      var q = new URLSearchParams(window.location.search);
+      var ticket = q.get("ticket");
+      var cid = q.get("customerId"), did = q.get("customerDeptId");
+      var date = (q.get("deliveryDate") || "").substring(0, 10);
+      var bizKey = null;
+      if (cid && date) { bizKey = did ? ("point:" + cid + ":" + did + ":" + date) : ("matrix:" + cid + ":" + date); }
+      if (bizKey) {
+        try { localStorage.setItem("print_receipt", JSON.stringify({ bizKey: bizKey, customerId: cid, customerDeptId: did || null, ticket: ticket, t: Date.now() })); } catch (e1) { /* ignore */ }
+      }
+      if (ticket) {
+        fetch("/print/receipt", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ticket: ticket })
+        }).catch(function () { /* 回执失败静默：失败方向安全（保持未打印） */ });
+      }
+    } catch (e0) { /* ignore */ }
+  }
+
   /** 打印（含标注）：合成 → 分页 → 隐藏 iframe 唤起打印 */
   function printAnno() {
     clearActive();
@@ -612,7 +638,7 @@
       var doc = frame.contentWindow.document;
       doc.open(); doc.write(buildPrintHtml(pv)); doc.close();
       setTimeout(function () {
-        try { frame.contentWindow.focus(); frame.contentWindow.print(); }
+        try { frame.contentWindow.focus(); frame.contentWindow.print(); notifyPrinted(); }
         catch (e) { window.alert("唤起打印失败，请重试"); }
         setTimeout(function () { frame.remove(); }, 60000);
       }, 300);
@@ -678,7 +704,7 @@
           var doc = frame.contentWindow.document;
           doc.open(); doc.write(buildPrintHtml(pv)); doc.close();
           setTimeout(function () {
-            try { frame.contentWindow.focus(); frame.contentWindow.print(); } catch (e2) { /* ignore */ }
+            try { frame.contentWindow.focus(); frame.contentWindow.print(); notifyPrinted(); } catch (e2) { /* ignore */ }
             setTimeout(function () { frame.remove(); }, 60000);
           }, 300);
           printing = false;

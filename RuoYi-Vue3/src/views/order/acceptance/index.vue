@@ -29,6 +29,9 @@
       <el-form-item>
         <el-button type="primary" :icon="Search" size="small" @click="handleQuery">搜索</el-button>
         <el-button :icon="Refresh" size="small" @click="resetQuery">重置</el-button>
+        <el-button type="success" plain :icon="Plus" size="small" @click="handleAdd" v-hasPermi="['acceptance:add']"
+          >生成验收单（客户日）</el-button
+        >
       </el-form-item>
     </el-form>
 
@@ -39,9 +42,9 @@
           plain
           :icon="Plus"
           size="small"
-          @click="handleAdd"
+          @click="handleAddLegacy"
           v-hasPermi="['acceptance:add']"
-          >新增验收单</el-button
+          >历史单补建</el-button
         >
       </el-col>
       <el-col :span="1.5">
@@ -131,11 +134,38 @@
       @pagination="getPageList"
     />
 
-    <!-- 新增验收单：选择已送达送货单（一单一验） -->
+    <!-- 生成验收单（AC-1 客户日维度，新流程唯一入口） -->
     <el-dialog align-center :title="addTitle" v-model="addOpen" width="560px" append-to-body>
       <el-form label-width="90px">
+        <el-form-item label="客户">
+          <el-select v-model="addForm.customerId" placeholder="请选择客户" filterable style="width: 100%">
+            <el-option v-for="c in customerOptions" :key="c.id" :label="c.name" :value="c.id" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="配送日期">
+          <el-date-picker
+            v-model="addForm.deliveryDate"
+            type="date"
+            value-format="YYYY-MM-DD"
+            placeholder="请选择配送日期"
+            style="width: 100%"
+          />
+        </el-form-item>
+        <div class="hint">一客户日一验：应送行 = 该客户当日全部订单明细（跨配送点平铺，含加单/换货/退货标记）。</div>
+      </el-form>
+      <template #footer>
+        <div class="dialog-footer">
+          <el-button type="primary" @click="submitAddForm">确 定</el-button>
+          <el-button @click="addOpen = false">取 消</el-button>
+        </div>
+      </template>
+    </el-dialog>
+
+    <!-- 历史单补建（送货单维度，@Deprecated 接口，仅历史日期维护用） -->
+    <el-dialog align-center title="历史单补建验收（送货单维度）" v-model="legacyOpen" width="560px" append-to-body>
+      <el-form label-width="90px">
         <el-form-item label="送货单">
-          <el-select v-model="addForm.deliveryOrderId" placeholder="请选择已送达的送货单" filterable style="width: 100%">
+          <el-select v-model="addForm.deliveryOrderId" placeholder="请选择已送达的历史送货单" filterable style="width: 100%">
             <el-option
               v-for="d in deliveryOptions"
               :key="d.id"
@@ -144,12 +174,12 @@
             />
           </el-select>
         </el-form-item>
-        <div class="hint">仅列出"已送达"且未生成过验收单的送货单（一单一验）。</div>
+        <div class="hint">仅列出"已送达"的历史送货单（历史单只读维护，新流程请用「生成验收单（客户日）」）。</div>
       </el-form>
       <template #footer>
         <div class="dialog-footer">
-          <el-button type="primary" @click="submitAddForm">确 定</el-button>
-          <el-button @click="addOpen = false">取 消</el-button>
+          <el-button type="primary" @click="submitLegacyForm">确 定</el-button>
+          <el-button @click="legacyOpen = false">取 消</el-button>
         </div>
       </template>
     </el-dialog>
@@ -210,7 +240,7 @@
         :title="'黄色高亮行 = 来源订单 ' + highlightOrderCodes.join('、') + ' 贡献的明细'"
       />
 
-      <!-- 标准模式（商品分组录入/查看） -->
+      <!-- 标准模式（AC-6：订单明细行平铺，跨配送点按行展示） -->
       <template v-if="!mobileMode">
         <el-form v-if="editMode" label-width="90px" :inline="true" size="small">
           <el-form-item label="验收日期">
@@ -226,97 +256,68 @@
           </el-form-item>
         </el-form>
 
-        <div class="group-scroll">
-          <div
-            v-for="(group, gi) in productGroups"
-            :key="gi"
-            class="product-group"
-            :class="{ 'product-group-highlight': group.highlight }"
-          >
-            <!-- 组头：商品汇总（只读） -->
-            <div class="group-header">
-              <span class="group-name">
-                <el-icon v-if="group.highlight" class="group-flag"><Aim /></el-icon>
-                {{ group.productName }}
-              </span>
-              <el-tag v-if="group.productSpec" size="small" type="info">{{ group.productSpec }}</el-tag>
-              <span class="group-unit">{{ group.productUnit }}</span>
-              <span class="group-meta">
-                应送 <b>{{ group.deliveredTotal }}</b>
-                <template v-if="editMode">· 实收 <b>{{ group.actualTotal }}</b></template>
-                · 差异
-                <b :class="diffClass(group.diffTotal)">{{ group.diffTotal }}</b>
-              </span>
-            </div>
-            <!-- 成员：各配送点行（录入时实收/原因可编辑） -->
-            <el-table :data="group.items" size="small" border :row-class-name="rowHighlightClass">
-              <el-table-column
-                v-if="hasDeptInfo"
-                label="配送点"
-                align="center"
-                prop="customerDeptName"
-                width="120"
-                :show-overflow-tooltip="true"
+        <el-table :data="detailList" size="small" border :row-class-name="rowHighlightClass">
+          <el-table-column label="订单号" align="center" prop="orderCode" min-width="120" :show-overflow-tooltip="true">
+            <template #default="scope">
+              <span>{{ scope.row.orderCode || "—历史数据—" }}</span>
+            </template>
+          </el-table-column>
+          <el-table-column label="配送点" align="center" prop="customerDeptName" width="110" :show-overflow-tooltip="true">
+            <template #default="scope">
+              <span>{{ scope.row.customerDeptName || "—" }}</span>
+            </template>
+          </el-table-column>
+          <el-table-column label="商品" align="center" min-width="150" :show-overflow-tooltip="true">
+            <template #default="scope">
+              <span>{{ scope.row.productName }}</span>
+              <el-tag v-if="scope.row.changeType == 1" size="small" type="warning" effect="plain" class="row-tag">加单</el-tag>
+              <el-tag v-else-if="scope.row.changeType == 2" size="small" type="success" effect="plain" class="row-tag">换货</el-tag>
+              <el-tag v-else-if="scope.row.changeType == 3" size="small" type="danger" effect="plain" class="row-tag">退货</el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column label="规格" align="center" prop="productSpec" width="100" :show-overflow-tooltip="true" />
+          <el-table-column label="单位" align="center" prop="productUnit" width="65" />
+          <el-table-column label="应送" align="center" prop="deliveredQuantity" width="80" />
+          <el-table-column label="实收" align="center" width="130">
+            <template #default="scope">
+              <el-input-number
+                v-if="editMode"
+                v-model="scope.row.actualQuantity"
+                :min="0"
+                :precision="2"
+                :controls="false"
+                style="width: 100%"
               />
-              <el-table-column label="送货数量" align="center" prop="deliveredQuantity" width="90" />
-              <el-table-column label="实收数量" align="center" width="140">
-                <template #default="scope">
-                  <el-input-number
-                    v-if="editMode"
-                    v-model="scope.row.actualQuantity"
-                    :min="0"
-                    :precision="2"
-                    :controls="false"
-                    style="width: 100%"
-                  />
-                  <span v-else>{{ scope.row.actualQuantity }}</span>
-                </template>
-              </el-table-column>
-              <el-table-column label="单价" align="center" prop="unitPrice" width="80" />
-              <el-table-column label="验收差异" align="center" width="90">
-                <template #default="scope">
-                  <span :class="diffClass(diffOf(scope.row))">{{ diffOf(scope.row) }}</span>
-                </template>
-              </el-table-column>
-              <el-table-column label="差异原因（双向必填）" align="center" min-width="170">
-                <template #default="scope">
-                  <template v-if="editMode">
-                    <el-input
-                      v-if="diffOf(scope.row) !== 0"
-                      v-model="scope.row.lossReason"
-                      :placeholder="diffOf(scope.row) < 0 ? '短收差异必填原因' : '超收差异必填原因'"
-                    />
-                    <span v-else class="reason-none">—</span>
-                  </template>
-                  <template v-else>
-                    <el-tag v-if="scope.row.reasonType === 1" size="small" type="danger" class="reason-tag">短收</el-tag>
-                    <el-tag v-else-if="scope.row.reasonType === 2" size="small" type="warning" class="reason-tag">超收</el-tag>
-                    <span>{{ scope.row.lossReason }}</span>
-                  </template>
-                </template>
-              </el-table-column>
-              <el-table-column label="来源对照" align="center" min-width="180">
-                <template #default="scope">
-                  <template v-if="scope.row.sources && scope.row.sources.length">
-                    <div
-                      v-for="(s, si) in scope.row.sources"
-                      :key="si"
-                      class="source-line"
-                      :class="{ 'source-line-hit': isHighlightSource(s) }"
-                    >
-                      <span class="source-code">{{ s.orderCode || s.saleOrderId }}</span>
-                      <span class="source-qty">{{ s.allocatedQuantity }}×{{ s.unitPrice }}</span>
-                    </div>
-                  </template>
-                  <span v-else class="reason-none">—历史数据—</span>
-                </template>
-              </el-table-column>
-              <el-table-column label="实收金额" align="center" width="100">
-                <template #default="scope">{{ amountOf(scope.row).toFixed(2) }}</template>
-              </el-table-column>
-            </el-table>
-          </div>
-        </div>
+              <span v-else>{{ scope.row.actualQuantity }}</span>
+            </template>
+          </el-table-column>
+          <el-table-column label="单价" align="center" prop="unitPrice" width="75" />
+          <el-table-column label="差异" align="center" width="80">
+            <template #default="scope">
+              <span :class="diffClass(diffOf(scope.row))">{{ diffOf(scope.row) }}</span>
+            </template>
+          </el-table-column>
+          <el-table-column label="差异原因" align="center" min-width="160">
+            <template #default="scope">
+              <template v-if="editMode">
+                <el-input
+                  v-if="diffOf(scope.row) !== 0"
+                  v-model="scope.row.lossReason"
+                  :placeholder="diffOf(scope.row) < 0 ? '短收差异必填原因' : '超收差异必填原因'"
+                />
+                <span v-else class="reason-none">—</span>
+              </template>
+              <template v-else>
+                <el-tag v-if="scope.row.reasonType === 1" size="small" type="danger" class="reason-tag">短收</el-tag>
+                <el-tag v-else-if="scope.row.reasonType === 2" size="small" type="warning" class="reason-tag">超收</el-tag>
+                <span>{{ scope.row.lossReason }}</span>
+              </template>
+            </template>
+          </el-table-column>
+          <el-table-column label="实收金额" align="center" width="95">
+            <template #default="scope">{{ amountOf(scope.row).toFixed(2) }}</template>
+          </el-table-column>
+        </el-table>
         <div class="detail-total">合计：{{ totalAmount.toFixed(2) }}</div>
       </template>
 
@@ -389,12 +390,15 @@
 import {
   pageAcceptance,
   listAcceptanceItems,
+  getAcceptance,
   createAcceptance,
+  createAcceptanceByCustomerDate,
   updateAcceptance,
   submitAcceptance,
   revokeAcceptance,
   delAcceptance,
 } from "@/api/acceptance/acceptance";
+import { listCustomer } from "@/api/partner/customer";
 import { listDelivery } from "@/api/order/delivery";
 import { Search, Refresh, Plus, Delete, Edit, Check, View, Iphone, ArrowLeft, RefreshLeft, Aim } from "@element-plus/icons-vue";
 
@@ -413,10 +417,13 @@ export default {
       // 选中数组
       ids: [],
       multiple: true,
-      // 新增对话框
+      // 新增对话框（AC-1：客户日维度）
       addOpen: false,
-      addTitle: "",
-      addForm: { deliveryOrderId: null },
+      addTitle: "生成验收单（客户日）",
+      addForm: { customerId: null, deliveryDate: null },
+      customerOptions: [],
+      // 历史单补建对话框（送货单维度，仅历史单使用）
+      legacyOpen: false,
       deliveryOptions: [],
       // 撤销验收弹窗（S14/D-014）
       revokeOpen: false,
@@ -446,6 +453,8 @@ export default {
         pageSize: 10,
         code: null,
         status: null,
+        customerId: null,
+        deliveryDate: null,
       },
     };
   },
@@ -453,36 +462,9 @@ export default {
     totalAmount() {
       return this.detailList.reduce((sum, row) => sum + this.amountOf(row), 0);
     },
-    /** 明细是否带配送点信息（A类点级展开/B/C类回填都有；历史单可能为空） */
+    /** 明细是否带配送点信息（保留兼容历史单视图） */
     hasDeptInfo() {
       return this.detailList.some((row) => row.customerDeptId != null);
-    },
-    /** 商品分组（S14 §八：组头=商品汇总只读，成员=各点行可编辑实收） */
-    productGroups() {
-      const map = new Map();
-      this.detailList.forEach((row) => {
-        const key = (row.skuId || row.productName) + "|" + (row.productSpec || "");
-        if (!map.has(key)) {
-          map.set(key, {
-            productName: row.productName,
-            productSpec: row.productSpec,
-            productUnit: row.productUnit,
-            items: [],
-            highlight: false,
-          });
-        }
-        const group = map.get(key);
-        group.items.push(row);
-        if (this.isHighlightRow(row)) {
-          group.highlight = true;
-        }
-      });
-      return Array.from(map.values()).map((g) => ({
-        ...g,
-        deliveredTotal: g.items.reduce((s, r) => s + Number(r.deliveredQuantity || 0), 0),
-        actualTotal: g.items.reduce((s, r) => s + Number(r.actualQuantity || 0), 0),
-        diffTotal: g.items.reduce((s, r) => s + this.diffOf(r), 0),
-      }));
     },
     /** 移动模式总页数 */
     mobileTotalPages() {
@@ -496,15 +478,29 @@ export default {
   },
   created() {
     this.getPageList();
-    // 订单页「去验收」跳转：acceptanceId 直接打开 / create=1 引导建草稿（S14 §6.1）
-    const { acceptanceId, deliveryId, create, highlightOrder } = this.$route.query;
+    listCustomer().then((response) => {
+      this.customerOptions = response.data || [];
+    });
+    // 跳转承接：① 订单页「去验收」（AC-5：customerId+deliveryDate+create 一键建草稿 / acceptanceId 直开）；
+    // ② 历史单（status=2）：deliveryId 引导建草稿；③ highlightOrder/highlightCode 高亮定位
+    const { acceptanceId, deliveryId, customerId, deliveryDate, create, highlightOrder, highlightCode } = this.$route.query;
     if (highlightOrder) {
       this.highlightOrder = Number(highlightOrder);
     }
+    if (highlightCode) {
+      this.highlightOrderCodes = [String(highlightCode)];
+    }
     if (acceptanceId) {
       this.openById(Number(acceptanceId), highlightOrder ? "去验收" : undefined);
+    } else if (create && customerId && deliveryDate) {
+      this.createForCustomerDate(Number(customerId), String(deliveryDate), true);
     } else if (create && deliveryId) {
       this.createForDelivery(Number(deliveryId), true);
+    } else if (customerId && deliveryDate) {
+      // 该客户日已有验收单：定位到最近一张（后端守卫重复建单，这里直接查列表）
+      this.queryParams.customerId = Number(customerId);
+      this.queryParams.deliveryDate = String(deliveryDate);
+      this.getPageList();
     }
   },
   methods: {
@@ -551,26 +547,52 @@ export default {
           if (!silent) this.getPageList();
         });
     },
-    /** 新增：选择已送达送货单 */
+    /** 生成验收单（AC-1 客户日维度）：选客户+日期 → create-by-customer-date → 直开录入 */
     handleAdd() {
-      this.addForm = { deliveryOrderId: null };
-      this.addTitle = "新增验收单";
+      this.addForm = { customerId: null, deliveryDate: null };
+      this.addOpen = true;
+    },
+    submitAddForm() {
+      if (!this.addForm.customerId || !this.addForm.deliveryDate) {
+        this.$modal.msgWarning("请选择客户与配送日期");
+        return;
+      }
+      this.createForCustomerDate(this.addForm.customerId, this.addForm.deliveryDate).then(() => {
+        this.addOpen = false;
+        this.getPageList();
+      });
+    },
+    /** 为 客户+配送日期 创建验收草稿并直接进入录入（无验收单引导创建；重复建单由后端拦截并提示单号） */
+    createForCustomerDate(customerId, deliveryDate, silent) {
+      return createAcceptanceByCustomerDate({ customerId: customerId, deliveryDate: deliveryDate })
+        .then((response) => {
+          const acc = response.data || {};
+          this.$modal.msgSuccess("验收单【" + (acc.code || "") + "】已生成，请录入实收数量");
+          this.handleEdit(acc, "客户日");
+        })
+        .catch(() => {
+          if (!silent) this.getPageList();
+        });
+    },
+    /** 历史单补建（送货单维度，@Deprecated 接口，仅历史日期维护用） */
+    handleAddLegacy() {
+      this.addForm = { customerId: null, deliveryDate: null };
       listDelivery({ status: 2 }).then((response) => {
         this.deliveryOptions = response.data || [];
         if (this.deliveryOptions.length === 0) {
-          this.$modal.msgWarning("暂无已送达的送货单");
+          this.$modal.msgWarning("暂无已送达的历史送货单");
           return;
         }
-        this.addOpen = true;
+        this.legacyOpen = true;
       });
     },
-    submitAddForm() {
+    submitLegacyForm() {
       if (!this.addForm.deliveryOrderId) {
         this.$modal.msgWarning("请选择送货单");
         return;
       }
       this.createForDelivery(this.addForm.deliveryOrderId).then(() => {
-        this.addOpen = false;
+        this.legacyOpen = false;
         this.getPageList();
       });
     },
@@ -617,25 +639,31 @@ export default {
           ...item,
           lossReason: item.lossReason || null,
         }));
-        // 定位订单号 → 来源订单号文本（highlightOrder 提示条用）
-        const codes = [];
-        this.detailList.forEach((row) => {
-          (row.sources || []).forEach((s) => {
-            if (this.isHighlightSource(s) && s.orderCode && !codes.includes(s.orderCode)) {
-              codes.push(s.orderCode);
-            }
+        // 定位订单高亮（AC-6：新路径行直带 orderCode；历史路径从来源对照提取）
+        if (!this.highlightOrderCodes.length) {
+          const codes = [];
+          this.detailList.forEach((row) => {
+            (row.sources || []).forEach((s) => {
+              if (this.isHighlightSource(s) && s.orderCode && !codes.includes(s.orderCode)) {
+                codes.push(s.orderCode);
+              }
+            });
           });
-        });
-        this.highlightOrderCodes = codes;
+          this.highlightOrderCodes = codes;
+        }
         this.resetMobileState();
         this.detailOpen = true;
       });
     },
-    /** 高亮判定：来源对照包含定位订单（highlightOrder） */
+    /** 高亮判定：来源对照包含定位订单（highlightOrder，历史单） */
     isHighlightSource(source) {
       return this.highlightOrder != null && Number(source.saleOrderId) === this.highlightOrder;
     },
     isHighlightRow(row) {
+      // AC-6 新口径：行自带来源订单号；历史口径：来源对照匹配
+      if (row.orderCode && this.highlightOrderCodes.includes(row.orderCode)) {
+        return true;
+      }
       return (row.sources || []).some((s) => this.isHighlightSource(s));
     },
     rowHighlightClass({ row }) {

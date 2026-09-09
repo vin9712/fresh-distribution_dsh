@@ -30,10 +30,12 @@ import com.lin.distribution.mapper.CustomerMapper;
 import com.lin.distribution.mapper.CustomerSkuMappingMapper;
 import com.lin.distribution.mapper.DeliveryBatchMapper;
 import com.lin.distribution.mapper.DeliveryPrintLogMapper;
+import com.lin.distribution.util.PrintBizKeys;
 import com.lin.distribution.mapper.SaleOrderDetailMapper;
 import com.lin.distribution.service.DeliveryBatchService;
 import com.lin.distribution.vo.DeliveryBatchViewVO;
 import com.lin.distribution.vo.DeliveryPointViewVO;
+import com.lin.distribution.vo.PrintManifestVO;
 import com.lin.distribution.vo.DeliveryMatrixLayout;
 import com.lin.distribution.vo.DeliveryMatrixLayout.Column;
 import com.lin.distribution.vo.DeliveryMatrixLayout.Tier;
@@ -100,6 +102,61 @@ public class DeliveryBatchServiceImpl implements DeliveryBatchService {
             return false;
         }
         return deliveryPrintLogMapper.countPrinted(customerId, LocalDate.parse(deliveryDate), customerDeptId) > 0;
+    }
+
+    /**
+     * 当日打印清单（PT-2）：扁平行按客户聚合 → 总单主体 + 各点条目；
+     * printed 逐项查打印分界（单日客户/点数量级小，不做 IN 批查）。
+     * num 聚合 = 应送合计（与点单 tab 口径一致，纯退货行 num=0 不影响）。
+     */
+    @Override
+    public List<PrintManifestVO> selectPrintManifest(String deliveryDate) {
+        if (StringUtils.isBlank(deliveryDate)) {
+            throw new ServiceException("配送日期不能为空");
+        }
+        LocalDate date;
+        try {
+            date = LocalDate.parse(deliveryDate.trim().substring(0, 10));
+        } catch (Exception e) {
+            throw new ServiceException("配送日期格式非法，应为 yyyy-MM-dd");
+        }
+        List<PrintManifestVO.Row> rows = saleOrderDetailMapper.selectPrintManifestRows(date);
+        Map<Long, PrintManifestVO> byCustomer = new LinkedHashMap<>();
+        Map<String, PrintManifestVO.PointEntry> pointByKey = new LinkedHashMap<>();
+        for (PrintManifestVO.Row row : rows) {
+            if (row.getCustomerId() == null) {
+                continue;
+            }
+            PrintManifestVO vo = byCustomer.computeIfAbsent(row.getCustomerId(), k -> PrintManifestVO.builder()
+                    .customerId(k)
+                    .customerName(StringUtils.defaultIfBlank(row.getCustomerName(), "客户" + k))
+                    .matrixBizKey(PrintBizKeys.matrix(k, deliveryDate))
+                    .matrixPrinted(Boolean.FALSE)
+                    .points(new ArrayList<>())
+                    .build());
+            String key = String.valueOf(row.getDeptId() == null ? "_" : row.getDeptId());
+            PrintManifestVO.PointEntry point = pointByKey.get(vo.getCustomerId() + "|" + key);
+            if (point == null) {
+                point = PrintManifestVO.PointEntry.builder()
+                        .deptId(row.getDeptId())
+                        .deptName(StringUtils.defaultIfBlank(row.getDeptName(), "未分配"))
+                        .bizKey(PrintBizKeys.point(row.getCustomerId(), row.getDeptId(), deliveryDate))
+                        .printed(Boolean.FALSE)
+                        .totalNum(BigDecimal.ZERO)
+                        .build();
+                pointByKey.put(vo.getCustomerId() + "|" + key, point);
+                vo.getPoints().add(point);
+            }
+            point.setTotalNum(point.getTotalNum().add(row.getNum() == null ? BigDecimal.ZERO : row.getNum()));
+        }
+        // 打印分界批量判定：总单按客户维度（deptId=null），点单按 客户+点
+        for (PrintManifestVO vo : byCustomer.values()) {
+            vo.setMatrixPrinted(isPrinted(vo.getCustomerId(), deliveryDate, null));
+            for (PrintManifestVO.PointEntry point : vo.getPoints()) {
+                point.setPrinted(isPrinted(vo.getCustomerId(), deliveryDate, point.getDeptId()));
+            }
+        }
+        return new ArrayList<>(byCustomer.values());
     }
 
     /** 打印登记可能无安全上下文（内部调用），回落 system */

@@ -4508,11 +4508,13 @@ DROP TABLE IF EXISTS `t_print_task`;
 -- ============================================================
 -- [41] 打印模板数据与 D-055 取数主体（不入本脚本，按需单独导入）
 -- ============================================================
--- 本脚本明确跳过 JimuReport 初始化（见头部【已跳过】），故以下两支不在这里执行：
+-- 本脚本明确跳过 JimuReport 初始化（见头部【已跳过】），故以下几支不在这里执行：
 --   s18_universal_print_templates.sql  通用总单矩阵模板（jimu_report / jimu_report_db / t_print_template id=12）
 --   s22_print_data_params.sql          打印数据集 URL 与参数补声明（客户+日期(+点) 主体 + ticket 透传）
--- 导入顺序：s0_3_jimureport_init.sql → s6_2_print_seed（FLAT 点单默认模板）→ s18 → s22 → s24_print_view_enhance（打印 view 页增强：查询栏关闭 + 标注工具栏 js_str 引导；s6_2/s18 已内联同款状态，重跑兑底）
--- （s16 的 print_form 列已在 [36] 节建好，s18/s22 依赖它）
+--   s25_print_matrix_long_template.sql 总单长表模板（横向动态列，t_print_template id=13 默认切长表）
+--   s26_print_receipt_hook.sql         打印回执钩子（PT-3：js_str v=11 + 长表模板补引导；真实打印才登记分界）
+-- 导入顺序：s0_3_jimureport_init.sql → s6_2_print_seed（FLAT 点单默认模板）→ s18 → s22 → s24_print_view_enhance（打印 view 页增强：查询栏关闭 + 标注工具栏 js_str 引导；s6_2/s18 已内联同款状态，重跑兑底）→ s25 → s26
+-- （s16 的 print_form 列已在 [36] 节建好，s18/s22/s25 依赖它）
 
 -- ============================================================
 -- 初始化结束

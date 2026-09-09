@@ -123,3 +123,16 @@ export function importPrintTemplate(packageJson) {
     headers: { 'Content-Type': 'application/json' }
   })
 }
+
+// ==================== 客户日报表打印优化（PT-1） ====================
+
+// 按打印主体键解析打印模板（后端三级绑定：客户+点 > 客户 > 全局默认，同形态已发布）
+// bizKey: matrix:{customerId}:{date} / point:{customerId}:{deptId}:{date}
+// 返回 { printForm, templateId, templateName, reportViewId, matchGlobalDefault, candidates, warning }
+export function resolvePrintTemplate(bizKey) {
+  return request({
+    url: '/print/resolve-template',
+    method: 'get',
+    params: { bizKey: bizKey }
+  })
+}

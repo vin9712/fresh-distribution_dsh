@@ -18,6 +18,12 @@ public class AcceptanceByOrderVO {
     /** 来源销售订单ID（查询入参回显） */
     private Long orderId;
 
+    /** 客户ID（AC-5 订单视角定位必返；历史回退路径可为空） */
+    private Long customerId;
+
+    /** 配送日期 yyyy-MM-dd（AC-5 订单视角定位必返，前端据此一键建草稿） */
+    private String deliveryDate;
+
     /**
      * 命中的送货单ID（候选有效单中最新一张；补充单场景取最新补充单）
      * null = 该订单尚未进入任何有效送货单

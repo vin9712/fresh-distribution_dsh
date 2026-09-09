@@ -92,11 +92,14 @@ public class AcceptanceItem implements Serializable {
     @Excel(name = "排序")
     private Integer sort;
 
-    /** 来源对照（S14 §八：来源订单号/下单数量/下单单价，join t_delivery_source_item；历史单为空列表，前端展示"—历史数据—"）——非持久化字段 */
+    /** 来源对照（S14 §八：来源订单号/下单数量/下单单价，join t_delivery_source_item；历史单为空列表，前端展示“—历史数据—”）——非持久化字段 */
     private transient List<DeliverySourceVO.SourceRow> sources;
 
     /** 累计已退数量（退货单页面可退量=实收−累计已退，含草稿/已提交占用；status=3 已完成不占用）——非持久化字段 */
     private transient BigDecimal returnedQuantity;
+
+    /** 来源订单号（AC-6，《验收模块订单明细视角重构设计》：新口径验收行=订单明细行，按 sale_order_detail_id 反查）——非持久化字段 */
+    private transient String orderCode;
 
     /**
      * @deprecated S14 已更名 {@link #differenceQuantity}，保留一个版本兼容旧 JSON/调用方

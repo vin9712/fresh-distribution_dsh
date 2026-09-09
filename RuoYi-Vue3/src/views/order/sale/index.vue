@@ -1004,17 +1004,31 @@ export default {
           this.handleQuery();
         });
     },
-    /** 去验收（S14/C1：仅已配送行；定位该订单所在送货单的验收单并跳转） */
+    /** 去验收（AC-5：status=1 新流程走订单视角（客户+日期，可一键建草稿）；status=2 历史单走送货单反查） */
     /** D-055 配送后变更（加单/换货/退货）：原订单不变，标记附加订单明细 */
     handleDeliveryChange(row) {
       this.changeOrder = row;
       this.changeOpen = true;
     },
     handleGoAcceptance(row) {
-      locateAcceptanceByOrder(row.id);
       locateAcceptanceByOrder(row.id)
         .then((response) => {
           const info = response.data || {};
+          // ① 订单视角命中：该客户日已有验收单 → 直开；无单且订单仍在流程内（status=1）→ 一键建草稿
+          if (info.customerId && info.deliveryDate) {
+            const query = { customerId: info.customerId, deliveryDate: info.deliveryDate, highlightCode: row.code };
+            if (info.hasAcceptance) {
+              query.acceptanceId = info.acceptanceId;
+            } else if (row.status == 1) {
+              query.create = 1;
+            } else {
+              this.$modal.msgWarning("该订单尚无验收单且已历史配送，请到验收页用「历史单补建」");
+              return;
+            }
+            this.$router.push({ path: "/order/acceptance", query });
+            return;
+          }
+          // ② 历史回退：送货单反查链路（status=2 历史单）
           if (!info.deliveryId) {
             this.$modal.msgError("该订单尚未进入有效送货单，无法验收");
             return;

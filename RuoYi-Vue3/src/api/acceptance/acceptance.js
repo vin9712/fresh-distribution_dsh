@@ -43,10 +43,10 @@ export function createAcceptance(data) {
   })
 }
 
-// D-055 按 客户+配送日期+配送点 生成验收单（应送行=订单明细，含加单/换货/退货标记）
-export function createAcceptanceByPoint(data) {
+// AC-1：按 客户+配送日期 生成验收单（一客户日一验；应送行=该客户当日全部订单明细行，跨点平铺含标记）
+export function createAcceptanceByCustomerDate(data) {
   return request({
-    url: '/acceptance/create-by-point',
+    url: '/acceptance/create-by-customer-date',
     method: 'post',
     data: data
   })

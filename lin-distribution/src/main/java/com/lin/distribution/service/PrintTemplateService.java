@@ -5,6 +5,7 @@ import java.util.List;
 import com.lin.distribution.domain.DeliveryOrder;
 import com.lin.distribution.domain.PrintTemplate;
 import com.lin.distribution.domain.PrintTemplateVersion;
+import com.lin.distribution.vo.PrintTemplateResolveVO;
 
 /**
  * 打印模板Service接口
@@ -44,6 +45,16 @@ public interface PrintTemplateService {
      * @return 命中的模板（未配置任何模板则抛异常）
      */
     PrintTemplate resolveForDeliveryOrder(DeliveryOrder deliveryOrder);
+
+    /**
+     * 按打印主体键解析打印模板（PT-1，《客户日报表打印优化设计》§3.1）：
+     * bizKey 前缀判打印形态（matrix→MATRIX / point→FLAT），复用三级绑定解析与候选查询。
+     * 替代前端硬编码模板ID——D-055 视图化打印（无送货单ID 主体）由此获得与历史单一致的模板路由。
+     *
+     * @param bizKey 打印主体键（matrix:{customerId}:{date} / point:{customerId}:{deptId}:{date}）
+     * @return 解析结果；无已发布模板时 templateId=null 且带 warning（不抛异常，批量队列据此跳过）
+     */
+    PrintTemplateResolveVO resolveByBizKey(String bizKey);
 
     /**
      * 候选打印模板（P1/D-048 替代前端复制过滤）：该送货单可切换的已发布模板列表，

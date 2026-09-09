@@ -20,6 +20,14 @@ public interface CustomerDeptMapper {
     CustomerDept selectCustomerDeptById(Long id);
 
     /**
+     * 批量查客户部门（AC-6 验收明细配送点名回填用，防 N+1）
+     *
+     * @param ids 配送点ID集合
+     * @return 客户部门集合
+     */
+    List<CustomerDept> selectCustomerDeptByIds(@org.apache.ibatis.annotations.Param("ids") List<Long> ids);
+
+    /**
      * 查询客户部门列表
      *
      * @param customerDept 客户部门

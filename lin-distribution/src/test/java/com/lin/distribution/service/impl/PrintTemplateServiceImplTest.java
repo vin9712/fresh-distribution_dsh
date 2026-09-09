@@ -20,6 +20,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -266,5 +267,55 @@ class PrintTemplateServiceImplTest {
         verify(printPreviewLogMapper).insert(captor.capture());
         assertEquals(1L, captor.getValue().getTemplateId());
         assertEquals(500L, captor.getValue().getDeliveryOrderId());
+    }
+
+    // ==================== 按打印主体键解析模板（PT-1，《客户日报表打印优化设计》） ====================
+
+    @Test
+    void 按主体键解析_matrix命中总单模板并回报表视图ID() {
+        PrintTemplate matrix = template(3, 1);
+        matrix.setPrintForm("MATRIX");
+        when(printTemplateMapper.selectBindTemplate(10L, null, "MATRIX")).thenReturn(matrix);
+        when(printTemplateMapper.selectPrintCandidates(10L, "MATRIX")).thenReturn(List.of(matrix));
+
+        var vo = printTemplateService.resolveByBizKey("matrix:10:2026-09-08");
+
+        assertEquals("MATRIX", vo.getPrintForm());
+        assertEquals(Long.valueOf(1L), vo.getTemplateId());
+        assertEquals("2099000000000000001", vo.getReportViewId());
+        assertTrue(vo.getMatchGlobalDefault(), "候选无 bind_type<3 模板时应标记命中全局默认");
+    }
+
+    @Test
+    void 按主体键解析_point命中客户点级模板() {
+        PrintTemplate flat = template(1, 2);
+        flat.setPrintForm("FLAT");
+        when(printTemplateMapper.selectBindTemplate(10L, 6L, "FLAT")).thenReturn(flat);
+        when(printTemplateMapper.selectPrintCandidates(10L, "FLAT")).thenReturn(List.of(flat));
+
+        var vo = printTemplateService.resolveByBizKey("point:10:6:2026-09-08");
+
+        assertEquals("FLAT", vo.getPrintForm());
+        assertFalse(vo.getMatchGlobalDefault(), "客户+点级模板命中时不应标记全局默认");
+        verify(printTemplateMapper).selectBindTemplate(eq(10L), eq(6L), eq("FLAT"));
+    }
+
+    @Test
+    void 按主体键解析_无已发布模板返回null与警告不抛异常() {
+        when(printTemplateMapper.selectBindTemplate(10L, null, "MATRIX")).thenReturn(null);
+        when(printTemplateMapper.selectPrintCandidates(10L, "MATRIX")).thenReturn(new ArrayList<>());
+
+        var vo = printTemplateService.resolveByBizKey("matrix:10:2026-09-08");
+
+        assertNull(vo.getTemplateId());
+        assertNotNull(vo.getWarning());
+        assertTrue(vo.getWarning().contains("总单"));
+    }
+
+    @Test
+    void 按主体键解析_非法主体键抛错() {
+        assertThrows(ServiceException.class, () -> printTemplateService.resolveByBizKey("daily:2026-09-08"));
+        assertThrows(ServiceException.class, () -> printTemplateService.resolveByBizKey("matrix:abc:2026-09-08"));
+        assertThrows(ServiceException.class, () -> printTemplateService.resolveByBizKey(null));
     }
 }

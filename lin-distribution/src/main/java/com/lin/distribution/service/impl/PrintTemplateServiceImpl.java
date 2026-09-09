@@ -22,9 +22,11 @@ import com.lin.distribution.mapper.PrintPreviewLogMapper;
 import com.lin.distribution.mapper.PrintTemplateMapper;
 import com.lin.distribution.mapper.PrintTemplateVersionMapper;
 import com.lin.distribution.service.PrintTemplateService;
+import com.lin.distribution.service.support.TemplateContentGovernor;
+import com.lin.distribution.util.PrintBizKeys;
 import com.lin.distribution.vo.DeliveryMatrixLayout;
 import com.lin.distribution.vo.DeliveryPrintCandidateVO;
-import com.lin.distribution.service.support.TemplateContentGovernor;
+import com.lin.distribution.vo.PrintTemplateResolveVO;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -113,6 +115,38 @@ public class PrintTemplateServiceImpl implements PrintTemplateService {
                 .printForm(printForm)
                 .matchGlobalDefault(Boolean.valueOf(matchDefault))
                 .templates(candidates)
+                .build();
+    }
+
+    /**
+     * 按打印主体键解析模板（PT-1）：bizKey 前缀判形态 → 复用 selectBindTemplate 三级绑定 + 候选查询。
+     * 与 {@link #resolveForDeliveryOrder} 共用同一套绑定 SQL，历史单与视图化主体路由规则永不漂移。
+     * 无已发布模板不抛异常（返回 templateId=null + warning），批量打印队列据此跳过。
+     */
+    @Override
+    public PrintTemplateResolveVO resolveByBizKey(String bizKey) {
+        PrintBizKeys.BizKeyInfo info = PrintBizKeys.parse(bizKey);
+        String printForm = info.printForm();
+        PrintTemplate bound = printTemplateMapper.selectBindTemplate(
+                info.getCustomerId(), info.getCustomerDeptId(), printForm);
+        List<PrintTemplate> candidates = printTemplateMapper.selectPrintCandidates(info.getCustomerId(), printForm);
+        boolean matchDefault = candidates.stream()
+                .noneMatch(t -> t.getBindType() != null && t.getBindType() < 3);
+        PrintTemplateResolveVO.PrintTemplateResolveVOBuilder builder = PrintTemplateResolveVO.builder()
+                .printForm(printForm)
+                .matchGlobalDefault(matchDefault)
+                .candidates(candidates);
+        if (bound == null || !PrintTemplateStatus.PUBLISHED.getCode().equals(bound.getStatus())) {
+            return builder
+                    .warning("该客户未配置已发布的" + (DeliveryMatrixLayout.FORM_MATRIX.equals(printForm) ? "总单" : "点单")
+                            + "打印模板，请先在打印模板页面发布")
+                    .build();
+        }
+        // content 列即 JimuReport 报表视图ID（历史约定，见打印对话框 "jmreport/view/" + template.content）
+        return builder
+                .templateId(bound.getId())
+                .templateName(bound.getName())
+                .reportViewId(bound.getContent())
                 .build();
     }
 

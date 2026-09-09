@@ -126,6 +126,8 @@ public class SecurityConfig {
                     .requestMatchers("/jmreport/**").permitAll()
                     // JimuReport API 数据集服务端调用（不带 JWT，自验短时一次性打印票据）的只读打印数据接口
                     .requestMatchers("/print/deliveryData", "/print/deliveryHead", "/print/deliveryMatrixData").permitAll()
+                    // 打印回执（PT-3）：JimuReport 页面在真实打印动作后回传票据，凭票自证（payload 含签发人与主体绑定）
+                    .requestMatchers("/print/receipt").permitAll()
                     .requestMatchers("/swagger-ui.html", "/v3/api-docs/**", "/swagger-ui/**", "/druid/**").permitAll();
 
                 // 自定义白名单

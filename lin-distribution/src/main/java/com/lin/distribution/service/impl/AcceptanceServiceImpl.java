@@ -11,6 +11,7 @@ import com.lin.distribution.constant.SaleOrderStatus;
 import com.lin.distribution.domain.Acceptance;
 import com.lin.distribution.domain.AcceptanceItem;
 import com.lin.distribution.domain.AcceptanceRevokeLog;
+import com.lin.distribution.domain.CustomerDept;
 import com.lin.distribution.domain.DeliveryOrder;
 import com.lin.distribution.domain.DeliveryOrderDetail;
 import com.lin.distribution.domain.DeliverySourceItem;
@@ -21,6 +22,7 @@ import com.lin.distribution.dto.AcceptanceUpdateDTO;
 import com.lin.distribution.mapper.AcceptanceItemMapper;
 import com.lin.distribution.mapper.AcceptanceMapper;
 import com.lin.distribution.mapper.AcceptanceRevokeLogMapper;
+import com.lin.distribution.mapper.CustomerDeptMapper;
 import com.lin.distribution.mapper.DeliveryOrderDetailMapper;
 import com.lin.distribution.mapper.DeliveryOrderMapper;
 import com.lin.distribution.mapper.DeliverySourceItemMapper;
@@ -78,6 +80,7 @@ public class AcceptanceServiceImpl implements AcceptanceService {
     private final DeliveryOrderMapper deliveryOrderMapper;
     private final DeliveryOrderDetailMapper deliveryOrderDetailMapper;
     private final DeliverySourceItemMapper deliverySourceItemMapper;
+    private final CustomerDeptMapper customerDeptMapper;
     private final SaleOrderMapper saleOrderMapper;
     private final SaleOrderDetailMapper saleOrderDetailMapper;
     private final ReturnItemMapper returnItemMapper;
@@ -99,7 +102,44 @@ public class AcceptanceServiceImpl implements AcceptanceService {
         List<AcceptanceItem> items = acceptanceItemMapper.selectListByAcceptanceId(acceptanceId);
         fillSources(items);
         fillReturnedQuantity(items);
+        fillOrderInfo(items);
         return items;
+    }
+
+    /**
+     * 订单信息回填（AC-6，新口径验收行=订单明细行）：按 sale_order_detail_id 反查来源订单号、
+     * 按 customer_dept_id 回填配送点名（防 N+1，批量查询）。历史单行（两字段均空）不受影响。
+     */
+    private void fillOrderInfo(List<AcceptanceItem> items) {
+        if (items == null || items.isEmpty()) {
+            return;
+        }
+        List<Long> detailIds = items.stream()
+                .map(AcceptanceItem::getSaleOrderDetailId).filter(Objects::nonNull).distinct()
+                .collect(Collectors.toList());
+        if (!detailIds.isEmpty()) {
+            Map<Long, String> orderCodeByDetail = saleOrderDetailMapper.selectByIdIn(detailIds).stream()
+                    .filter(d -> d.getId() != null)
+                    .collect(Collectors.toMap(SaleOrderDetail::getId,
+                            d -> StringUtils.defaultString(d.getOrderCode()), (a, b) -> a));
+            for (AcceptanceItem item : items) {
+                if (item.getSaleOrderDetailId() != null) {
+                    item.setOrderCode(orderCodeByDetail.get(item.getSaleOrderDetailId()));
+                }
+            }
+        }
+        List<Long> deptIds = items.stream()
+                .map(AcceptanceItem::getCustomerDeptId).filter(Objects::nonNull).distinct()
+                .collect(Collectors.toList());
+        if (!deptIds.isEmpty()) {
+            Map<Long, String> deptNameById = customerDeptMapper.selectCustomerDeptByIds(deptIds).stream()
+                    .collect(Collectors.toMap(CustomerDept::getId, CustomerDept::getName, (a, b) -> a));
+            for (AcceptanceItem item : items) {
+                if (item.getCustomerDeptId() != null) {
+                    item.setCustomerDeptName(deptNameById.get(item.getCustomerDeptId()));
+                }
+            }
+        }
     }
 
     /**
@@ -185,41 +225,41 @@ public class AcceptanceServiceImpl implements AcceptanceService {
     }
 
     /**
-     * 「去验收」定位（S14 §6.1/§八）：
-     * ① 新模型走 source_item 有效分配反查送货单；② 历史单回退送货明细行 order_id；
-     * ③ 排除已作废单；④ 一单分布在多张有效单（补充单）时优先取已建验收单的最新一张，
-     * 都没有则定位最新单，前端带 deliveryId 引导创建验收草稿。
+     * 「去验收」定位（AC-5 订单视角优先 + 历史回退，详见接口注释）。
      */
     @Override
     public AcceptanceByOrderVO locateBySaleOrder(Long orderId) {
         AcceptanceByOrderVO vo = new AcceptanceByOrderVO();
         vo.setOrderId(orderId);
         vo.setHasAcceptance(false);
-
-        // ① 新模型：source_item 有效分配（is_deleted=0，作废释放后不会命中）
-        DeliverySourceItem sourceQuery = new DeliverySourceItem();
-        sourceQuery.setSaleOrderId(orderId);
-        List<Long> deliveryIds = deliverySourceItemMapper.selectDeliverySourceItemList(sourceQuery)
-                .stream()
-                .map(DeliverySourceItem::getDeliveryId)
-                .distinct()
-                .sorted()
-                .collect(Collectors.toList());
-
-        // ② 历史单回退：S14 前生成的送货明细行 order_id（无台账）
-        if (deliveryIds.isEmpty()) {
-            deliveryIds = deliveryOrderDetailMapper.selectListByOrderIdIn(List.of(orderId))
-                    .stream()
-                    .map(DeliveryOrderDetail::getDeliveryId)
-                    .distinct()
-                    .sorted()
-                    .collect(Collectors.toList());
-        }
-        if (deliveryIds.isEmpty()) {
+        if (orderId == null) {
             return vo;
         }
 
-        // ③ 过滤已作废（历史单作废无台账软删痕迹，必须按单据状态排除）
+        // ① 订单视角（新流程主场景）：订单行 → 客户+配送日期 → 查该客户日新口径验收单
+        SaleOrder order = saleOrderMapper.selectSaleOrderById(orderId);
+        if (order != null && order.getDeliveryDate() != null) {
+            vo.setCustomerId(order.getCustomerId());
+            vo.setDeliveryDate(order.getDeliveryDate().toString());
+            Acceptance hit = acceptanceMapper.selectByCustomerDate(order.getCustomerId(), order.getDeliveryDate());
+            if (hit != null) {
+                vo.setHasAcceptance(true);
+                vo.setAcceptanceId(hit.getId());
+                vo.setAcceptanceCode(hit.getCode());
+                vo.setAcceptanceStatus(hit.getStatus());
+                return vo;
+            }
+            // 未进历史送货单的新流程订单：带客户日参数返回，前端引导一键建草稿
+            if (!hasLegacyDeliveryTrail(orderId)) {
+                return vo;
+            }
+        }
+
+        // ② 历史回退（status=2 已配送的历史单）：原送货单反查链路，只读维护
+        List<Long> deliveryIds = legacyDeliveryIdsByOrder(orderId);
+        if (deliveryIds.isEmpty()) {
+            return vo;
+        }
         List<DeliveryOrder> validDeliveries = deliveryOrderMapper.selectListByIds(deliveryIds)
                 .stream()
                 .filter(d -> !Objects.equals(d.getStatus(), DeliveryOrderStatus.VOIDED.getCode()))
@@ -230,7 +270,7 @@ public class AcceptanceServiceImpl implements AcceptanceService {
         }
         vo.setDeliveryIds(validDeliveries.stream().map(DeliveryOrder::getId).collect(Collectors.toList()));
 
-        // ④ 从最新单向前找已有验收单的单；都没有则定位最新单引导创建草稿
+        // 从最新单向前找已有验收单的单；都没有则定位最新单引导创建草稿
         DeliveryOrder hitDelivery = validDeliveries.get(validDeliveries.size() - 1);
         Acceptance hit = null;
         for (int i = validDeliveries.size() - 1; i >= 0; i--) {
@@ -255,6 +295,30 @@ public class AcceptanceServiceImpl implements AcceptanceService {
             vo.setAcceptanceStatus(hit.getStatus());
         }
         return vo;
+    }
+
+    /** 该订单是否在历史送货单体系留有痕迹（source_item 台账 / 历史送货明细行 order_id） */
+    private boolean hasLegacyDeliveryTrail(Long orderId) {
+        return !legacyDeliveryIdsByOrder(orderId).isEmpty();
+    }
+
+    /** 历史送货单反查：source_item 有效分配 → 历史送货明细行 order_id 回退（AC-5 只读维护用） */
+    private List<Long> legacyDeliveryIdsByOrder(Long orderId) {
+        DeliverySourceItem sourceQuery = new DeliverySourceItem();
+        sourceQuery.setSaleOrderId(orderId);
+        List<Long> deliveryIds = deliverySourceItemMapper.selectDeliverySourceItemList(sourceQuery)
+                .stream()
+                .map(DeliverySourceItem::getDeliveryId)
+                .distinct()
+                .collect(Collectors.toList());
+        if (deliveryIds.isEmpty()) {
+            deliveryIds = deliveryOrderDetailMapper.selectListByOrderIdIn(List.of(orderId))
+                    .stream()
+                    .map(DeliveryOrderDetail::getDeliveryId)
+                    .distinct()
+                    .collect(Collectors.toList());
+        }
+        return deliveryIds;
     }
 
     /**
@@ -387,33 +451,56 @@ public class AcceptanceServiceImpl implements AcceptanceService {
     }
 
     /**
-     * D-055 按 客户+日期+配送点 生成验收单：应送行=订单明细（含变更标记），默认实收=应送
-     * （加单/换货行取订单明细 actual_num 作为默认实收——补充单据现场已录实收）。
+     * 按 客户+日期+配送点 生成验收单（D-055 原始版）。
+     *
+     * @deprecated 已升级为客户日维度（AC-1，《验收模块订单明细视角重构设计》），
+     *             仅保留兼容旧调用（委托 createByCustomerDate），新代码禁用
      */
+    @Deprecated
     @Override
     @Transactional
     public Acceptance createByCustomerPoint(Long customerId, Long customerDeptId, LocalDate deliveryDate) {
-        if (customerId == null || customerDeptId == null || deliveryDate == null) {
-            throw new ServiceException("客户/配送点/配送日期不能为空");
+        return createByCustomerDate(customerId, deliveryDate, customerDeptId);
+    }
+
+    /**
+     * 按「客户+配送日期」生成验收单草稿（AC-1/AC-2，订单明细视角）：一客户日一张，
+     * 应送行=该客户当日全部订单明细行（跨配送点平铺，selectValidByCustomerDateForView）。
+     */
+    @Override
+    @Transactional
+    public Acceptance createByCustomerDate(Long customerId, LocalDate deliveryDate) {
+        return createByCustomerDate(customerId, deliveryDate, null);
+    }
+
+    /**
+     * 建单实现（AC-1/AC-2/AC-3）：deptId=null 即客户日维度（新口径唯一入口）；
+     * 守卫用 selectByCustomerDate（含按点历史遗留，防混维度重复建单）；
+     * 表头 delivery_point_id=deptId（客户日单为 NULL，展示「全部配送点」）。
+     */
+    private Acceptance createByCustomerDate(Long customerId, LocalDate deliveryDate, Long deptId) {
+        if (customerId == null || deliveryDate == null) {
+            throw new ServiceException("客户/配送日期不能为空");
         }
-        // 一维一验守卫：该 客户+日期+点 已有验收单则拒绝
-        if (acceptanceMapper.countByCustomerPointDate(customerId, customerDeptId, deliveryDate) > 0) {
-            throw new ServiceException("该客户+日期+配送点已生成验收单");
+        // 一客户日一验守卫（AC-3）
+        Acceptance existing = acceptanceMapper.selectByCustomerDate(customerId, deliveryDate);
+        if (existing != null) {
+            throw new ServiceException("该客户+配送日期已存在验收单【" + existing.getCode() + "】，一客户日一验");
         }
-        List<SaleOrderDetail> orderDetails = saleOrderDetailMapper
-                .selectValidByCustomerPointDate(customerId, customerDeptId, deliveryDate);
+        List<SaleOrderDetail> orderDetails = deptId == null
+                ? saleOrderDetailMapper.selectValidByCustomerDateForView(customerId, deliveryDate)
+                : saleOrderDetailMapper.selectValidByCustomerPointDateForView(customerId, deptId, deliveryDate);
         if (CollectionUtils.isEmpty(orderDetails)) {
-            throw new ServiceException("该客户+日期+配送点没有有效订单明细，无法生成验收单");
+            throw new ServiceException("该客户+配送日期没有有效订单明细，无法生成验收单");
         }
-        // 应送行=订单明细行（含标记）；换货退货行变更物（change_type=3 被换/被退）应送=0 不生成明细行？——
-        // 业务口径：验收展示含标记行，退货行实收=0应送=0（应收为0），换货行正常验收。
+        // 应送行=订单明细行（含标记）；退货行（change_type=3）应送=实收=0；
+        // 加单行默认实收取 actual_num 镜像（现场已录），其余按应送兑底。
         List<AcceptanceItem> items = new ArrayList<>();
         BigDecimal total = BigDecimal.ZERO;
         int sort = 0;
         for (SaleOrderDetail d : orderDetails) {
             boolean isReturned = d.getChangeType() != null && d.getChangeType() == 3;
             BigDecimal delivered = isReturned ? BigDecimal.ZERO : nvl(d.getNum());
-            // actual_num 为镜像列默认 0：<=0 视为未填，按应送兜底（加单行已录实收则取实收）
             BigDecimal actual = isReturned ? BigDecimal.ZERO
                     : (d.getActualNum() != null && d.getActualNum().compareTo(BigDecimal.ZERO) > 0
                             ? d.getActualNum() : delivered);
@@ -437,7 +524,7 @@ public class AcceptanceServiceImpl implements AcceptanceService {
         Acceptance acceptance = new Acceptance();
         acceptance.setCode(bizCodeService.nextDailyCode("acceptance", "YS", 3));
         acceptance.setCustomerId(customerId);
-        acceptance.setDeliveryPointId(customerDeptId);
+        acceptance.setDeliveryPointId(deptId);
         acceptance.setDeliveryDate(deliveryDate);
         acceptance.setAcceptDate(deliveryDate);
         acceptance.setTotalAmount(total);

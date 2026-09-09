@@ -19,6 +19,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -191,5 +192,42 @@ class PrintTicketServiceImplTest {
         String t1 = printTicketService.issue(500L, null);
         String t2 = printTicketService.issue(500L, null);
         assertNotEquals(t1, t2);
+    }
+
+    // ==================== 打印回执领取（PT-3，《客户日报表打印优化设计》§3.3） ====================
+
+    @Test
+    void 回执领取_未用票据一次性领取并转宽限() {
+        String ticket = PrintTicketService.TICKET_PREFIX + "rcpt1";
+        when(redisCache.getCacheObject(PrintTicketServiceImpl.UNUSED_KEY + ticket))
+                .thenReturn(bizPayload("point:10:6:2026-09-03"));
+
+        PrintTicketPayload got = printTicketService.consumeForReceipt(ticket);
+
+        assertNotNull(got);
+        assertEquals("point:10:6:2026-09-03", got.getBizKey());
+        // 一次性领取：未用票据被删除并转入宽限（页面可能未发数据集回调就直接打印）
+        verify(redisCache).deleteObject(PrintTicketServiceImpl.UNUSED_KEY + ticket);
+        verify(redisCache).setCacheObject(eq(PrintTicketServiceImpl.USED_KEY + ticket), any(),
+                eq(PrintTicketServiceImpl.USED_GRACE_SECONDS), eq(TimeUnit.SECONDS));
+    }
+
+    @Test
+    void 回执领取_宽限期内复用且无效票据返回空() {
+        // 宽限期内复用
+        String ticket = PrintTicketService.TICKET_PREFIX + "rcpt2";
+        when(redisCache.getCacheObject(PrintTicketServiceImpl.UNUSED_KEY + ticket)).thenReturn(null);
+        when(redisCache.getCacheObject(PrintTicketServiceImpl.USED_KEY + ticket))
+                .thenReturn(bizPayload("matrix:10:2026-09-03"));
+        PrintTicketPayload got = printTicketService.consumeForReceipt(ticket);
+        assertNotNull(got);
+        assertEquals("matrix:10:2026-09-03", got.getBizKey());
+
+        // 无效/过期票据返回 null（回执端永远 2xx）
+        String bad = PrintTicketService.TICKET_PREFIX + "bad";
+        when(redisCache.getCacheObject(PrintTicketServiceImpl.UNUSED_KEY + bad)).thenReturn(null);
+        when(redisCache.getCacheObject(PrintTicketServiceImpl.USED_KEY + bad)).thenReturn(null);
+        assertNull(printTicketService.consumeForReceipt(bad));
+        assertNull(printTicketService.consumeForReceipt(null));
     }
 }

@@ -39,14 +39,17 @@ public interface AcceptanceService {
     List<AcceptanceItem> selectItemListByAcceptanceId(Long acceptanceId);
 
     /**
-     * 「去验收」定位（S14 §6.1/§八：订单列表已配送行跳转）。
+     * 「去验收」定位（S14 §6.1/§八 + AC-5 订单视角优先）。
      *
-     * <p>按来源订单反查其所在的有效送货单与验收单：优先走 source_item 有效分配台账，
-     * S14 前的历史单回退送货明细行 order_id；已作废单排除；一单分布在多张有效单
-     * （补充单场景）时优先返回已建验收单的最新一张，都没有则定位最新单引导创建草稿。</p>
+     * <p>订单视角（新流程，status=1 主场景）：按订单行取 客户+配送日期，
+     * 查该客户日是否已有新口径验收单 → 返回 customerId/deliveryDate + 命中的验收单信息，
+     * 无单时前端带 create 参数引导一键建草稿；</p>
+     * <p>历史回退（status=2 已配送的历史单）：原样保留送货单反查链路——
+     * source_item 有效分配台账 → 历史单送货明细行 order_id → 排除作废 →
+     * 补充单场景优先取已建验收单的最新一张。</p>
      *
      * @param orderId 来源销售订单ID
-     * @return 定位结果（未进入任何有效送货单时仅回显 orderId）
+     * @return 定位结果（仅回显 orderId = 既无客户日验收单也未进历史送货单）
      */
     AcceptanceByOrderVO locateBySaleOrder(Long orderId);
 
@@ -55,7 +58,11 @@ public interface AcceptanceService {
      *
      * @param deliveryOrderId 送货单ID
      * @return 验收单
+     * @deprecated 历史单专用（AC-4，《验收模块订单明细视角重构设计》）：新流程验收维度=客户+配送日期，
+     *             唯一建单入口为 {@link #createByCustomerDate(Long, LocalDate)}；
+     *             本方法仅为历史 status=2 订单补建验收保留，新调用禁止。
      */
+    @Deprecated
     Acceptance createByDeliveryOrder(Long deliveryOrderId);
 
     /**
@@ -66,8 +73,22 @@ public interface AcceptanceService {
      * @param customerDeptId 配送点ID
      * @param deliveryDate   配送日期
      * @return 验收单
+     * @deprecated 已升级为客户日维度（AC-1），由 {@link #createByCustomerDate(Long, LocalDate)} 替代
      */
+    @Deprecated
     Acceptance createByCustomerPoint(Long customerId, Long customerDeptId, LocalDate deliveryDate);
+
+    /**
+     * 按「客户+配送日期」生成验收单草稿（AC-1/AC-2，订单明细视角）：
+     * 一客户日一张，应送行=该客户当日全部订单明细行（跨配送点平铺，行带配送点/订单号/变更标记），
+     * 默认实收=应送（加单行取订单明细 actual_num 镜像，退货行应送实收归 0）；
+     * 一客户日一验守卫（AC-3：含按点历史遗留，防混维度重复建单）。
+     *
+     * @param customerId   客户ID
+     * @param deliveryDate 配送日期
+     * @return 验收单
+     */
+    Acceptance createByCustomerDate(Long customerId, LocalDate deliveryDate);
 
     /**
      * 录入/修改验收单（仅草稿；实收金额与损耗由后端重算）

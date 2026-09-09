@@ -365,4 +365,23 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
               and d.status != 3
         )
     </select>
+    <!-- 当日打印清单数据源（PT-2）：客户×点×应送量 扁平行，服务层聚合；
+         coalesce(d.customer_dept_id, o.customer_dept_id) 与点单视图口径一致；
+         不排除纯退货行（有单即可打总单）；customer 名 alias 优先。 -->
+    <select id="selectPrintManifestRows" resultType="com.lin.distribution.vo.PrintManifestVO$Row">
+        select o.customer_id       as customerId,
+               coalesce(c.alias, c.name) as customerName,
+               coalesce(d.customer_dept_id, o.customer_dept_id) as deptId,
+               cd.name             as deptName,
+               d.num               as num
+        from t_sale_order_detail d
+        join t_sale_order o on o.id = d.order_id
+        left join t_customer c on c.id = o.customer_id
+        left join t_customer_dept cd on cd.id = coalesce(d.customer_dept_id, o.customer_dept_id)
+        where d.is_deleted = 0
+          and o.is_deleted = 0
+          and o.status &gt;= 1
+          and o.delivery_date = #{deliveryDate}
+        order by o.customer_id, coalesce(d.customer_dept_id, o.customer_dept_id), d.id
+    </select>
 </mapper>

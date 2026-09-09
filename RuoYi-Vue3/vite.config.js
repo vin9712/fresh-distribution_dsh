@@ -57,6 +57,12 @@ export default defineConfig(({ mode, command }) => {
           target: baseUrl,
           changeOrigin: true
         },
+        // 打印回执（PT-3）：报表页 print-annotation.js 真实打印后 POST /print/receipt，
+        // dev 下报表页经本代理，故 /print 需同代理到后端（生产 Nginx 同路径反代，后端已 permitAll）
+        '/print': {
+          target: baseUrl,
+          changeOrigin: true
+        },
          // springdoc proxy
          '^/v3/api-docs/(.*)': {
           target: baseUrl,

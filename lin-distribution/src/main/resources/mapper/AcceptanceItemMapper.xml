@@ -27,7 +27,7 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
     </resultMap>
 
     <sql id="selectAcceptanceItemVo">
-        select ai.id, ai.acceptance_id, ai.delivery_item_id, ai.sku_id,
+        select ai.id, ai.acceptance_id, ai.delivery_item_id, ai.sale_order_detail_id, ai.sku_id,
         sku.code as sku_code,
         ai.customer_dept_id, cd.name as customerDeptName,
         ai.product_name, ai.product_spec, ai.product_unit, ai.delivered_quantity, ai.actual_quantity, ai.unit_price,

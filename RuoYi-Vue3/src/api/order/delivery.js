@@ -190,3 +190,23 @@ export function getDeliveryPrintState(customerId, deliveryDate, customerDeptId) 
     }
   })
 }
+
+// ==================== 客户日报表打印优化（PT-1~4） ====================
+
+// 当日打印清单（PT-2）：按配送日期返回全部客户应打单据（总单+点单，含已打印状态）
+export function getPrintManifest(deliveryDate) {
+  return request({
+    url: '/order/delivery/print-manifest',
+    method: 'get',
+    params: { deliveryDate: deliveryDate }
+  })
+}
+
+// 批量签发打印票据（PT-4）：bizKeys 数组 → { tickets: { bizKey: ticket } }
+export function issuePrintTicketsBatch(bizKeys) {
+  return request({
+    url: '/print/ticket/batch',
+    method: 'post',
+    data: { bizKeys: bizKeys }
+  })
+}

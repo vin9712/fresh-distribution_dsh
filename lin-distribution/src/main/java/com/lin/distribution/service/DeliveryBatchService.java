@@ -6,6 +6,7 @@ import com.lin.distribution.domain.SaleOrderDetail;
 import com.lin.distribution.vo.DeliveryBatchViewVO;
 import com.lin.distribution.vo.DeliveryMatrixVO;
 import com.lin.distribution.vo.DeliveryPointViewVO;
+import com.lin.distribution.vo.PrintManifestVO;
 
 /**
  * 配送批次查询服务（S14 §6.1 / §八，D-027/D-028；矩阵总表 D-044~D-053）
@@ -82,4 +83,14 @@ public interface DeliveryBatchService {
      * @return true=已有打印记录
      */
     boolean isPrinted(Long customerId, String deliveryDate, Long customerDeptId);
+
+    /**
+     * 当日打印清单（PT-2，《客户日报表打印优化设计》§3.2）：
+     * 按配送日期聚合当天全部客户应打单据——每客户一张总单 + 每配送点一张点单，
+     * printed 取打印分界（t_delivery_print_log）。取数口径与点单一致（订单明细 status&gt;=1）。
+     *
+     * @param deliveryDate 配送日期（yyyy-MM-dd）
+     * @return 清单（customer_id 升序，点内按 deptId 升序）
+     */
+    List<PrintManifestVO> selectPrintManifest(String deliveryDate);
 }

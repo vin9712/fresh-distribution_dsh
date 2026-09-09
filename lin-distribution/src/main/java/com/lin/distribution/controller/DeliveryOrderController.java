@@ -315,6 +315,17 @@ public class DeliveryOrderController extends BaseController {
         return result;
     }
 
+    /**
+     * 当日打印清单（PT-2，《客户日报表打印优化设计》§3.2）：
+     * 按配送日期返回全部客户应打单据（总单+点单，含已打印状态），
+     * 批量打印抽屉的数据源。
+     */
+    @PreAuthorize("@ss.hasAnyPermi('order:delivery:print,order:delivery:batch')")
+    @GetMapping("/print-manifest")
+    public AjaxResult printManifest(@RequestParam("deliveryDate") String deliveryDate) {
+        return success(deliveryBatchService.selectPrintManifest(deliveryDate));
+    }
+
     private Long toLong(Object value) {
         if (value == null || value.toString().trim().isEmpty()) {
             return null;
