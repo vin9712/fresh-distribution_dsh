@@ -258,7 +258,7 @@
               </vxe-column>
 
               <!-- OA 验收模式：行内变更（换/退行内确认；加单/换货=插入可编辑行，同录单页商品下拉/取价） -->
-              <vxe-column v-if="acceptanceMode" title="变更" width="110" align="center">
+              <vxe-column v-if="acceptanceMode" title="变更" width="96" align="center">
                 <template #default="{ row }">
                   <template v-if="row._accEditing">
                     <el-button link type="primary" size="small" @click="confirmInlineChange(row)">确认</el-button>
@@ -477,12 +477,12 @@
                   <span v-else class="acc-reason-none">—</span>
                 </template>
               </vxe-column>
-              <!-- OA：实收金额 = 实收数量 × 下单单价，随录入实时联动 -->
+              <!-- OA：实收金额 = 实收数量 × 下单单价，随录入实时联动（列宽预留合计数字空间） -->
               <vxe-column
                 v-if="acceptanceMode"
                 field="acceptAmount"
                 title="实收金额"
-                width="95"
+                width="120"
                 align="right"
               >
                 <template #default="{ row }">{{ accAmountOf(row).toFixed(2) }}</template>
@@ -515,11 +515,13 @@
               <vxe-column
                 field="productSpec"
                 title="规格"
+                min-width="110"
                 :edit-render="{ name: '$input', autoselect: true }"
               ></vxe-column>
               <vxe-column
                 field="remark"
                 title="备注"
+                min-width="130"
                 :edit-render="{ name: '$input', autoselect: true }"
               ></vxe-column>
             </vxe-table>
@@ -530,8 +532,16 @@
             <el-form-item
               style="text-align: center; margin-left: -100px; margin-top: 10px"
             >
-              <!-- OA 验收模式工具条：一键验收 / 保存草稿 / 行级加单 / 撤销验收（已验收态） -->
+              <!-- OA 验收模式工具条：加单（浅绿=新增，居左）/ 一键验收 / 保存草稿 / 验收日期 / 撤销验收（已验收态） -->
               <template v-if="acceptanceMode">
+                <el-button
+                  v-if="!acceptanceReadonly"
+                  type="success"
+                  plain
+                  :icon="Plus"
+                  @click="startInlineAdd"
+                  v-hasPermi="['order:sale:edit']"
+                >加单</el-button>
                 <el-button
                   v-if="!acceptanceReadonly"
                   type="primary"
@@ -558,13 +568,6 @@
                 </span>
                 <el-button
                   v-if="!acceptanceReadonly"
-                  type="warning"
-                  plain
-                  @click="startInlineAdd"
-                  v-hasPermi="['order:sale:edit']"
-                >加单</el-button>
-                <el-button
-                  v-if="acceptanceReadonly"
                   type="warning"
                   plain
                   @click="showRevokeDialog"
@@ -2483,21 +2486,25 @@ export default {
             return "合计";
           }
           if (column.property === "num") {
-            return this.sumNum(rows, "num");
+            return this.sumNumText(rows, "num");
           } else if (column.property === "amount") {
-            return this.sumNum(rows, "amount");
+            return this.sumNumText(rows, "amount");
           } else if (column.property === "actualNum") {
-            return this.sumNum(data, "actualNum");
+            return this.sumNumText(data, "actualNum");
           } else if (acceptanceMode && column.property === "acceptActual") {
-            return this.sumNum(rows, "acceptActual");
+            return this.sumNumText(rows, "acceptActual");
           } else if (acceptanceMode && column.property === "acceptAmount") {
-            return "实收合计 ¥" + s.actualAmount.toFixed(2);
+            return "¥" + s.actualAmount.toFixed(2);
           } else if (acceptanceMode && column.property === "acceptDiff") {
             return (s.diffAmount > 0 ? "+" : "") + s.diffAmount.toFixed(2);
           }
           return "";
         }),
       ];
+    },
+    /** 合计行数值：千分位+固定两位小数（数量/金额/实收合计统一口径） */
+    sumNumText(list, field) {
+      return XEUtils.commafy(this.sumNum(list, field), { digits: 2 });
     },
     /** vxe表格检测是否改动 */
     checkTableUpdted() {
