@@ -2254,9 +2254,16 @@ export default {
       this.$nextTick(() => {
         const t = this.$refs.xTable;
         if (!t) return;
-        if (t.scrollToRow) t.scrollToRow(editing);
-        // 激活商品名单元格 → 触发报价选择面板（同录单页）
-        if (t.setEditCell) t.setEditCell(editing, "productName");
+        // 从响应式数组中取行对象再激活（传原始对象会因代理引用不匹配而静默无效）
+        const reactiveRow = this.orderDetailList[this.orderDetailList.length - 1];
+        if (!reactiveRow || !reactiveRow._accEditing) return;
+        if (t.scrollToRow) t.scrollToRow(reactiveRow);
+        if (t.setEditCell) t.setEditCell(reactiveRow, "productName");
+        // 兑底聚焦内层 input，触发 @focus 弹出报价面板
+        setTimeout(() => {
+          const input = t.$el && t.$el.querySelector(".vxe-body--row .vxe-input--inner");
+          input && input.focus();
+        }, 80);
       });
     },
 
@@ -2307,7 +2314,14 @@ export default {
       this.orderDetailList.splice(idx, 1, editing);
       this.$nextTick(() => {
         const t = this.$refs.xTable;
-        if (t && t.setEditCell) t.setEditCell(editing, "productName");
+        if (!t) return;
+        const reactiveRow = this.orderDetailList[idx];
+        if (!reactiveRow || !reactiveRow._accEditing) return;
+        if (t.setEditCell) t.setEditCell(reactiveRow, "productName");
+        setTimeout(() => {
+          const input = t.$el && t.$el.querySelector(".vxe-body--row .vxe-input--inner");
+          input && input.focus();
+        }, 80);
       });
     },
 
