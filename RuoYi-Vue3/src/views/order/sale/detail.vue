@@ -288,7 +288,7 @@
                 field="productName"
                 title="商品名称"
                 :edit-render="{ name: 'VxeInput', autoselect: true }"
-                width="25%"
+                :width="acceptanceMode ? 190 : '25%'"
               >
                 <!-- 商品名称 + D-055 变更标记（加单/换货/退货，验收模式可见性更高） -->
                 <template #default="{ row }">
@@ -359,7 +359,7 @@
               <vxe-column
                 field="productUnit"
                 title="单位"
-                width="8%"
+                :width="acceptanceMode ? 60 : '8%'"
                 :edit-render="{ name: '$input', autoselect: true }"
               >
                 <template #edit="{ row }">
@@ -374,6 +374,7 @@
                 field="num"
                 title="数量"
                 cell-type="number"
+                :width="acceptanceMode ? 80 : null"
                 :formatter="decimalFormatter('num')"
                 :edit-render="{ name: '$input', autoselect: true }"
               >
@@ -381,7 +382,7 @@
                   <vxe-input
                     v-model="row.num"
                     type="text"
-                    @change="calcAmount(row)"
+                    @change="onNumEdited(row)"
                   ></vxe-input>
                 </template>
               </vxe-column>
@@ -389,6 +390,7 @@
                 field="productPrice"
                 title="单价"
                 cell-type="number"
+                :width="acceptanceMode ? 75 : null"
                 :formatter="decimalFormatter('productPrice')"
                 :class-name="priceCellClass"
                 :edit-render="{ name: '$input', autoselect: true }"
@@ -414,14 +416,14 @@
                   ></vxe-input>
                 </template>
               </vxe-column>
-              <vxe-column field="amount" title="金额" :formatter="decimalFormatter('amount')"> </vxe-column>
+              <vxe-column field="amount" title="金额" :width="acceptanceMode ? 85 : null" :formatter="decimalFormatter('amount')"> </vxe-column>
               <!-- OA 验收模式：实收数量可编辑 + 差异 + 差异原因（载入默认=下单数量，一键/草稿保存落验收单） -->
               <vxe-column
                 v-if="acceptanceMode"
                 field="acceptActual"
                 title="实收数量"
                 cell-type="number"
-                width="130"
+                width="110"
                 :class-name="accRowClass"
                 :edit-render="{ name: '$input', autoselect: true }"
               >
@@ -429,6 +431,7 @@
                   <vxe-input
                     v-model="row.acceptActual"
                     type="text"
+                    :disabled="row._accEditing"
                     @change="onAccActualEdited(row)"
                   ></vxe-input>
                 </template>
@@ -437,7 +440,7 @@
                 v-if="acceptanceMode"
                 field="acceptDiff"
                 title="差异"
-                width="90"
+                width="80"
                 align="center"
               >
                 <template #default="{ row }">
@@ -448,7 +451,7 @@
                 v-if="acceptanceMode"
                 field="acceptReason"
                 title="差异原因"
-                min-width="150"
+                min-width="140"
                 :class-name="accRowClass"
               >
                 <template #default="{ row }">
@@ -479,7 +482,7 @@
                 v-if="acceptanceMode"
                 field="acceptAmount"
                 title="实收金额"
-                width="105"
+                width="95"
                 align="right"
               >
                 <template #default="{ row }">{{ accAmountOf(row).toFixed(2) }}</template>
@@ -2176,6 +2179,16 @@ export default {
         const t = this.$refs.xTable;
         t && t.updateFooter && t.updateFooter();
       });
+    },
+
+    /** 数量编辑收口（录单+验收模式共用）：重算金额；验收模式编辑行实收数量跟随同步 */
+    onNumEdited(row) {
+      this.calcAmount(row);
+      if (row._accEditing) {
+        const n = XEUtils.toNumber(row.num);
+        row.acceptActual = Math.round(n * 100) / 100;
+        this.refreshAccFooter();
+      }
     },
 
     /** OA：实收编辑完成（vxe 编辑态同录单交互）：归一两位小数 + 刷新表尾 + 防抖自动保存 */
