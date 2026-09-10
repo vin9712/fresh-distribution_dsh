@@ -2236,6 +2236,8 @@ export default {
       }
       if (!this.ensureNoAccEditingRow()) return;
       const editing = {
+        // 合成负数 id：vxe row-config.useKey 以 id 为行身份，无 id 会导致替换行不重渲染
+        id: -(Date.now()),
         _accEditing: true,
         _accMode: 1, // 1加单 2换货
         _accTargetId: null,
@@ -2251,10 +2253,11 @@ export default {
       };
       this.orderDetailList.push(editing);
       this.refreshAccFooter();
-      this.$nextTick(() => {
+      this.$nextTick(async () => {
         const t = this.$refs.xTable;
         if (!t) return;
-        // 从响应式数组中取行对象再激活（传原始对象会因代理引用不匹配而静默无效）
+        // 强制重载行数据（useKey 下 splice/push 不会触发行重渲染）
+        if (t.loadData) await t.loadData(this.orderDetailList);
         const reactiveRow = this.orderDetailList[this.orderDetailList.length - 1];
         if (!reactiveRow || !reactiveRow._accEditing) return;
         if (t.scrollToRow) t.scrollToRow(reactiveRow);
@@ -2295,6 +2298,7 @@ export default {
       }
       const idx = this.orderDetailList.indexOf(row);
       const editing = {
+        id: -(Date.now()),
         _accEditing: true,
         _accMode: 2,
         _accTargetId: row.id,
@@ -2312,9 +2316,10 @@ export default {
       // 原行暂存；编辑行插在原行位置（确认后原行标退货由后端处理）
       this._accStashedRow = { row, idx };
       this.orderDetailList.splice(idx, 1, editing);
-      this.$nextTick(() => {
+      this.$nextTick(async () => {
         const t = this.$refs.xTable;
         if (!t) return;
+        if (t.loadData) await t.loadData(this.orderDetailList);
         const reactiveRow = this.orderDetailList[idx];
         if (!reactiveRow || !reactiveRow._accEditing) return;
         if (t.setEditCell) t.setEditCell(reactiveRow, "productName");
