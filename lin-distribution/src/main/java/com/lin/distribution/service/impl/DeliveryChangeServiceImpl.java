@@ -138,7 +138,7 @@ public class DeliveryChangeServiceImpl implements DeliveryChangeService {
         if (d == null || !orderId.equals(d.getOrderId())) {
             throw new ServiceException("变更明细不存在或不属于该订单");
         }
-        if (d.getChangeType() == null) {
+        if (d.getChangeType() == null || d.getChangeType() == 0) {
             throw new ServiceException("该明细行无配送后变更标记，无需回退");
         }
         // 验收守卫：订单维度验收单已提交则先撤销；草稿自动同步（删行/恢复后 syncMissingItems 对齐）
@@ -159,7 +159,8 @@ public class DeliveryChangeServiceImpl implements DeliveryChangeService {
             if (d.getChangeGroup() != null) {
                 saleOrderDetailMapper.selectValidByOrderIdForView(orderId).stream()
                         .filter(x -> d.getChangeGroup().equals(x.getChangeGroup())
-                                && x.getChangeType() != null && !d.getId().equals(x.getId()))
+                                && (Integer.valueOf(2).equals(x.getChangeType()) || Integer.valueOf(3).equals(x.getChangeType()))
+                                && !d.getId().equals(x.getId()))
                         .forEach(members::add);
             }
             for (SaleOrderDetail m : members) {

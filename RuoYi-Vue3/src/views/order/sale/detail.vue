@@ -264,7 +264,7 @@
                     <el-button link type="primary" size="small" @click="confirmInlineChange(row)">确认</el-button>
                     <el-button link type="info" size="small" @click="cancelInlineChange(row)">取消</el-button>
                   </template>
-                  <template v-else-if="row.changeType != null">
+                  <template v-else-if="row.changeType === 1 || row.changeType === 2 || row.changeType === 3">
                     <el-button
                       link
                       type="info"
