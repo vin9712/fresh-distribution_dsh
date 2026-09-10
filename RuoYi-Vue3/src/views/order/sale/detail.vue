@@ -264,6 +264,15 @@
                     <el-button link type="primary" size="small" @click="confirmInlineChange(row)">确认</el-button>
                     <el-button link type="info" size="small" @click="cancelInlineChange(row)">取消</el-button>
                   </template>
+                  <template v-else-if="row.changeType != null">
+                    <el-button
+                      link
+                      type="info"
+                      size="small"
+                      :disabled="acceptanceReadonly"
+                      @click="revertInlineChange(row)"
+                    >回退</el-button>
+                  </template>
                   <template v-else>
                     <el-button
                       link
@@ -926,7 +935,7 @@
 </template>
 
 <script>
-import { pageSaleOrder, getSaleOrder, genOrderCode, createSaleOrder, updateSaleOrder, recentSaleOrder, checkExistingDraft, listSale, updateOrderStatus, deliverySupplement, deliveryExchange, deliveryReturn } from "@/api/order/sale";
+import { pageSaleOrder, getSaleOrder, genOrderCode, createSaleOrder, updateSaleOrder, recentSaleOrder, checkExistingDraft, listSale, updateOrderStatus, deliverySupplement, deliveryExchange, deliveryReturn, revokeDeliveryChange } from "@/api/order/sale";
 import { listSaleDetail, frequentSaleDetail } from "@/api/order/saleDetail";
 import {
   getAcceptance,
@@ -2328,6 +2337,29 @@ export default {
           input && input.focus();
         }, 80);
       });
+    },
+
+    /** OA：回退行内变更（加单=删行；退货=恢复原数量；换货=整组恢复），后端自动同步验收草稿 */
+    revertInlineChange(row) {
+      if (this.acceptanceReadonly) {
+        this.$modal.msgWarning("验收单已提交，请先撤销验收再回退");
+        return;
+      }
+      const labels = { 1: "加单", 2: "换货", 3: "退货" };
+      const effect =
+        row.changeType === 1
+          ? "该加单行将被删除"
+          : row.changeType === 2
+            ? "整组恢复：删除换入行、被换行恢复原数量"
+            : "该行恢复原数量（应送/实收）";
+      this.$modal
+        .confirm(`回退【${row.productName}】的${labels[row.changeType]}变更？${effect}。`)
+        .then(() => revokeDeliveryChange(this.orderForm.orderId, row.id))
+        .then(() => {
+          this.$modal.msgSuccess("变更已回退");
+          return this.reloadDetailsForAcc();
+        })
+        .catch(() => {});
     },
 
     /** OA：确认行内变更（加单/换货 → D-055 接口落标记） */

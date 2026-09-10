@@ -65,4 +65,14 @@ public interface AcceptanceItemMapper {
      * @return 结果
      */
     int deleteAcceptanceItemByAcceptanceId(Long acceptanceId);
+
+    /**
+     * OA：按订单明细ID批量删除验收行（变更回退时清理，随后 syncMissingItems 重算）
+     *
+     * @param acceptanceId        验收单ID
+     * @param saleOrderDetailIds 订单明细ID集合
+     * @return 结果
+     */
+    int deleteBySaleOrderDetailIds(@org.apache.ibatis.annotations.Param("acceptanceId") Long acceptanceId,
+                                   @org.apache.ibatis.annotations.Param("detailIds") java.util.List<Long> saleOrderDetailIds);
 }

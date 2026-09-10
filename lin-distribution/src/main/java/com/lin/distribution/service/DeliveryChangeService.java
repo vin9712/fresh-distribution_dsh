@@ -58,4 +58,21 @@ public interface DeliveryChangeService {
      * @return 更新后的明细行
      */
     SaleOrderDetail returnLine(Long orderId, Long targetDetailId, String remark);
+
+    /**
+     * 配送后变更回退（OA，《订单页一键验收链路设计》§4.4）：
+     * <ul>
+     *   <li>加单行（type=1）：删除该行；</li>
+     *   <li>退货行（type=3）：恢复本行（change_type=0，num/actual_num 取 change_original_num 快照）；
+     *       若属换货组，同组换入行（type=2）一并删除；</li>
+     *   <li>换入行（type=2）：整组回退（删换入行 + 恢复被换行）；</li>
+     * </ul>
+     * 验收单为草稿时同步清理对应验收行并重算总额（恢复行由 syncMissingItems 重新生成）；
+     * 验收单已提交则拒绝（请先撤销）。
+     *
+     * @param orderId  订单ID
+     * @param detailId 带变更标记的明细行ID
+     * @return 被回退的明细行
+     */
+    SaleOrderDetail revokeChange(Long orderId, Long detailId);
 }

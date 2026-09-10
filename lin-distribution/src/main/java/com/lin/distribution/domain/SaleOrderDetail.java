@@ -151,6 +151,9 @@ public class SaleOrderDetail extends BaseEntity {
      */
     private String changeRemark;
 
+    /** 配送后变更回退用：标记退货/换货前的原应收数量快照（s28，markReturned 时写入） */
+    private BigDecimal changeOriginalNum;
+
     /**
      * 逻辑删除
      */

@@ -27,6 +27,7 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         <result property="sort"    column="sort"    />
         <result property="changeType"       column="change_type"       />
         <result property="changeGroup"      column="change_group"      />
+        <result property="changeOriginalNum"    column="change_original_num"    />
         <result property="changeRemark"     column="change_remark"     />
         <result property="isDeleted"    column="is_deleted"    />
         <result property="version"    column="version"    />
@@ -42,7 +43,7 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
     </resultMap>
 
     <sql id="selectSaleOrderDetailVo">
-        select id, order_id, customer_id, customer_dept_id, sku_id, order_code, product_name, product_unit, product_price, product_spec, num, expect_amount, price_source, ref_price, price_reason, loss_reason, actual_price, actual_num, actual_amount, sort, change_type, change_group, change_remark, is_deleted, version, create_by, create_time, update_by, update_time, remark from t_sale_order_detail
+        select id, order_id, customer_id, customer_dept_id, sku_id, order_code, product_name, product_unit, product_price, product_spec, num, expect_amount, price_source, ref_price, price_reason, loss_reason, actual_price, actual_num, actual_amount, sort, change_type, change_group, change_remark, change_original_num, is_deleted, version, create_by, create_time, update_by, update_time, remark from t_sale_order_detail
     </sql>
 
     <select id="selectSaleOrderDetailList" parameterType="com.lin.distribution.domain.SaleOrderDetail" resultMap="SaleOrderDetailResult">
@@ -63,7 +64,7 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
                d.product_name, d.product_unit, d.product_price, d.product_spec, d.num,
                d.expect_amount, d.price_source, d.ref_price, d.price_reason, d.loss_reason,
                d.actual_price, d.actual_num, d.actual_amount, d.sort,
-               d.change_type, d.change_group, d.change_remark,
+               d.change_type, d.change_group, d.change_remark, d.change_original_num,
                d.is_deleted, d.version, d.create_by, d.create_time, d.update_by, d.update_time, d.remark
         from t_sale_order_detail d
         join t_sale_order o on o.id = d.order_id
@@ -101,7 +102,7 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
                d.product_name, d.product_unit, d.product_price, d.product_spec, d.num,
                d.expect_amount, d.price_source, d.ref_price, d.price_reason, d.loss_reason,
                d.actual_price, d.actual_num, d.actual_amount, d.sort,
-               d.change_type, d.change_group, d.change_remark,
+               d.change_type, d.change_group, d.change_remark, d.change_original_num,
                d.is_deleted, d.version, d.create_by, d.create_time, d.update_by, d.update_time, d.remark,
                cd.name as customer_dept_name
         from t_sale_order_detail d
@@ -121,7 +122,7 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
                d.product_name, d.product_unit, d.product_price, d.product_spec, d.num,
                d.expect_amount, d.price_source, d.ref_price, d.price_reason, d.loss_reason,
                d.actual_price, d.actual_num, d.actual_amount, d.sort,
-               d.change_type, d.change_group, d.change_remark,
+               d.change_type, d.change_group, d.change_remark, d.change_original_num,
                d.is_deleted, d.version, d.create_by, d.create_time, d.update_by, d.update_time, d.remark,
                cd.name as customer_dept_name
         from t_sale_order_detail d
@@ -174,6 +175,7 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
             <if test="changeType != null">change_type,</if>
             <if test="changeGroup != null">change_group,</if>
             <if test="changeRemark != null">change_remark,</if>
+            <if test="changeOriginalNum != null">change_original_num,</if>
             <if test="isDeleted != null">is_deleted,</if>
             <if test="version != null">version,</if>
             <if test="createBy != null">create_by,</if>
@@ -205,6 +207,7 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
             <if test="changeType != null">#{changeType},</if>
             <if test="changeGroup != null">#{changeGroup},</if>
             <if test="changeRemark != null">#{changeRemark},</if>
+            <if test="changeOriginalNum != null">#{changeOriginalNum},</if>
             <if test="isDeleted != null">#{isDeleted},</if>
             <if test="version != null">#{version},</if>
             <if test="createBy != null">#{createBy},</if>
@@ -240,6 +243,7 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
             <if test="changeType != null">change_type = #{changeType},</if>
             <if test="changeGroup != null">change_group = #{changeGroup},</if>
             <if test="changeRemark != null">change_remark = #{changeRemark},</if>
+            <if test="changeOriginalNum != null">change_original_num = #{changeOriginalNum},</if>
             <if test="isDeleted != null">is_deleted = #{isDeleted},</if>
             <if test="version != null">version = #{version},</if>
             <if test="createBy != null">create_by = #{createBy},</if>

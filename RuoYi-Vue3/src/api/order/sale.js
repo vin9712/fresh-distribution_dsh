@@ -141,3 +141,11 @@ export function deliveryReturn(orderId, data) {
     data: data
   })
 }
+
+// 配送后变更回退（OA：加单删行 / 退货按快照恢复 / 换货整组恢复；验收草稿自动同步）
+export function revokeDeliveryChange(orderId, detailId) {
+  return request({
+    url: '/order/delivery-change/' + orderId + '/revoke/' + detailId,
+    method: 'post'
+  })
+}

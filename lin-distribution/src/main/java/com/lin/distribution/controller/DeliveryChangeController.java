@@ -67,6 +67,13 @@ public class DeliveryChangeController extends BaseController {
         return success(deliveryChangeService.returnLine(orderId, targetDetailId, str(body, "remark")));
     }
 
+    @Operation(summary = "配送后变更回退（OA：加单删行 / 退货恢复 / 换货整组恢复；验收草稿自动同步）")
+    @PreAuthorize("@ss.hasPermi('order:sale:edit')")
+    @PostMapping("/{orderId}/revoke/{detailId}")
+    public AjaxResult revokeChange(@PathVariable("orderId") Long orderId, @PathVariable("detailId") Long detailId) {
+        return success(deliveryChangeService.revokeChange(orderId, detailId));
+    }
+
     private Long toLong(Object v) {
         if (v == null || String.valueOf(v).isBlank() || "null".equalsIgnoreCase(String.valueOf(v))) {
             return null;

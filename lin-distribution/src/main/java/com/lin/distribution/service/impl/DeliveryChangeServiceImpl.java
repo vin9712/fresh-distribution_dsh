@@ -7,11 +7,16 @@ import java.util.List;
 import com.lin.common.exception.ServiceException;
 import com.lin.common.utils.DateUtils;
 import com.lin.common.utils.SecurityUtils;
+import com.lin.distribution.constant.AcceptanceStatus;
 import com.lin.distribution.constant.SaleOrderStatus;
+import com.lin.distribution.domain.Acceptance;
 import com.lin.distribution.domain.SaleOrder;
 import com.lin.distribution.domain.SaleOrderDetail;
+import com.lin.distribution.mapper.AcceptanceItemMapper;
+import com.lin.distribution.mapper.AcceptanceMapper;
 import com.lin.distribution.mapper.SaleOrderDetailMapper;
 import com.lin.distribution.mapper.SaleOrderMapper;
+import com.lin.distribution.service.AcceptanceService;
 import com.lin.distribution.service.DeliveryChangeService;
 
 import lombok.RequiredArgsConstructor;
@@ -34,6 +39,9 @@ public class DeliveryChangeServiceImpl implements DeliveryChangeService {
 
     private final SaleOrderMapper saleOrderMapper;
     private final SaleOrderDetailMapper saleOrderDetailMapper;
+    private final AcceptanceMapper acceptanceMapper;
+    private final AcceptanceItemMapper acceptanceItemMapper;
+    private final AcceptanceService acceptanceService;
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -118,6 +126,88 @@ public class DeliveryChangeServiceImpl implements DeliveryChangeService {
 
     // ==================== 辅助 ====================
 
+    /**
+     * 配送后变更回退（OA 定稿 2026-09-09）：加单/退货/换货均可回退。
+     * 退货/换货原应收数量取 change_original_num 快照（markReturned 时留痕，s28）。
+     */
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public SaleOrderDetail revokeChange(Long orderId, Long detailId) {
+        requireConfirmedOrder(orderId);
+        SaleOrderDetail d = saleOrderDetailMapper.selectSaleOrderDetailById(detailId);
+        if (d == null || !orderId.equals(d.getOrderId())) {
+            throw new ServiceException("变更明细不存在或不属于该订单");
+        }
+        if (d.getChangeType() == null) {
+            throw new ServiceException("该明细行无配送后变更标记，无需回退");
+        }
+        // 验收守卫：订单维度验收单已提交则先撤销；草稿自动同步（删行/恢复后 syncMissingItems 对齐）
+        Acceptance acc = acceptanceMapper.selectBySaleOrder(orderId);
+        if (acc != null && AcceptanceStatus.SUBMITTED.getCode().equals(acc.getStatus())) {
+            throw new ServiceException("该订单已验收（" + acc.getCode() + "），请先撤销验收再回退变更");
+        }
+        Integer type = d.getChangeType();
+        List<Long> affectedDetailIds = new ArrayList<>();
+        if (type == 1) {
+            // 加单回退：删除加单行
+            affectedDetailIds.add(d.getId());
+            saleOrderDetailMapper.deleteSaleOrderDetailById(d.getId());
+        } else if (type == 2 || type == 3) {
+            // 换货组整组回退；独立退货行仅恢复本行
+            List<SaleOrderDetail> members = new ArrayList<>();
+            members.add(d);
+            if (d.getChangeGroup() != null) {
+                saleOrderDetailMapper.selectValidByOrderIdForView(orderId).stream()
+                        .filter(x -> d.getChangeGroup().equals(x.getChangeGroup())
+                                && x.getChangeType() != null && !d.getId().equals(x.getId()))
+                        .forEach(members::add);
+            }
+            for (SaleOrderDetail m : members) {
+                if (m.getChangeType() != null && m.getChangeType() == 3) {
+                    restoreReturnedRow(m);
+                } else if (m.getChangeType() != null && m.getChangeType() == 2) {
+                    affectedDetailIds.add(m.getId());
+                    saleOrderDetailMapper.deleteSaleOrderDetailById(m.getId());
+                }
+            }
+        } else {
+            throw new ServiceException("该变更类型不支持回退");
+        }
+        // 验收草稿同步：删掉被回退行的验收行，恢复行由 syncMissingItems 重新生成，总额重算
+        if (acc != null && !affectedDetailIds.isEmpty()) {
+            acceptanceItemMapper.deleteBySaleOrderDetailIds(acc.getId(), affectedDetailIds);
+            acceptanceService.syncMissingItems(acc.getId());
+        } else if (acc != null) {
+            acceptanceService.syncMissingItems(acc.getId());
+        }
+        log.info("[delivery change] 订单 {} 回退变更明细 {}（type={}）", orderId, detailId, type);
+        return d;
+    }
+
+    /** 恢复被标记退货的行：change_type 还原为 0，数量取快照（无快照的历史行用 应收金额/单价 推算） */
+    private void restoreReturnedRow(SaleOrderDetail returned) {
+        BigDecimal original = returned.getChangeOriginalNum();
+        if (original == null && returned.getProductPrice() != null
+                && returned.getProductPrice().compareTo(BigDecimal.ZERO) > 0
+                && returned.getExpectAmount() != null) {
+            original = returned.getExpectAmount().divide(returned.getProductPrice(), 2, java.math.RoundingMode.HALF_UP);
+        }
+        if (original == null) {
+            throw new ServiceException("明细【" + returned.getProductName() + "】的原数量已不可追溯，请核对手工处理");
+        }
+        SaleOrderDetail update = new SaleOrderDetail();
+        update.setId(returned.getId());
+        update.setChangeType(0);
+        update.setNum(original);
+        update.setActualNum(original);
+        update.setUpdateBy(resolveOperator());
+        update.setUpdateTime(DateUtils.getNowDate());
+        saleOrderDetailMapper.updateSaleOrderDetail(update);
+        returned.setChangeType(0);
+        returned.setNum(original);
+        returned.setActualNum(original);
+    }
+
     private SaleOrder requireConfirmedOrder(Long orderId) {
         if (orderId == null) {
             throw new ServiceException("订单ID不能为空");
@@ -146,6 +236,8 @@ public class DeliveryChangeServiceImpl implements DeliveryChangeService {
         update.setChangeType(3);
         update.setChangeGroup(null);
         update.setChangeRemark(remark == null ? label : remark);
+        // 原应收数量快照（s28）：num/actual_num 归零前留痕，供回退恢复
+        update.setChangeOriginalNum(target.getNum());
         update.setNum(BigDecimal.ZERO);
         update.setActualNum(BigDecimal.ZERO);
         update.setUpdateBy(resolveOperator());

@@ -122,4 +122,14 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
     <delete id="deleteAcceptanceItemByAcceptanceId" parameterType="Long">
         delete from acceptance_item where acceptance_id = #{acceptanceId}
     </delete>
+
+    <!-- OA：变更回退时按订单明细清理验收行 -->
+    <delete id="deleteBySaleOrderDetailIds">
+        delete from acceptance_item
+        where acceptance_id = #{acceptanceId}
+          and sale_order_detail_id in
+        <foreach item="id" collection="detailIds" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+    </delete>
 </mapper>
