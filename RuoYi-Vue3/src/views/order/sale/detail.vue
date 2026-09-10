@@ -2096,6 +2096,7 @@ export default {
     saveAcceptanceDraft(silent) {
       const acc = this.acceptanceInfo;
       if (!acc || this.acceptanceReadonly) return Promise.resolve();
+      if (!silent && !this.ensureNoAccEditingRow()) return Promise.resolve();
       const items = (this.orderDetailList || [])
         .filter((row) => row.acceptDetailId != null)
         .map((row) => ({
@@ -2126,6 +2127,7 @@ export default {
     /** OA：一键验收（全部实收=下单数量+金额批量确认；差异原因选填，OA 定稿） */
     handleQuickAccept() {
       if (this.acceptanceReadonly) return;
+      if (!this.ensureNoAccEditingRow()) return;
       const rows = this.orderDetailList || [];
       const diffs = rows.filter((row) => this.accDiffOf(row) !== 0);
       const overRows = diffs.filter((row) => this.accDiffOver(row));
@@ -2206,15 +2208,33 @@ export default {
      * OA：行内变更——加单（type=1）：在表尾插入编辑行并直接激活商品名单元格，
      * 激活即弹出报价选择面板（与录单页同一套 vxe-pulldown 交互），选中后自动取价。
      */
+    /**
+     * OA：确保无未确认的变更行（加单/换/退/一键验收前调用）：
+     * 空编辑行（未选商品）自动取消放行；有内容的定位到该行并阻断，避免误丢用户已录内容。
+     *
+     * @return {boolean} true=可继续
+     */
+    ensureNoAccEditingRow() {
+      const editing = (this.orderDetailList || []).find((r) => r._accEditing);
+      if (!editing) return true;
+      if (!editing.productName) {
+        this.cancelInlineChange(editing);
+        return true;
+      }
+      this.$modal.msgWarning(
+        `存在未确认的变更行【${editing.productName}】，请先点「确认」或「取消」`
+      );
+      const t = this.$refs.xTable;
+      if (t && t.scrollToRow) t.scrollToRow(editing);
+      return false;
+    },
+
     startInlineAdd() {
       if (this.acceptanceReadonly) {
         this.$modal.msgWarning("验收单已提交，请先撤销验收再变更");
         return;
       }
-      if ((this.orderDetailList || []).some((r) => r._accEditing)) {
-        this.$modal.msgWarning("请先完成或取消当前编辑中的变更行");
-        return;
-      }
+      if (!this.ensureNoAccEditingRow()) return;
       const editing = {
         _accEditing: true,
         _accMode: 1, // 1加单 2换货
@@ -2246,6 +2266,7 @@ export default {
         this.$modal.msgWarning("验收单已提交，请先撤销验收再变更");
         return;
       }
+      if (!this.ensureNoAccEditingRow()) return;
       if (type === 3) {
         // 退货（整行）：行内一步确认（Q3 定稿：整行退，应送/实收归 0）
         this.$modal
