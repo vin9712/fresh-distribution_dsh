@@ -26,9 +26,24 @@
         </span>
       </template>
     </el-alert>
+    <!-- D-055 配送后变更模式横幅：布局复用验收模式（单栏明细表 + 行内加/退/换），但不录实收（实收归验收页） -->
+    <el-alert
+      v-if="changeMode"
+      type="warning"
+      :closable="false"
+      show-icon
+      class="browse-banner"
+    >
+      <template #title>
+        <span class="draft-banner-title">
+          配送后变更模式：原订单数据不变，加单/换货/退货以标记附加在明细行上（可回退）；实收数量请在验收页录入
+          <el-button size="small" @click="exitChangeMode">退出变更</el-button>
+        </span>
+      </template>
+    </el-alert>
     <!-- 浏览模式横幅：查看历史订单时常驻「返回我的新单」入口 -->
     <el-alert
-      v-if="browseMode && !acceptanceMode"
+      v-if="browseMode && !accLikeMode"
       type="info"
       :closable="false"
       show-icon
@@ -57,7 +72,7 @@
     </el-alert>
     <!-- 草稿恢复提示条（新单页，检测到未完成草稿时显示） -->
     <el-alert
-      v-if="showDraftBanner && availableDrafts.length && !acceptanceMode"
+      v-if="showDraftBanner && availableDrafts.length && !accLikeMode"
       type="warning"
       :closable="false"
       show-icon
@@ -73,7 +88,7 @@
     </el-alert>
     <!-- 编辑已有草稿订单后的提示横幅：点错了？返回重开新单 -->
     <el-alert
-      v-if="showEditExistingBanner && !acceptanceMode"
+      v-if="showEditExistingBanner && !accLikeMode"
       type="warning"
       show-icon
       class="edit-existing-banner"
@@ -93,7 +108,7 @@
       :left-min-width="600"
       :right-min-width="320"
       class="order-split"
-      :right-hidden="acceptanceMode"
+      :right-hidden="accLikeMode"
     >
       <!-- 做单区 -->
       <template #left>
@@ -115,14 +130,14 @@
             </el-tooltip>
             <!-- 草稿箱（S1-1.5）：草稿可见/可恢复/可删除（验收模式隐藏） -->
             <el-button
-              v-if="!acceptanceMode"
+              v-if="!accLikeMode"
               link
               type="primary"
               size="small"
               class="draft-box-btn"
               @click="openDraftBox"
             >草稿箱{{ availableDrafts.length ? '(' + availableDrafts.length + ')' : '' }}</el-button>
-            <div v-if="acceptanceMode" class="acc-header-info">
+            <div v-if="accLikeMode" class="acc-header-info">
               <span>客户：{{ orderForm.customerName || '—' }}</span>
               <span>配送点：{{ orderForm.customerDeptName || orderForm.customerDeptDisplayName || '—' }}</span>
               <span>配送日期：{{ orderForm.deliveryDate || '—' }}</span>
@@ -130,7 +145,7 @@
               <span v-if="acceptanceInfo">验收单：{{ acceptanceInfo.code }}</span>
             </div>
             <el-form
-              v-show="!acceptanceMode"
+              v-show="!accLikeMode"
               ref="orderForm"
               :model="orderForm"
               :rules="rules"
@@ -217,7 +232,8 @@
               ref="xTable"
               size="small"
               class="order-table"
-              :height="tableInnerHeight"
+              height="auto"
+              auto-resize
               :row-config="{ isHover: true, useKey: true }"
               :mouse-config="{ selected: true }"
               :keyboard-config="{
@@ -257,8 +273,8 @@
                 </template>
               </vxe-column>
 
-              <!-- OA 验收模式：行内变更（换/退行内确认；加单/换货=插入可编辑行，同录单页商品下拉/取价） -->
-              <vxe-column v-if="acceptanceMode" title="变更" width="96" align="center">
+              <!-- OA 验收/配送后变更模式：行内变更（换/退行内确认；加单/换货=插入可编辑行，同录单页商品下拉/取价） -->
+              <vxe-column v-if="accLikeMode" title="变更" width="96" align="center">
                 <template #default="{ row }">
                   <template v-if="row._accEditing">
                     <el-button link type="primary" size="small" @click="confirmInlineChange(row)">确认</el-button>
@@ -269,7 +285,7 @@
                       link
                       type="info"
                       size="small"
-                      :disabled="acceptanceReadonly"
+                      :disabled="inlineChangeDisabled"
                       @click="revertInlineChange(row)"
                     >回退</el-button>
                   </template>
@@ -278,14 +294,14 @@
                       link
                       type="warning"
                       size="small"
-                      :disabled="acceptanceReadonly || row.changeType === 3"
+                      :disabled="inlineChangeDisabled || row.changeType === 3"
                       @click="startInlineChange(2, row)"
                     >换</el-button>
                     <el-button
                       link
                       type="danger"
                       size="small"
-                      :disabled="acceptanceReadonly || row.changeType === 3"
+                      :disabled="inlineChangeDisabled || row.changeType === 3"
                       @click="startInlineChange(3, row)"
                     >退</el-button>
                   </template>
@@ -297,7 +313,7 @@
                 field="productName"
                 title="商品名称"
                 :edit-render="{ name: 'VxeInput', autoselect: true }"
-                :width="acceptanceMode ? 190 : '25%'"
+                :width="accLikeMode ? 190 : '25%'"
               >
                 <!-- 商品名称 + D-055 变更标记（加单/换货/退货，验收模式可见性更高） -->
                 <template #default="{ row }">
@@ -368,7 +384,7 @@
               <vxe-column
                 field="productUnit"
                 title="单位"
-                :width="acceptanceMode ? 60 : '8%'"
+                :width="accLikeMode ? 60 : '8%'"
                 :edit-render="{ name: '$input', autoselect: true }"
               >
                 <template #edit="{ row }">
@@ -383,7 +399,7 @@
                 field="num"
                 title="数量"
                 cell-type="number"
-                :width="acceptanceMode ? 80 : null"
+                min-width="100"
                 :formatter="decimalFormatter('num')"
                 :edit-render="{ name: '$input', autoselect: true }"
               >
@@ -399,7 +415,7 @@
                 field="productPrice"
                 title="单价"
                 cell-type="number"
-                :width="acceptanceMode ? 75 : null"
+                min-width="110"
                 :formatter="decimalFormatter('productPrice')"
                 :class-name="priceCellClass"
                 :edit-render="{ name: '$input', autoselect: true }"
@@ -425,7 +441,7 @@
                   ></vxe-input>
                 </template>
               </vxe-column>
-              <vxe-column field="amount" title="金额" :width="acceptanceMode ? 85 : null" :formatter="decimalFormatter('amount')"> </vxe-column>
+              <vxe-column field="amount" title="金额" min-width="100" :formatter="decimalFormatter('amount')"> </vxe-column>
               <!-- OA 验收模式：实收数量可编辑 + 差异 + 差异原因（载入默认=下单数量，一键/草稿保存落验收单） -->
               <vxe-column
                 v-if="acceptanceMode"
@@ -496,8 +512,8 @@
               >
                 <template #default="{ row }">{{ accAmountOf(row).toFixed(2) }}</template>
               </vxe-column>
-              <!-- 非验收模式：实收区（只读镜像）：实收数据归验收单（C1），此处仅展示验收提交同步的 actual_* 镜像值 -->
-              <template v-if="!acceptanceMode">
+              <!-- 非验收/变更模式：实收区（只读镜像）：实收数据归验收单（C1），此处仅展示验收提交同步的 actual_* 镜像值 -->
+              <template v-if="!accLikeMode">
                 <vxe-column
                   v-if="showActualColumns"
                   field="actualNum"
@@ -583,6 +599,17 @@
                   v-hasPermi="['acceptance:revoke']"
                 >撤销验收</el-button>
                 <el-button @click="exitAcceptanceMode">退出验收</el-button>
+              </template>
+              <!-- D-055 配送后变更模式工具条：加单（居左）+ 返回；无实收/验收动作 -->
+              <template v-else-if="changeMode">
+                <el-button
+                  type="success"
+                  plain
+                  :icon="Plus"
+                  @click="startInlineAdd"
+                  v-hasPermi="['order:sale:edit']"
+                >加单</el-button>
+                <el-button @click="exitChangeMode">返回列表</el-button>
               </template>
               <template v-else>
                 <el-button v-if="canEditOrder" @click="resetOrderForm()">重置</el-button>
@@ -1066,6 +1093,8 @@ export default {
       browsedOrder: null,
       /* ===== OA 订单验收模式（《订单页一键验收链路设计》） ===== */
       acceptanceMode: false,
+      /* ===== D-055 配送后变更模式：布局复用验收模式，仅保留加单/换货/退货，不录实收 ===== */
+      changeMode: false,
       // 当前订单的验收单（acceptance 表行摘要：id/code/status/totalAmount）
       acceptanceInfo: null,
       // 验收日期（一键验收/草稿保存携带）
@@ -1388,11 +1417,6 @@ export default {
       // 返回较小的那个值作为表格容器的最大高度
       return `min(${calculatedHeight}, ${viewportHeight})`;
     },
-    // 计算表格内部的高度
-    tableInnerHeight() {
-      // 固定15行的高度
-      return `${this.maxRows * this.rowHeight}px`;
-    },
     // 订单是否有未保存改动（明细对比 + 表单字段对比）
     isOrderDirty() {
       if (this.checkTableUpdted()) return true;
@@ -1402,9 +1426,19 @@ export default {
       return JSON.stringify(cur) !== JSON.stringify(this.originalOrderForm);
     },
     /* ========== 录单页交互细化（客户锁定 / 浏览模式 / 验收态） ========== */
+    /** OA：验收/配送后变更共用的单栏模式（右侧选单区隐藏、头部信息卡、行内变更列） */
+    accLikeMode() {
+      return this.acceptanceMode || this.changeMode;
+    },
     /** OA：验收模式只读判定 = 验收单已提交（此时差异/实收/换退加全部锁定） */
     acceptanceReadonly() {
       return !!this.acceptanceInfo && Number(this.acceptanceInfo.status) === 1;
+    },
+    /** D-055：行内变更（换/退/回退）是否锁定；变更模式仅已确认订单可操作（后端同校验） */
+    inlineChangeDisabled() {
+      if (this.acceptanceMode) return this.acceptanceReadonly;
+      if (this.changeMode) return this.orderStatus == null || Number(this.orderStatus) !== 1;
+      return true;
     },
     /** OA：差异原因下拉选项（短收+超收字典合并，行差异方向由占位提示与后端校验引导） */
     acceptReasonOptions() {
@@ -1443,9 +1477,9 @@ export default {
     showReopenNewBtn() {
       return !this.browseMode && !this.orderForm.orderId && !!this.orderForm.customerDeptId && this.hasDetailContent;
     },
-    /** 是否处于可编辑的录单态（非浏览、非只读、非验收模式）；实收编辑已下线（C1：数据归验收单） */
+    /** 是否处于可编辑的录单态（非浏览、非只读、非验收/变更模式）；实收编辑已下线（C1：数据归验收单） */
     canEditOrder() {
-      return !this.browseMode && !this.viewOnlyMode && !this.acceptanceMode;
+      return !this.browseMode && !this.viewOnlyMode && !this.acceptanceMode && !this.changeMode;
     },
     /** 订单信息是否只读（浏览/只读查看模式下，表头信息不可修改） */
     orderInfoReadonly() {
@@ -1455,11 +1489,11 @@ export default {
     viewOnlyMode() {
       return !this.browseMode && !!this.orderForm.orderId && this.orderStatus != null && this.orderStatus >= 3;
     },
-    /** 冻结提示条：已配送及之后状态的订单，明细为生成送货单时的快照（验收模式由验收横幅接管） */
+    /** 冻结提示条：已配送及之后状态的订单，明细为生成送货单时的快照（验收/变更模式由各自横幅接管） */
     frozenBannerVisible() {
       return (
         !this.browseMode &&
-        !this.acceptanceMode &&
+        !this.accLikeMode &&
         !!this.orderForm.orderId &&
         this.orderStatus != null &&
         this.orderStatus >= 2
@@ -1517,31 +1551,24 @@ export default {
     },
   },
   created() {
-    // 从路由获取参数
-    const orderIdFromParams = this.$route.query.orderId;
-    this.defaultOrderId = orderIdFromParams
-      ? parseInt(orderIdFromParams, 10)
-      : null;
-
-    // OA：验收模式入口（订单列表「去验收」→ /order/sale-detail/index?mode=acceptance&orderId=xxx[&acceptanceId=yyy]）
-    if (this.$route.query.mode === "acceptance" && this.defaultOrderId) {
-      this.acceptanceMode = true;
-    }
-
-    // 初始化数据
+    // 初始化下拉选项（全局仅加载一次）
     this.getTreeselect();
     this.getCustomerList();
-    const pageReady = this.initOrderDetailPage(this.defaultOrderId);
-
-    // 草稿：列表页跳转（query.draft）自动恢复；新单页展示恢复横幅
-    if (!this.acceptanceMode) {
-      this.checkDraftOnEnter();
-    } else {
-      // OA：等订单明细载入完成后定位/建验收草稿并合并实收行
-      Promise.resolve(pageReady).then(() => this.enterAcceptanceMode());
-    }
+    // 按路由 query 初始化页面（首次 + 重入统一收口，见 initPageByRoute）
+    this.initPageByRoute();
   },
   watch: {
+    // keep-alive 复用实例：本页各形态共用同一路由 path（仅 query 不同），
+    // 「新增明细 / 编辑 / 去验收 / 配送后变更 / 草稿恢复」互跳时组件实例被复用、created 不重跑，
+    // 模式标记残留会导致验收/变更页继续写订单草稿（污染普通下单页草稿箱）。
+    // 故路由 query 变化即重建模式与数据；离开本页（路由 name 变化）不处理。
+    "$route.fullPath"() {
+      if (this.$route.name !== "SaleOrderDetail") return;
+      // 仅当关键参数（形态/订单/验收单/草稿）变化时才重建，
+      // 同参数返回（如切到列表页再切回标签）保留缓存现场，不清掉录到一半的新单
+      if (this.routeQuerySig() === this._initQuerySig) return;
+      this.initPageByRoute();
+    },
     orderForm: {
       handler() {
         this.scheduleDraftSave();
@@ -1554,6 +1581,7 @@ export default {
           this.scheduleAccAutoSave();
           return;
         }
+        if (this.changeMode) return; // D-055 变更模式：行内变更落库后重拉明细，不写草稿
         this.scheduleDraftSave();
       },
       deep: true,
@@ -1706,6 +1734,53 @@ export default {
         ...item,
         price: XEUtils.commafy(item.price == null ? 0 : item.price, { digits: 2 }),
       }));
+    },
+    /** 路由关键参数签名（形态/订单/验收单/草稿），用于 keep-alive 重入时判定是否需要重建 */
+    routeQuerySig() {
+      const q = this.$route.query || {};
+      return JSON.stringify([q.mode || null, q.orderId || null, q.acceptanceId || null, q.draft || null]);
+    },
+    /**
+     * 按路由 query 初始化页面（created 首次进入 + $route 变化重入共用）。
+     * 本页为 keep-alive 缓存页，且录单/编辑/验收/配送后变更各形态共用同一路由
+     * path（仅 query 不同），实例被复用时 created 不会重跑 → 模式标记残留
+     * （如验收页残留下单态继续写订单草稿，污染普通下单页草稿箱）。
+     * 故每次进入本页都重建模式与数据。
+     */
+    initPageByRoute() {
+      const query = this.$route.query || {};
+      this._initQuerySig = this.routeQuerySig();
+      // 清掉上一形态的模式残留
+      if (this._accSaveTimer) clearTimeout(this._accSaveTimer);
+      this.acceptanceMode = false;
+      this.changeMode = false;
+      this.acceptanceInfo = null;
+      this.accRevokeOpen = false;
+
+      this.defaultOrderId = query.orderId ? parseInt(query.orderId, 10) : null;
+      // OA：验收模式入口（订单列表「去验收」→ /order/sale-detail/index?mode=acceptance&orderId=xxx[&acceptanceId=yyy]）
+      if (query.mode === "acceptance" && this.defaultOrderId) {
+        this.acceptanceMode = true;
+      }
+      // D-055：配送后变更模式入口（订单列表「配送后变更」→ /order/sale-detail/index?mode=change&orderId=xxx）
+      if (query.mode === "change" && this.defaultOrderId) {
+        this.changeMode = true;
+      }
+      // 验收/变更模式不产生订单草稿：清掉历史污染/残留的 order:{id} 草稿（本地 + 后端），
+      // 避免普通下单页草稿箱出现验收/加单内容的旧草稿
+      if ((this.acceptanceMode || this.changeMode) && this.defaultOrderId) {
+        removeDraft(draftKeyOf(this.defaultOrderId, null));
+        removeDraftFromServer(this.defaultOrderId, null);
+      }
+
+      const pageReady = this.initOrderDetailPage(this.defaultOrderId);
+      // 草稿：列表页跳转（query.draft）自动恢复；新单页展示恢复横幅
+      if (this.acceptanceMode) {
+        // OA：等订单明细载入完成后定位/建验收草稿并合并实收行（变更模式无需建验收单）
+        Promise.resolve(pageReady).then(() => this.enterAcceptanceMode());
+      } else if (!this.accLikeMode) {
+        this.checkDraftOnEnter();
+      }
     },
     /** 初始化订单明细页 */
     initOrderDetailPage(orderId) {
@@ -2341,8 +2416,8 @@ export default {
 
     /** OA：回退行内变更（加单=删行；退货=恢复原数量；换货=整组恢复），后端自动同步验收草稿 */
     revertInlineChange(row) {
-      if (this.acceptanceReadonly) {
-        this.$modal.msgWarning("验收单已提交，请先撤销验收再回退");
+      if (this.inlineChangeDisabled) {
+        this.$modal.msgWarning(this.changeMode ? "仅已确认订单可做配送后变更" : "验收单已提交，请先撤销验收再回退");
         return;
       }
       const labels = { 1: "加单", 2: "换货", 3: "退货" };
@@ -3736,6 +3811,9 @@ export default {
     /* ========== S1-1.3 手工定价留痕（简化版：去必填原因，保留来源/原价审计） ========== */
     /** 单价变更：命中报价偏离或无报价手工填写时标记为手工定价（priceSource=manual）并轻提示 */
     handlePriceChange(row) {
+      // 输入完成后自动补全两位小数（如 3.5 → 3.50；千分位与列表展示口径一致）
+      const inputNum = XEUtils.toNumber(row.productPrice);
+      row.productPrice = XEUtils.commafy(inputNum, { digits: 2 });
       this.calcAmount(row);
       const price = XEUtils.toNumber(row.productPrice);
       // 无价/零价：不算手工定价（未完成录价状态）

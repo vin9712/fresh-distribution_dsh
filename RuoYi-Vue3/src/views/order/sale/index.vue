@@ -662,12 +662,6 @@
       </template>
     </el-drawer>
 
-    <!-- D-055 配送后变更抽屉（加单/换货/退货） -->
-    <sale-change-drawer
-      v-model="changeOpen"
-      :order="changeOrder"
-      @done="getPageList"
-    />
   </div>
 </template>
 
@@ -687,7 +681,6 @@ import { getOrderAdjustmentSummary } from "@/api/order/monthAdjustment";
 import { listCustomerDept } from "@/api/partner/customerDept";
 import { locateAcceptanceByOrder } from "@/api/acceptance/acceptance";
 import { listDrafts, removeDraft } from "@/utils/saleDraft";
-import SaleChangeDrawer from "./saleChangeDrawer.vue";
 import {
   Search,
   Refresh,
@@ -707,7 +700,6 @@ import {
 
 export default {
   name: "Sale",
-  components: { SaleChangeDrawer },
   dicts: ["t_sale_order_status", "t_sale_order_type", "t_sale_order_source"],
   setup() {
     return {
@@ -730,9 +722,6 @@ export default {
     return {
       // 未完成订单草稿（列表页恢复横幅）
       availableDrafts: [],
-      // 配送后变更抽屉（D-055）
-      changeOpen: false,
-      changeOrder: {},
       // 遮罩层
       loading: true,
       // 选中数组
@@ -854,6 +843,24 @@ export default {
     }
     this.getPageList();
     // 检测未完成订单草稿，展示恢复横幅
+    this.refreshDrafts();
+    // keep-alive 缓存页：首次 activated 随首次挂载触发，与 created 重复，跳过
+    this._skipActivatedQuery = true;
+  },
+  activated() {
+    // 本页被 keep-alive 缓存，created 仅首次生效；每次重新进入（从订单详情返回、
+    // 工作台跳转等）都触发自动查询，保证订单状态/金额与最新一致
+    if (this._skipActivatedQuery) {
+      this._skipActivatedQuery = false;
+      return;
+    }
+    // 路由携带的过滤条件变化时同步（如工作台待验收卡 → status=已配送）
+    const routeStatus = this.$route.query.status;
+    if (routeStatus !== undefined && routeStatus !== "" && String(this.queryParams.status) !== String(routeStatus)) {
+      this.queryParams.status = routeStatus;
+    }
+    this.getPageList();
+    // 录单页可能新增了草稿，重进时刷新恢复横幅
     this.refreshDrafts();
   },
   methods: {
@@ -1015,10 +1022,12 @@ export default {
         });
     },
     /** 去验收（OA：订单维度优先 → 订单页验收模式；历史单回退旧验收页送货单反查链路） */
-    /** D-055 配送后变更（加单/换货/退货）：原订单不变，标记附加订单明细 */
+    /** D-055 配送后变更（加单/换货/退货）：跳订单明细页变更模式（布局同验收，无实收），原订单不变标记附加明细 */
     handleDeliveryChange(row) {
-      this.changeOrder = row;
-      this.changeOpen = true;
+      this.$router.push({
+        path: "/order/sale-detail/index",
+        query: { mode: "change", orderId: row.id },
+      });
     },
     handleGoAcceptance(row) {
       locateAcceptanceByOrder(row.id)
