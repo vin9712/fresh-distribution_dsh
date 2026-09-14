@@ -4,12 +4,14 @@ import com.lin.common.exception.ServiceException;
 import com.lin.common.utils.DateUtils;
 import com.lin.common.utils.SecurityUtils;
 import com.lin.distribution.constant.SaleOrderStatus;
+import com.lin.distribution.domain.Acceptance;
 import com.lin.distribution.domain.SaleOrder;
 import com.lin.distribution.domain.SaleOrderDetail;
 import com.lin.distribution.dto.SaleGeneratePreviewVO;
 import com.lin.distribution.dto.SaleOrderCreateDTO;
 import com.lin.distribution.dto.SaleOrderUpdateStatusDTO;
 import com.lin.distribution.dto.WithdrawCascadeResultVO;
+import com.lin.distribution.mapper.AcceptanceMapper;
 import com.lin.distribution.mapper.SaleOrderDetailMapper;
 import com.lin.distribution.mapper.SaleOrderMapper;
 import com.lin.distribution.service.BizCodeService;
@@ -52,6 +54,7 @@ import java.util.stream.Collectors;
 public class SaleOrderServiceImpl implements SaleOrderService {
     private final SaleOrderMapper saleOrderMapper;
     private final SaleOrderDetailMapper saleOrderDetailMapper;
+    private final AcceptanceMapper acceptanceMapper;
     private final DeliveryOrderService deliveryOrderService;
     private final OrderWithdrawCascadeService orderWithdrawCascadeService;
     private final BizCodeService bizCodeService;
@@ -103,25 +106,46 @@ public class SaleOrderServiceImpl implements SaleOrderService {
     }
 
     /**
-     * 批量删除销售订单
+     * 批量删除销售订单（2026-09-14 改为**逻辑删除**）：
+     * <ul>
+     *   <li>护栏：仅「草稿」可删——已确认及之后的单已进入采购/送货/验收链路，删除会断链；</li>
+     *   <li>级联：明细同步逻辑删除，避免残留孤儿明细行；</li>
+     *   <li>单号不释放：{@code selectSaleOrderByCode} 故意不过滤 is_deleted，逻辑删除行的单号仍被占用。</li>
+     * </ul>
      *
      * @param ids 需要删除的销售订单主键
      * @return 结果
      */
     @Override
+    @Transactional
     public int deleteSaleOrderByIds(Long[] ids) {
+        if (ids == null || ids.length == 0) {
+            return 0;
+        }
+        for (Long id : ids) {
+            SaleOrder order = saleOrderMapper.selectSaleOrderById(id);
+            if (order == null) {
+                continue;
+            }
+            if (!SaleOrderStatus.DRAFT.getCode().equals(order.getStatus())) {
+                throw new ServiceException("仅草稿状态可删除；已确认及之后的订单请先「撤回」或以作废/退货方式处理："
+                        + order.getCode());
+            }
+        }
+        saleOrderDetailMapper.deleteSaleOrderDetailByOrderIds(ids);
         return saleOrderMapper.deleteSaleOrderByIds(ids);
     }
 
     /**
-     * 删除销售订单信息
+     * 删除销售订单信息（同批量口径：仅草稿 + 主单/明细逻辑删除）
      *
      * @param id 销售订单主键
      * @return 结果
      */
     @Override
+    @Transactional
     public int deleteSaleOrderById(Long id) {
-        return saleOrderMapper.deleteSaleOrderById(id);
+        return deleteSaleOrderByIds(new Long[]{id});
     }
 
 
@@ -363,24 +387,42 @@ public class SaleOrderServiceImpl implements SaleOrderService {
     }
 
     /**
-     * 订单编辑护栏（S14/G6 修复，DESIGN.md §5.5 / §七 操作可行性矩阵）：
+     * 订单编辑护栏（S14/G6 + D-055/OA + 2026-09-14 状态收敛，DESIGN.md §5.5 / §七 操作可行性矩阵）：
+     * <p><b>只有「草稿」可直接改单</b>（2026-09-14 业务定稿）：已确认及之后必须先在订单列表
+     * 「撤回」为草稿，避免“已确认单被静默改内容、已生成的下游单据对不上”。</p>
      * DELIVERED/ACCEPTED → 拒改（配送后的调整用新增销售订单/退货单）；
      * SETTLED → 拒改；
      * CONFIRMED + 已进有效送货单 → 拒改（提示先作废送货单）；
-     * DRAFT / CONFIRMED 未分配 → 允许。
+     * CONFIRMED（其他）→ 拒改（提示先撤回）；
+     * 草稿 + 已存在验收单（草稿/已提交）→ 拒改（整单重写会把验收行 dangling 并重复补行）；
+     * 草稿 + 存在配送后变更标记（加单/换货/退货）→ 拒改（整单重写会静默丢弃标记）。
      */
     private void checkOrderEditable(SaleOrder order) {
         Integer status = order.getStatus();
-        if (SaleOrderStatus.DELIVERED.getCode().equals(status)
-                || SaleOrderStatus.ACCEPTED.getCode().equals(status)) {
-            throw new ServiceException("配送后的订单不可修改，如需调整请使用新增销售订单/退货单：" + order.getCode());
+        if (!SaleOrderStatus.DRAFT.getCode().equals(status)) {
+            if (SaleOrderStatus.DELIVERED.getCode().equals(status)
+                    || SaleOrderStatus.ACCEPTED.getCode().equals(status)) {
+                throw new ServiceException("配送后的订单不可修改，如需调整请使用新增销售订单/退货单：" + order.getCode());
+            }
+            if (SaleOrderStatus.SETTLED.getCode().equals(status)) {
+                throw new ServiceException("已结算订单禁止修改：" + order.getCode());
+            }
+            if (SaleOrderStatus.CONFIRMED.getCode().equals(status)
+                    && saleOrderDetailMapper.existsValidAllocation(order.getId())) {
+                throw new ServiceException("该订单已进入 D-055 前的历史送货单，请先作废对应送货单后再修改：" + order.getCode());
+            }
+            throw new ServiceException("已确认订单不可直接修改，请先在订单列表「撤回」为草稿后再修改：" + order.getCode());
         }
-        if (SaleOrderStatus.SETTLED.getCode().equals(status)) {
-            throw new ServiceException("已结算订单禁止修改：" + order.getCode());
+        // D-055/OA（P0）：整单重写会物理删除并重插明细（id 全变），
+        // 草稿仍可能带历史痕迹（曾确认后被撤回）→ 同样需排除验收单与配送后变更标记
+        Acceptance acceptance = acceptanceMapper.selectBySaleOrder(order.getId());
+        if (acceptance != null) {
+            throw new ServiceException("该订单已生成验收单【" + acceptance.getCode()
+                    + "】，请先撤销或删除验收单后再修改：" + order.getCode());
         }
-        if (SaleOrderStatus.CONFIRMED.getCode().equals(status)
-                && saleOrderDetailMapper.existsValidAllocation(order.getId())) {
-            throw new ServiceException("该订单已进入 D-055 前的历史送货单，请先作废对应送货单后再修改：" + order.getCode());
+        if (saleOrderDetailMapper.existsChangeMark(order.getId())) {
+            throw new ServiceException("该订单存在配送后变更（加单/换货/退货）标记，"
+                    + "请在订单明细页回退变更后再修改，或直接使用变更入口：" + order.getCode());
         }
     }
 

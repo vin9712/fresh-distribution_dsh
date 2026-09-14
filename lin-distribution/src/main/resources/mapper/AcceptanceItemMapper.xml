@@ -105,10 +105,13 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         </foreach>
     </insert>
 
-    <!-- S14/T5：reason_type/loss_reason 无条件写（无差异时需清空，避免残留脏数据） -->
+    <!-- S14/T5：reason_type/loss_reason 无条件写（无差异时需清空，避免残留脏数据）
+         P0 修复：delivered_quantity 必须可更新——退货归零/回退恢复都依赖它，
+         原实现缺该列会导致「退货后应送仍为原值、差异算成 -应送」。 -->
     <update id="updateAcceptanceItem" parameterType="com.lin.distribution.domain.AcceptanceItem">
         update acceptance_item
         <trim prefix="SET" suffixOverrides=",">
+            <if test="deliveredQuantity != null">delivered_quantity = #{deliveredQuantity},</if>
             <if test="actualQuantity != null">actual_quantity = #{actualQuantity},</if>
             <if test="customerDeptId != null">customer_dept_id = #{customerDeptId},</if>
             <if test="differenceQuantity != null">difference_quantity = #{differenceQuantity},</if>

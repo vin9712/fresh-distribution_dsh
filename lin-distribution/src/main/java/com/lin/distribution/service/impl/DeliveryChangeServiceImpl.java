@@ -79,13 +79,19 @@ public class DeliveryChangeServiceImpl implements DeliveryChangeService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public List<SaleOrderDetail> exchange(Long orderId, Long targetDetailId, Long skuId, String productName,
-                                          String spec, String unit, BigDecimal num, BigDecimal actualNum, String remark) {
+                                          String spec, String unit, BigDecimal num, BigDecimal price,
+                                          BigDecimal actualNum, String remark) {
         SaleOrder order = requireConfirmedOrder(orderId);
         // 被换行标记退货（change_type=3，应送/实收归 0——应收为0口径）
         SaleOrderDetail returned = markReturned(orderId, targetDetailId, remark == null ? "换货：原商品退货" : remark,
                 "换货被换行");
         // 换货新增行（change_type=2），同 change_group
         Long group = System.currentTimeMillis();
+        BigDecimal actualQuantity = num == null ? BigDecimal.ZERO : num;
+        // 换入单价：显式传入优先；缺省取被换行原单价（等价换），避免换入行金额记成 0
+        BigDecimal effectivePrice = price != null && price.compareTo(BigDecimal.ZERO) > 0
+                ? price
+                : (returned.getProductPrice() == null ? BigDecimal.ZERO : returned.getProductPrice());
         SaleOrderDetail detail = new SaleOrderDetail();
         detail.setOrderId(orderId);
         detail.setCustomerId(order.getCustomerId());
@@ -95,10 +101,10 @@ public class DeliveryChangeServiceImpl implements DeliveryChangeService {
         detail.setProductName(productName);
         detail.setProductUnit(unit);
         detail.setProductSpec(spec);
-        detail.setProductPrice(num == null ? BigDecimal.ZERO : BigDecimal.ZERO); // 换入单价由前端传？——简化：0，展示用
-        detail.setNum(num == null ? BigDecimal.ZERO : num);
-        detail.setExpectAmount(detail.getProductPrice().multiply(detail.getNum()));
-        detail.setActualNum(actualNum == null ? detail.getNum() : actualNum);
+        detail.setProductPrice(effectivePrice);
+        detail.setNum(actualQuantity);
+        detail.setExpectAmount(effectivePrice.multiply(actualQuantity));
+        detail.setActualNum(actualNum == null ? actualQuantity : actualNum);
         detail.setSort(returned.getSort() == null ? nextSort(orderId) : returned.getSort());
         detail.setChangeType(2);
         detail.setChangeGroup(group);
@@ -113,7 +119,8 @@ public class DeliveryChangeServiceImpl implements DeliveryChangeService {
         updateReturned.setChangeGroup(group);
         saleOrderDetailMapper.updateSaleOrderDetail(updateReturned);
         returned.setChangeGroup(group);
-        log.info("[delivery change] 订单 {} 换货：原行 {} → {}（组 {}）", orderId, targetDetailId, productName, group);
+        log.info("[delivery change] 订单 {} 换货：原行 {} → {}（单价 {}，应收 {}，实收 {}，组 {}）",
+                orderId, targetDetailId, productName, effectivePrice, actualQuantity, detail.getActualNum(), group);
         return List.of(detail, returned);
     }
 
@@ -185,7 +192,7 @@ public class DeliveryChangeServiceImpl implements DeliveryChangeService {
         return d;
     }
 
-    /** 恢复被标记退货的行：change_type 还原为 0，数量取快照（无快照的历史行用 应收金额/单价 推算） */
+    /** 恢复被标记退货的行：change_type 与变更痕迹一并清掉，数量取快照（无快照的历史行用 应收金额/单价 推算） */
     private void restoreReturnedRow(SaleOrderDetail returned) {
         BigDecimal original = returned.getChangeOriginalNum();
         if (original == null && returned.getProductPrice() != null
@@ -196,15 +203,13 @@ public class DeliveryChangeServiceImpl implements DeliveryChangeService {
         if (original == null) {
             throw new ServiceException("明细【" + returned.getProductName() + "】的原数量已不可追溯，请核对手工处理");
         }
-        SaleOrderDetail update = new SaleOrderDetail();
-        update.setId(returned.getId());
-        update.setChangeType(0);
-        update.setNum(original);
-        update.setActualNum(original);
-        update.setUpdateBy(resolveOperator());
-        update.setUpdateTime(DateUtils.getNowDate());
-        saleOrderDetailMapper.updateSaleOrderDetail(update);
+        // 专用写入：change_type/change_group/change_remark/change_original_num 一次性清理
+        // （updateSaleOrderDetail 全部判空写入，传 null 清不掉列，会残留「退货」备注）
+        saleOrderDetailMapper.restoreChangeMark(returned.getId(), original, original, resolveOperator());
         returned.setChangeType(0);
+        returned.setChangeGroup(null);
+        returned.setChangeRemark(null);
+        returned.setChangeOriginalNum(null);
         returned.setNum(original);
         returned.setActualNum(original);
     }

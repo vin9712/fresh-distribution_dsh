@@ -4517,6 +4517,54 @@ DROP TABLE IF EXISTS `t_print_task`;
 -- （s16 的 print_form 列已在 [36] 节建好，s18/s22/s25 依赖它）
 
 -- ============================================================
+-- [42] OA 订单维度验收：acceptance.sale_order_id + 一订单一验唯一键  | 源: s27_acceptance_order_dimension.sql
+--      订单维度验收单（sale_order_id 非空）与历史送货单/客户日单（NULL）共存；
+--      唯一键仅约束非 NULL，MySQL 允许多行 NULL，历史单天然豁免。
+-- ============================================================
+
+SET @col_exists := (
+    SELECT COUNT(*) FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'acceptance' AND COLUMN_NAME = 'sale_order_id'
+);
+SET @ddl := IF(@col_exists = 0,
+    'ALTER TABLE `acceptance`
+        ADD COLUMN `sale_order_id` BIGINT UNSIGNED NULL
+            COMMENT ''订单维度验收：来源销售订单ID（一订单一验，OA；历史/客户日单为NULL）'' AFTER `delivery_order_id`',
+    'SELECT 1');
+PREPARE stmt FROM @ddl;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @idx_exists := (
+    SELECT COUNT(*) FROM information_schema.STATISTICS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'acceptance' AND INDEX_NAME = 'uk_acceptance_sale_order'
+);
+SET @ddl := IF(@idx_exists = 0,
+    'ALTER TABLE `acceptance` ADD UNIQUE KEY `uk_acceptance_sale_order` (`sale_order_id`)',
+    'SELECT 1');
+PREPARE stmt FROM @ddl;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+-- ============================================================
+-- [43] OA 变更回退留痕：t_sale_order_detail.change_original_num  | 源: s28_change_revert.sql
+--      标记退货/换货时 num/actual_num 清零，原应收数量转入本列，供「回退」恢复。
+-- ============================================================
+
+SET @col_exists := (
+    SELECT COUNT(*) FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 't_sale_order_detail' AND COLUMN_NAME = 'change_original_num'
+);
+SET @ddl := IF(@col_exists = 0,
+    'ALTER TABLE `t_sale_order_detail`
+        ADD COLUMN `change_original_num` DECIMAL(12,2) NULL
+            COMMENT ''配送后变更回退用：标记退货/换货前的原应收数量'' AFTER `change_remark`',
+    'SELECT 1');
+PREPARE stmt FROM @ddl;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+-- ============================================================
 -- 初始化结束
 -- ============================================================
 SET FOREIGN_KEY_CHECKS = 1;

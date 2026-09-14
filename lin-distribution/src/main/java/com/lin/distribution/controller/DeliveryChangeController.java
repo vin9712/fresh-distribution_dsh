@@ -53,10 +53,11 @@ public class DeliveryChangeController extends BaseController {
         Long targetDetailId = toLong(body.get("targetDetailId"));
         Long skuId = toLong(body.get("skuId"));
         BigDecimal num = toDecimal(body.get("num"));
+        BigDecimal price = toDecimal(body.get("price"));
         BigDecimal actualNum = toDecimal(body.get("actualNum"));
         return success(deliveryChangeService.exchange(orderId, targetDetailId, skuId,
                 str(body, "productName"), str(body, "spec"), str(body, "unit"),
-                num, actualNum, str(body, "remark")));
+                num, price, actualNum, str(body, "remark")));
     }
 
     @Operation(summary = "配送后退货（原行标退货，change_type=3，应送实收归0）")

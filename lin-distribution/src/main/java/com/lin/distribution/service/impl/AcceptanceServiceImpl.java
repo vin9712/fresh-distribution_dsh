@@ -593,10 +593,11 @@ public class AcceptanceServiceImpl implements AcceptanceService {
     }
 
     /**
-     * OA：同步订单维度验收草稿缺失行（《订单页一键验收链路设计》§4.3④/E2）：
+     * OA：同步订单维度验收草稿缺失行（《订单页一键验收链路设计》§4.3④/E2 / §4.4 回退）：
      * 验收中途做了加单/换货/退货 → 按订单当前有效明细对齐：
-     * 新行补插（默认实收=应送）、被标退货行应送/实收归 0（差异原因清空待重填）；
-     * 不删旧行、不覆盖已录实收；末尾重算 totalAmount。
+     * 新行补插（默认实收=应送）、被标退货行应送/实收归 0（差异原因清空待重填）、
+     * **退货被回退（行已不再标退货）→ 应送/实收恢复为订单应收**（双向同步，否则回退后应送仍为 0）。
+     * 不删旧行、不覆盖未受影响的已录实收；末尾重算 totalAmount。
      */
     @Override
     @Transactional
@@ -619,7 +620,8 @@ public class AcceptanceServiceImpl implements AcceptanceService {
             boolean isReturned = d.getChangeType() != null && d.getChangeType() == 3;
             if (existing == null) {
                 toInsert.add(buildOrderAcceptanceItem(d, existingByDetailId.size() + toInsert.size()));
-            } else if (isReturned && existing.getDeliveredQuantity().compareTo(BigDecimal.ZERO) != 0) {
+            } else if (isReturned && (nvl(existing.getDeliveredQuantity()).compareTo(BigDecimal.ZERO) != 0
+                    || nvl(existing.getActualQuantity()).compareTo(BigDecimal.ZERO) != 0)) {
                 // 已在单中的行后来被标退货：应送/实收归 0（同 D-055 语义），金额行重算在末尾统一做
                 AcceptanceItem update = new AcceptanceItem();
                 update.setId(existing.getId());
@@ -632,6 +634,24 @@ public class AcceptanceServiceImpl implements AcceptanceService {
                 acceptanceItemMapper.updateAcceptanceItem(update);
                 existing.setDeliveredQuantity(BigDecimal.ZERO);
                 existing.setActualQuantity(BigDecimal.ZERO);
+            } else if (!isReturned && nvl(existing.getDeliveredQuantity()).compareTo(BigDecimal.ZERO) == 0
+                    && nvl(d.getNum()).compareTo(BigDecimal.ZERO) > 0) {
+                // 退货被回退（行已不再标退货）：应送恢复=订单应收，实收默认=应送（同建单默认口径），
+                // 差异/原因清空；否则验收行会停留在「应送0/实收0」或「实收0/差异-应送」而无法真正取消退货
+                BigDecimal delivered = nvl(d.getNum());
+                BigDecimal actual = d.getActualNum() != null && d.getActualNum().compareTo(BigDecimal.ZERO) > 0
+                        ? d.getActualNum() : delivered;
+                AcceptanceItem update = new AcceptanceItem();
+                update.setId(existing.getId());
+                update.setDeliveredQuantity(delivered);
+                update.setActualQuantity(actual);
+                update.setDifferenceQuantity(scale(actual.subtract(delivered)));
+                update.setReasonType(null);
+                update.setLossReason(null);
+                update.setActualAmount(scale(nvl(existing.getUnitPrice()).multiply(actual)));
+                acceptanceItemMapper.updateAcceptanceItem(update);
+                existing.setDeliveredQuantity(delivered);
+                existing.setActualQuantity(actual);
             }
         }
         if (!toInsert.isEmpty()) {

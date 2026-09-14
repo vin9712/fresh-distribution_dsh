@@ -154,7 +154,7 @@
             />
           </el-select>
         </el-form-item>
-        <div class="hint">仅列出"已送达"的历史送货单（历史单只读维护，新流程请用「生成验收单（客户日）」）。</div>
+        <div class="hint">仅列出"已送达"的历史送货单（历史单只读维护；新流程请在订单列表点「去验收」，按订单逐单验收）。</div>
       </el-form>
       <template #footer>
         <div class="dialog-footer">

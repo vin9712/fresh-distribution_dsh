@@ -42,12 +42,14 @@ public interface DeliveryChangeService {
      * @param spec           规格
      * @param unit           单位
      * @param num            换入应收
+     * @param price          换入单价（快照，可空=取被换行原单价，等价换；避免换入行记成 0 元）
      * @param actualNum      换入实收（默认=应收）
      * @param remark         说明
      * @return 换货新增行 + 被换行
      */
     List<SaleOrderDetail> exchange(Long orderId, Long targetDetailId, Long skuId, String productName,
-                                   String spec, String unit, BigDecimal num, BigDecimal actualNum, String remark);
+                                   String spec, String unit, BigDecimal num, BigDecimal price,
+                                   BigDecimal actualNum, String remark);
 
     /**
      * 配送后退货：原明细行标 change_type=3（应送/实收归0）。

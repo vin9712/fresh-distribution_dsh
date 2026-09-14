@@ -6,6 +6,7 @@ import com.lin.common.utils.DateUtils;
 import com.lin.common.utils.SecurityUtils;
 import com.lin.distribution.constant.DeliveryOrderStatus;
 import com.lin.distribution.constant.PurchaseOrderStatus;
+import com.lin.distribution.domain.Acceptance;
 import com.lin.distribution.domain.DeliveryOrder;
 import com.lin.distribution.domain.DeliveryOrderDetail;
 import com.lin.distribution.domain.DeliverySourceItem;
@@ -14,6 +15,7 @@ import com.lin.distribution.domain.PurchaseOrder;
 import com.lin.distribution.domain.SaleOrder;
 import com.lin.distribution.domain.SaleOrderDetail;
 import com.lin.distribution.dto.WithdrawCascadeResultVO;
+import com.lin.distribution.mapper.AcceptanceMapper;
 import com.lin.distribution.mapper.DeliveryOrderDetailMapper;
 import com.lin.distribution.mapper.DeliveryOrderMapper;
 import com.lin.distribution.mapper.DeliverySourceItemMapper;
@@ -35,6 +37,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
@@ -73,14 +76,44 @@ public class OrderWithdrawCascadeServiceImpl implements OrderWithdrawCascadeServ
     private final PurchaseOrderMapper purchaseOrderMapper;
     private final PurchaseItemMapper purchaseItemMapper;
     private final SaleOrderDetailMapper saleOrderDetailMapper;
+    private final AcceptanceMapper acceptanceMapper;
 
     @Override
     public void validateOrderWithdrawable(SaleOrder saleOrder) {
+        // 验收侧：已生成验收单（草稿/已提交）→ 拒绝。撤回后订单回到草稿但验收行仍挂在原明细上，
+        // 会出现“已撤回却改不了单”的死循环；正确顺序是先在验收页删除/撤销验收单。
+        Acceptance acceptance = acceptanceMapper.selectBySaleOrder(saleOrder.getId());
+        if (acceptance != null) {
+            throw new ServiceException("订单已生成验收单【" + acceptance.getCode()
+                    + "】，请先撤销或删除验收单后再撤回：" + saleOrder.getCode());
+        }
+
         // 送货侧：被已打印/已送达送货单占用 → 拒绝（待打印单走级联扣除）
         List<String> blockedDeliveryCodes = findPrintedOrDeliveredDeliveryCodes(saleOrder.getId());
         if (!blockedDeliveryCodes.isEmpty()) {
             throw new ServiceException("订单已进入已打印/已送达送货单【"
                     + String.join("、", blockedDeliveryCodes) + "】，请先作废送货单后再撤回：" + saleOrder.getCode());
+        }
+
+        // 送货侧（2026-09-14 补）：仅靠历史关联（pre-S14：t_delivery_order_detail.order_id）引用、
+        // 且无 source_item 台账覆盖的送货单无法自动扣除/作废——放任撤回会让订单与送货单永久不一致
+        // （订单回草稿可改，送货单仍列着它）
+        List<Long> legacyDeliveryIds = deliveryOrderDetailMapper.selectListByOrderIdIn(List.of(saleOrder.getId()))
+                .stream().map(DeliveryOrderDetail::getDeliveryId).filter(Objects::nonNull).distinct()
+                .collect(Collectors.toList());
+        if (!legacyDeliveryIds.isEmpty()) {
+            Set<Long> allocatedIds = deliverySourceItemMapper.selectValidBySaleOrderId(saleOrder.getId()).stream()
+                    .map(DeliverySourceItem::getDeliveryId).collect(Collectors.toSet());
+            String unwindableCodes = deliveryOrderMapper.selectListByIds(legacyDeliveryIds).stream()
+                    .filter(d -> !Boolean.TRUE.equals(d.getIsDeleted()))
+                    .filter(d -> !DeliveryOrderStatus.VOIDED.getCode().equals(d.getStatus()))
+                    .filter(d -> !allocatedIds.contains(d.getId()))
+                    .map(DeliveryOrder::getCode)
+                    .collect(Collectors.joining("、"));
+            if (StringUtils.isNotBlank(unwindableCodes)) {
+                throw new ServiceException("订单已进入送货单【" + unwindableCodes
+                        + "】（历史关联，系统无法自动扣除），请先作废该送货单后再撤回：" + saleOrder.getCode());
+            }
         }
 
         // 采购侧：被已入库采购单引用 → 拒绝（货物已到，扣除会破坏入库事实）

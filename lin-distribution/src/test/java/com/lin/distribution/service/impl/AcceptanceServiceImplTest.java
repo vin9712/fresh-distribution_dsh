@@ -1169,6 +1169,35 @@ class AcceptanceServiceImplTest {
     }
 
     @Test
+    void 订单验收_退货被回退后验收行应送实收恢复() {
+        // P0 回归：退货回退（order 行已不再标退货）必须把验收行从「应送0/实收0」双向恢复，
+        // 否则界面上「退货取消」后实收/差异不变，验收仍会把该行计为 0 元。
+        Acceptance draft = orderAcceptance(5L, AcceptanceStatus.DRAFT.getCode());
+        when(acceptanceMapper.selectAcceptanceById(5L)).thenReturn(draft);
+        SaleOrderDetail restored = orderDetail(1001L, "5", "2.00", 0); // 已回退：change_type=0
+        restored.setActualNum(new BigDecimal("5"));
+        when(saleOrderDetailMapper.selectValidByOrderIdForView(1000L))
+                .thenReturn(new ArrayList<>(List.of(restored)));
+        AcceptanceItem stale = item(501L, 5L, "0", "2.00"); // 退货时被归零的验收行
+        stale.setSaleOrderDetailId(1001L);
+        when(acceptanceItemMapper.selectListByAcceptanceId(5L)).thenReturn(List.of(stale));
+
+        acceptanceService.syncMissingItems(5L);
+
+        ArgumentCaptor<AcceptanceItem> captor = ArgumentCaptor.forClass(AcceptanceItem.class);
+        verify(acceptanceItemMapper).updateAcceptanceItem(captor.capture());
+        AcceptanceItem update = captor.getValue();
+        assertEquals(Long.valueOf(501L), update.getId());
+        assertEquals(0, new BigDecimal("5").compareTo(update.getDeliveredQuantity()), "应送恢复=订单应收");
+        assertEquals(0, new BigDecimal("5").compareTo(update.getActualQuantity()), "实收默认=应送");
+        assertEquals(0, BigDecimal.ZERO.compareTo(update.getDifferenceQuantity()), "差异归零");
+        assertEquals(0, new BigDecimal("10.00").compareTo(update.getActualAmount()), "金额=单价×实收");
+        assertNull(update.getReasonType(), "差异原因类型清空");
+        assertNull(update.getLossReason());
+        verify(acceptanceItemMapper, never()).insertAcceptanceItemBatch(anyList());
+    }
+
+    @Test
     void 订单验收_非草稿或非订单维度不可同步() {
         Acceptance submitted = orderAcceptance(5L, AcceptanceStatus.SUBMITTED.getCode());
         when(acceptanceMapper.selectAcceptanceById(5L)).thenReturn(submitted);

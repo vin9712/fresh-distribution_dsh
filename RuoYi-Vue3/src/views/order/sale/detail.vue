@@ -70,6 +70,20 @@
         </span>
       </template>
     </el-alert>
+    <!-- 已确认订单只读提示条：非草稿不可直接改单，需先在订单列表撤回（2026-09-14 定稿） -->
+    <el-alert
+      v-if="confirmedReadonlyBanner"
+      type="info"
+      :closable="false"
+      show-icon
+      class="browse-banner"
+    >
+      <template #title>
+        <span class="draft-banner-title">
+          该订单<b>已确认</b>，页面为只读快照：如需改动请先回到订单列表点「撤回」使其回到草稿，再点「修改」编辑（改完需重新确认）
+        </span>
+      </template>
+    </el-alert>
     <!-- 草稿恢复提示条（新单页，检测到未完成草稿时显示） -->
     <el-alert
       v-if="showDraftBanner && availableDrafts.length && !accLikeMode"
@@ -1102,6 +1116,9 @@ export default {
       // 验收草稿保存中/最近自动保存时间
       accSaving: false,
       accSavedAt: null,
+      // OA：最近一次与服务端对齐（建单/合并/保存成功）后的实收录入签名；
+      // 自动保存前比对，避免程序性合并或退货/回退同步回写触发脏存（曾导致回退后实收被旧值覆盖）
+      accSyncedSig: null,
       // 一键验收提交中
       quickAccepting: false,
       // OA 行内变更：加单/换货=插入可编辑行（_accEditing），退=行内确认；不再使用抽屉
@@ -1477,9 +1494,16 @@ export default {
     showReopenNewBtn() {
       return !this.browseMode && !this.orderForm.orderId && !!this.orderForm.customerDeptId && this.hasDetailContent;
     },
-    /** 是否处于可编辑的录单态（非浏览、非只读、非验收/变更模式）；实收编辑已下线（C1：数据归验收单） */
+    /** 是否处于可编辑的录单态（非浏览、非只读、非验收/变更模式）；实收编辑已下线（C1：数据归验收单）
+     * 2026-09-14 定稿：已确认及之后的订单不可直接编辑，需先在订单列表「撤回」为草稿（status=0） */
     canEditOrder() {
-      return !this.browseMode && !this.viewOnlyMode && !this.acceptanceMode && !this.changeMode;
+      if (this.browseMode || this.viewOnlyMode || this.acceptanceMode || this.changeMode) {
+        return false;
+      }
+      if (this.orderForm.orderId) {
+        return this.orderStatus != null && Number(this.orderStatus) === 0;
+      }
+      return true;
     },
     /** 订单信息是否只读（浏览/只读查看模式下，表头信息不可修改） */
     orderInfoReadonly() {
@@ -1497,6 +1521,16 @@ export default {
         !!this.orderForm.orderId &&
         this.orderStatus != null &&
         this.orderStatus >= 2
+      );
+    },
+    /** 已确认订单只读提示条（2026-09-14 定稿：已确认不可直接改单，需先撤回为草稿） */
+    confirmedReadonlyBanner() {
+      return (
+        !this.browseMode &&
+        !this.accLikeMode &&
+        !!this.orderForm.orderId &&
+        this.orderStatus != null &&
+        Number(this.orderStatus) === 1
       );
     },
     /** 实收列展示：订单状态≥已配送 */
@@ -1756,6 +1790,9 @@ export default {
       this.changeMode = false;
       this.acceptanceInfo = null;
       this.accRevokeOpen = false;
+      this.accSyncedSig = null;
+      // 换货编辑行暂存（未确认即离开页面时避免残留到下一个形态）
+      this._accStashedRow = null;
 
       this.defaultOrderId = query.orderId ? parseInt(query.orderId, 10) : null;
       // OA：验收模式入口（订单列表「去验收」→ /order/sale-detail/index?mode=acceptance&orderId=xxx[&acceptanceId=yyy]）
@@ -2113,6 +2150,8 @@ export default {
           this.originalOrderDetailList = this.deepCloneOrderDetailList(
             this.orderDetailList
           );
+          // 与服务端对齐：标记当前实收录入签名，随后无用户改动则不再自动保存
+          this.accSyncedSig = this.accDraftSignature();
         });
     },
 
@@ -2166,9 +2205,23 @@ export default {
       const actual = row.acceptActual == null || row.acceptActual === "" ? 0 : Number(row.acceptActual);
       return Math.round(price * actual * 100) / 100;
     },
+    /** OA：验收实收录入签名（明细行+实收+原因）——用于跳过无变化的自动保存 */
+    accDraftSignature() {
+      return (this.orderDetailList || [])
+        .filter((r) => r.acceptDetailId != null)
+        .map((r) => {
+          const actual =
+            r.acceptActual == null || r.acceptActual === "" ? 0 : Number(r.acceptActual);
+          return `${r.acceptDetailId}:${actual}:${r.acceptReason || ""}`;
+        })
+        .join("|");
+    },
+
     /** OA：实收编辑后 2s 防抖自动保存草稿（仅草稿态；提交态不写）；方向键/回车单元格导航由 vxe keyboard-config（isArrow）原生承担，同录单 */
     scheduleAccAutoSave() {
       if (!this.acceptanceMode || this.acceptanceReadonly) return;
+      // 与服务端已一致（页面加载合并/退货回退同步后的刷新）→ 无用户改动，不排保存
+      if (this.accSyncedSig != null && this.accDraftSignature() === this.accSyncedSig) return;
       if (this._accSaveTimer) clearTimeout(this._accSaveTimer);
       this._accSaveTimer = setTimeout(() => {
         this._accSaveTimer = null;
@@ -2176,11 +2229,24 @@ export default {
       }, 2000);
     },
 
+    /** OA：取消挂起的实收自动保存（行内变更/回退前调用，防止旧值回写覆盖服务端同步结果） */
+    cancelPendingAccAutoSave() {
+      if (this._accSaveTimer) {
+        clearTimeout(this._accSaveTimer);
+        this._accSaveTimer = null;
+      }
+    },
+
     /** OA：保存验收草稿（差异原因选填，OA 定稿 2026-09-09；silent=自动保存） */
     saveAcceptanceDraft(silent) {
       const acc = this.acceptanceInfo;
       if (!acc || this.acceptanceReadonly) return Promise.resolve();
       if (!silent && !this.ensureNoAccEditingRow()) return Promise.resolve();
+      const signature = this.accDraftSignature();
+      // 自动保存：内容与服务端已一致则跳过（防退货/回退等程序性变更触发的脏存覆盖）
+      if (silent && this.accSyncedSig != null && signature === this.accSyncedSig) {
+        return Promise.resolve();
+      }
       const items = (this.orderDetailList || [])
         .filter((row) => row.acceptDetailId != null)
         .map((row) => ({
@@ -2196,6 +2262,7 @@ export default {
         items,
       })
         .then(() => {
+          this.accSyncedSig = signature;
           this.accSavedAt = new Date().toTimeString().slice(0, 5);
           this.refreshAcceptanceInfo();
           if (!silent) {
@@ -2319,6 +2386,7 @@ export default {
         return;
       }
       if (!this.ensureNoAccEditingRow()) return;
+      this.cancelPendingAccAutoSave();
       const editing = {
         // 合成负数 id：vxe row-config.useKey 以 id 为行身份，无 id 会导致替换行不重渲染
         id: -(Date.now()),
@@ -2361,6 +2429,8 @@ export default {
         return;
       }
       if (!this.ensureNoAccEditingRow()) return;
+      // 变更前后端同步会重拉验收行：先取消挂起的实收自动保存，避免旧值回写
+      this.cancelPendingAccAutoSave();
       if (type === 3) {
         // 退货（整行）：行内一步确认（Q3 定稿：整行退，应送/实收归 0）
         this.$modal
@@ -2372,7 +2442,7 @@ export default {
             this.$modal.msgSuccess("退货成功（原行已标退货，应送实收归0）");
             return this.reloadDetailsForAcc();
           })
-          .catch(() => {});
+          .catch((e) => this.logInlineChangeError("return", e));
         return;
       }
       // 换货：把当前行替换为编辑行（保留位置），激活商品名单元格选新商品
@@ -2414,12 +2484,19 @@ export default {
       });
     },
 
+    /** OA：行内变更（退/换/加单/回退）失败兜底：接口错误已由 request 拦截器 toast，这里补日志便于定位
+     *  （避免完全静默：现场反馈「点了没反应」时至少控制台可查） */
+    logInlineChangeError(action, e) {
+      console.error(`[inline-change:${action}]`, e);
+    },
+
     /** OA：回退行内变更（加单=删行；退货=恢复原数量；换货=整组恢复），后端自动同步验收草稿 */
     revertInlineChange(row) {
       if (this.inlineChangeDisabled) {
         this.$modal.msgWarning(this.changeMode ? "仅已确认订单可做配送后变更" : "验收单已提交，请先撤销验收再回退");
         return;
       }
+      this.cancelPendingAccAutoSave();
       const labels = { 1: "加单", 2: "换货", 3: "退货" };
       const effect =
         row.changeType === 1
@@ -2434,7 +2511,7 @@ export default {
           this.$modal.msgSuccess("变更已回退");
           return this.reloadDetailsForAcc();
         })
-        .catch(() => {});
+        .catch((e) => this.logInlineChangeError("revoke", e));
     },
 
     /** OA：确认行内变更（加单/换货 → D-055 接口落标记） */
@@ -2465,7 +2542,7 @@ export default {
             this.$modal.msgSuccess("加单成功（标记已附加）");
             return this.reloadDetailsForAcc();
           })
-          .catch(() => {});
+          .catch((e) => this.logInlineChangeError("supplement", e));
       } else {
         // 换货（原行标退货+新行标换货，同组）
         deliveryExchange(orderId, {
@@ -2475,6 +2552,7 @@ export default {
           spec: row.productSpec,
           unit: row.productUnit,
           num: num,
+          price: XEUtils.toNumber(row.productPrice),
           actualNum: num,
           remark: null,
         })
@@ -2482,12 +2560,15 @@ export default {
             this.$modal.msgSuccess("换货成功（被换行标退货·换入行标换货，同组）");
             return this.reloadDetailsForAcc();
           })
-          .catch(() => {});
+          .catch((e) => this.logInlineChangeError("exchange", e));
       }
     },
 
     /** OA：取消行内变更（加单=移除编辑行；换货=还原原行） */
     cancelInlineChange(row) {
+      // 收起商品下拉面板（换货编辑行通常是带着打开的下拉点取消，不收起会残留遮挡）
+      const $pulldown = this.$refs.pulldownRef;
+      if ($pulldown && $pulldown.hidePanel) $pulldown.hidePanel();
       if (row._accMode === 2 && this._accStashedRow) {
         const { row: original, idx } = this._accStashedRow;
         this.orderDetailList.splice(idx, 1, original);
@@ -2496,7 +2577,13 @@ export default {
         const idx = this.orderDetailList.indexOf(row);
         if (idx > -1) this.orderDetailList.splice(idx, 1);
       }
-      this.refreshAccFooter();
+      // vxe row-config.useKey 下 splice/push 不触发行重渲染，必须重新 loadData；
+      // 此前只 splice 不 loadData → 点「取消」界面无变化，观感“只能确认不能取消”
+      this.$nextTick(() => {
+        const t = this.$refs.xTable;
+        if (t && t.loadData) t.loadData(this.orderDetailList);
+        this.refreshAccFooter();
+      });
     },
 
     /** OA：行内变更落库后重拉明细 → 同步验收缺失行 → 合并实收 */
@@ -2516,7 +2603,11 @@ export default {
         if (this.acceptanceInfo && !this.acceptanceReadonly) {
           return createAcceptanceByOrder(Number(orderId))
             .then(() => this.applyAcceptanceItems())
-            .catch(() => {})
+            .catch((e) => {
+              // 验收行同步失败会让「退货/回退」看起来没生效，必须显式提示（不再静默吞错）
+              console.error("[acc-sync] 验收行同步失败", e);
+              this.$modal.msgError("验收行同步失败，请刷新页面重试");
+            })
             .finally(() => this.refreshAccFooter());
         }
         this.refreshAccFooter();
@@ -2529,6 +2620,14 @@ export default {
       if (this._accSaveTimer) clearTimeout(this._accSaveTimer);
       this.acceptanceMode = false;
       this.acceptanceInfo = null;
+      this.$tab.closeOpenPage(orderPage);
+    },
+
+    /** OA：退出配送后变更模式返回订单列表（D-055 整页化后与退出验收同口径） */
+    exitChangeMode() {
+      this.cancelPendingAccAutoSave();
+      this.changeMode = false;
+      this._accStashedRow = null;
       this.$tab.closeOpenPage(orderPage);
     },
 
@@ -2684,6 +2783,14 @@ export default {
       }
       // 浏览模式与已验收/已结算订单：全部只读
       if (this.browseMode || this.viewOnlyMode) {
+        return false;
+      }
+      // D-055 变更模式：普通行只读，仅行内变更编辑行（加单/换货）可编辑
+      if (this.changeMode) {
+        return !!(row && row._accEditing) && ["productName", "num", "productPrice"].includes(column.field);
+      }
+      // 已确认及之后不可直接改单（需先撤回为草稿）
+      if (!this.canEditOrder) {
         return false;
       }
       // S1-1.2 撤销支持：进入单元格编辑前推入快照（编辑前的明细状态）
@@ -2967,6 +3074,16 @@ export default {
     /** 过滤掉已在订单明细其它行添加过的 SKU，候选列表不重复展示 */
     filterAddedSku(list) {
       const excludeRow = this._pulldownExcludeRow || null;
+      // 换货编辑中：被换行已被暂存（_accStashedRow）并从明细中移除，
+      // 不显式排除的话它会重新出现在候选列表里 → 可选“换成本身”。
+      // 排除口径：SKU 键 + **品名**（同一品名不同规格/单位的 SKU 也一并排除，
+      // 否则文员在列表里仍会看到“待换的那道菜”；若后续要支持同名换规格，需改回仅按 SKU 键）
+      const stashed = this._accStashedRow ? this._accStashedRow.row : null;
+      const blockedKeys = new Set();
+      const blockedNames = new Set();
+      const stashedKey = this.skuRowKey(stashed);
+      if (stashedKey) blockedKeys.add(stashedKey);
+      if (stashed && stashed.productName) blockedNames.add(String(stashed.productName).trim());
       const added = new Set();
       (this.orderDetailList || []).forEach((row) => {
         if (row === excludeRow) return;
@@ -2978,6 +3095,9 @@ export default {
       return (list || []).filter((c) => {
         const key = this.skuRowKey(c);
         if (!key) return true;
+        // 被换商品优先排除（优先于 selfKey 保留，防“换成本身”）
+        if (blockedKeys.has(key)) return false;
+        if (c && c.productName && blockedNames.has(String(c.productName).trim())) return false;
         if (selfKey && key === selfKey) return true;
         return !added.has(key);
       });

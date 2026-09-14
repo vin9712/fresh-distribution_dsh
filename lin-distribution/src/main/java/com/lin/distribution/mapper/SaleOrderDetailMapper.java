@@ -201,4 +201,39 @@ public interface SaleOrderDetailMapper {
      * @return true=已被有效送货单占用
      */
     boolean existsValidAllocation(@Param("orderId") Long orderId);
+
+    /**
+     * 订单是否存在配送后变更标记（D-055 / P0 编辑护栏）：存在任一 change_type &lt;&gt; 0 的有效明细行即 true。
+     *
+     * <p>变更标记（加单=1/换货=2/退货=3）是配送后现场事实，整单重写（删行重插）会静默丢弃标记，
+     * 故订单编辑必须拒改，引导在订单明细页走变更/回退。</p>
+     *
+     * @param orderId 销售订单ID
+     * @return true=存在变更标记行
+     */
+    boolean existsChangeMark(@Param("orderId") Long orderId);
+
+    /**
+     * 删除订单时的明细级联（2026-09-14）：与主单同步逻辑删除（{@code is_deleted=1}），
+     * 保留留痕，避免物理删除后残留孤儿明细行。
+     *
+     * @param orderIds 待删订单ID数组
+     * @return 影响行数
+     */
+    int deleteSaleOrderDetailByOrderIds(Long[] orderIds);
+    /**
+     * 还原被标退货/换货的行（D-055 变更回退，P0）：change_type 归 0 并**清除变更痕迹**
+     * （change_group / change_remark / change_original_num），同时写回应收与原数量。
+     *
+     * <p>不能复用 {@link #updateSaleOrderDetail}：该方法所有字段都是判空写入（{@code <if test="x != null">}），
+     * 传 null 无法清列，会导致回退后行上仍残留「退货」备注与旧快照。</p>
+     *
+     * @param id        明细行ID
+     * @param num       还原后的应收数量
+     * @param actualNum 还原后的实收数量
+     * @param updateBy  操作人
+     * @return 影响行数
+     */
+    int restoreChangeMark(@Param("id") Long id, @Param("num") java.math.BigDecimal num,
+                          @Param("actualNum") java.math.BigDecimal actualNum, @Param("updateBy") String updateBy);
 }

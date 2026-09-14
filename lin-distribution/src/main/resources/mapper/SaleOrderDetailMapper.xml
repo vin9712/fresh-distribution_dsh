@@ -49,6 +49,7 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
     <select id="selectSaleOrderDetailList" parameterType="com.lin.distribution.domain.SaleOrderDetail" resultMap="SaleOrderDetailResult">
         <include refid="selectSaleOrderDetailVo"/>
         <where>
+            is_deleted = 0
             <if test="orderId != null "> and order_id = #{orderId}</if>
             <if test="customerId != null "> and customer_id = #{customerId}</if>
             <if test="customerDeptId != null "> and customer_dept_id = #{customerDeptId}</if>
@@ -298,6 +299,14 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         delete from t_sale_order_detail where order_id = #{orderId}
     </delete>
 
+    <!-- 删除订单时的明细级联（2026-09-14）：与主单同步逻辑删除，保留留痕，避免孤儿明细行 -->
+    <update id="deleteSaleOrderDetailByOrderIds">
+        update t_sale_order_detail set is_deleted = 1, update_time = now() where order_id in
+        <foreach item="id" collection="array" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+    </update>
+
     <!-- S14/T3 统一生成：按订单查有效订单行原始明细（不聚合；聚合移 Java 侧，保留 行→单 映射落 source_item 台账） -->
     <select id="selectValidByOrderIdIn" resultMap="SaleOrderDetailResult">
         select d.id,
@@ -388,6 +397,33 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
               and d.status != 3
         )
     </select>
+
+    <!-- P0 编辑护栏：订单是否存在配送后变更标记（加单/换货/退货），整单重写会静默丢弃标记 -->
+    <select id="existsChangeMark" resultType="boolean">
+        select exists(
+            select 1
+            from t_sale_order_detail d
+            where d.order_id = #{orderId}
+              and d.is_deleted = 0
+              and d.change_type is not null
+              and d.change_type &lt;&gt; 0
+        )
+    </select>
+
+    <!-- P0 变更回退：还原被标退货/换货的行，并一次性清掉变更痕迹（判空写入无法清列的补充） -->
+    <update id="restoreChangeMark">
+        update t_sale_order_detail
+        set change_type = 0,
+            change_group = null,
+            change_remark = null,
+            change_original_num = null,
+            num = #{num},
+            actual_num = #{actualNum},
+            update_by = #{updateBy},
+            update_time = now()
+        where id = #{id}
+    </update>
+
     <!-- 当日打印清单数据源（PT-2）：客户×点×应送量 扁平行，服务层聚合；
          coalesce(d.customer_dept_id, o.customer_dept_id) 与点单视图口径一致；
          不排除纯退货行（有单即可打总单）；customer 名 alias 优先。 -->

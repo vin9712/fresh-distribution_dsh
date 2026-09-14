@@ -23,6 +23,7 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         <result property="remark"    column="remark"    />
         <result property="purchaseOrderCode"    column="purchaseOrderCode"    />
         <result property="deliveryOrderCode"    column="deliveryOrderCode"    />
+        <result property="deliveryOrderVoided"    column="deliveryOrderVoided"    />
         <result property="allocated"    column="allocated"    />
     </resultMap>
 
@@ -49,17 +50,33 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
             (select po.code from purchase_order po
               where po.source_type = 1 and po.source_order_ids is not null
                 and JSON_CONTAINS(po.source_order_ids, cast(so.id as char)) limit 1) as purchaseOrderCode,
+            <!-- 送货单引用（2026-09-14）：匹配本单用过的**全部**送货单，不再排除已作废/已释放（source_item 软删）——
+                 作废后仍可追溯“曾经进过哪张单”；取最新一张，是否已作废由 deliveryOrderVoided 标记，前端灰显。
+                 是否仍占用（阻挡撤回）仍只看有效单 allocated。 -->
             (select d.code from t_delivery_order d
-              where d.is_deleted = 0 and d.status != 3
+              where d.is_deleted = 0
                 and (exists (select 1 from t_delivery_source_item si
-                             where si.delivery_id = d.id and si.sale_order_id = so.id and si.is_deleted = 0)
+                             where si.delivery_id = d.id and si.sale_order_id = so.id)
                   or exists (select 1 from t_delivery_order_detail dd
                              where dd.delivery_id = d.id and dd.order_id = so.id))
-              limit 1) as deliveryOrderCode,
+              order by d.id desc limit 1) as deliveryOrderCode,
+            (select d.status = 3 from t_delivery_order d
+              where d.is_deleted = 0
+                and (exists (select 1 from t_delivery_source_item si
+                             where si.delivery_id = d.id and si.sale_order_id = so.id)
+                  or exists (select 1 from t_delivery_order_detail dd
+                             where dd.delivery_id = d.id and dd.order_id = so.id))
+              order by d.id desc limit 1) as deliveryOrderVoided,
+            <!-- （2026-09-14 扩展）占用口径含历史关联：pre-S14 订单只通过 t_delivery_order_detail.order_id 关联，
+                 无 source_item 台账；不纳入会让列表“可撤回”但实际不可撤（订单会与送货单不一致） -->
             (exists (select 1 from t_delivery_source_item si2
                      join t_delivery_order d2 on d2.id = si2.delivery_id
                      where si2.sale_order_id = so.id and si2.is_deleted = 0
-                       and d2.is_deleted = 0 and d2.status != 3)) as allocated
+                       and d2.is_deleted = 0 and d2.status != 3)
+             or exists (select 1 from t_delivery_order_detail dd2
+                        join t_delivery_order d3 on d3.id = dd2.delivery_id
+                        where dd2.order_id = so.id and d3.is_deleted = 0 and d3.status != 3)
+            ) as allocated
         from t_sale_order so
         left join t_customer_dept cd on cd.id = so.customer_dept_id
         left join t_customer customer on customer.id = so.customer_id
@@ -94,8 +111,11 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
     <select id="selectSaleOrderById" parameterType="Long" resultMap="SaleOrderResult">
         <include refid="selectSaleOrderVo"/>
         where so.id = #{id}
+          and so.is_deleted = 0
     </select>
 
+    <!-- 注意：本查询故意**不过滤 is_deleted**：单号分配器（generateOrderNo）用它探测
+         “单号是否已被占用（含逻辑删除行）”，保证逻辑删除后的单号不被重复使用 -->
     <select id="selectSaleOrderByCode" resultMap="SaleOrderResult">
         <include refid="selectSaleOrderVo"/>
         where so.code = #{code}
@@ -161,16 +181,17 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         where id = #{id}
     </update>
 
-    <delete id="deleteSaleOrderById" parameterType="Long">
-        delete from t_sale_order where id = #{id}
-    </delete>
+    <!-- 逻辑删除（2026-09-14）：主单 is_deleted=1，保留历史留痕；仅草稿可删（服务层护栏） -->
+    <update id="deleteSaleOrderById" parameterType="Long">
+        update t_sale_order set is_deleted = 1, update_time = now() where id = #{id}
+    </update>
 
-    <delete id="deleteSaleOrderByIds" parameterType="String">
-        delete from t_sale_order where id in
+    <update id="deleteSaleOrderByIds" parameterType="String">
+        update t_sale_order set is_deleted = 1, update_time = now() where id in
         <foreach item="id" collection="array" open="(" separator="," close=")">
             #{id}
         </foreach>
-    </delete>
+    </update>
 
     <select id="selectRecentOrderList" resultMap="SaleOrderResult">
         <include refid="selectSaleOrderVo"/>
@@ -186,13 +207,15 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
                 #{createStartTime} and #{createEndTime}
             </if>
             and so.status = '0'
+            and so.is_deleted = 0
         </where>
         order by so.code desc, so.delivery_date desc
     </select>
 
     <select id="selectSaleOrderByIdIn" resultMap="SaleOrderResult">
         <include refid="selectSaleOrderVo"/>
-        where so.id in
+        where so.is_deleted = 0
+          and so.id in
         <foreach item="id" collection="list" open="(" separator="," close=")">
             #{id}
         </foreach>

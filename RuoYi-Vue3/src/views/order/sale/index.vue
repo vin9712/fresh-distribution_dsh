@@ -232,14 +232,19 @@
             :options="dict.type.t_sale_order_status"
             :value="scope.row.status"
           />
-          <el-tag
+          <el-tooltip
             v-if="scope.row.status == 1 && !scope.row.allocated"
-            size="small"
-            type="success"
-            effect="plain"
-            class="recallable-tag"
-            >可撤回</el-tag
+            content="已确认订单不可直接修改：如需改动请先点「撤回」回到草稿"
+            placement="top"
           >
+            <el-tag
+              size="small"
+              type="success"
+              effect="plain"
+              class="recallable-tag"
+              >可撤回</el-tag
+            >
+          </el-tooltip>
         </template>
       </el-table-column>
       <el-table-column
@@ -263,10 +268,18 @@
           </el-tooltip>
           <el-tooltip
             v-if="scope.row.deliveryOrderCode"
-            :content="'送货单：' + scope.row.deliveryOrderCode"
+            :content="
+              '送货单：' +
+              scope.row.deliveryOrderCode +
+              (scope.row.deliveryOrderVoided ? '（已作废，仅作留痕；撤回不再被它阻塞）' : '')
+            "
             placement="top"
           >
-            <el-icon class="doc-icon doc-delivery"><Van /></el-icon>
+            <el-icon
+              class="doc-icon"
+              :class="scope.row.deliveryOrderVoided ? 'doc-voided' : 'doc-delivery'"
+              ><Van
+            /></el-icon>
           </el-tooltip>
           <span
             v-if="!scope.row.purchaseOrderCode && !scope.row.deliveryOrderCode"
@@ -328,7 +341,7 @@
             >配送后变更</el-button
           >
           <el-button
-            v-if="scope.row.status == 0 || scope.row.status == 1"
+            v-if="scope.row.status == 0"
             size="small"
             link
             :icon="Edit"
@@ -347,6 +360,7 @@
             >调整摘要</el-button
           >
           <el-button
+            v-if="scope.row.status == 0"
             size="small"
             link
             :icon="Delete"
@@ -1105,9 +1119,20 @@ export default {
         });
     },
     /** 行内撤回订单（CONFIRMED→DRAFT，已生成送货单不可撤回由后端校验） */
+    /**
+     * 撤回订单（CONFIRMED→DRAFT）：
+     * 2026-09-14 业务定稿——已确认订单不再提供「修改」，需先撤回才能在草稿态编辑，
+     * 故确认文案必须说清「撤回后能干什么 / 会连带影响什么 / 什么情况不能撤回」。
+     */
     handleRecall(row) {
       this.$modal
-        .confirm("是否确认撤回订单【" + row.code + "】？")
+        .confirm(
+          `撤回订单【${row.code}】后，订单回到<b>草稿</b>状态，可点「修改」继续编辑（改完需重新确认）。<br/><br/>` +
+            `撤回时会自动<b>作废/扣除</b>该订单尚未入库的采购单（共享采购单仅扣除本单部分）；<br/>` +
+            `若该订单已进入<b>未作废的送货单</b>、或采购单<b>已入库</b>，则不提供撤回，请先作废对应单据。`,
+          "撤回订单",
+          { dangerouslyUseHTMLString: true, confirmButtonText: "确认撤回" }
+        )
         .then(function () {
           const params = {
             orderIds: [row.id],
@@ -1116,8 +1141,10 @@ export default {
           return updateOrderStatus(params);
         })
         .then(() => {
+          this.$modal.msgSuccess("已撤回为草稿，可点「修改」继续编辑");
           this.handleQuery();
-        });
+        })
+        .catch(() => {});
     },
     /** 双击行处理详情 */
     handleRowDblClick(row) {
@@ -1386,6 +1413,11 @@ export default {
   }
   &.doc-delivery {
     color: #67c23a;
+  }
+  /* 已作废送货单：保留引用但灰显（仅留痕，不再阻塞撤回） */
+  &.doc-voided {
+    color: #c0c4cc;
+    text-decoration: line-through;
   }
 }
 .doc-empty {

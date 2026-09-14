@@ -2,11 +2,13 @@ package com.lin.distribution.service.impl;
 
 import com.lin.common.exception.ServiceException;
 import com.lin.distribution.constant.SaleOrderStatus;
+import com.lin.distribution.domain.Acceptance;
 import com.lin.distribution.domain.SaleOrder;
 import com.lin.distribution.domain.SaleOrderDetail;
 import com.lin.distribution.dto.SaleOrderCreateDTO;
 import com.lin.distribution.dto.SaleOrderUpdateStatusDTO;
 import com.lin.distribution.dto.WithdrawCascadeResultVO;
+import com.lin.distribution.mapper.AcceptanceMapper;
 import com.lin.distribution.mapper.SaleOrderDetailMapper;
 import com.lin.distribution.mapper.SaleOrderMapper;
 import com.lin.distribution.service.BizCodeService;
@@ -42,7 +44,9 @@ import static org.mockito.Mockito.when;
  *
  * <p>G6：DELIVERED/ACCEPTED/SETTLED 拒改；CONFIRMED 已进有效送货单拒改；
  * DRAFT / CONFIRMED 未分配可改。<br>
- * G4：撤回仅看 EXISTS source_item 有效分配，同客户同日他单有送货单不影响。</p>
+ * G4：撤回仅看 EXISTS source_item 有效分配，同客户同日他单有送货单不影响。<br>
+ * D-055/OA（P0）：已存在验收单（草稿/已提交）或配送后变更标记（加单/换货/退货）时，
+ * 整单重写（物理删重插）会 dangling 验收行/静默丢弃标记，故一并拒改。</p>
  */
 @ExtendWith(MockitoExtension.class)
 class SaleOrderServiceImplTest {
@@ -51,6 +55,8 @@ class SaleOrderServiceImplTest {
     private SaleOrderMapper saleOrderMapper;
     @Mock
     private SaleOrderDetailMapper saleOrderDetailMapper;
+    @Mock
+    private AcceptanceMapper acceptanceMapper;
     @Mock
     private DeliveryOrderService deliveryOrderService;
     @Mock
@@ -105,15 +111,43 @@ class SaleOrderServiceImplTest {
         verify(saleOrderDetailMapper).deleteSaleOrderDetailByOrderId(ORDER_ID);
     }
 
+    // ================= 删除护栏与逻辑删除（2026-09-14） =================
+
     @Test
-    void 未分配的已确认订单可修改() {
-        // §七 矩阵：CONFIRMED 未进送货单 → 编辑明细/表头 ✅
+    void 草稿删除为逻辑删除并级联明细() {
+        when(saleOrderMapper.selectSaleOrderById(ORDER_ID)).thenReturn(order(SaleOrderStatus.DRAFT.getCode()));
+
+        saleOrderService.deleteSaleOrderByIds(new Long[]{ORDER_ID});
+
+        ArgumentCaptor<Long[]> idsCaptor = ArgumentCaptor.forClass(Long[].class);
+        verify(saleOrderDetailMapper).deleteSaleOrderDetailByOrderIds(idsCaptor.capture());
+        assertEquals(ORDER_ID, idsCaptor.getValue()[0], "明细同步逻辑删除（避免孤儿行）");
+        verify(saleOrderMapper).deleteSaleOrderByIds(idsCaptor.capture());
+        assertEquals(ORDER_ID, idsCaptor.getValue()[0], "主单逻辑删除");
+    }
+
+    @Test
+    void 已确认及之后订单不可删除() {
+        when(saleOrderMapper.selectSaleOrderById(ORDER_ID)).thenReturn(order(SaleOrderStatus.CONFIRMED.getCode()));
+
+        ServiceException ex = assertThrows(ServiceException.class,
+                () -> saleOrderService.deleteSaleOrderByIds(new Long[]{ORDER_ID}));
+        assertTrue(ex.getMessage().contains("仅草稿状态可删除"), ex.getMessage());
+        verify(saleOrderMapper, never()).deleteSaleOrderByIds(any());
+        verify(saleOrderDetailMapper, never()).deleteSaleOrderDetailByOrderIds(any());
+    }
+
+    @Test
+    void 已确认订单拒改_需先撤回为草稿() {
+        // 2026-09-14 业务定稿：已确认不再允许直接改单，必须先撤回（撤回后 status=0 即可改）
         when(saleOrderMapper.selectSaleOrderById(ORDER_ID)).thenReturn(order(SaleOrderStatus.CONFIRMED.getCode()));
         when(saleOrderDetailMapper.existsValidAllocation(ORDER_ID)).thenReturn(false);
 
-        saleOrderService.updateSaleOrderWithDetails(updateRequest());
-
-        verify(saleOrderMapper).updateSaleOrder(any(SaleOrder.class));
+        ServiceException ex = assertThrows(ServiceException.class,
+                () -> saleOrderService.updateSaleOrderWithDetails(updateRequest()));
+        assertTrue(ex.getMessage().contains("撤回"), "提示先撤回为草稿：" + ex.getMessage());
+        verify(saleOrderDetailMapper, never()).deleteSaleOrderDetailByOrderId(anyLong());
+        verify(saleOrderMapper, never()).updateSaleOrder(any(SaleOrder.class));
     }
 
     @Test
@@ -125,6 +159,39 @@ class SaleOrderServiceImplTest {
                 () -> saleOrderService.updateSaleOrderWithDetails(updateRequest()));
         assertTrue(ex.getMessage().contains("历史送货单"), "D-055 后该护栏仅对已进入历史送货单的订单生效");
         // 拒改时不得触发物理删重插（切断关联/清零镜像的风险路径）
+        verify(saleOrderDetailMapper, never()).deleteSaleOrderDetailByOrderId(anyLong());
+        verify(saleOrderMapper, never()).updateSaleOrder(any(SaleOrder.class));
+    }
+
+    @Test
+    void 已生成验收单的草稿订单拒改() {
+        // P0：验收草稿行挂在 sale_order_detail_id 上，整单重写会让验收行 dangling 并在下次同步时重复补行。
+        // 场景=已确认单带验收草稿 → 撤回为草稿后仍不得改单，需先撤销/删除验收单
+        when(saleOrderMapper.selectSaleOrderById(ORDER_ID)).thenReturn(order(SaleOrderStatus.DRAFT.getCode()));
+        Acceptance acc = new Acceptance();
+        acc.setId(9L);
+        acc.setCode("YS20260911001");
+        acc.setSaleOrderId(ORDER_ID);
+        when(acceptanceMapper.selectBySaleOrder(ORDER_ID)).thenReturn(acc);
+
+        ServiceException ex = assertThrows(ServiceException.class,
+                () -> saleOrderService.updateSaleOrderWithDetails(updateRequest()));
+        assertTrue(ex.getMessage().contains("验收单"), "提示应先撤销/删除验收单");
+        assertTrue(ex.getMessage().contains("YS20260911001"), "提示带已有验收单号");
+        verify(saleOrderDetailMapper, never()).deleteSaleOrderDetailByOrderId(anyLong());
+        verify(saleOrderMapper, never()).updateSaleOrder(any(SaleOrder.class));
+    }
+
+    @Test
+    void 存在配送后变更标记的草稿订单拒改() {
+        // P0：change_type≠0 是配送后现场事实，物理删重插会静默丢弃（退货行变回正常行=重复计费）
+        when(saleOrderMapper.selectSaleOrderById(ORDER_ID)).thenReturn(order(SaleOrderStatus.DRAFT.getCode()));
+        when(acceptanceMapper.selectBySaleOrder(ORDER_ID)).thenReturn(null);
+        when(saleOrderDetailMapper.existsChangeMark(ORDER_ID)).thenReturn(true);
+
+        ServiceException ex = assertThrows(ServiceException.class,
+                () -> saleOrderService.updateSaleOrderWithDetails(updateRequest()));
+        assertTrue(ex.getMessage().contains("配送后变更"), "提示走变更入口/先回退");
         verify(saleOrderDetailMapper, never()).deleteSaleOrderDetailByOrderId(anyLong());
         verify(saleOrderMapper, never()).updateSaleOrder(any(SaleOrder.class));
     }

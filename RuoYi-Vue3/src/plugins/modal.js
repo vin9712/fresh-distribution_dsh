@@ -51,12 +51,14 @@ export default {
   notifyWarning(content) {
     ElNotification.warning(content)
   },
-  // 确认窗体
-  confirm(content) {
-    return ElMessageBox.confirm(content, "系统提示", {
+  // 确认窗体（title/options 可选，向后兼容：老调用只传 content）
+  // options 可传 dangerouslyUseHTMLString: true 以支持 <br/> 换行与 <b> 强调，用于长文案的操作确认
+  confirm(content, title, options) {
+    return ElMessageBox.confirm(content, title || "系统提示", {
       confirmButtonText: '确定',
       cancelButtonText: '取消',
       type: "warning",
+      ...(options || {}),
     })
   },
   // 提交内容

@@ -3,6 +3,7 @@ package com.lin.distribution.service.impl;
 import com.lin.common.exception.ServiceException;
 import com.lin.distribution.constant.DeliveryOrderStatus;
 import com.lin.distribution.constant.PurchaseOrderStatus;
+import com.lin.distribution.domain.Acceptance;
 import com.lin.distribution.domain.DeliveryOrder;
 import com.lin.distribution.domain.DeliveryOrderDetail;
 import com.lin.distribution.domain.DeliverySourceItem;
@@ -11,6 +12,7 @@ import com.lin.distribution.domain.PurchaseOrder;
 import com.lin.distribution.domain.SaleOrder;
 import com.lin.distribution.domain.SaleOrderDetail;
 import com.lin.distribution.dto.WithdrawCascadeResultVO;
+import com.lin.distribution.mapper.AcceptanceMapper;
 import com.lin.distribution.mapper.DeliveryOrderDetailMapper;
 import com.lin.distribution.mapper.DeliveryOrderMapper;
 import com.lin.distribution.mapper.DeliverySourceItemMapper;
@@ -61,6 +63,8 @@ class OrderWithdrawCascadeServiceImplTest {
     private PurchaseItemMapper purchaseItemMapper;
     @Mock
     private SaleOrderDetailMapper saleOrderDetailMapper;
+    @Mock
+    private AcceptanceMapper acceptanceMapper;
 
     @InjectMocks
     private OrderWithdrawCascadeServiceImpl service;
@@ -94,6 +98,43 @@ class OrderWithdrawCascadeServiceImplTest {
                 .thenReturn(List.of(delivery(DELIVERY_ID, "HS202608280001", DeliveryOrderStatus.DELIVERED.getCode())));
 
         assertThrows(ServiceException.class, () -> service.validateOrderWithdrawable(order(ORDER_ID, ORDER_CODE)));
+    }
+
+    @Test
+    void 已生成验收单的订单不可撤回() {
+        // 2026-09-14：撤回后订单回草稿但验收行仍挂在原明细上 → 会出现“已撤回却改不了单”，
+        // 正确顺序是先在验收页撤销/删除验收单
+        Acceptance acc = new Acceptance();
+        acc.setId(9L);
+        acc.setCode("YS20260914001");
+        acc.setSaleOrderId(ORDER_ID);
+        when(acceptanceMapper.selectBySaleOrder(ORDER_ID)).thenReturn(acc);
+
+        ServiceException ex = assertThrows(ServiceException.class,
+                () -> service.validateOrderWithdrawable(order(ORDER_ID, ORDER_CODE)));
+
+        assertTrue(ex.getMessage().contains("验收单"));
+        assertTrue(ex.getMessage().contains("YS20260914001"));
+        assertTrue(ex.getMessage().contains(ORDER_CODE));
+    }
+
+    @Test
+    void 仅有历史关联且无法自动扣除的送货单不可撤回() {
+        // 2026-09-14：pre-S14 订单只靠 t_delivery_order_detail.order_id 关联送货单（无 source_item 台账），
+        // 级联无法自动扣除/作废 → 放任撤回会让订单与送货单永久不一致
+        when(acceptanceMapper.selectBySaleOrder(ORDER_ID)).thenReturn(null);
+        when(deliverySourceItemMapper.selectValidBySaleOrderId(ORDER_ID)).thenReturn(Collections.emptyList());
+        DeliveryOrderDetail legacy = detail(11L, 15L, new BigDecimal("5"), new BigDecimal("2.00"));
+        legacy.setOrderId(ORDER_ID);
+        when(deliveryOrderDetailMapper.selectListByOrderIdIn(List.of(ORDER_ID))).thenReturn(List.of(legacy));
+        when(deliveryOrderMapper.selectListByIds(List.of(15L)))
+                .thenReturn(List.of(delivery(15L, "HS20260827003", DeliveryOrderStatus.DELIVERED.getCode())));
+
+        ServiceException ex = assertThrows(ServiceException.class,
+                () -> service.validateOrderWithdrawable(order(ORDER_ID, ORDER_CODE)));
+
+        assertTrue(ex.getMessage().contains("历史关联"), ex.getMessage());
+        assertTrue(ex.getMessage().contains("HS20260827003"));
     }
 
     @Test

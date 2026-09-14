@@ -115,10 +115,19 @@ public class SaleOrder extends BaseEntity {
     private String purchaseOrderCode;
 
     /**
-     * 查询字段：已生成的送货单号（列表图标悬浮展示，无则空）
+     * 查询字段：送货单号（列表图标悬浮展示，无则空）
+     *
+     * <p>2026-09-14 起保留**已作废**单的引用（作废后仍可追溯“曾经进过哪张单”），
+     * 是否已作废由 {@link #deliveryOrderVoided} 标记；是否仍占用（阻止撤回）仅看有效单 allocated。</p>
      */
     @TableField(exist = false)
     private String deliveryOrderCode;
+
+    /**
+     * 查询字段：deliveryOrderCode 所示送货单是否已作废（VOIDED）——前端灰显 + 提示“已作废”
+     */
+    @TableField(exist = false)
+    private Boolean deliveryOrderVoided;
 
     /**
      * 查询字段：是否已进入有效送货单（可撤回标识，S14/T7；口径与 existsValidAllocation 一致）

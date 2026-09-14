@@ -25,6 +25,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -84,13 +86,33 @@ class DeliveryChangeServiceImplTest {
         when(saleOrderDetailMapper.selectSaleOrderDetailById(200L)).thenReturn(target);
 
         List<SaleOrderDetail> result = deliveryChangeService.exchange(100L, 200L, 90L, "番茄", "", "斤",
-                new BigDecimal("4"), new BigDecimal("4"), "土豆换番茄");
+                new BigDecimal("4"), new BigDecimal("2.50"), new BigDecimal("4"), "土豆换番茄");
 
         assertEquals(2, result.size());
         assertEquals(2, result.get(0).getChangeType().intValue(), "换货新增行 change_type=2");
         assertEquals(3, result.get(1).getChangeType().intValue(), "被换行 change_type=3");
         assertEquals(0, BigDecimal.ZERO.compareTo(result.get(1).getNum()), "被换行应收归0");
         assertEquals(result.get(0).getChangeGroup(), result.get(1).getChangeGroup(), "同组关联");
+        // P0 修复：换入行必须记单价与金额（原实现恒为 0，导致验收金额录成 0）
+        assertEquals(0, new BigDecimal("2.50").compareTo(result.get(0).getProductPrice()), "换入单价取传入值");
+        assertEquals(0, new BigDecimal("10.00").compareTo(result.get(0).getExpectAmount()), "换入金额=单价×应收");
+    }
+
+    @Test
+    void 换货_未传单价时回退取被换行原单价() {
+        when(saleOrderMapper.selectSaleOrderById(100L)).thenReturn(confirmedOrder());
+        SaleOrderDetail target = new SaleOrderDetail();
+        target.setId(200L);
+        target.setOrderId(100L);
+        target.setSort(1);
+        target.setProductPrice(new BigDecimal("3.20"));
+        when(saleOrderDetailMapper.selectSaleOrderDetailById(200L)).thenReturn(target);
+
+        List<SaleOrderDetail> result = deliveryChangeService.exchange(100L, 200L, 90L, "番茄", "", "斤",
+                new BigDecimal("2"), null, null, null);
+
+        assertEquals(0, new BigDecimal("3.20").compareTo(result.get(0).getProductPrice()), "缺省取被换行原单价");
+        assertEquals(0, new BigDecimal("6.40").compareTo(result.get(0).getExpectAmount()));
     }
 
     @Test
@@ -146,7 +168,7 @@ class DeliveryChangeServiceImplTest {
     }
 
     @Test
-    void 退货回退_按快照恢复原数量() {
+    void 退货回退_按快照恢复原数量并清理变更痕迹() {
         when(saleOrderMapper.selectSaleOrderById(100L)).thenReturn(confirmedOrder());
         SaleOrderDetail d = changeRow(301L, 3, new BigDecimal("5"), null);
         d.setProductPrice(new BigDecimal("2.00"));
@@ -156,11 +178,13 @@ class DeliveryChangeServiceImplTest {
 
         deliveryChangeService.revokeChange(100L, 301L);
 
-        ArgumentCaptor<SaleOrderDetail> captor = ArgumentCaptor.forClass(SaleOrderDetail.class);
-        verify(saleOrderDetailMapper).updateSaleOrderDetail(captor.capture());
-        assertEquals(0, captor.getValue().getChangeType().intValue(), "change_type 还原为 0");
-        assertEquals(0, new BigDecimal("5").compareTo(captor.getValue().getNum()), "数量取变更前快照");
-        assertEquals(0, new BigDecimal("5").compareTo(captor.getValue().getActualNum()));
+        // P0：改用专用还原写入（重置 change_type/change_group/change_remark/change_original_num），
+        // 因 updateSaleOrderDetail 全部判空写入，传 null 清不掉「退货」备注残留
+        verify(saleOrderDetailMapper).restoreChangeMark(eq(301L),
+                argThat(v -> v != null && v.compareTo(new BigDecimal("5")) == 0),
+                argThat(v -> v != null && v.compareTo(new BigDecimal("5")) == 0),
+                any());
+        verify(saleOrderDetailMapper, never()).updateSaleOrderDetail(any());
         verify(acceptanceItemMapper, never()).deleteBySaleOrderDetailIds(any(), any());
         verify(acceptanceService, never()).syncMissingItems(any());
     }
@@ -180,10 +204,11 @@ class DeliveryChangeServiceImplTest {
         deliveryChangeService.revokeChange(100L, 302L);
 
         verify(saleOrderDetailMapper).deleteSaleOrderDetailById(302L);
-        ArgumentCaptor<SaleOrderDetail> captor = ArgumentCaptor.forClass(SaleOrderDetail.class);
-        verify(saleOrderDetailMapper).updateSaleOrderDetail(captor.capture());
-        assertEquals(301L, captor.getValue().getId(), "同组被换行被恢复");
-        assertEquals(0, new BigDecimal("5").compareTo(captor.getValue().getNum()));
+        // 同组被换行（301）被恢复：数量取快照、变更痕迹清理
+        verify(saleOrderDetailMapper).restoreChangeMark(eq(301L),
+                argThat(v -> v != null && v.compareTo(new BigDecimal("5")) == 0),
+                argThat(v -> v != null && v.compareTo(new BigDecimal("5")) == 0),
+                any());
     }
 
     @Test
