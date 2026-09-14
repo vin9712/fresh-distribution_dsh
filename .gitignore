@@ -66,3 +66,6 @@ application-prod.yml
 # 运行时产物
 /lin-entry/home/
 /.freebuff/
+
+# 数据库备份（sql/db_bak/ 约定不入库：体积大且含真实业务数据）
+sql/db_bak/
