@@ -4565,6 +4565,21 @@ EXECUTE stmt;
 DEALLOCATE PREPARE stmt;
 
 -- ============================================================
+-- [44] 验收单菜单下线（验收收敛订单视角）  | 源: s29_acceptance_menu_offline.sql
+--      visible→1 隐藏；status 保持启用（'0'）——路由/页面保留，历史送货单维度验收单
+--      的查看/撤销/补建仍可按 URL 直达（停用会让 getRouters 不注册路由）
+--      ⚠ 本块必须在 [27]（s5_2 建立验收单菜单，带去 visible=1/status=1）之后执行
+-- ============================================================
+
+UPDATE `sys_menu`
+SET `visible` = '1',
+    `status` = '0',
+    `update_by` = 'system',
+    `update_time` = NOW()
+WHERE (`menu_id` = 2081 OR `component` = 'order/acceptance/index')
+  AND (`visible` <> '1' OR `status` <> '0');
+
+-- ============================================================
 -- 初始化结束
 -- ============================================================
 SET FOREIGN_KEY_CHECKS = 1;

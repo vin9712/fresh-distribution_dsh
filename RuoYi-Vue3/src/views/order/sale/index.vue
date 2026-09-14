@@ -328,7 +328,27 @@
             :icon="View"
             @click="handleGoAcceptance(scope.row)"
             v-hasPermi="['acceptance:query']"
-            >验收单</el-button
+            >查看验收</el-button
+          >
+          <el-button
+            v-if="scope.row.status == 3"
+            size="small"
+            link
+            type="warning"
+            :icon="RefreshLeft"
+            @click="handleRevokeAcceptance(scope.row)"
+            v-hasPermi="['acceptance:revoke']"
+            >撤回</el-button
+          >
+          <el-button
+            v-if="scope.row.status == 3"
+            size="small"
+            link
+            type="success"
+            :icon="Check"
+            @click="handleSettle(scope.row)"
+            v-hasPermi="['order:sale:settle']"
+            >结算</el-button
           >
           <el-button
             v-if="scope.row.status == 1"
@@ -693,7 +713,7 @@ import {
 import { generatePurchaseByOrders } from "@/api/purchase/purchase";
 import { getOrderAdjustmentSummary } from "@/api/order/monthAdjustment";
 import { listCustomerDept } from "@/api/partner/customerDept";
-import { locateAcceptanceByOrder } from "@/api/acceptance/acceptance";
+import { locateAcceptanceByOrder, revokeAcceptance } from "@/api/acceptance/acceptance";
 import { listDrafts, removeDraft } from "@/utils/saleDraft";
 import {
   Search,
@@ -1119,6 +1139,61 @@ export default {
         });
     },
     /** 行内撤回订单（CONFIRMED→DRAFT，已生成送货单不可撤回由后端校验） */
+    /**
+     * 已验收订单「撤回」（撤销验收）：验收收敛订单视角（2026-09-15）——
+     * 验收单不再有独立入口，撤回就放在订单行上；先定位该订单的验收单，再填原因撤销。
+     * 撤销后订单回到「已确认」（可继续改单/重验收）；已月结则不提供该按钮。
+     */
+    handleRevokeAcceptance(row) {
+      locateAcceptanceByOrder(row.id)
+        .then((response) => {
+          const info = response.data || {};
+          if (!info.hasAcceptance || !info.acceptanceId) {
+            this.$modal.msgWarning("未找到该订单的验收单，请刷新后重试");
+            return;
+          }
+          return this.$modal
+            .prompt(
+              `撤销订单【${row.code}】的验收后，订单回到「<b>已确认</b>」状态，可继续修改或重新验收。` +
+                `<br/>撤销前的验收数据会完整备份到审计日志（含明细快照）。`,
+              "撤回验收",
+              {
+                dangerouslyUseHTMLString: true,
+                confirmButtonText: "确认撤销",
+                inputPlaceholder: "请填写撤销原因（必填，例：现场数量复核有误）",
+                inputValidator: (v) => (v && String(v).trim() ? true : "撤销原因不能为空"),
+              }
+            )
+            .then(({ value }) => revokeAcceptance(info.acceptanceId, String(value).trim()))
+            .then(() => {
+              this.$modal.msgSuccess("验收已撤销，订单回到已确认");
+              this.handleQuery();
+            });
+        })
+        .catch(() => {});
+    },
+
+    /**
+     * 已验收订单「结算」（已验收 → 已结算）：月结后订单只读、实收与金额冻结，
+     * 后续纠错走「下月调整单」（不直接改历史）。
+     */
+    handleSettle(row) {
+      this.$modal
+        .confirm(
+          `对订单【${row.code}】执行结算（已验收 → <b>已结算</b>）？<br/><br/>` +
+            `结算后该订单转为只读（不能再改单/撤回验收/重验收）；` +
+            `如需纠错请在「月结调整」中挂下月调整单。`,
+          "订单结算",
+          { dangerouslyUseHTMLString: true, confirmButtonText: "确认结算" }
+        )
+        .then(() => updateOrderStatus({ orderIds: [row.id], status: 4 }))
+        .then(() => {
+          this.$modal.msgSuccess("已结算");
+          this.handleQuery();
+        })
+        .catch(() => {});
+    },
+
     /**
      * 撤回订单（CONFIRMED→DRAFT）：
      * 2026-09-14 业务定稿——已确认订单不再提供「修改」，需先撤回才能在草稿态编辑，

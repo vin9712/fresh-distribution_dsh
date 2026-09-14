@@ -11,6 +11,7 @@
 import { chromium } from "playwright-core";
 
 const BASE = "http://localhost:1025";
+const API = BASE + "/dev-api";
 const TROW = ".el-table__body-wrapper tbody tr";
 const checks = [];
 const errors = [];
@@ -35,12 +36,14 @@ for (let i = 0; i < 3 && !cookie; i++) {
 }
 ok("登录", !!cookie);
 if (!cookie) { await browser.close(); process.exit(1); }
+const H = { Authorization: "Bearer " + cookie };
 
 const gotoList = async () => {
   await page.goto(BASE + "/order/sale", { waitUntil: "domcontentloaded" });
   await page.waitForTimeout(3500);
 };
 const allRows = (statusText) => page.locator(TROW).filter({ hasText: statusText });
+const p2row = (code) => page.locator(TROW).filter({ hasText: code }).first();
 // 未被送货单占用的已确认行（提供「撤回」按钮）；被占用行只有灰字提示，不再误报“可撤回”
 const recallableRow = () => allRows("已确认").filter({ has: page.locator('button:has-text("撤回")') }).first();
 const blockedRow = () => allRows("已确认").filter({ has: page.locator(".op-disabled-tip") }).first();
@@ -107,6 +110,70 @@ ok(`草稿单详情页有「保存」按钮（${draftCode.trim()}）`,
   const editable = (await page.locator(".order-table .vxe-table--body-wrapper tbody tr").first().locator("input").count()) > 0;
   ok("草稿单单元格可进入编辑", editable);
   if (editable) await page.keyboard.press("Escape");
+}
+
+// ==================== 已验收订单：验收收敛订单视角（2026-09-15） ====================
+// 菜单：验收单台账页下线（侧边栏不再出现）；验收的查看/撤回全在订单行
+await gotoList();
+const sidebar = await page.evaluate(() =>
+  [...document.querySelectorAll(".sidebar-container .el-menu-item, .sidebar-container .el-sub-menu__title")]
+    .map((x) => x.innerText.replace(/\s+/g, "").trim()));
+ok("侧边栏无「验收单」菜单（已下线）", !sidebar.includes("验收单"), sidebar.join("/").slice(0, 80));
+
+await page.goto(BASE + "/order/sale?status=3", { waitUntil: "domcontentloaded" });
+await page.waitForTimeout(3500);
+const acceptedRow = allRows("已验收").first();
+if ((await acceptedRow.count()) > 0) {
+  const accOps = await opsOf(acceptedRow);
+  ok("已验收行提供「查看验收」", accOps.includes("查看验收"), accOps.join("/"));
+  ok("已验收行提供「撤回」（撤销验收）", accOps.includes("撤回"), accOps.join("/"));
+  ok("已验收行提供「结算」", accOps.includes("结算"), accOps.join("/"));
+  ok("已验收行不含「修改」「删除」", !accOps.includes("修改") && !accOps.includes("删除"), accOps.join("/"));
+
+  // 找一个**有验收单**的已验收订单来校验撤回弹窗（历史测试单可能无验收记录）
+  const acceptedOrders = await page.request.get(API + "/order/sale/list?status=3", { headers: H })
+    .then((r) => r.json()).then((j) => j.data || []);
+  let withAcc = null;
+  for (const o of acceptedOrders) {
+    const loc = await page.request.get(API + `/acceptance/by-order/${o.id}`, { headers: H })
+      .then((r) => r.json()).then((j) => j.data || {});
+    if (loc.hasAcceptance) { withAcc = { order: o, loc }; break; }
+  }
+  if (withAcc) {
+    const targetRow = p2row(withAcc.order.code);
+    await targetRow.locator('button:has-text("撤回")').first().click();
+    await page.waitForTimeout(1200);
+    const rbox = page.locator(".el-message-box");
+    const rtitle = await rbox.locator(".el-message-box__title").innerText().catch(() => "");
+    const rbody = await rbox.locator(".el-message-box__message").innerText().catch(() => "");
+    ok("撤回验收弹窗标题明确", rtitle.includes("撤回验收"), rtitle);
+    ok("撤回验收文案说明“回到已确认可继续改/重验收”", /已确认/.test(rbody) && /重验收|重新验收/.test(rbody), rbody.slice(0, 60));
+    ok("撤回验收文案说明有审计快照", /审计/.test(rbody), "");
+    ok("撤回验收提供原因输入框", (await rbox.locator("input").count()) > 0);
+    await rbox.locator('button:has-text("确认撤销")').first().click();
+    await page.waitForTimeout(800);
+    ok("空原因被拦", (await page.locator(".el-message-box").count()) > 0
+      && (await page.locator(".el-message-box__errormsg").innerText().catch(() => "")).includes("不能为空"));
+    await page.locator('.el-message-box button:has-text("取消")').first().click();
+    await page.waitForTimeout(500);
+  } else {
+    // 无验收记录的已验收单（历史手改状态数据）：点撤回应给“未找到验收单”提示而不是报错
+    await acceptedRow.locator('button:has-text("撤回")').first().click();
+    await page.waitForTimeout(1200);
+    const toast = await page.locator(".el-message").first().innerText().catch(() => "");
+    ok("无验收单的已验收单点撤回给出提示（不报错）", /验收单/.test(toast) && (await page.locator(".el-message-box").count()) === 0, toast);
+  }
+
+  // 结算弹窗（只看文案后取消）
+  await allRows("已验收").first().locator('button:has-text("结算")').first().click();
+  await page.waitForTimeout(1000);
+  const sbox = page.locator(".el-message-box");
+  const sbody = await sbox.locator(".el-message-box__message").innerText().catch(() => "");
+  ok("结算弹窗说明“转只读、纠错走下月调整”", /只读/.test(sbody) && /调整/.test(sbody), sbody.slice(0, 60));
+  await sbox.locator('button:has-text("取消")').first().click();
+  await page.waitForTimeout(400);
+} else {
+  ok("存在已验收订单用于校验（可跳过）", false, "当前无 status=3 订单");
 }
 
 ok("无前端报错", errors.length === 0, errors.slice(0, 2).join(" | "));

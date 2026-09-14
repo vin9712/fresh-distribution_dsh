@@ -61,12 +61,13 @@ export default {
       ...(options || {}),
     })
   },
-  // 提交内容
-  prompt(content) {
-    return ElMessageBox.prompt(content, "系统提示", {
+  // 提交内容（title/options 可选，options 支持 inputValidator/inputPlaceholder 等）
+  prompt(content, title, options) {
+    return ElMessageBox.prompt(content, title || "系统提示", {
       confirmButtonText: '确定',
       cancelButtonText: '取消',
       type: "warning",
+      ...(options || {}),
     })
   },
   // 打开遮罩层
