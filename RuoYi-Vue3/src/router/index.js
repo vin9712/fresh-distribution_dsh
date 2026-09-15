@@ -233,6 +233,20 @@ export const dynamicRoutes = [
         meta: { title: '订单详情', activeMenu: '/order/sale' }
       }
     ]
+  },
+  {
+    path: '/purchase/day',
+    component: Layout,
+    hidden: true,
+    permissions: ['purchase:list'],
+    children: [
+      {
+        path: 'index/',
+        component: () => import('@/views/purchase/day'),
+        name: 'PurchaseDayEntry',
+        meta: { title: '采购录入', activeMenu: '/purchase' }
+      }
+    ]
   }
 ]
 

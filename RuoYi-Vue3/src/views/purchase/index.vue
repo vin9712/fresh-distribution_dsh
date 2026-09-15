@@ -180,8 +180,7 @@
       </el-table-column>
     </el-table>
 
-    <!-- 采购录入（日应采汇总 + 分批成本）：新增/查看当日采购单 -->
-    <purchase-day-entry v-model="dayEntryOpen" :order-date="dayEntryDate" @changed="getList" />
+    <!-- 采购录入已改为独立整页（/purchase/day/index/），无嵌套弹窗 -->
 
     <!-- S2-2.2 成本调整抽屉（W0-2.5 前端）：已确认采购单逐行调整数量/成本，禁止增删行 -->
     <el-drawer
@@ -276,12 +275,10 @@ import {
   backfillSupplier,
   delPurchase,
 } from "@/api/purchase/purchase";
-import PurchaseDayEntry from "./dayEntry.vue";
 import { Search, Refresh, Delete, Edit, Check, Select, OfficeBuilding, EditPen } from "@element-plus/icons-vue";
 
 export default {
   name: "Purchase",
-  components: { PurchaseDayEntry },
   dicts: ["t_purchase_order_status"],
   setup() {
     return { Search, Refresh, Delete, Edit, Check, Select, OfficeBuilding, EditPen };
@@ -307,9 +304,7 @@ export default {
         beginOrderDate: null,
         endOrderDate: null,
       },
-      // 采购录入（日应采汇总）
-      dayEntryOpen: false,
-      dayEntryDate: null,
+      // 采购录入（独立整页 /purchase/day/index/）
       // S2-2.2 成本调整抽屉
       adjustOpen: false,
       adjustOrder: {},
@@ -336,6 +331,18 @@ export default {
   },
   created() {
     this.getList();
+  },
+  deactivated() {
+    // 从采购录入页返回时需要刷新（录入会新增/变更当日采购单）
+    this._wasDeactivated = true;
+  },
+  activated() {
+    // 仅在“确实离开过又回来”时刷新：首次挂载 activated 不触发（标签缓存异步建立），
+    // 且首访不应双拉，故以 deactivated 为准。
+    if (this._wasDeactivated) {
+      this._wasDeactivated = false;
+      this.getList();
+    }
   },
   methods: {
     num(v) {
@@ -367,10 +374,12 @@ export default {
       this.ids = selection.map((item) => item.id);
       this.multiple = !selection.length;
     },
-    /** 采购录入：打开当日应采汇总页（row 为空=默认明日） */
+    /** 采购录入：跳转独立整页（row 为空=默认明日） */
     handleDayEntry(row) {
-      this.dayEntryDate = row ? row.orderDate : null;
-      this.dayEntryOpen = true;
+      this.$router.push({
+        path: "/purchase/day/index/",
+        query: { orderDate: row ? row.orderDate : "" },
+      });
     },
     /** 确认按钮操作 */
     handleConfirm(row) {
