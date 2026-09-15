@@ -189,7 +189,7 @@ class PurchaseOrderServiceImplTest {
     @Test
     void 当日无采购单则惰性创建草稿() {
         when(purchaseOrderMapper.selectActiveByOrderDate(DATE)).thenReturn(null);
-        when(bizCodeService.nextDailyCode("purchase", "PC", 3)).thenReturn("PC20260822001");
+        when(bizCodeService.nextDailyCode("purchase", "PC", 3, DATE)).thenReturn("PC20260822001");
         when(purchaseOrderMapper.insertPurchaseOrder(any(PurchaseOrder.class))).thenAnswer(inv -> {
             ((PurchaseOrder) inv.getArgument(0)).setId(99L);
             return 1;
@@ -205,11 +205,28 @@ class PurchaseOrderServiceImplTest {
     }
 
     @Test
+    void 建单时单号按采购日期而非建单当天() {
+        LocalDate businessDate = LocalDate.of(2026, 12, 25);
+        when(purchaseOrderMapper.selectActiveByOrderDate(businessDate)).thenReturn(null);
+        when(bizCodeService.nextDailyCode("purchase", "PC", 3, businessDate)).thenReturn("PC20261225001");
+        when(purchaseOrderMapper.insertPurchaseOrder(any(PurchaseOrder.class))).thenAnswer(inv -> {
+            ((PurchaseOrder) inv.getArgument(0)).setId(1L);
+            return 1;
+        });
+
+        PurchaseOrder result = purchaseOrderService.getOrCreateDayPurchase(businessDate);
+
+        assertEquals("PC20261225001", result.getCode());
+        // 强制按业务日期（order_date）取号，而非建单当天
+        verify(bizCodeService).nextDailyCode("purchase", "PC", 3, businessDate);
+    }
+
+    @Test
     void 并发建单撞唯一键时回查先建者返回() {
         PurchaseOrder winner = purchase(99L, "PC20260822001", PurchaseOrderStatus.DRAFT.getCode(), "0");
         // 第一次回查（预检）无单，insert 撞 uk_purchase_order_active_date，第二次回查命中先建者
         when(purchaseOrderMapper.selectActiveByOrderDate(DATE)).thenReturn(null, winner);
-        when(bizCodeService.nextDailyCode("purchase", "PC", 3)).thenReturn("PC20260822002");
+        when(bizCodeService.nextDailyCode("purchase", "PC", 3, DATE)).thenReturn("PC20260822002");
         when(purchaseOrderMapper.insertPurchaseOrder(any(PurchaseOrder.class)))
                 .thenThrow(new DuplicateKeyException("uk_purchase_order_active_date"));
 
@@ -223,7 +240,7 @@ class PurchaseOrderServiceImplTest {
     @Test
     void 并发建单且回查无单时报冲突() {
         when(purchaseOrderMapper.selectActiveByOrderDate(DATE)).thenReturn(null, (PurchaseOrder) null);
-        when(bizCodeService.nextDailyCode("purchase", "PC", 3)).thenReturn("PC20260822002");
+        when(bizCodeService.nextDailyCode("purchase", "PC", 3, DATE)).thenReturn("PC20260822002");
         when(purchaseOrderMapper.insertPurchaseOrder(any(PurchaseOrder.class)))
                 .thenThrow(new DuplicateKeyException("uk_purchase_order_active_date"));
 

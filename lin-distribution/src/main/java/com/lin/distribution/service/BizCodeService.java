@@ -1,5 +1,7 @@
 package com.lin.distribution.service;
 
+import java.time.LocalDate;
+
 /**
  * 通用业务单号服务（DB 序列，Redis 非硬依赖）
  *
@@ -23,9 +25,21 @@ public interface BizCodeService {
     String nextDailyCode(String bizType, String prefix, int seqLen);
 
     /**
+     * 生成按日重置的单号（**指定业务日期**）：prefix + bizDate(yyyyMMdd) + 定长序号。
+     * 用于「单号日期 = 业务日期」口径（如采购单用 order_date），而非建单当天；
+     * bizDate 为 null 时回退当天。
+     */
+    String nextDailyCode(String bizType, String prefix, int seqLen, LocalDate bizDate);
+
+    /**
      * 预览按日单号（不自增）
      */
     String peekDailyCode(String bizType, String prefix, int seqLen);
+
+    /**
+     * 预览按日单号（不自增，指定业务日期）
+     */
+    String peekDailyCode(String bizType, String prefix, int seqLen, LocalDate bizDate);
 
     /**
      * 生成标准SKU全局唯一编码：S + 8位数字（S00000001）

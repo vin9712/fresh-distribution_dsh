@@ -175,7 +175,8 @@ public class PurchaseOrderServiceImpl implements PurchaseOrderService {
             return existing;
         }
         PurchaseOrder order = new PurchaseOrder();
-        order.setCode(bizCodeService.nextDailyCode("purchase", "PC", 3));
+        // 单号日期口径 = 采购日期（order_date），而非建单当天（跨天录次日单时单号与业务日期一致）
+        order.setCode(bizCodeService.nextDailyCode("purchase", "PC", 3, orderDate));
         order.setOrderDate(orderDate);
         order.setTotalAmount(BigDecimal.ZERO);
         order.setStatus(PurchaseOrderStatus.DRAFT.getCode());

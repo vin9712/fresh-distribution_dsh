@@ -182,6 +182,8 @@ try {
   const r1 = rowOf(s1, target.key);
   ok("行内录入批次1（1 × 2.00，无弹窗）", Number(r1.purchasedQty) === 1 && Number(r1.amount) === 2,
     `已采 ${r1.purchasedQty} 金额 ${r1.amount} 单号 ${s1.code}`);
+  ok("单号日期 = 采购日期（用 order_date，非建单当天）",
+    String(s1.code).startsWith("PC" + DATE.replace(/-/g, "")), `${s1.code} vs 采购日期 ${DATE}`);
 
   // ---------- 行内录入：批次2（不同价，回车提交） ----------
   targetRow = mainRows.filter({ hasText: target.productName }).first();

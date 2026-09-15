@@ -49,14 +49,24 @@ public class BizCodeServiceImpl implements BizCodeService {
 
     @Override
     public String nextDailyCode(String bizType, String prefix, int seqLen) {
-        String date = LocalDate.now().format(DATE_FMT);
+        return nextDailyCode(bizType, prefix, seqLen, LocalDate.now());
+    }
+
+    @Override
+    public String nextDailyCode(String bizType, String prefix, int seqLen, LocalDate bizDate) {
+        String date = (bizDate == null ? LocalDate.now() : bizDate).format(DATE_FMT);
         long seq = nextSeq(bizType + ":" + date);
         return prefix + date + String.format("%0" + seqLen + "d", seq);
     }
 
     @Override
     public String peekDailyCode(String bizType, String prefix, int seqLen) {
-        String date = LocalDate.now().format(DATE_FMT);
+        return peekDailyCode(bizType, prefix, seqLen, LocalDate.now());
+    }
+
+    @Override
+    public String peekDailyCode(String bizType, String prefix, int seqLen, LocalDate bizDate) {
+        String date = (bizDate == null ? LocalDate.now() : bizDate).format(DATE_FMT);
         long seq = peekSeq(bizType + ":" + date);
         return prefix + date + String.format("%0" + seqLen + "d", seq);
     }
