@@ -33,7 +33,12 @@ DEFAULT_IGNORE_COLUMNS = {
 
 
 def parse_expected(sql_text: str):
-    """从 init_all.sql 抽取期望的 表 -> 列集合（CREATE TABLE 块 + ALTER ADD COLUMN）"""
+    """从 init_all.sql 抽取期望的 表 -> 列集合（CREATE TABLE 块 + ALTER ADD COLUMN）
+
+    注意：按**最后一次 DDL 动作**判定最终态——init_all 中「先建后删」的退役表
+    （如 price_template* / t_delivery_print_config*，尾部 [40]/[w01] 段 DROP）
+    不计入期望，否则会误报「缺失表」。
+    """
     expected = {}
     for m in re.finditer(r"CREATE TABLE (?:IF NOT EXISTS )?`([^`]+)`\s*\((.*?)\n\)\s*ENGINE", sql_text, re.S):
         tbl, body = m.group(1), m.group(2)
@@ -49,7 +54,25 @@ def parse_expected(sql_text: str):
         tbl, body = m.group(1), m.group(2)
         for c in re.findall(r"ADD COLUMN `([a-z_0-9]+)`", body):
             expected.setdefault(tbl, set()).add(c)
+    # 最终态为 DROP 的表不计入期望（建完即删的退役表）
+    dropped = finally_dropped_tables(sql_text)
+    for tbl in [t for t in expected if t.lower() in dropped]:
+        expected.pop(tbl)
     return expected
+
+
+# 所有 CREATE/DROP TABLE 动作（大小写不敏感；表名带不带反引号均可）
+DDL_ACTION_RE = re.compile(
+    r"(?im)^\s*(create table|drop table)\s+(?:if not exists\s+|if exists\s+)?[`]?([A-Za-z0-9_]+)[`]?"
+)
+
+
+def finally_dropped_tables(sql_text: str):
+    """按最后一次 DDL 动作判定最终态：最后动作是 DROP 的表 = init_all 执行后不应存在。"""
+    last = {}
+    for m in DDL_ACTION_RE.finditer(sql_text):
+        last[m.group(2).lower()] = m.group(1).lower()
+    return {t for t, kind in last.items() if kind == "drop table"}
 
 
 def fetch_actual(args):
