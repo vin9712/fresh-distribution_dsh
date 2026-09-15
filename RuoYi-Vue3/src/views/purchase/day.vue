@@ -109,6 +109,7 @@
                     :controls="false"
                     size="small"
                     style="width: 100%"
+                    @change="markBatchDirty"
                   />
                   <span v-else>{{ num(b.row.quantity) }}</span>
                 </template>
@@ -123,6 +124,7 @@
                     :controls="false"
                     size="small"
                     style="width: 100%"
+                    @change="markBatchDirty"
                   />
                   <span v-else>{{ money(b.row.unitPrice) }}</span>
                 </template>
@@ -139,6 +141,7 @@
                     v-model="b.row.supplierName"
                     size="small"
                     placeholder="可空（同供应商可多批）"
+                    @change="markBatchDirty"
                   />
                   <span v-else>{{ b.row.supplierName || "—" }}</span>
                 </template>
@@ -265,6 +268,8 @@ export default {
       header: { supplierName: "", purchaser: "", remark: "" },
       // 受控展开行（无 row-key 时展开行内编辑会触发折叠）
       expandedKeys: [],
+      // 展开行内批次是否改过但未保存（离开守卫用）
+      batchDirty: false,
     };
   },
   computed: {
@@ -288,6 +293,10 @@ export default {
       // 数量已默认填（=待采数量，未录时即订单总数），因此以「是否填了进货价」为准
       return this.rows.filter((r) => !r.orphan && this.priceFilled(r) && Number(r._entry.quantity) > 0).length;
     },
+    /** 未提交的录入内容（已填进货价，或展开行改过批次未保存） */
+    hasUnsavedDraft() {
+      return this.canEdit && (this.filledCount > 0 || this.batchDirty);
+    },
   },
   created() {
     this.orderDate = this.$route.query.orderDate || this.defaultDate();
@@ -295,15 +304,37 @@ export default {
   },
   mounted() {
     this.registerPageShortcuts();
+    window.addEventListener("beforeunload", this.onBeforeUnload);
   },
   activated() {
     this.registerPageShortcuts();
+    window.addEventListener("beforeunload", this.onBeforeUnload);
   },
   deactivated() {
     this.unregisterPageShortcuts();
+    window.removeEventListener("beforeunload", this.onBeforeUnload);
   },
   beforeUnmount() {
     this.unregisterPageShortcuts();
+    window.removeEventListener("beforeunload", this.onBeforeUnload);
+  },
+  /** 路由离开守卫：有未提交的录入内容（已填进货价/改批次未保存）先确认，避免丢数据 */
+  beforeRouteLeave(to, from, next) {
+    if (this._allowLeave || !this.hasUnsavedDraft) {
+      next();
+      return;
+    }
+    this.$modal
+      .confirm("采购录入有未提交的内容（已填进货价或改动批次未保存），离开将丢失。确定离开吗？", "未保存提醒", {
+        confirmButtonText: "离开",
+        cancelButtonText: "继续编辑",
+        type: "warning",
+      })
+      .then(() => {
+        this._allowLeave = true;
+        next();
+      })
+      .catch(() => next(false));
   },
   methods: {
     defaultDate() {
@@ -323,6 +354,17 @@ export default {
     },
     onExpandChange(row, expandedRows) {
       this.expandedKeys = (expandedRows || []).map((r) => r.key);
+    },
+    /** 展开行批次改动标记（保存成功后 load() 会清掉） */
+    markBatchDirty() {
+      this.batchDirty = true;
+    },
+    /** 浏览器关闭/刷新：有未提交内容则弹原生确认 */
+    onBeforeUnload(e) {
+      if (!this.hasUnsavedDraft) return;
+      e.preventDefault();
+      e.returnValue = "";
+      return "";
     },
     // ==================== 纯键盘录入（对齐订单录入：Enter 逐行连打） ====================
     /** Ctrl+Enter = 提交所有已填进货价的行（表格作用域，输入框内也生效；不与 QuickTable 的 Ctrl+S 撞键） */
@@ -418,6 +460,7 @@ export default {
             remark: this.summary.remark || "",
           };
           // 行内录入初始槽：数量默认=待采数量（未录时即订单总数）；进货价必须手填；供应商默认带单头
+          this.batchDirty = false;
           (this.summary.rows || []).forEach((r) => {
             const pending = Number(r.pendingQty);
             r._entry = {

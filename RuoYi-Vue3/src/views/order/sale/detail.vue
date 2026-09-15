@@ -1392,6 +1392,24 @@ export default {
   deactivated() {
     setEnabledByOwner("SaleOrderDetail", false);
   },
+  /** 路由离开守卫（浏览器/标签页返回、切菜单、切标签、全局搜索跳转）：有未保存改动先确认 */
+  beforeRouteLeave(to, from, next) {
+    if (this._allowLeave || this.browseMode || !this.isOrderDirty) {
+      next();
+      return;
+    }
+    this.$modal
+      .confirm("当前订单有未保存的修改，离开后需从「草稿」恢复。确定离开吗？", "未保存提醒", {
+        confirmButtonText: "离开",
+        cancelButtonText: "继续编辑",
+        type: "warning",
+      })
+      .then(() => {
+        this._allowLeave = true;
+        next();
+      })
+      .catch(() => next(false));
+  },
   beforeUnmount() {
     window.removeEventListener("beforeunload", this.handleBeforeUnload);
     window.removeEventListener("sale-draft-flush", this.handleBeforeUnload);
@@ -2034,15 +2052,18 @@ export default {
     },
     /** 返回按钮 */
     close() {
-      const isUpdated = this.checkTableUpdted();
-      if (isUpdated) {
+      // 用完整脏检查（明细 + 表头字段如备注/配送日期），而非仅明细
+      const dirty = !this.browseMode && this.isOrderDirty;
+      if (dirty) {
         this.$modal
-          .confirm("当前订单明细有改动，是否确认关闭？")
+          .confirm("当前订单有未保存的修改，是否确认关闭？")
           .then(() => {
+            this._allowLeave = true;
             this.$tab.closeOpenPage(orderPage);
           })
           .catch(() => {});
       } else {
+        this._allowLeave = true;
         this.$tab.closeOpenPage(orderPage);
       }
     },
@@ -3676,10 +3697,17 @@ export default {
       this.draftStatusText = `已于 ${this.formatSavedAt(new Date())} 自动保存`;
       this.draftStatusType = "saved";
     },
-    /** 页面刷新/关闭前立即保存 */
-    handleBeforeUnload() {
+    /** 页面刷新/关闭前：先落盘草稿，若仍有未保存改动则弹浏览器原生离开确认 */
+    handleBeforeUnload(e) {
       if (this._draftTimer) clearTimeout(this._draftTimer);
       this.saveDraftIfMeaningful();
+      // 仅真实关闭/刷新（beforeunload）且确有未保存改动时才拦截；
+      // 全局搜索 jump 发出的 sale-draft-flush 自定义事件不拦。
+      if (e && e.type === "beforeunload" && !this.browseMode && this.isOrderDirty) {
+        e.preventDefault();
+        e.returnValue = "";
+        return "";
+      }
     },
 
     /* ========== 常用商品面板（Phase 1.2） ========== */

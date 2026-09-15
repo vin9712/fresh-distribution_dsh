@@ -131,6 +131,27 @@ try {
   );
   ok("打开即聚焦进货价（纯键盘）", autoFocusPrice);
 
+  // ---------- 未保存离开守卫 ----------
+  await targetRow.locator(".pd-entry-price input").fill("9.99");
+  await page.waitForTimeout(200);
+  const unloadPrevented = await page.evaluate(() => {
+    const e = new Event("beforeunload", { cancelable: true });
+    window.dispatchEvent(e);
+    return e.defaultPrevented;
+  });
+  ok("有未提交内容时拦截浏览器关闭/刷新（beforeunload）", unloadPrevented);
+  await page.getByRole("button", { name: "返回列表" }).click();
+  const leaveBox = page.locator(".el-message-box");
+  await leaveBox.waitFor({ state: "visible", timeout: 8000 });
+  ok("未提交时返回列表弹出未保存确认", (await leaveBox.innerText()).includes("未提交"),
+    (await leaveBox.innerText()).replace(/\n/g, " ").slice(0, 50));
+  await leaveBox.getByRole("button", { name: "继续编辑" }).click();
+  await leaveBox.waitFor({ state: "hidden", timeout: 8000 });
+  ok("取消后仍留在采购录入页", page.url().includes("/purchase/day"));
+  // 清掉测试值，避免影响后续录入流程
+  await targetRow.locator(".pd-entry-price input").fill("");
+  await page.waitForTimeout(200);
+
   const fillEntry = async (row, qty, price, supplier) => {
     const inputs = row.locator(".pd-inline-entry input");
     await inputs.nth(0).fill(String(qty));

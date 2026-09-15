@@ -70,6 +70,11 @@
 | 列设置 | 显隐/拖拽调序/固定/宽度，localStorage `VXE_CUSTOM_STORE` | 需 grid `id` + 每列 `field` |
 | 搜索区 | 右上箭头折叠，`v-model:showSearch` 双向 | — |
 | 工具栏 | 自定义列 / 全屏 / 刷新 / 快捷键提示（?图标） | `toolbar-config` |
+
+> **未保存离开守卫（2026-09-15）**：含未保存编辑的页面（订单录入 `order/sale/detail`、采购录入 `purchase/day`）必须**双保险**防丢数据：
+> ① 路由级 `beforeRouteLeave`（浏览器/标签返回、切菜单、切 Tab、全局搜索跳转）脏则 `$modal.confirm`，取消用 `next(false)` 留在原页（Vue Router 会自动回退 URL）；
+> ② 原生 `beforeunload` 脏则 `e.preventDefault()`，弹浏览器「离开此网站？」确认；
+> ③ 页面自身「返回」按钮若已弹过确认，先置 `_allowLeave = true` 再跳，避免二次弹窗；脏判定用**完整脏检查**（含表头字段，不只明细）。
 | 大数据 | >100 行自动虚拟滚动 | `scroll-y.gt=100` |
 
 页面侧固定写法：`columns` 数组（`slots.default` 指向页面同名插槽）+ `batchActions` 数组 + mixin 提供的 `ids/single/multiple/handleSelectionChange/handleQuickDelete/handleQuickBatchAction`。
