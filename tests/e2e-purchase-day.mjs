@@ -121,6 +121,16 @@ try {
   let targetRow = mainRows.filter({ hasText: target.productName }).first();
   ok("定位目标商品行", (await targetRow.count()) > 0, `${target.productName} 应采 ${target.requiredQty}`);
 
+  // ---------- 默认值 + 纯键盘起始焦点 ----------
+  const qtyDefault = await targetRow.locator(".pd-entry-qty input").inputValue();
+  ok("数量默认=待采数量（未录时即订单总数）", Math.abs(Number(qtyDefault) - Number(target.pendingQty)) < 1e-6,
+    `默认 ${qtyDefault} vs 待采 ${target.pendingQty}`);
+  ok("进货价默认留空（必须手填）", (await targetRow.locator(".pd-entry-price input").inputValue()) === "");
+  const autoFocusPrice = await page.evaluate(
+    () => !!document.activeElement && !!document.activeElement.closest(".pd-entry-price")
+  );
+  ok("打开即聚焦进货价（纯键盘）", autoFocusPrice);
+
   const fillEntry = async (row, qty, price, supplier) => {
     const inputs = row.locator(".pd-inline-entry input");
     await inputs.nth(0).fill(String(qty));
@@ -167,6 +177,11 @@ try {
   ok("按批次保留各自供应商",
     r2.batches.map((b) => b.supplierName).join(",") === "E2E甲商,E2E乙商",
     r2.batches.map((b) => `${b.batchNo}:${b.supplierName}`).join(" "));
+  // 回车提交后焦点自动落到下一行进货价（连打）
+  const focusMoved = await page.evaluate(
+    () => !!document.activeElement && !!document.activeElement.closest(".pd-entry-price")
+  );
+  ok("回车保存后焦点落到下一行进货价（纯键盘连打）", focusMoved);
 
   // ---------- 展开行内改批次 ----------
   targetRow = mainRows.filter({ hasText: target.productName }).first();
@@ -192,14 +207,15 @@ try {
   let secondRow = mainRows.filter({ hasText: second.productName }).first();
   await fillEntry(secondRow, 2, "1.50", "E2E丙商");
   const submitBtn = page.getByRole("button", { name: /提交录入/ });
-  ok("底部「提交录入」汇总已填行数", (await submitBtn.innerText()).includes("1 行"), await submitBtn.innerText());
-  await actionWithReload(() => submitBtn.click());
+  ok("底部「提交录入」汇总已填进货价行数", (await submitBtn.innerText()).includes("1 行"), await submitBtn.innerText());
+  // 纯键盘路径：Ctrl+Enter 一次提交所有已填进货价的行
+  await actionWithReload(() => page.keyboard.press("Control+Enter"));
   const s4 = await waitFor(async () => {
     const s = await summary();
     const r = rowOf(s, second.key);
     return r && r.batchCount === 1 ? s : null;
   }, "批量提交落库");
-  ok("多行批量提交（第二商品 2 × 1.50）",
+  ok("Ctrl+Enter 多行批量提交（第二商品 2 × 1.50）",
     Number(rowOf(s4, second.key).purchasedQty) === 2 && Number(rowOf(s4, second.key).amount) === 3,
     `${second.productName} 已采 ${rowOf(s4, second.key).purchasedQty} 金额 ${rowOf(s4, second.key).amount}`);
 

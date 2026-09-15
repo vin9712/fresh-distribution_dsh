@@ -9,14 +9,14 @@
           value-format="YYYY-MM-DD"
           :clearable="false"
           :disabled="loading"
-          @change="load"
+          @change="load()"
         />
         <dict-tag v-if="summary.status != null" :options="dict.type.t_purchase_order_status" :value="summary.status" />
         <el-tag v-else type="info" size="small" effect="plain">未建单</el-tag>
         <span class="pd-code" :title="summary.code || ''">{{ summary.code || "首次录入自动创建" }}</span>
       </div>
       <div class="pd-toolbar-right">
-        <el-button size="small" :icon="Refresh" @click="load">刷新</el-button>
+        <el-button size="small" :icon="Refresh" @click="load()">刷新</el-button>
         <el-button size="small" :icon="Back" @click="goBack">返回列表</el-button>
         <el-button
           v-hasPermi="['purchase:edit']"
@@ -78,7 +78,7 @@
       :closable="false"
       show-icon
       class="pd-hint"
-      title="直接在行内「本次录入」填 数量/进货价/供应商，回车或点「加入」即保存一个批次；同一商品可多次加入（分批进货、加权算成本）。展开行可改/删已有批次，也可一次填多行后点底部「提交录入」。"
+      title="数量已默认按【待采数量】填充（未录时即订单总数），只需填进货价：回车即保存一个批次并自动跳到下一行进货价；供应商可留空（跟单头）；Ctrl+Enter 一次提交所有已填进货价的行。同一商品可多次加入（分批进货、加权算成本）。"
     />
 
     <!-- 主表：应采清单 + 行内录入 -->
@@ -209,14 +209,14 @@
               size="small"
               class="pd-entry-price"
               placeholder="进货价"
-              @keyup.enter="focusNextEntry($event)"
+              @keyup.enter="onPriceEnter($event, scope.row)"
             />
             <el-input
               v-model="scope.row._entry.supplierName"
               size="small"
               class="pd-entry-supplier"
               placeholder="供应商"
-              @keyup.enter="submitRow(scope.row)"
+              @keyup.enter="onSupplierEnter($event, scope.row)"
             />
             <el-button size="small" type="primary" plain :icon="Plus" @click="submitRow(scope.row)">加入</el-button>
           </div>
@@ -227,7 +227,7 @@
 
     <!-- 底部批量提交（多行一次性录入） -->
     <div v-if="canEdit" class="pd-footer">
-      <span>已填写 {{ filledCount }} 行，每行保存为一个进货批次；同一商品可多次加入（不同价/不同供应商）。</span>
+      <span>已填进货价 {{ filledCount }} 行（数量默认=待采数量）；回车逐行保存，或 Ctrl+Enter 一次提交。</span>
       <el-button type="primary" :icon="Select" :disabled="filledCount === 0" :loading="saving" @click="submitAll">
         提交录入（{{ filledCount }} 行）
       </el-button>
@@ -247,6 +247,7 @@ import {
   confirmPurchase,
   stockInPurchase,
 } from "@/api/purchase/purchase";
+import { SCOPE, registerShortcuts } from "@/utils/shortcut";
 import { Plus, Delete, Refresh, Check, Select, Back } from "@element-plus/icons-vue";
 
 export default {
@@ -284,12 +285,25 @@ export default {
       return this.summary.rows || [];
     },
     filledCount() {
-      return this.rows.filter((r) => Number(r._entry && r._entry.quantity) > 0).length;
+      // 数量已默认填（=待采数量，未录时即订单总数），因此以「是否填了进货价」为准
+      return this.rows.filter((r) => !r.orphan && this.priceFilled(r) && Number(r._entry.quantity) > 0).length;
     },
   },
   created() {
     this.orderDate = this.$route.query.orderDate || this.defaultDate();
     this.load();
+  },
+  mounted() {
+    this.registerPageShortcuts();
+  },
+  activated() {
+    this.registerPageShortcuts();
+  },
+  deactivated() {
+    this.unregisterPageShortcuts();
+  },
+  beforeUnmount() {
+    this.unregisterPageShortcuts();
   },
   methods: {
     defaultDate() {
@@ -310,10 +324,89 @@ export default {
     onExpandChange(row, expandedRows) {
       this.expandedKeys = (expandedRows || []).map((r) => r.key);
     },
+    // ==================== 纯键盘录入（对齐订单录入：Enter 逐行连打） ====================
+    /** Ctrl+Enter = 提交所有已填进货价的行（表格作用域，输入框内也生效；不与 QuickTable 的 Ctrl+S 撞键） */
+    registerPageShortcuts() {
+      if (this._unregShortcuts) return;
+      this._unregShortcuts = registerShortcuts([
+        {
+          scope: SCOPE.TABLE,
+          key: "ctrl+enter",
+          description: "提交录入（已填进货价的行）",
+          owner: "PurchaseDay",
+          allowInInput: true,
+          handler: () => this.submitAll(),
+        },
+      ]);
+    },
+    unregisterPageShortcuts() {
+      if (this._unregShortcuts) {
+        this._unregShortcuts();
+        this._unregShortcuts = null;
+      }
+    },
+    priceFilled(row) {
+      const p = row._entry && row._entry.unitPrice;
+      return p !== null && p !== undefined && p !== "";
+    },
+    /** 行内录入的数据行 DOM（不含展开行） */
+    entryRows() {
+      const el = this.$refs.mainTable && this.$refs.mainTable.$el;
+      if (!el) return [];
+      return Array.from(el.querySelectorAll("tbody tr")).filter((tr) => tr.querySelector(".pd-inline-entry"));
+    },
+    focusEntryAt(index, selector, attempt = 0) {
+      this.$nextTick(() => {
+        const tr = this.entryRows()[index];
+        const input = tr && tr.querySelector(selector);
+        if (input) {
+          input.focus();
+          if (input.select) input.select();
+          return;
+        }
+        // 表格行可能还没渲染出来（首次加载/切日期），短重试
+        if (attempt < 10) {
+          setTimeout(() => this.focusEntryAt(index, selector, attempt + 1), 50);
+        }
+      });
+    },
+    focusPriceByKey(key) {
+      const index = this.rows.findIndex((r) => r.key === key);
+      if (index < 0) return;
+      const doFocus = () => this.focusEntryAt(index, ".pd-entry-price input");
+      doFocus();
+      // 切日期时日期面板关闭会抢焦点，补一次
+      setTimeout(doFocus, 250);
+    },
+    focusQtyByKey(key) {
+      const index = this.rows.findIndex((r) => r.key === key);
+      if (index >= 0) this.focusEntryAt(index, ".pd-entry-qty input");
+    },
+    /** 下一个待录入行（末尾回绕），用于回车后连打 */
+    nextEntryKey(fromKey) {
+      const list = this.rows.filter((r) => !r.orphan);
+      if (!list.length) return null;
+      const i = list.findIndex((r) => r.key === fromKey);
+      return list[(i + 1) % list.length].key;
+    },
+    /** 进货价回车：数量已默认填好→直接提交；数量清空→回数量（Ctrl+Enter 交给快捷键层，避免双重提交） */
+    onPriceEnter(e, row) {
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+      if (!(Number(row._entry.quantity) > 0)) {
+        this.focusQtyByKey(row.key);
+        return;
+      }
+      this.submitRow(row);
+    },
+    /** 供应商回车 = 提交本行（Ctrl+Enter 交给快捷键层） */
+    onSupplierEnter(e, row) {
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+      this.submitRow(row);
+    },
     goBack() {
       this.$router.push("/purchase");
     },
-    load() {
+    load(focusKey) {
       if (!this.orderDate) return;
       this.loading = true;
       daySummary(this.orderDate)
@@ -324,10 +417,20 @@ export default {
             purchaser: this.summary.purchaser || "",
             remark: this.summary.remark || "",
           };
-          // 行内录入初始槽：供应商默认带单头
+          // 行内录入初始槽：数量默认=待采数量（未录时即订单总数）；进货价必须手填；供应商默认带单头
           (this.summary.rows || []).forEach((r) => {
-            r._entry = { quantity: null, unitPrice: null, supplierName: this.header.supplierName };
+            const pending = Number(r.pendingQty);
+            r._entry = {
+              quantity: pending > 0 ? pending : null,
+              unitPrice: null,
+              supplierName: this.header.supplierName,
+            };
           });
+          // 纯键盘：录入态自动聚焦首行（或指定行）的进货价
+          if (this.canEdit) {
+            const key = focusKey || (this.rows.find((r) => !r.orphan) || {}).key;
+            if (key) this.focusPriceByKey(key);
+          }
         })
         .finally(() => {
           this.loading = false;
@@ -345,8 +448,9 @@ export default {
         return res.data.id;
       });
     },
-    /** 行内回车：数量→进货价→供应商，供应商回车即提交 */
+    /** 行内回车：数量→进货价→供应商（带 Ctrl/Alt 修饰键时不处理，交给快捷键层） */
     focusNextEntry(e) {
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
       const wrap = e.target.closest(".pd-inline-entry");
       if (!wrap) return;
       const inputs = wrap.querySelectorAll("input");
@@ -372,41 +476,49 @@ export default {
         this.$modal.msgError(`【${row.productName}】请输入大于 0 的采购数量`);
         return false;
       }
-      if (row._entry.unitPrice === undefined || row._entry.unitPrice === null || Number(row._entry.unitPrice) < 0) {
-        this.$modal.msgError(`【${row.productName}】请输入进货价`);
+      if (row._entry.unitPrice === undefined || row._entry.unitPrice === null || row._entry.unitPrice === "") {
+        this.$modal.msgError(`【${row.productName}】请填写进货价`);
+        return false;
+      }
+      if (Number(row._entry.unitPrice) < 0) {
+        this.$modal.msgError(`【${row.productName}】进货价不能为负`);
         return false;
       }
       return true;
     },
-    /** 单行「加入」 */
+    /** 单行「加入」/ 进货价回车（成功后焦点落到下一行进货价，便于连打） */
     submitRow(row) {
       if (!this.validateRow(row)) return;
+      const nextKey = this.nextEntryKey(row.key);
       this.saving = true;
       this.ensurePurchaseId()
         .then((purchaseId) => addBatch(purchaseId, this.rowPayload(row)))
         .then(() => {
-          this.$modal.msgSuccess(`已加入批次：${row.productName}`);
           this.saving = false;
-          this.load();
+          this.load(nextKey);
         })
         .catch(() => {
           this.saving = false;
         });
     },
-    /** 底部批量提交（一次提交多行，任一行非法整体回滚） */
+    /** 底部/Ctrl+S 批量提交（只提交已填进货价的行，任一行非法整体回滚） */
     submitAll() {
-      const filled = this.rows.filter((r) => Number(r._entry && r._entry.quantity) > 0);
-      if (!filled.length) return;
+      const filled = this.rows.filter((r) => !r.orphan && this.priceFilled(r) && Number(r._entry.quantity) > 0);
+      if (!filled.length) {
+        this.$modal.msgWarning("请先填写进货价（数量已默认按待采数量填充）");
+        return;
+      }
       for (const r of filled) {
         if (!this.validateRow(r)) return;
       }
+      const firstKey = (this.rows.find((r) => !r.orphan) || {}).key;
       this.saving = true;
       this.ensurePurchaseId()
         .then((purchaseId) => addBatchBulk(purchaseId, filled.map((r) => this.rowPayload(r))))
         .then((res) => {
           this.$modal.msgSuccess(`已提交 ${res.data} 行批次`);
           this.saving = false;
-          this.load();
+          this.load(firstKey);
         })
         .catch(() => {
           this.saving = false;
