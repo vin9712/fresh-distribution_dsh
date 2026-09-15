@@ -3,13 +3,16 @@ package com.lin.distribution.service;
 import com.lin.distribution.domain.PurchaseItem;
 import com.lin.distribution.domain.PurchaseModifyLog;
 import com.lin.distribution.domain.PurchaseOrder;
-import com.lin.distribution.dto.PurchaseByOrdersDTO;
-import com.lin.distribution.dto.PurchaseGenerateDTO;
+import com.lin.distribution.dto.PurchaseBatchDTO;
+import com.lin.distribution.vo.PurchaseDaySummaryVO;
 
+import java.time.LocalDate;
 import java.util.List;
 
 /**
  * 采购单Service接口
+ *
+ * <p>D-056~D-063：采购单 = 当日订单应采清单（实时视图）+ 分批进货录入（行=批次），用于成本统计。</p>
  *
  * @author dsh
  */
@@ -23,7 +26,7 @@ public interface PurchaseOrderService {
     PurchaseOrder selectPurchaseOrderById(Long id);
 
     /**
-     * 查询采购单列表
+     * 查询采购单列表（含批次数/已采/应采聚合）
      *
      * @param purchaseOrder 采购单
      * @return 采购单集合
@@ -31,48 +34,78 @@ public interface PurchaseOrderService {
     List<PurchaseOrder> selectPurchaseOrderList(PurchaseOrder purchaseOrder);
 
     /**
-     * 查询采购单明细列表
+     * 查询采购单明细（批次）列表
      *
      * @param purchaseId 采购单ID
-     * @return 采购单明细集合
+     * @return 采购明细集合
      */
     List<PurchaseItem> selectPurchaseItemListByPurchaseId(Long purchaseId);
 
     /**
-     * 按配送日期自动生成采购单（汇总已确认订单，按 sku_id 合并数量）
+     * 当日应采汇总（D-056/D-059）：订单明细实时视图（应采）∪ 已录批次，
+     * 每行汇总 应采/已采/待采/批次数/加权均价/金额 + 批次明细；采购单未建时仅返回应采行。
      *
-     * @param dto 生成请求
-     * @return 生成的采购单
+     * @param orderDate 采购日期（=配送日期）
+     * @return 日应采汇总
      */
-    PurchaseOrder generateByOrderDate(PurchaseGenerateDTO dto);
+    PurchaseDaySummaryVO daySummary(LocalDate orderDate);
 
     /**
-     * 按勾选订单生成采购单（销售订单列表页抽屉，Phase 2）
-     * 仅汇总已确认订单明细，按 sku_id 合并数量；订单不可重复生成（source_order_ids 重叠校验）。
+     * 取或惰性创建当日采购单（D-056：一天一单，首次录入批次时创建）
      *
-     * @param dto 生成请求（orderIds + 供应商/采购员）
-     * @return 生成的采购单
+     * @param orderDate 采购日期（=配送日期）
+     * @return 采购单（含批次明细）
      */
-    PurchaseOrder generateByOrderIds(PurchaseByOrdersDTO dto);
+    PurchaseOrder getOrCreateDayPurchase(LocalDate orderDate);
 
     /**
-     * 手工创建采购单（含明细）
+     * 追加一个进货批次（D-057/D-058）：商品必须命中当日应采清单，
+     * 品名/规格/单位/应采数量由后端快照回填。
      *
-     * @param purchaseOrder 采购单（含 items）
+     * @param purchaseId 采购单ID
+     * @param dto        批次录入请求
+     * @return 新增的批次行
+     */
+    PurchaseItem addBatch(Long purchaseId, PurchaseBatchDTO dto);
+
+    /**
+     * 批量追加进货批次（任一行非法整体回滚）
+     *
+     * @param purchaseId 采购单ID
+     * @param items      批次录入请求集合
+     * @return 成功录入行数
+     */
+    int addBatchBulk(Long purchaseId, List<PurchaseBatchDTO> items);
+
+    /**
+     * 修改批次（仅草稿）：可改数量/进货价/供应商/备注，商品键锁定
+     *
+     * @param purchaseId 采购单ID
+     * @param itemId     批次行ID
+     * @param dto        批次录入请求
      * @return 结果
      */
-    int createPurchase(PurchaseOrder purchaseOrder);
+    int updateBatch(Long purchaseId, Long itemId, PurchaseBatchDTO dto);
 
     /**
-     * 修改采购单（仅草稿，明细先删后插）
+     * 删除批次（仅草稿）
      *
-     * @param purchaseOrder 采购单（含 items）
+     * @param purchaseId 采购单ID
+     * @param itemId     批次行ID
      * @return 结果
      */
-    int updatePurchase(PurchaseOrder purchaseOrder);
+    int deleteBatch(Long purchaseId, Long itemId);
 
     /**
-     * 确认采购单（草稿→已确认）
+     * 修改采购单单头默认供应商/采购员/备注（明细走批次接口）
+     *
+     * @param purchaseOrder 采购单（含 id）
+     * @return 结果
+     */
+    int updatePurchaseHeader(PurchaseOrder purchaseOrder);
+
+    /**
+     * 确认采购单（草稿→已确认，草稿期录入完成、锁定批次增删）
      *
      * @param id 采购单主键
      * @return 结果

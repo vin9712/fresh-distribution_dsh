@@ -29,20 +29,12 @@ public class PurchaseOrder extends BaseEntity {
     @Excel(name = "采购单号")
     private String code;
 
-    /** 采购归属日期（=订单配送日期） */
+    /** 采购归属日期（=订单配送日期；一天一单） */
     @JsonFormat(pattern = "yyyy-MM-dd")
     @Excel(name = "采购日期", width = 30, dateFormat = "yyyy-MM-dd")
     private LocalDate orderDate;
 
-    /** 来源类型：1自动生成 2手工创建 */
-    @Excel(name = "来源类型", readConverterExp = "1=自动生成,2=手工创建")
-    private Integer sourceType;
-
-    /** 来源订单ID列表（JSON） */
-    @Excel(name = "来源订单ID")
-    private String sourceOrderIds;
-
-    /** 供应商ID（可空，确认时后补） */
+    /** 供应商ID（可空；单头默认供应商，批次行可覆盖） */
     @Excel(name = "供应商ID")
     private Long supplierId;
 
@@ -76,6 +68,18 @@ public class PurchaseOrder extends BaseEntity {
     @TableField(exist = false)
     private List<PurchaseItem> items;
 
+    /** 批次数（列表展示，非表字段） */
+    @TableField(exist = false)
+    private Integer batchCount;
+
+    /** 已采数量合计（列表展示，非表字段） */
+    @TableField(exist = false)
+    private BigDecimal purchasedQty;
+
+    /** 当日应采数量合计（列表展示，非表字段） */
+    @TableField(exist = false)
+    private BigDecimal requiredQty;
+
     /** 采购日期范围起（查询条件，非表字段） */
     @JsonFormat(pattern = "yyyy-MM-dd")
     @TableField(exist = false)
@@ -92,8 +96,6 @@ public class PurchaseOrder extends BaseEntity {
             .append("id", getId())
             .append("code", getCode())
             .append("orderDate", getOrderDate())
-            .append("sourceType", getSourceType())
-            .append("sourceOrderIds", getSourceOrderIds())
             .append("supplierId", getSupplierId())
             .append("supplierName", getSupplierName())
             .append("totalAmount", getTotalAmount())

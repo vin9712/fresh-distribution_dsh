@@ -5,20 +5,23 @@ import com.lin.common.core.controller.BaseController;
 import com.lin.common.core.domain.AjaxResult;
 import com.lin.common.enums.BusinessType;
 import com.lin.distribution.domain.PurchaseOrder;
-import com.lin.distribution.dto.PurchaseByOrdersDTO;
-import com.lin.distribution.dto.PurchaseGenerateDTO;
+import com.lin.distribution.dto.PurchaseBatchDTO;
 import com.lin.distribution.service.PurchaseOrderService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDate;
 import java.util.List;
 
 /**
  * 采购单Controller
+ *
+ * <p>D-056~D-063：日应采汇总（订单视图）+ 分批成本录入（行=进货批次）。</p>
  *
  * @author dsh
  */
@@ -36,8 +39,28 @@ public class PurchaseOrderController extends BaseController {
     @PreAuthorize("@ss.hasPermi('purchase:list')")
     @GetMapping("/list")
     public AjaxResult list(PurchaseOrder purchaseOrder) {
-        List<PurchaseOrder> list = purchaseOrderService.selectPurchaseOrderList(purchaseOrder);
-        return success(list);
+        return success(purchaseOrderService.selectPurchaseOrderList(purchaseOrder));
+    }
+
+    /**
+     * 查询当日应采汇总（应采/已采/待采/批次数/加权均价/金额 + 批次明细）
+     */
+    @Operation(summary = "查询当日应采汇总")
+    @PreAuthorize("@ss.hasPermi('purchase:list')")
+    @GetMapping("/day-summary")
+    public AjaxResult daySummary(@RequestParam("orderDate") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate orderDate) {
+        return success(purchaseOrderService.daySummary(orderDate));
+    }
+
+    /**
+     * 取或惰性创建当日采购单（有写副作用，故用 POST 保证不被预取/爬虫误触）
+     */
+    @Operation(summary = "取或创建当日采购单")
+    @PreAuthorize("@ss.hasPermi('purchase:add')")
+    @Log(title = "采购单-建当日单", businessType = BusinessType.INSERT)
+    @PostMapping("/day-order")
+    public AjaxResult dayOrder(@RequestParam("orderDate") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate orderDate) {
+        return success(purchaseOrderService.getOrCreateDayPurchase(orderDate));
     }
 
     /**
@@ -51,9 +74,9 @@ public class PurchaseOrderController extends BaseController {
     }
 
     /**
-     * 获取采购单明细列表
+     * 获取采购单批次明细列表
      */
-    @Operation(summary = "获取采购单明细列表")
+    @Operation(summary = "获取采购单批次明细列表")
     @PreAuthorize("@ss.hasPermi('purchase:list')")
     @GetMapping(value = "/{id}/items")
     public AjaxResult getItems(@PathVariable("id") Long id) {
@@ -61,51 +84,63 @@ public class PurchaseOrderController extends BaseController {
     }
 
     /**
-     * 按配送日期自动生成采购单
+     * 追加一个进货批次（商品必须命中当日应采清单）
      */
-    @Operation(summary = "按配送日期自动生成采购单")
+    @Operation(summary = "追加采购批次")
     @PreAuthorize("@ss.hasPermi('purchase:add')")
-    @Log(title = "采购单", businessType = BusinessType.INSERT)
-    @PostMapping("/generate")
-    public AjaxResult generate(@RequestBody @Validated PurchaseGenerateDTO dto) {
-        return success(purchaseOrderService.generateByOrderDate(dto));
+    @Log(title = "采购单-批次录入", businessType = BusinessType.INSERT)
+    @PostMapping("/{id}/batch")
+    public AjaxResult addBatch(@PathVariable("id") Long id, @RequestBody @Valid PurchaseBatchDTO dto) {
+        return success(purchaseOrderService.addBatch(id, dto));
     }
 
     /**
-     * 按勾选订单自动生成采购单（销售订单列表页抽屉）
+     * 批量追加进货批次（任一行非法整体回滚）
      */
-    @Operation(summary = "按勾选订单自动生成采购单")
+    @Operation(summary = "批量追加采购批次")
     @PreAuthorize("@ss.hasPermi('purchase:add')")
-    @Log(title = "采购单", businessType = BusinessType.INSERT)
-    @PostMapping("/generate-by-orders")
-    public AjaxResult generateByOrders(@RequestBody @Validated PurchaseByOrdersDTO dto) {
-        return success(purchaseOrderService.generateByOrderIds(dto));
+    @Log(title = "采购单-批量录入", businessType = BusinessType.INSERT)
+    @PostMapping("/{id}/batch-bulk")
+    public AjaxResult addBatchBulk(@PathVariable("id") Long id, @RequestBody List<PurchaseBatchDTO> items) {
+        return success(purchaseOrderService.addBatchBulk(id, items));
     }
 
     /**
-     * 手工创建采购单
+     * 修改采购批次（仅草稿）
      */
-    @Operation(summary = "手工创建采购单")
-    @PreAuthorize("@ss.hasPermi('purchase:add')")
-    @Log(title = "采购单", businessType = BusinessType.INSERT)
-    @PostMapping
-    public AjaxResult add(@RequestBody PurchaseOrder purchaseOrder) {
-        return toAjax(purchaseOrderService.createPurchase(purchaseOrder));
+    @Operation(summary = "修改采购批次")
+    @PreAuthorize("@ss.hasPermi('purchase:edit')")
+    @Log(title = "采购单-批次修改", businessType = BusinessType.UPDATE)
+    @PutMapping("/{id}/batch/{itemId}")
+    public AjaxResult updateBatch(@PathVariable("id") Long id, @PathVariable("itemId") Long itemId,
+                                  @RequestBody @Valid PurchaseBatchDTO dto) {
+        return toAjax(purchaseOrderService.updateBatch(id, itemId, dto));
     }
 
     /**
-     * 修改采购单
+     * 删除采购批次（仅草稿）
      */
-    @Operation(summary = "修改采购单")
+    @Operation(summary = "删除采购批次")
+    @PreAuthorize("@ss.hasPermi('purchase:edit')")
+    @Log(title = "采购单-批次删除", businessType = BusinessType.DELETE)
+    @DeleteMapping("/{id}/batch/{itemId}")
+    public AjaxResult deleteBatch(@PathVariable("id") Long id, @PathVariable("itemId") Long itemId) {
+        return toAjax(purchaseOrderService.deleteBatch(id, itemId));
+    }
+
+    /**
+     * 修改采购单单头（默认供应商/采购员/备注）
+     */
+    @Operation(summary = "修改采购单单头")
     @PreAuthorize("@ss.hasPermi('purchase:edit')")
     @Log(title = "采购单", businessType = BusinessType.UPDATE)
     @PutMapping
     public AjaxResult edit(@RequestBody PurchaseOrder purchaseOrder) {
-        return toAjax(purchaseOrderService.updatePurchase(purchaseOrder));
+        return toAjax(purchaseOrderService.updatePurchaseHeader(purchaseOrder));
     }
 
     /**
-     * 确认采购单
+     * 确认采购单（草稿→已确认，锁定批次增删）
      */
     @Operation(summary = "确认采购单")
     @PreAuthorize("@ss.hasPermi('purchase:edit')")

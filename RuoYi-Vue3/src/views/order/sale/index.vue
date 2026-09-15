@@ -188,14 +188,6 @@
           @click="handleDelete"
           >批量删除</el-button
         >
-        <el-button
-          type="warning"
-          size="small"
-          plain
-          :icon="ShoppingBag"
-          @click="handleBuildPurchase"
-          >生成采购单</el-button
-        >
       </div>
     </div>
 
@@ -545,156 +537,6 @@
 
     <!-- 订单调整对话框（S14 退役：写入口已下线，验收后真实退货走退货单 /order/return，补货走新增销售订单） -->
 
-    <!-- 生成采购单抽屉（三步：汇总预览 → 填写信息 → 确认生成；D-055 后送货单不再生成，本抽屉只留采购链路） -->
-    <el-drawer
-      v-model="buildDrawerVisible"
-      title="生成采购单"
-      size="600px"
-      append-to-body
-      :destroy-on-close="false"
-      @closed="resetBuildDrawer"
-    >
-      <el-steps
-        :active="buildActiveStep"
-        align-center
-        finish-status="success"
-        style="margin-bottom: 18px"
-      >
-        <el-step title="汇总预览" />
-        <el-step title="填写信息" />
-        <el-step title="确认生成" />
-      </el-steps>
-
-      <!-- 第一步：按品类分组的商品汇总 -->
-      <div v-show="buildActiveStep === 0">
-        <div class="build-orders-summary">
-          <span class="build-orders-label"
-            >已选 {{ buildSelectedOrders.length }} 个订单：</span
-          >
-          <el-tag
-            v-for="o in buildSelectedOrders"
-            :key="o.id"
-            size="small"
-            class="order-code-tag"
-            >{{ o.code }}</el-tag
-          >
-        </div>
-        <div v-loading="previewLoading" class="build-preview-body">
-          <template
-            v-if="
-              previewData && previewData.groups && previewData.groups.length
-            "
-          >
-            <div
-              v-for="g in previewData.groups"
-              :key="g.categoryName"
-              class="preview-group"
-            >
-              <div class="preview-group-header">
-                <span class="preview-category">{{ g.categoryName }}</span>
-                <span class="preview-group-meta"
-                  >{{ g.items.length }} 项 / 合计 ¥{{ g.amount }}</span
-                >
-              </div>
-              <el-table :data="g.items" size="small" border>
-                <el-table-column
-                  label="商品名称"
-                  prop="productName"
-                  min-width="120"
-                  :show-overflow-tooltip="true"
-                />
-                <el-table-column label="规格" prop="productSpec" width="80" />
-                <el-table-column label="单位" prop="productUnit" width="60" />
-                <el-table-column label="数量" prop="quantity" width="70" />
-                <el-table-column label="单价" prop="price" width="80" />
-                <el-table-column label="小计" prop="amount" width="90" />
-              </el-table>
-            </div>
-            <div class="preview-total">
-              共 {{ previewData.itemCount }} 行商品，总金额
-              <b>¥{{ previewData.totalAmount }}</b>
-            </div>
-          </template>
-          <el-empty
-            v-else-if="!previewLoading"
-            description="暂无商品明细"
-            :image-size="60"
-          />
-        </div>
-      </div>
-
-      <!-- 第二步：填写信息 -->
-      <div v-show="buildActiveStep === 1">
-        <el-form label-width="90px">
-          <el-form-item label="供货商">
-            <el-input
-              v-model="buildForm.supplierName"
-              placeholder="请输入供货商名称（可空，确认时后补）"
-              clearable
-            />
-          </el-form-item>
-          <el-form-item label="采购员">
-            <el-input
-              v-model="buildForm.purchaser"
-              placeholder="请输入采购员（可空）"
-              clearable
-            />
-          </el-form-item>
-        </el-form>
-      </div>
-
-      <!-- 第三步：确认生成 -->
-      <div v-show="buildActiveStep === 2">
-        <el-descriptions :column="1" border size="small">
-          <el-descriptions-item label="单据类型"> 采购单 </el-descriptions-item>
-          <el-descriptions-item label="订单数量">
-            {{ previewData.orders.length }} 个
-          </el-descriptions-item>
-          <el-descriptions-item label="商品行数">
-            {{ previewData.itemCount }} 行
-          </el-descriptions-item>
-          <el-descriptions-item label="总金额">
-            ¥{{ previewData.totalAmount }}
-          </el-descriptions-item>
-          <el-descriptions-item label="供货商">
-            {{ buildForm.supplierName || "-" }}
-          </el-descriptions-item>
-          <el-descriptions-item label="采购员">
-            {{ buildForm.purchaser || "-" }}
-          </el-descriptions-item>
-        </el-descriptions>
-        <el-alert
-          title="同一订单不可重复生成采购单，生成后列表行将显示采购图标（悬浮可见单号）"
-          type="info"
-          :closable="false"
-          show-icon
-          style="margin-top: 14px"
-        />
-      </div>
-
-      <template #footer>
-        <div class="build-drawer-footer">
-          <el-button @click="buildDrawerVisible = false">取 消</el-button>
-          <el-button v-if="buildActiveStep > 0" @click="buildActiveStep--"
-            >上一步</el-button
-          >
-          <el-button
-            v-if="buildActiveStep < 2"
-            type="primary"
-            :disabled="!buildStep2Valid"
-            @click="buildActiveStep++"
-            >下一步</el-button
-          >
-          <el-button
-            v-else
-            type="primary"
-            :loading="buildSubmitting"
-            @click="confirmBuild"
-            >确认生成</el-button
-          >
-        </div>
-      </template>
-    </el-drawer>
 
   </div>
 </template>
@@ -708,9 +550,7 @@ import {
   addSale,
   updateSale,
   updateOrderStatus,
-  generatePreview,
 } from "@/api/order/sale";
-import { generatePurchaseByOrders } from "@/api/purchase/purchase";
 import { getOrderAdjustmentSummary } from "@/api/order/monthAdjustment";
 import { listCustomerDept } from "@/api/partner/customerDept";
 import { locateAcceptanceByOrder, revokeAcceptance } from "@/api/acceptance/acceptance";
@@ -834,8 +674,6 @@ export default {
       // 送货单位树列表
       customerDeptOptions: [],
       // 订单调整对话框（S14 退役：写入口已下线，真实退货走退货单 /order/return，补货走新增销售订单）
-      // 生成采购单/送货单抽屉
-      buildDrawerVisible: false,
       // 月结调整摘要对话框（蓝图 §2「月结调整追溯」）
       adjustmentSummary: {
         open: false,
@@ -845,28 +683,9 @@ export default {
         receivableTotal: "0",
         costTotal: "0",
       },
-      buildActiveStep: 0,
-      buildSelectedOrders: [],
-      buildForm: {
-        supplierName: null,
-        purchaser: null,
-      },
-      previewLoading: false,
-      previewData: {
-        orders: [],
-        groups: [],
-        itemCount: 0,
-        totalQuantity: 0,
-        totalAmount: 0,
-      },
-      buildSubmitting: false,
     };
   },
   computed: {
-    /** 第二步可进入：采购单无必填项（D-055 后本抽屉只剩采购链路） */
-    buildStep2Valid() {
-      return true;
-    },
   },
   created() {
     this.getTreeselect();
@@ -1286,81 +1105,6 @@ export default {
           this.$modal.msgSuccess("删除成功");
         })
         .catch(() => {});
-    },
-    /** 生成采购单 */
-    handleBuildPurchase() {
-      const selected = this.formSelectedOptions;
-      if (!selected.length) {
-        this.$modal.msgWarning("请先勾选要生成采购单的订单");
-        return;
-      }
-      if (selected.some((item) => item.status !== 1)) {
-        this.$modal.msgError("请选择审核状态的订单");
-        return;
-      }
-      this.openBuildDrawer();
-    },
-    /** 打开抽屉并加载预览 */
-    openBuildDrawer() {
-      this.buildSelectedOrders = [...this.formSelectedOptions];
-      this.buildActiveStep = 0;
-      this.buildForm = {
-        supplierName: null,
-        purchaser: null,
-      };
-      this.buildSubmitting = false;
-      this.buildDrawerVisible = true;
-      this.loadBuildPreview();
-    },
-    /** 加载汇总预览（按品类分组） */
-    loadBuildPreview() {
-      this.previewLoading = true;
-      const orderIds = this.buildSelectedOrders.map((o) => o.id);
-      generatePreview({ orderIds })
-        .then((response) => {
-          this.previewData = response.data || {
-            orders: [],
-            groups: [],
-            itemCount: 0,
-            totalQuantity: 0,
-            totalAmount: 0,
-          };
-        })
-        .finally(() => {
-          this.previewLoading = false;
-        });
-    },
-    /** 关闭抽屉后重置状态 */
-    resetBuildDrawer() {
-      this.buildSelectedOrders = [];
-      this.previewData = {
-        orders: [],
-        groups: [],
-        itemCount: 0,
-        totalQuantity: 0,
-        totalAmount: 0,
-      };
-      this.buildSubmitting = false;
-    },
-    /** 确认生成 */
-    confirmBuild() {
-      this.buildSubmitting = true;
-      const orderIds = this.buildSelectedOrders.map((o) => o.id);
-      generatePurchaseByOrders({
-        orderIds,
-        supplierName: this.buildForm.supplierName,
-        purchaser: this.buildForm.purchaser,
-      })
-        .then((response) => {
-          const codes = response.data && response.data.code;
-          this.$modal.msgSuccess("生成成功：" + (codes || ""));
-          this.buildDrawerVisible = false;
-          this.getPageList();
-        })
-        .catch(() => {})
-        .finally(() => {
-          this.buildSubmitting = false;
-        });
     },
     /** 导出按钮操作 */
     handleExport() {

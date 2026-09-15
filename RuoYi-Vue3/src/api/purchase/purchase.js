@@ -17,7 +17,7 @@ export function getPurchase(id) {
   })
 }
 
-// 查询采购单明细列表
+// 查询采购单批次明细列表
 export function getPurchaseItems(id) {
   return request({
     url: '/purchase/' + id + '/items',
@@ -25,35 +25,61 @@ export function getPurchaseItems(id) {
   })
 }
 
-// 按配送日期自动生成采购单
-export function generatePurchase(data) {
+// 当日应采汇总（D-056：应采清单实时视图 + 已录批次）
+export function daySummary(orderDate) {
   return request({
-    url: '/purchase/generate',
+    url: '/purchase/day-summary',
+    method: 'get',
+    params: { orderDate }
+  })
+}
+
+// 取或惰性创建当日采购单（有写副作用，POST）
+export function dayOrder(orderDate) {
+  return request({
+    url: '/purchase/day-order',
+    method: 'post',
+    params: { orderDate }
+  })
+}
+
+// 追加采购批次（一次实际进货）
+export function addBatch(id, data) {
+  return request({
+    url: '/purchase/' + id + '/batch',
     method: 'post',
     data: data
   })
 }
 
-// 按勾选订单生成采购单（销售订单列表页抽屉）
-export function generatePurchaseByOrders(data) {
+// 批量追加采购批次（任一行非法整体回滚）
+export function addBatchBulk(id, data) {
   return request({
-    url: '/purchase/generate-by-orders',
+    url: '/purchase/' + id + '/batch-bulk',
     method: 'post',
     data: data
   })
 }
 
-// 手工新增采购单
-export function addPurchase(data) {
+// 修改采购批次（仅草稿）
+export function updateBatch(id, itemId, data) {
   return request({
-    url: '/purchase',
-    method: 'post',
+    url: '/purchase/' + id + '/batch/' + itemId,
+    method: 'put',
     data: data
   })
 }
 
-// 修改采购单
-export function updatePurchase(data) {
+// 删除采购批次（仅草稿）
+export function delBatch(id, itemId) {
+  return request({
+    url: '/purchase/' + id + '/batch/' + itemId,
+    method: 'delete'
+  })
+}
+
+// 修改采购单单头（默认供应商/采购员/备注）
+export function updatePurchaseHeader(data) {
   return request({
     url: '/purchase',
     method: 'put',
@@ -61,7 +87,7 @@ export function updatePurchase(data) {
   })
 }
 
-// 确认采购单
+// 确认采购单（草稿→已确认，锁定批次增删）
 export function confirmPurchase(id) {
   return request({
     url: '/purchase/' + id + '/confirm',

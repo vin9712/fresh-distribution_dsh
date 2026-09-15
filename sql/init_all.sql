@@ -1666,8 +1666,6 @@ CREATE TABLE IF NOT EXISTS `purchase_order` (
   `id`               bigint(20)    NOT NULL AUTO_INCREMENT COMMENT '主键',
   `code`             varchar(32)   NOT NULL COMMENT '采购单号（PCyyyyMMddNNN）',
   `order_date`       date          NOT NULL COMMENT '采购归属日期（=订单配送日期）',
-  `source_type`      tinyint(3)    NOT NULL COMMENT '来源类型：1自动生成 2手工创建',
-  `source_order_ids` varchar(2000) DEFAULT NULL COMMENT '来源订单ID列表（JSON）',
   `supplier_id`      bigint(20)    DEFAULT NULL COMMENT '供应商ID（可空，确认时后补）',
   `supplier_name`    varchar(200)  DEFAULT NULL COMMENT '供应商名称（直填）',
   `total_amount`     decimal(12,2) NOT NULL DEFAULT 0 COMMENT '采购总额',
@@ -1675,6 +1673,7 @@ CREATE TABLE IF NOT EXISTS `purchase_order` (
   `void_reason`      varchar(200)  DEFAULT NULL COMMENT '作废原因（W0-2.1 撤回级联空单自动作废记录“订单撤回”）',
   `void_by`          varchar(64)   DEFAULT '' COMMENT '作废人',
   `void_time`        datetime      DEFAULT NULL COMMENT '作废时间',
+  `active_date`      date          GENERATED ALWAYS AS (if(`status` = 3, NULL, `order_date`)) STORED COMMENT '并发防重生成列（=order_date；作废单为 NULL）',
   `create_by`        varchar(64)   DEFAULT '' COMMENT '创建者',
   `create_time`      datetime      DEFAULT NULL COMMENT '创建时间',
   `update_by`        varchar(64)   DEFAULT '' COMMENT '更新者',
@@ -1682,23 +1681,32 @@ CREATE TABLE IF NOT EXISTS `purchase_order` (
   `remark`           varchar(500)  DEFAULT NULL COMMENT '备注',
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_code` (`code`),
+  UNIQUE KEY `uk_purchase_order_active_date` (`active_date`),
   KEY `idx_order_date` (`order_date`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='采购单主表';
 
 CREATE TABLE IF NOT EXISTS `purchase_item` (
-  `id`           bigint(20)    NOT NULL AUTO_INCREMENT COMMENT '主键',
-  `purchase_id`  bigint(20)    NOT NULL COMMENT '采购单ID',
-  `sku_id`       bigint(20)    DEFAULT NULL COMMENT 'SKU（临时商品可空）',
-  `product_name` varchar(200)  NOT NULL COMMENT '商品名称快照',
-  `product_spec` varchar(200)  DEFAULT NULL COMMENT '规格快照',
-  `product_unit` varchar(50)   DEFAULT NULL COMMENT '单位快照',
-  `quantity`     decimal(10,2) NOT NULL DEFAULT 0 COMMENT '数量',
-  `unit_price`   decimal(10,2) NOT NULL DEFAULT 0 COMMENT '采购单价（成本）',
-  `subtotal`     decimal(12,2) NOT NULL DEFAULT 0 COMMENT '小计',
-  `sort`         int(10)       NOT NULL DEFAULT 0 COMMENT '排序',
+  `id`            bigint(20)    NOT NULL AUTO_INCREMENT COMMENT '主键',
+  `purchase_id`   bigint(20)    NOT NULL COMMENT '采购单ID',
+  `batch_no`      int(10)       NOT NULL DEFAULT 1 COMMENT '同商品组内批次序号（1,2,3…）',
+  `sku_id`        bigint(20)    DEFAULT NULL COMMENT 'SKU（临时商品可空）',
+  `supplier_id`   bigint(20)    DEFAULT NULL COMMENT '本批次供应商ID（可空）',
+  `supplier_name` varchar(200)  DEFAULT NULL COMMENT '本批次供应商名称（直填）',
+  `product_name`  varchar(200)  NOT NULL COMMENT '商品名称快照',
+  `product_spec`  varchar(200)  DEFAULT NULL COMMENT '规格快照',
+  `product_unit`  varchar(50)   DEFAULT NULL COMMENT '单位快照',
+  `quantity`      decimal(10,2) NOT NULL DEFAULT 0 COMMENT '数量（本批次进货数量）',
+  `required_qty`  decimal(12,2) DEFAULT NULL COMMENT '录入时快照的应采数量（差异审计用）',
+  `unit_price`    decimal(10,2) NOT NULL DEFAULT 0 COMMENT '采购单价（进货成本价）',
+  `subtotal`      decimal(12,2) NOT NULL DEFAULT 0 COMMENT '小计',
+  `sort`          int(10)       NOT NULL DEFAULT 0 COMMENT '排序',
+  `create_by`     varchar(64)   DEFAULT '' COMMENT '录入人',
+  `create_time`   datetime      DEFAULT NULL COMMENT '录入时间',
+  `remark`        varchar(500)  DEFAULT NULL COMMENT '批次备注（发票号/车次等）',
   PRIMARY KEY (`id`),
-  KEY `idx_purchase_id` (`purchase_id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='采购单明细表';
+  KEY `idx_purchase_id` (`purchase_id`),
+  KEY `idx_purchase_sku` (`purchase_id`, `sku_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='采购单明细表（行=一次进货批次）';
 
 -- 已确认采购单调整审计日志（W0-2.5 已确认采购纠错：操作日志 + 前后金额记录）
 CREATE TABLE IF NOT EXISTS `purchase_modify_log` (
@@ -4578,6 +4586,154 @@ SET `visible` = '1',
     `update_time` = NOW()
 WHERE (`menu_id` = 2081 OR `component` = 'order/acceptance/index')
   AND (`visible` <> '1' OR `status` <> '0');
+
+-- ============================================================
+-- [45] 采购单重设计：日应采汇总 + 分批成本录入  | 源: s30_purchase_batch_entry.sql
+--      A 段：purchase_item 行改「一次进货批次」加批次列；purchase_order 退役
+--            source_type / source_order_ids（撤回级联改按 order_date 反查）。
+--      B 段：清空历史采购数据（开发期重构，注释保护，人工确认后执行）。
+-- ============================================================
+
+SET @col_exists := (
+    SELECT COUNT(*) FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'purchase_item' AND COLUMN_NAME = 'batch_no'
+);
+SET @ddl := IF(@col_exists = 0,
+    'ALTER TABLE `purchase_item`
+        ADD COLUMN `batch_no` int(10) NOT NULL DEFAULT 1 COMMENT ''同商品组内批次序号（1,2,3…）'' AFTER `purchase_id`',
+    'SELECT 1');
+PREPARE stmt FROM @ddl;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @col_exists := (
+    SELECT COUNT(*) FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'purchase_item' AND COLUMN_NAME = 'supplier_id'
+);
+SET @ddl := IF(@col_exists = 0,
+    'ALTER TABLE `purchase_item`
+        ADD COLUMN `supplier_id` bigint(20) DEFAULT NULL COMMENT ''本批次供应商ID（可空）'' AFTER `sku_id`',
+    'SELECT 1');
+PREPARE stmt FROM @ddl;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @col_exists := (
+    SELECT COUNT(*) FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'purchase_item' AND COLUMN_NAME = 'supplier_name'
+);
+SET @ddl := IF(@col_exists = 0,
+    'ALTER TABLE `purchase_item`
+        ADD COLUMN `supplier_name` varchar(200) DEFAULT NULL COMMENT ''本批次供应商名称（直填）'' AFTER `supplier_id`',
+    'SELECT 1');
+PREPARE stmt FROM @ddl;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @col_exists := (
+    SELECT COUNT(*) FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'purchase_item' AND COLUMN_NAME = 'required_qty'
+);
+SET @ddl := IF(@col_exists = 0,
+    'ALTER TABLE `purchase_item`
+        ADD COLUMN `required_qty` decimal(12,2) DEFAULT NULL COMMENT ''录入时快照的应采数量（差异审计用）'' AFTER `quantity`',
+    'SELECT 1');
+PREPARE stmt FROM @ddl;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @col_exists := (
+    SELECT COUNT(*) FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'purchase_item' AND COLUMN_NAME = 'create_by'
+);
+SET @ddl := IF(@col_exists = 0,
+    'ALTER TABLE `purchase_item`
+        ADD COLUMN `create_by` varchar(64) DEFAULT '''' COMMENT ''录入人'' AFTER `sort`',
+    'SELECT 1');
+PREPARE stmt FROM @ddl;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @col_exists := (
+    SELECT COUNT(*) FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'purchase_item' AND COLUMN_NAME = 'create_time'
+);
+SET @ddl := IF(@col_exists = 0,
+    'ALTER TABLE `purchase_item`
+        ADD COLUMN `create_time` datetime DEFAULT NULL COMMENT ''录入时间'' AFTER `create_by`',
+    'SELECT 1');
+PREPARE stmt FROM @ddl;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @col_exists := (
+    SELECT COUNT(*) FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'purchase_item' AND COLUMN_NAME = 'remark'
+);
+SET @ddl := IF(@col_exists = 0,
+    'ALTER TABLE `purchase_item`
+        ADD COLUMN `remark` varchar(500) DEFAULT NULL COMMENT ''批次备注（发票号/车次等）'' AFTER `create_time`',
+    'SELECT 1');
+PREPARE stmt FROM @ddl;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @col_exists := (
+    SELECT COUNT(*) FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'purchase_order' AND COLUMN_NAME = 'source_type'
+);
+SET @ddl := IF(@col_exists = 1,
+    'ALTER TABLE `purchase_order` DROP COLUMN `source_type`',
+    'SELECT 1');
+PREPARE stmt FROM @ddl;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @col_exists := (
+    SELECT COUNT(*) FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'purchase_order' AND COLUMN_NAME = 'source_order_ids'
+);
+SET @ddl := IF(@col_exists = 1,
+    'ALTER TABLE `purchase_order` DROP COLUMN `source_order_ids`',
+    'SELECT 1');
+PREPARE stmt FROM @ddl;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+-- B 段（⚠ 注释保护，人工确认后执行）：清空历史采购数据
+-- DELETE FROM `purchase_modify_log`;
+-- DELETE FROM `purchase_item`;
+-- DELETE FROM `purchase_order`;
+
+-- ------------------------------------------------------------
+-- A-3. 并发防重建当日单：active_date 生成列 + 唯一索引
+--      active_date = if(status=3, NULL, order_date)：作废单为 NULL 不占位，
+--      同一天允许「作废后重建」，但非作废单全局唯一（应用层捕获 DuplicateKeyException 后回查）。
+--      ⚠ 若历史数据存在同日多张非作废采购单，需先清理/作废多余单后再执行唯一索引。
+-- ------------------------------------------------------------
+
+SET @col_exists := (
+    SELECT COUNT(*) FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'purchase_order' AND COLUMN_NAME = 'active_date'
+);
+SET @ddl := IF(@col_exists = 0,
+    'ALTER TABLE `purchase_order`
+        ADD COLUMN `active_date` date GENERATED ALWAYS AS (if(`status` = 3, NULL, `order_date`)) STORED COMMENT ''并发防重生成列（=order_date；作废单为 NULL）'' AFTER `void_time`',
+    'SELECT 1');
+PREPARE stmt FROM @ddl;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @idx_exists := (
+    SELECT COUNT(DISTINCT INDEX_NAME) FROM information_schema.STATISTICS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'purchase_order' AND INDEX_NAME = 'uk_purchase_order_active_date'
+);
+SET @ddl := IF(@idx_exists = 0,
+    'ALTER TABLE `purchase_order` ADD UNIQUE KEY `uk_purchase_order_active_date` (`active_date`)',
+    'SELECT 1');
+PREPARE stmt FROM @ddl;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
 
 -- ============================================================
 -- 初始化结束

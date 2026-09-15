@@ -5,23 +5,21 @@ import com.lin.common.exception.ServiceException;
 import com.lin.common.utils.DateUtils;
 import com.lin.common.utils.SecurityUtils;
 import com.lin.distribution.constant.PurchaseOrderStatus;
-import com.lin.distribution.constant.SaleOrderStatus;
 import com.lin.distribution.domain.PurchaseItem;
 import com.lin.distribution.domain.PurchaseModifyLog;
 import com.lin.distribution.domain.PurchaseOrder;
-import com.lin.distribution.domain.SaleOrder;
-import com.lin.distribution.dto.PurchaseByOrdersDTO;
-import com.lin.distribution.dto.PurchaseGenerateDTO;
+import com.lin.distribution.dto.PurchaseBatchDTO;
+import com.lin.distribution.mapper.MonthSettlementMapper;
 import com.lin.distribution.mapper.PurchaseItemMapper;
 import com.lin.distribution.mapper.PurchaseModifyLogMapper;
 import com.lin.distribution.mapper.PurchaseOrderMapper;
-import com.lin.distribution.mapper.MonthSettlementMapper;
-import com.lin.distribution.mapper.SaleOrderMapper;
 import com.lin.distribution.service.BizCodeService;
 import com.lin.distribution.service.PurchaseOrderService;
+import com.lin.distribution.vo.PurchaseDaySummaryVO;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
+import org.springframework.dao.DuplicateKeyException;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.math.NumberUtils;
 import org.springframework.stereotype.Service;
@@ -32,16 +30,21 @@ import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
-import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
-import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
  * 采购单Service业务层处理
+ *
+ * <p>D-056~D-063 重设计：采购单主体 = 采购日期（=配送日期，一天一单）；
+ * 「应采清单」为订单明细实时视图（不落库）；{@code purchase_item} 行 = 一次实际进货批次，
+ * 支持同一商品多批次（不同进货价/供应商），成本按批次加权平均。</p>
  *
  * @author dsh
  */
@@ -49,16 +52,15 @@ import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 public class PurchaseOrderServiceImpl implements PurchaseOrderService {
-    /** 来源类型：自动生成 */
-    private static final int SOURCE_TYPE_AUTO = 1;
-    /** 来源类型：手工创建 */
-    private static final int SOURCE_TYPE_MANUAL = 2;
+    /** 加权均价保留位数 */
+    private static final int AVG_PRICE_SCALE = 4;
+    /** 金额保留位数 */
+    private static final int AMOUNT_SCALE = 2;
 
     private final PurchaseOrderMapper purchaseOrderMapper;
     private final PurchaseItemMapper purchaseItemMapper;
     private final PurchaseModifyLogMapper purchaseModifyLogMapper;
     private final MonthSettlementMapper monthSettlementMapper;
-    private final SaleOrderMapper saleOrderMapper;
     private final BizCodeService bizCodeService;
 
     @Override
@@ -76,182 +78,248 @@ public class PurchaseOrderServiceImpl implements PurchaseOrderService {
         return purchaseItemMapper.selectPurchaseItemListByPurchaseId(purchaseId);
     }
 
-    @Override
-    @Transactional
-    public PurchaseOrder generateByOrderIds(PurchaseByOrdersDTO dto) {
-        if (dto == null || CollectionUtils.isEmpty(dto.getOrderIds())) {
-            throw new ServiceException("请选择要生成采购单的订单");
-        }
-        List<Long> orderIds = dto.getOrderIds().stream().distinct().collect(Collectors.toList());
-
-        // 校验：订单存在且均已确认，配送日期一致（采购单归属日期 = 配送日期）
-        List<SaleOrder> orders = saleOrderMapper.selectSaleOrderByIdIn(orderIds);
-        if (orders.size() != orderIds.size()) {
-            throw new ServiceException("部分订单不存在或已删除，请刷新列表后重试");
-        }
-        String invalidCodes = orders.stream()
-                .filter(o -> !SaleOrderStatus.CONFIRMED.getCode().equals(o.getStatus()))
-                .map(SaleOrder::getCode)
-                .collect(Collectors.joining(","));
-        if (StringUtils.isNotEmpty(invalidCodes)) {
-            throw new ServiceException("以下订单不是审核状态，无法生成采购单：" + invalidCodes);
-        }
-        Set<LocalDate> dates = orders.stream().map(SaleOrder::getDeliveryDate).collect(Collectors.toSet());
-        if (dates.size() > 1) {
-            throw new ServiceException("所选订单配送日期不一致，请按配送日期分批生成采购单");
-        }
-        LocalDate orderDate = orders.get(0).getDeliveryDate();
-
-        // 幂等：任一选中订单已存在于自动采购单 source_order_ids 则拒绝
-        checkOrdersNotInAutoPurchase(orderIds);
-
-        List<PurchaseItem> summaryItems = purchaseItemMapper.selectSummaryByOrderIds(orderIds);
-        if (CollectionUtils.isEmpty(summaryItems)) {
-            throw new ServiceException("所选订单没有可汇总的商品明细，无法生成采购单");
-        }
-
-        String code = bizCodeService.nextDailyCode("purchase", "PC", 3);
-        BigDecimal totalAmount = calcTotalAmount(summaryItems);
-
-        PurchaseOrder order = new PurchaseOrder();
-        order.setCode(code);
-        order.setOrderDate(orderDate);
-        order.setSourceType(SOURCE_TYPE_AUTO);
-        order.setSourceOrderIds(JSON.toJSONString(orderIds));
-        order.setSupplierName(dto.getSupplierName());
-        order.setPurchaser(dto.getPurchaser());
-        order.setTotalAmount(totalAmount);
-        order.setStatus(PurchaseOrderStatus.DRAFT.getCode());
-        order.setCreateTime(DateUtils.getNowDate());
-        purchaseOrderMapper.insertPurchaseOrder(order);
-
-        fillItemsAndSave(order.getId(), summaryItems);
-
-        return order;
-    }
-
-    /**
-     * 幂等校验：已有自动采购单引用任一选中订单则抛异常（含按日期生成的旧单）
-     */
-    private void checkOrdersNotInAutoPurchase(List<Long> orderIds) {
-        PurchaseOrder query = new PurchaseOrder();
-        query.setSourceType(SOURCE_TYPE_AUTO);
-        List<PurchaseOrder> existList = purchaseOrderMapper.selectPurchaseOrderList(query);
-        if (CollectionUtils.isEmpty(existList)) {
-            return;
-        }
-        Set<Long> target = new HashSet<>(orderIds);
-        for (PurchaseOrder po : existList) {
-            if (StringUtils.isEmpty(po.getSourceOrderIds())) {
-                continue;
-            }
-            List<Long> ids;
-            try {
-                ids = JSON.parseArray(po.getSourceOrderIds(), Long.class);
-            } catch (Exception ignored) {
-                // source_order_ids 非 JSON 的历史数据跳过
-                continue;
-            }
-            for (Long id : ids) {
-                if (target.contains(id)) {
-                    throw new ServiceException("订单已包含在采购单【" + po.getCode() + "】中，请勿重复生成");
-                }
-            }
-        }
-    }
+    // ==================== 日应采汇总（D-056/D-059） ====================
 
     @Override
-    @Transactional
-    public PurchaseOrder generateByOrderDate(PurchaseGenerateDTO dto) {
-        LocalDate orderDate = dto.getOrderDate();
+    public PurchaseDaySummaryVO daySummary(LocalDate orderDate) {
         if (orderDate == null) {
             throw new ServiceException("采购日期不能为空");
         }
-        checkAutoPurchaseNotExist(orderDate);
+        List<PurchaseDaySummaryVO.RequiredRow> required = purchaseItemMapper.selectRequiredSummary(orderDate);
+        PurchaseOrder purchase = purchaseOrderMapper.selectActiveByOrderDate(orderDate);
+        List<PurchaseItem> items = purchase == null
+                ? new ArrayList<>()
+                : purchaseItemMapper.selectPurchaseItemListByPurchaseId(purchase.getId());
 
-        List<PurchaseItem> summaryItems = purchaseItemMapper.selectSummaryByDeliveryDate(orderDate);
-        if (CollectionUtils.isEmpty(summaryItems)) {
-            throw new ServiceException("该配送日期没有已确认订单明细，无法生成采购单");
+        // 行 = 应采清单 ∪ 已录批次（按采购汇总键合并；应采行在前，订单已撤回的遗留批次追加在后）
+        Map<String, PurchaseDaySummaryVO.Row> rowMap = new LinkedHashMap<>();
+        for (PurchaseDaySummaryVO.RequiredRow r : required) {
+            String key = summaryKey(r.getSkuId(), r.getProductName(), r.getProductSpec(), r.getProductUnit());
+            rowMap.put(key, newRow(key, r.getSkuId(), r.getProductName(), r.getProductSpec(), r.getProductUnit(),
+                    nvl(r.getRequiredQty()), false));
+        }
+        for (PurchaseItem item : items) {
+            String key = summaryKey(item.getSkuId(), item.getProductName(), item.getProductSpec(), item.getProductUnit());
+            PurchaseDaySummaryVO.Row row = rowMap.get(key);
+            if (row == null) {
+                // 订单已撤回但批次仍在（成本是事实，不自动删）
+                row = newRow(key, item.getSkuId(), item.getProductName(), item.getProductSpec(), item.getProductUnit(),
+                        BigDecimal.ZERO, true);
+                rowMap.put(key, row);
+            }
+            row.setPurchasedQty(row.getPurchasedQty().add(nvl(item.getQuantity())));
+            row.setAmount(row.getAmount().add(nvl(item.getSubtotal())));
+            row.setBatchCount(row.getBatchCount() + 1);
+            row.getBatches().add(toBatch(item));
         }
 
-        List<Long> sourceOrderIds = purchaseOrderMapper.selectSourceOrderIdsByDeliveryDate(orderDate);
+        List<PurchaseDaySummaryVO.Row> rows = new ArrayList<>(rowMap.values());
+        BigDecimal requiredTotal = BigDecimal.ZERO;
+        BigDecimal purchasedTotal = BigDecimal.ZERO;
+        BigDecimal pendingTotal = BigDecimal.ZERO;
+        int purchasedItemCount = 0;
+        int overCount = 0;
+        for (PurchaseDaySummaryVO.Row row : rows) {
+            BigDecimal pending = row.getRequiredQty().subtract(row.getPurchasedQty());
+            row.setPendingQty(pending);
+            row.setAvgPrice(row.getPurchasedQty().compareTo(BigDecimal.ZERO) > 0
+                    ? row.getAmount().divide(row.getPurchasedQty(), AVG_PRICE_SCALE, RoundingMode.HALF_UP)
+                    : BigDecimal.ZERO);
+            if (!Boolean.TRUE.equals(row.getOrphan())
+                    && row.getPurchasedQty().compareTo(BigDecimal.ZERO) > 0) {
+                purchasedItemCount++;
+            }
+            if (pending.compareTo(BigDecimal.ZERO) < 0) {
+                overCount++;
+            }
+            requiredTotal = requiredTotal.add(row.getRequiredQty());
+            purchasedTotal = purchasedTotal.add(row.getPurchasedQty());
+            pendingTotal = pendingTotal.add(pending);
+        }
 
-        String code = bizCodeService.nextDailyCode("purchase", "PC", 3);
+        return PurchaseDaySummaryVO.builder()
+                .purchaseId(purchase == null ? null : purchase.getId())
+                .code(purchase == null ? null : purchase.getCode())
+                .status(purchase == null ? null : purchase.getStatus())
+                .orderDate(orderDate)
+                .supplierId(purchase == null ? null : purchase.getSupplierId())
+                .supplierName(purchase == null ? null : purchase.getSupplierName())
+                .purchaser(purchase == null ? null : purchase.getPurchaser())
+                .remark(purchase == null ? null : purchase.getRemark())
+                .totalAmount(purchase == null ? BigDecimal.ZERO : nvl(purchase.getTotalAmount()))
+                .requiredItemCount(required.size())
+                .purchasedItemCount(purchasedItemCount)
+                .requiredQty(requiredTotal)
+                .purchasedQty(purchasedTotal)
+                .pendingQty(pendingTotal)
+                .overCount(overCount)
+                .rows(rows)
+                .build();
+    }
 
-        BigDecimal totalAmount = calcTotalAmount(summaryItems);
-
+    /**
+     * 取或惰性创建当日采购单（D-056：一天一单，首次录入批次时创建）。
+     *
+     * <p>并发防重：依赖 {@code uk_purchase_order_active_date} 唯一索引（active_date 生成列，
+     * 作废单为 NULL 不占位）。并发下后到者的 insert 撞唯一键，捕获后回查先建者返回；
+     * 注意本方法刻意不开事务——回查需要新的读快照才能看到并发事务已提交的现单。</p>
+     */
+    @Override
+    public PurchaseOrder getOrCreateDayPurchase(LocalDate orderDate) {
+        if (orderDate == null) {
+            throw new ServiceException("采购日期不能为空");
+        }
+        PurchaseOrder existing = purchaseOrderMapper.selectActiveByOrderDate(orderDate);
+        if (existing != null) {
+            existing.setItems(purchaseItemMapper.selectPurchaseItemListByPurchaseId(existing.getId()));
+            return existing;
+        }
         PurchaseOrder order = new PurchaseOrder();
-        order.setCode(code);
+        order.setCode(bizCodeService.nextDailyCode("purchase", "PC", 3));
         order.setOrderDate(orderDate);
-        order.setSourceType(SOURCE_TYPE_AUTO);
-        order.setSourceOrderIds(JSON.toJSONString(sourceOrderIds));
-        order.setTotalAmount(totalAmount);
+        order.setTotalAmount(BigDecimal.ZERO);
         order.setStatus(PurchaseOrderStatus.DRAFT.getCode());
         order.setCreateTime(DateUtils.getNowDate());
-        purchaseOrderMapper.insertPurchaseOrder(order);
-
-        fillItemsAndSave(order.getId(), summaryItems);
-
+        try {
+            purchaseOrderMapper.insertPurchaseOrder(order);
+        } catch (DuplicateKeyException e) {
+            // 并发建单撞唯一键：以先提交者为准，回查现单（无外层事务时为新快照，可见对方已提交行）
+            PurchaseOrder winner = purchaseOrderMapper.selectActiveByOrderDate(orderDate);
+            if (winner == null) {
+                throw new ServiceException("当日采购单创建冲突，请刷新后重试");
+            }
+            order = winner;
+        }
+        order.setItems(new ArrayList<>());
+        log.info("[purchase day init] 创建当日采购单 {}（采购日期 {}，操作者：{}）",
+                order.getCode(), orderDate, resolveOperator());
         return order;
     }
 
+    // ==================== 批次录入（D-057/D-058） ====================
+
     @Override
     @Transactional
-    public int createPurchase(PurchaseOrder purchaseOrder) {
-        if (purchaseOrder == null) {
-            throw new ServiceException("采购单不能为空");
-        }
-        List<PurchaseItem> items = purchaseOrder.getItems();
-        if (CollectionUtils.isEmpty(items)) {
-            throw new ServiceException("采购明细不能为空");
-        }
-        if (purchaseOrder.getOrderDate() == null) {
-            throw new ServiceException("采购日期不能为空");
-        }
-
-        purchaseOrder.setCode(bizCodeService.nextDailyCode("purchase", "PC", 3));
-        purchaseOrder.setSourceType(SOURCE_TYPE_MANUAL);
-        purchaseOrder.setSourceOrderIds(null);
-        purchaseOrder.setStatus(PurchaseOrderStatus.DRAFT.getCode());
-        purchaseOrder.setTotalAmount(calcTotalAmount(items));
-        purchaseOrder.setCreateTime(DateUtils.getNowDate());
-        int rows = purchaseOrderMapper.insertPurchaseOrder(purchaseOrder);
-
-        fillItemsAndSave(purchaseOrder.getId(), items);
-
-        return rows;
+    public PurchaseItem addBatch(Long purchaseId, PurchaseBatchDTO dto) {
+        PurchaseOrder purchase = getDraftPurchase(purchaseId);
+        Map<String, PurchaseDaySummaryVO.RequiredRow> required = requiredMap(purchase.getOrderDate());
+        List<PurchaseItem> existing = purchaseItemMapper.selectPurchaseItemListByPurchaseId(purchaseId);
+        PurchaseItem item = doAddBatch(purchase, required, existing, dto);
+        recalcTotal(purchaseId);
+        return item;
     }
 
     @Override
     @Transactional
-    public int updatePurchase(PurchaseOrder purchaseOrder) {
+    public int addBatchBulk(Long purchaseId, List<PurchaseBatchDTO> items) {
+        if (CollectionUtils.isEmpty(items)) {
+            throw new ServiceException("请至少录入一个采购批次");
+        }
+        PurchaseOrder purchase = getDraftPurchase(purchaseId);
+        Map<String, PurchaseDaySummaryVO.RequiredRow> required = requiredMap(purchase.getOrderDate());
+        // 先全量校验（商品必须在当日应采清单 + 数量/单价合法），保证任一行非法整体不落库
+        for (PurchaseBatchDTO dto : items) {
+            resolveRequiredRow(dto, required);
+        }
+        List<PurchaseItem> existing = purchaseItemMapper.selectPurchaseItemListByPurchaseId(purchaseId);
+        for (PurchaseBatchDTO dto : items) {
+            doAddBatch(purchase, required, existing, dto);
+        }
+        recalcTotal(purchaseId);
+        return items.size();
+    }
+
+    @Override
+    @Transactional
+    public int updateBatch(Long purchaseId, Long itemId, PurchaseBatchDTO dto) {
+        getDraftPurchase(purchaseId);
+        PurchaseItem item = purchaseItemMapper.selectPurchaseItemById(itemId);
+        if (item == null || !Objects.equals(item.getPurchaseId(), purchaseId)) {
+            throw new ServiceException("采购批次不存在或不属于该采购单");
+        }
+        validateBatchFields(dto);
+        PurchaseItem update = new PurchaseItem();
+        update.setId(itemId);
+        update.setQuantity(dto.getQuantity());
+        update.setUnitPrice(dto.getUnitPrice());
+        update.setSubtotal(calcSubtotal(dto.getQuantity(), dto.getUnitPrice()));
+        // updateBatchFields 是全字段 SET：dto 未传 supplierId 时沿用原值，避免抹掉批次已有供应商
+        update.setSupplierId(dto.getSupplierId() != null ? dto.getSupplierId() : item.getSupplierId());
+        update.setSupplierName(StringUtils.trimToNull(dto.getSupplierName()));
+        update.setRemark(StringUtils.trimToNull(dto.getRemark()));
+        purchaseItemMapper.updateBatchFields(update);
+        recalcTotal(purchaseId);
+        return 1;
+    }
+
+    @Override
+    @Transactional
+    public int deleteBatch(Long purchaseId, Long itemId) {
+        getDraftPurchase(purchaseId);
+        PurchaseItem item = purchaseItemMapper.selectPurchaseItemById(itemId);
+        if (item == null || !Objects.equals(item.getPurchaseId(), purchaseId)) {
+            throw new ServiceException("采购批次不存在或不属于该采购单");
+        }
+        int rows = purchaseItemMapper.deletePurchaseItemByIds(new Long[]{itemId});
+        recalcTotal(purchaseId);
+        return rows;
+    }
+
+    /**
+     * 单批次落库（调用方保证 required/existing 已加载，供批量录入复用计数器）
+     */
+    private PurchaseItem doAddBatch(PurchaseOrder purchase,
+                                    Map<String, PurchaseDaySummaryVO.RequiredRow> required,
+                                    List<PurchaseItem> existing,
+                                    PurchaseBatchDTO dto) {
+        PurchaseDaySummaryVO.RequiredRow requiredRow = resolveRequiredRow(dto, required);
+        String key = summaryKey(dto.getSkuId(), dto.getProductName(), dto.getProductSpec(), dto.getProductUnit());
+        PurchaseItem item = new PurchaseItem();
+        item.setPurchaseId(purchase.getId());
+        item.setBatchNo(nextBatchNo(existing, key));
+        // 快照一律取应采清单（忽略前端传值），保证成本与订单口径一致
+        item.setSkuId(requiredRow.getSkuId());
+        item.setProductName(requiredRow.getProductName());
+        item.setProductSpec(requiredRow.getProductSpec());
+        item.setProductUnit(requiredRow.getProductUnit());
+        item.setQuantity(dto.getQuantity());
+        item.setRequiredQty(nvl(requiredRow.getRequiredQty()));
+        item.setUnitPrice(dto.getUnitPrice());
+        item.setSubtotal(calcSubtotal(dto.getQuantity(), dto.getUnitPrice()));
+        item.setSort(nextSort(existing));
+        item.setSupplierId(dto.getSupplierId());
+        item.setSupplierName(StringUtils.trimToNull(dto.getSupplierName()));
+        item.setRemark(StringUtils.trimToNull(dto.getRemark()));
+        item.setCreateBy(resolveOperator());
+        item.setCreateTime(DateUtils.getNowDate());
+        purchaseItemMapper.insertPurchaseItem(item);
+        existing.add(item);
+        return item;
+    }
+
+    @Override
+    @Transactional
+    public int updatePurchaseHeader(PurchaseOrder purchaseOrder) {
         if (purchaseOrder == null || purchaseOrder.getId() == null) {
             throw new ServiceException("采购单ID不能为空");
         }
         PurchaseOrder exist = getExistPurchaseOrder(purchaseOrder.getId());
-        if (!PurchaseOrderStatus.DRAFT.getCode().equals(exist.getStatus())) {
-            throw new ServiceException("仅草稿状态可修改");
+        if (!PurchaseOrderStatus.DRAFT.getCode().equals(exist.getStatus())
+                && !PurchaseOrderStatus.CONFIRMED.getCode().equals(exist.getStatus())) {
+            throw new ServiceException("仅草稿/已确认采购单可修改单头信息");
         }
-        List<PurchaseItem> items = purchaseOrder.getItems();
-        if (CollectionUtils.isEmpty(items)) {
-            throw new ServiceException("采购明细不能为空");
-        }
-
-        // 锁定不可变字段（单号、日期、来源、来源订单、状态）
-        purchaseOrder.setCode(exist.getCode());
-        purchaseOrder.setOrderDate(exist.getOrderDate());
-        purchaseOrder.setSourceType(exist.getSourceType());
-        purchaseOrder.setSourceOrderIds(exist.getSourceOrderIds());
-        purchaseOrder.setStatus(exist.getStatus());
-        purchaseOrder.setTotalAmount(calcTotalAmount(items));
-        purchaseOrder.setUpdateTime(DateUtils.getNowDate());
-        int rows = purchaseOrderMapper.updatePurchaseOrder(purchaseOrder);
-
-        purchaseItemMapper.deletePurchaseItemByPurchaseId(purchaseOrder.getId());
-        fillItemsAndSave(purchaseOrder.getId(), items);
-
-        return rows;
+        PurchaseOrder update = new PurchaseOrder();
+        update.setId(exist.getId());
+        update.setSupplierId(purchaseOrder.getSupplierId());
+        update.setSupplierName(StringUtils.trimToNull(purchaseOrder.getSupplierName()));
+        update.setPurchaser(StringUtils.trimToNull(purchaseOrder.getPurchaser()));
+        update.setRemark(StringUtils.trimToNull(purchaseOrder.getRemark()));
+        update.setUpdateBy(resolveOperator());
+        update.setUpdateTime(DateUtils.getNowDate());
+        return purchaseOrderMapper.updatePurchaseHeader(update);
     }
+
+    // ==================== 状态流转（D-060） ====================
 
     @Override
     @Transactional
@@ -259,6 +327,9 @@ public class PurchaseOrderServiceImpl implements PurchaseOrderService {
         PurchaseOrder exist = getExistPurchaseOrder(id);
         if (!PurchaseOrderStatus.DRAFT.getCode().equals(exist.getStatus())) {
             throw new ServiceException("仅草稿状态可确认");
+        }
+        if (CollectionUtils.isEmpty(purchaseItemMapper.selectPurchaseItemListByPurchaseId(id))) {
+            throw new ServiceException("当日采购单尚未录入任何批次，不能确认");
         }
         PurchaseOrder update = new PurchaseOrder();
         update.setId(id);
@@ -397,7 +468,7 @@ public class PurchaseOrderServiceImpl implements PurchaseOrderService {
             item.setProductName(before.getProductName());
             item.setProductSpec(before.getProductSpec());
             item.setProductUnit(before.getProductUnit());
-            item.setSubtotal(NumberUtils.toScaledBigDecimal(item.getQuantity().multiply(item.getUnitPrice()), 2, RoundingMode.HALF_UP));
+            item.setSubtotal(calcSubtotal(item.getQuantity(), item.getUnitPrice()));
             item.setSort(sort++);
             afterTotal = afterTotal.add(item.getSubtotal());
         }
@@ -462,46 +533,40 @@ public class PurchaseOrderServiceImpl implements PurchaseOrderService {
         return purchaseOrderMapper.deletePurchaseOrderByIds(ids);
     }
 
+    // ==================== 内部工具 ====================
+
     /**
-     * 幂等检查：当日已存在自动生成的草稿采购单则抛异常
+     * 当日应采清单（按采购汇总键索引），用于批次录入的商品命中校验
      */
-    private void checkAutoPurchaseNotExist(LocalDate orderDate) {
-        PurchaseOrder query = new PurchaseOrder();
-        query.setOrderDate(orderDate);
-        query.setSourceType(SOURCE_TYPE_AUTO);
-        query.setStatus(PurchaseOrderStatus.DRAFT.getCode());
-        List<PurchaseOrder> existList = purchaseOrderMapper.selectPurchaseOrderList(query);
-        if (CollectionUtils.isNotEmpty(existList)) {
-            throw new ServiceException("该日期采购单已生成");
+    private Map<String, PurchaseDaySummaryVO.RequiredRow> requiredMap(LocalDate orderDate) {
+        Map<String, PurchaseDaySummaryVO.RequiredRow> map = new HashMap<>();
+        for (PurchaseDaySummaryVO.RequiredRow row : purchaseItemMapper.selectRequiredSummary(orderDate)) {
+            map.put(summaryKey(row.getSkuId(), row.getProductName(), row.getProductSpec(), row.getProductUnit()), row);
         }
+        return map;
     }
 
     /**
-     * 计算采购总额，并回填每条明细的小计与排序
+     * 重算并回写采购单总额 = Σ批次小计
      */
-    private BigDecimal calcTotalAmount(List<PurchaseItem> items) {
-        BigDecimal total = BigDecimal.ZERO;
-        int sort = 0;
-        for (PurchaseItem item : items) {
-            BigDecimal quantity = Optional.ofNullable(item.getQuantity()).orElse(BigDecimal.ZERO);
-            BigDecimal unitPrice = Optional.ofNullable(item.getUnitPrice()).orElse(BigDecimal.ZERO);
-            BigDecimal subtotal = NumberUtils.toScaledBigDecimal(quantity.multiply(unitPrice), 2, RoundingMode.HALF_UP);
-            item.setSubtotal(subtotal);
-            item.setSort(sort++);
-            total = total.add(subtotal);
-        }
-        return total;
+    private void recalcTotal(Long purchaseId) {
+        List<PurchaseItem> items = purchaseItemMapper.selectPurchaseItemListByPurchaseId(purchaseId);
+        BigDecimal total = items.stream()
+                .map(it -> nvl(it.getSubtotal()))
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        PurchaseOrder header = new PurchaseOrder();
+        header.setId(purchaseId);
+        header.setTotalAmount(total);
+        header.setUpdateTime(DateUtils.getNowDate());
+        purchaseOrderMapper.updatePurchaseOrder(header);
     }
 
-    /**
-     * 回填采购单ID并批量保存明细
-     */
-    private void fillItemsAndSave(Long purchaseId, List<PurchaseItem> items) {
-        for (PurchaseItem item : items) {
-            item.setId(null);
-            item.setPurchaseId(purchaseId);
+    private PurchaseOrder getDraftPurchase(Long purchaseId) {
+        PurchaseOrder exist = getExistPurchaseOrder(purchaseId);
+        if (!PurchaseOrderStatus.DRAFT.getCode().equals(exist.getStatus())) {
+            throw new ServiceException("仅草稿状态可增删改采购批次（已确认请走「调整成本」）");
         }
-        purchaseItemMapper.insertPurchaseItemBatch(items);
+        return exist;
     }
 
     private PurchaseOrder getExistPurchaseOrder(Long id) {
@@ -513,6 +578,100 @@ public class PurchaseOrderServiceImpl implements PurchaseOrderService {
             throw new ServiceException("采购单不存在");
         }
         return exist;
+    }
+
+    /**
+     * 校验批次字段并解析命中的应采清单行（D-058：商品必须在当日订单商品内）
+     */
+    private PurchaseDaySummaryVO.RequiredRow resolveRequiredRow(PurchaseBatchDTO dto,
+                                                               Map<String, PurchaseDaySummaryVO.RequiredRow> required) {
+        validateBatchFields(dto);
+        String key = summaryKey(dto.getSkuId(), dto.getProductName(), dto.getProductSpec(), dto.getProductUnit());
+        PurchaseDaySummaryVO.RequiredRow row = required.get(key);
+        if (row == null) {
+            throw new ServiceException("商品【" + displayName(dto) + "】不在当日订单商品内，不可录入采购");
+        }
+        return row;
+    }
+
+    private void validateBatchFields(PurchaseBatchDTO dto) {
+        if (dto == null) {
+            throw new ServiceException("采购批次不能为空");
+        }
+        if (dto.getQuantity() == null || dto.getQuantity().compareTo(BigDecimal.ZERO) <= 0) {
+            throw new ServiceException("采购数量必须大于 0");
+        }
+        if (dto.getUnitPrice() == null || dto.getUnitPrice().compareTo(BigDecimal.ZERO) < 0) {
+            throw new ServiceException("进货价不能为空且不能为负");
+        }
+    }
+
+    private int nextBatchNo(List<PurchaseItem> existing, String key) {
+        return existing.stream()
+                .filter(it -> key.equals(summaryKey(it.getSkuId(), it.getProductName(), it.getProductSpec(), it.getProductUnit())))
+                .map(it -> Optional.ofNullable(it.getBatchNo()).orElse(0))
+                .max(Comparator.naturalOrder())
+                .orElse(0) + 1;
+    }
+
+    private int nextSort(List<PurchaseItem> existing) {
+        return existing.stream()
+                .map(it -> Optional.ofNullable(it.getSort()).orElse(0))
+                .max(Comparator.naturalOrder())
+                .orElse(-1) + 1;
+    }
+
+    private BigDecimal calcSubtotal(BigDecimal quantity, BigDecimal unitPrice) {
+        return NumberUtils.toScaledBigDecimal(quantity.multiply(unitPrice), AMOUNT_SCALE, RoundingMode.HALF_UP);
+    }
+
+    private PurchaseDaySummaryVO.Row newRow(String key, Long skuId, String name, String spec, String unit,
+                                            BigDecimal requiredQty, boolean orphan) {
+        return PurchaseDaySummaryVO.Row.builder()
+                .key(key)
+                .skuId(skuId)
+                .productName(name)
+                .productSpec(spec)
+                .productUnit(unit)
+                .requiredQty(requiredQty)
+                .purchasedQty(BigDecimal.ZERO)
+                .pendingQty(BigDecimal.ZERO)
+                .batchCount(0)
+                .avgPrice(BigDecimal.ZERO)
+                .amount(BigDecimal.ZERO)
+                .orphan(orphan)
+                .batches(new ArrayList<>())
+                .build();
+    }
+
+    private PurchaseDaySummaryVO.Batch toBatch(PurchaseItem item) {
+        return PurchaseDaySummaryVO.Batch.builder()
+                .id(item.getId())
+                .batchNo(item.getBatchNo())
+                .quantity(item.getQuantity())
+                .unitPrice(item.getUnitPrice())
+                .subtotal(item.getSubtotal())
+                .supplierId(item.getSupplierId())
+                .supplierName(item.getSupplierName())
+                .createBy(item.getCreateBy())
+                .createTime(item.getCreateTime())
+                .remark(item.getRemark())
+                .build();
+    }
+
+    private String displayName(PurchaseBatchDTO dto) {
+        return StringUtils.defaultIfBlank(dto.getProductName(),
+                dto.getSkuId() == null ? "未知商品" : "SKU:" + dto.getSkuId());
+    }
+
+    /**
+     * 采购汇总键：sku + 品名 + 规格 + 单位（与应采清单 group by、撤回级联扣除口径一致）
+     */
+    private String summaryKey(Long skuId, String productName, String productSpec, String productUnit) {
+        return (skuId == null ? "_" : skuId)
+                + "|" + StringUtils.defaultString(productName)
+                + "|" + StringUtils.defaultString(productSpec)
+                + "|" + StringUtils.defaultString(productUnit);
     }
 
     /**

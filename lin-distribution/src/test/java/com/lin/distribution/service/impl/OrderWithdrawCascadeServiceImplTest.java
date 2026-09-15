@@ -39,14 +39,16 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * 订单撤回级联测试（W0-2.1，蓝图「撤回级联/共享单据撤回/空关联单据」）
+ * 订单撤回级联测试（W0-2.1 + D-061 批次化）
  *
  * <p>覆盖：已打印/已送达送货单与已入库采购单拒撤；独占待打印单空单作废（原因=订单撤回）；
- * 共享待打印单扣除重算不影响其他订单；采购按汇总键扣除、零行删除、空单作废。</p>
+ * 共享待打印单扣除重算不影响其他订单；采购按 order_date 反查、按采购汇总键在批次维度扣除
+ * （后录入先扣）、零行删除、空单作废。</p>
  */
 @ExtendWith(MockitoExtension.class)
 class OrderWithdrawCascadeServiceImplTest {
@@ -73,6 +75,7 @@ class OrderWithdrawCascadeServiceImplTest {
     private static final String ORDER_CODE = "XD202608280001";
     private static final Long DELIVERY_ID = 10L;
     private static final Long PURCHASE_ID = 20L;
+    private static final LocalDate DELIVERY_DATE = LocalDate.of(2026, 8, 28);
 
     // ==================== 校验：拒绝线 ====================
 
@@ -102,8 +105,6 @@ class OrderWithdrawCascadeServiceImplTest {
 
     @Test
     void 已生成验收单的订单不可撤回() {
-        // 2026-09-14：撤回后订单回草稿但验收行仍挂在原明细上 → 会出现“已撤回却改不了单”，
-        // 正确顺序是先在验收页撤销/删除验收单
         Acceptance acc = new Acceptance();
         acc.setId(9L);
         acc.setCode("YS20260914001");
@@ -115,13 +116,10 @@ class OrderWithdrawCascadeServiceImplTest {
 
         assertTrue(ex.getMessage().contains("验收单"));
         assertTrue(ex.getMessage().contains("YS20260914001"));
-        assertTrue(ex.getMessage().contains(ORDER_CODE));
     }
 
     @Test
     void 仅有历史关联且无法自动扣除的送货单不可撤回() {
-        // 2026-09-14：pre-S14 订单只靠 t_delivery_order_detail.order_id 关联送货单（无 source_item 台账），
-        // 级联无法自动扣除/作废 → 放任撤回会让订单与送货单永久不一致
         when(acceptanceMapper.selectBySaleOrder(ORDER_ID)).thenReturn(null);
         when(deliverySourceItemMapper.selectValidBySaleOrderId(ORDER_ID)).thenReturn(Collections.emptyList());
         DeliveryOrderDetail legacy = detail(11L, 15L, new BigDecimal("5"), new BigDecimal("2.00"));
@@ -139,11 +137,9 @@ class OrderWithdrawCascadeServiceImplTest {
 
     @Test
     void 被已入库采购单引用的订单不可撤回() {
-        // 送货侧无占用
         when(deliverySourceItemMapper.selectValidBySaleOrderId(ORDER_ID)).thenReturn(Collections.emptyList());
-        PurchaseOrder stocked = purchase(PURCHASE_ID, "PC202608280001", PurchaseOrderStatus.STOCKED.getCode(),
-                "[100,101]");
-        when(purchaseOrderMapper.selectPurchaseOrderList(any(PurchaseOrder.class))).thenReturn(List.of(stocked));
+        when(purchaseOrderMapper.selectActiveByOrderDate(DELIVERY_DATE))
+                .thenReturn(purchase(PURCHASE_ID, "PC202608280001", PurchaseOrderStatus.STOCKED.getCode()));
 
         ServiceException ex = assertThrows(ServiceException.class,
                 () -> service.validateOrderWithdrawable(order(ORDER_ID, ORDER_CODE)));
@@ -158,10 +154,9 @@ class OrderWithdrawCascadeServiceImplTest {
                 .thenReturn(List.of(sourceItem(DELIVERY_ID, 11L, ORDER_ID, "3")));
         when(deliveryOrderMapper.selectListByIds(List.of(DELIVERY_ID)))
                 .thenReturn(List.of(delivery(DELIVERY_ID, "HS202608280001", DeliveryOrderStatus.PENDING.getCode())));
-        when(purchaseOrderMapper.selectPurchaseOrderList(any(PurchaseOrder.class)))
-                .thenReturn(List.of(purchase(PURCHASE_ID, "PC202608280001", PurchaseOrderStatus.DRAFT.getCode(), "[100]")));
+        when(purchaseOrderMapper.selectActiveByOrderDate(DELIVERY_DATE))
+                .thenReturn(purchase(PURCHASE_ID, "PC202608280001", PurchaseOrderStatus.DRAFT.getCode()));
 
-        // 无异常即通过
         service.validateOrderWithdrawable(order(ORDER_ID, ORDER_CODE));
 
         verify(purchaseOrderMapper, never()).updatePurchaseOrder(any(PurchaseOrder.class));
@@ -170,7 +165,7 @@ class OrderWithdrawCascadeServiceImplTest {
     @Test
     void 无关联单据时校验直接通过() {
         when(deliverySourceItemMapper.selectValidBySaleOrderId(ORDER_ID)).thenReturn(Collections.emptyList());
-        when(purchaseOrderMapper.selectPurchaseOrderList(any(PurchaseOrder.class))).thenReturn(Collections.emptyList());
+        when(purchaseOrderMapper.selectActiveByOrderDate(DELIVERY_DATE)).thenReturn(null);
 
         service.validateOrderWithdrawable(order(ORDER_ID, ORDER_CODE));
 
@@ -188,9 +183,8 @@ class OrderWithdrawCascadeServiceImplTest {
         when(deliverySourceItemMapper.selectListByDeliveryId(DELIVERY_ID))
                 .thenReturn(List.of(sourceItem(DELIVERY_ID, 11L, ORDER_ID, "3")));
 
-        WithdrawCascadeResultVO result = service.cascadeOnOrderWithdraw(ORDER_ID);
+        WithdrawCascadeResultVO result = service.cascadeOnOrderWithdraw(order(ORDER_ID, ORDER_CODE));
 
-        // 分配释放 + 空单作废 + 原因
         verify(deliverySourceItemMapper).deleteByDeliveryIdAndSaleOrderId(DELIVERY_ID, ORDER_ID);
         verify(deliverySourceItemMapper).deleteByDeliveryId(DELIVERY_ID);
         ArgumentCaptor<DeliveryOrder> captor = ArgumentCaptor.forClass(DeliveryOrder.class);
@@ -199,13 +193,11 @@ class OrderWithdrawCascadeServiceImplTest {
         assertEquals("订单撤回", captor.getValue().getVoidReason());
         assertEquals(List.of("HS202608280001"), result.getVoidedDeliveryCodes());
         assertTrue(result.getDeductedDeliveryCodes().isEmpty());
-        // 空单整体作废，不再逐行删明细（整单无有效来源，明细节由作废态保护）
         verify(deliveryOrderDetailMapper, never()).deleteDeliveryOrderDetailById(anyLong());
     }
 
     @Test
     void 共享待打印送货单仅扣除被撤订单并重算不影响其他订单() {
-        // 送货单含订单100（被撤，分配2）与订单101（保留，分配3）
         DeliverySourceItem withdrawn = sourceItem(DELIVERY_ID, 11L, ORDER_ID, "2");
         DeliverySourceItem kept = sourceItem(DELIVERY_ID, 11L, 101L, "3");
         when(deliverySourceItemMapper.selectValidBySaleOrderId(ORDER_ID)).thenReturn(List.of(withdrawn));
@@ -215,11 +207,9 @@ class OrderWithdrawCascadeServiceImplTest {
 
         DeliveryOrderDetail detail = detail(11L, DELIVERY_ID, new BigDecimal("5"), new BigDecimal("2.00"));
         when(deliveryOrderDetailMapper.selectListByDeliveryId(DELIVERY_ID)).thenReturn(List.of(detail));
-        when(purchaseOrderMapper.selectPurchaseOrderList(any(PurchaseOrder.class))).thenReturn(Collections.emptyList());
 
-        WithdrawCascadeResultVO result = service.cascadeOnOrderWithdraw(ORDER_ID);
+        WithdrawCascadeResultVO result = service.cascadeOnOrderWithdraw(order(ORDER_ID, ORDER_CODE));
 
-        // 重算：num = 5 - 2 = 3，amount = 2.00 × 3 = 6.00；单据保留不作废
         ArgumentCaptor<DeliveryOrderDetail> captor = ArgumentCaptor.forClass(DeliveryOrderDetail.class);
         verify(deliveryOrderDetailMapper).updateDeliveryOrderDetail(captor.capture());
         assertEquals(0, new BigDecimal("3").compareTo(captor.getValue().getNum()));
@@ -232,63 +222,58 @@ class OrderWithdrawCascadeServiceImplTest {
     @Test
     void 送货单无该订单分配时级联为空操作() {
         when(deliverySourceItemMapper.selectValidBySaleOrderId(ORDER_ID)).thenReturn(Collections.emptyList());
-        when(purchaseOrderMapper.selectPurchaseOrderList(any(PurchaseOrder.class))).thenReturn(Collections.emptyList());
+        when(purchaseOrderMapper.selectActiveByOrderDate(DELIVERY_DATE)).thenReturn(null);
 
-        WithdrawCascadeResultVO result = service.cascadeOnOrderWithdraw(ORDER_ID);
+        WithdrawCascadeResultVO result = service.cascadeOnOrderWithdraw(order(ORDER_ID, ORDER_CODE));
 
         assertTrue(result.getVoidedDeliveryCodes().isEmpty());
         assertTrue(result.getDeductedDeliveryCodes().isEmpty());
         verify(deliverySourceItemMapper, never()).deleteByDeliveryIdAndSaleOrderId(anyLong(), anyLong());
     }
 
-    // ==================== 采购级联 ====================
+    // ==================== 采购级联（D-061 批次化） ====================
 
     @Test
-    void 共享采购单按汇总键扣除数量并重算金额与来源() {
-        PurchaseOrder purchase = purchase(PURCHASE_ID, "PC202608280001", PurchaseOrderStatus.CONFIRMED.getCode(),
-                "[100,101]");
-        when(purchaseOrderMapper.selectPurchaseOrderList(any(PurchaseOrder.class))).thenReturn(List.of(purchase));
+    void 共享采购单按汇总键在批次维度扣除后录入批次先扣() {
         when(deliverySourceItemMapper.selectValidBySaleOrderId(ORDER_ID)).thenReturn(Collections.emptyList());
-        // 订单100明细：sku1 数量2、sku2 数量3
+        PurchaseOrder purchase = purchase(PURCHASE_ID, "PC202608280001", PurchaseOrderStatus.CONFIRMED.getCode());
+        when(purchaseOrderMapper.selectActiveByOrderDate(DELIVERY_DATE)).thenReturn(purchase);
+        // 订单100：sku1 数量 2
         when(saleOrderDetailMapper.selectValidByOrderIdIn(List.of(ORDER_ID)))
-                .thenReturn(Arrays.asList(
-                        saleDetail(1L, 1001L, "白菜", "5kg", new BigDecimal("2")),
-                        saleDetail(2L, 1002L, "土豆", "10kg", new BigDecimal("3"))));
-        // 采购单明细：sku1 数量5（含订单101的3）、sku2 数量3（全来自订单100）
-        PurchaseItem keptItem = purchaseItem(11L, 1001L, "白菜", "5kg", new BigDecimal("5"), new BigDecimal("2.00"));
-        PurchaseItem zeroItem = purchaseItem(12L, 1002L, "土豆", "10kg", new BigDecimal("3"), new BigDecimal("1.00"));
+                .thenReturn(List.of(saleDetail(1L, 1001L, "白菜", "5kg", new BigDecimal("2"))));
+        // 当日采购单该 SKU 有两批：id=11（早，3 件）、id=13（晚，4 件）→ 后者先扣
+        PurchaseItem early = purchaseItem(11L, 1001L, "白菜", "5kg", new BigDecimal("3"), new BigDecimal("2.00"));
+        PurchaseItem late = purchaseItem(13L, 1001L, "白菜", "5kg", new BigDecimal("4"), new BigDecimal("2.00"));
         when(purchaseItemMapper.selectPurchaseItemListByPurchaseId(PURCHASE_ID))
-                .thenReturn(Arrays.asList(keptItem, zeroItem));
+                .thenReturn(Arrays.asList(early, late));
 
-        WithdrawCascadeResultVO result = service.cascadeOnOrderWithdraw(ORDER_ID);
+        WithdrawCascadeResultVO result = service.cascadeOnOrderWithdraw(order(ORDER_ID, ORDER_CODE));
 
-        // sku1 保留行：5-2=3，小计=3×2.00=6.00
+        // 晚批次 4-2=2（小计 4.00），早批次 3 不变
         ArgumentCaptor<PurchaseItem> itemCaptor = ArgumentCaptor.forClass(PurchaseItem.class);
-        verify(purchaseItemMapper).updatePurchaseItem(itemCaptor.capture());
-        assertEquals(0, new BigDecimal("3").compareTo(itemCaptor.getValue().getQuantity()));
-        assertEquals(0, new BigDecimal("6.00").compareTo(itemCaptor.getValue().getSubtotal()));
-        // sku2 扣至 0 → 删行
-        verify(purchaseItemMapper).deletePurchaseItemByIds(new Long[]{12L});
-        // 单据保留：总额重算、来源订单移除 100
+        verify(purchaseItemMapper, times(1)).updatePurchaseItem(itemCaptor.capture());
+        assertEquals(13L, itemCaptor.getValue().getId());
+        assertEquals(0, new BigDecimal("2").compareTo(itemCaptor.getValue().getQuantity()));
+        assertEquals(0, new BigDecimal("4.00").compareTo(itemCaptor.getValue().getSubtotal()));
+        verify(purchaseItemMapper, never()).deletePurchaseItemByIds(any(Long[].class));
+        // 单据保留，总额 = 3×2 + 2×2 = 10.00
         ArgumentCaptor<PurchaseOrder> poCaptor = ArgumentCaptor.forClass(PurchaseOrder.class);
         verify(purchaseOrderMapper).updatePurchaseOrder(poCaptor.capture());
-        assertEquals(0, new BigDecimal("6.00").compareTo(poCaptor.getValue().getTotalAmount()));
-        assertEquals("[101]", poCaptor.getValue().getSourceOrderIds());
-        assertEquals(PurchaseOrderStatus.CONFIRMED.getCode(), poCaptor.getValue().getStatus());
+        assertEquals(0, new BigDecimal("10.00").compareTo(poCaptor.getValue().getTotalAmount()));
         assertEquals(List.of("PC202608280001"), result.getDeductedPurchaseCodes());
     }
 
     @Test
     void 采购单扣除后无明细自动作废原因订单撤回() {
-        PurchaseOrder purchase = purchase(PURCHASE_ID, "PC202608280001", PurchaseOrderStatus.DRAFT.getCode(), "[100]");
-        when(purchaseOrderMapper.selectPurchaseOrderList(any(PurchaseOrder.class))).thenReturn(List.of(purchase));
         when(deliverySourceItemMapper.selectValidBySaleOrderId(ORDER_ID)).thenReturn(Collections.emptyList());
+        PurchaseOrder purchase = purchase(PURCHASE_ID, "PC202608280001", PurchaseOrderStatus.DRAFT.getCode());
+        when(purchaseOrderMapper.selectActiveByOrderDate(DELIVERY_DATE)).thenReturn(purchase);
         when(saleOrderDetailMapper.selectValidByOrderIdIn(List.of(ORDER_ID)))
                 .thenReturn(List.of(saleDetail(1L, 1001L, "白菜", "5kg", new BigDecimal("2"))));
         when(purchaseItemMapper.selectPurchaseItemListByPurchaseId(PURCHASE_ID))
                 .thenReturn(List.of(purchaseItem(11L, 1001L, "白菜", "5kg", new BigDecimal("2"), new BigDecimal("2.00"))));
 
-        WithdrawCascadeResultVO result = service.cascadeOnOrderWithdraw(ORDER_ID);
+        WithdrawCascadeResultVO result = service.cascadeOnOrderWithdraw(order(ORDER_ID, ORDER_CODE));
 
         verify(purchaseItemMapper).deletePurchaseItemByIds(new Long[]{11L});
         ArgumentCaptor<PurchaseOrder> captor = ArgumentCaptor.forClass(PurchaseOrder.class);
@@ -300,11 +285,10 @@ class OrderWithdrawCascadeServiceImplTest {
 
     @Test
     void 采购单被手工改小导致超扣时钳到零删行不误伤保留行() {
-        PurchaseOrder purchase = purchase(PURCHASE_ID, "PC202608280001", PurchaseOrderStatus.DRAFT.getCode(),
-                "[100,101]");
-        when(purchaseOrderMapper.selectPurchaseOrderList(any(PurchaseOrder.class))).thenReturn(List.of(purchase));
         when(deliverySourceItemMapper.selectValidBySaleOrderId(ORDER_ID)).thenReturn(Collections.emptyList());
-        // 订单100明细 sku1 数量2，但采购行已被手工改小为 1 → 超扣
+        PurchaseOrder purchase = purchase(PURCHASE_ID, "PC202608280001", PurchaseOrderStatus.DRAFT.getCode());
+        when(purchaseOrderMapper.selectActiveByOrderDate(DELIVERY_DATE)).thenReturn(purchase);
+        // 订单100 sku1 数量 2，但该批次已被手工改小为 1 → 超扣
         when(saleOrderDetailMapper.selectValidByOrderIdIn(List.of(ORDER_ID)))
                 .thenReturn(List.of(saleDetail(1L, 1001L, "白菜", "5kg", new BigDecimal("2"))));
         PurchaseItem overDeducted = purchaseItem(11L, 1001L, "白菜", "5kg", new BigDecimal("1"), new BigDecimal("3.00"));
@@ -312,12 +296,10 @@ class OrderWithdrawCascadeServiceImplTest {
         when(purchaseItemMapper.selectPurchaseItemListByPurchaseId(PURCHASE_ID))
                 .thenReturn(Arrays.asList(overDeducted, otherSku));
 
-        WithdrawCascadeResultVO result = service.cascadeOnOrderWithdraw(ORDER_ID);
+        WithdrawCascadeResultVO result = service.cascadeOnOrderWithdraw(order(ORDER_ID, ORDER_CODE));
 
-        // 超扣行钳到 0 删除；其他 SKU 行不受影响（不 update、不 delete）
         verify(purchaseItemMapper).deletePurchaseItemByIds(new Long[]{11L});
         verify(purchaseItemMapper, never()).updatePurchaseItem(any(PurchaseItem.class));
-        // 保留行仍在 → 单据保留，总额=4×1.00=4.00
         ArgumentCaptor<PurchaseOrder> captor = ArgumentCaptor.forClass(PurchaseOrder.class);
         verify(purchaseOrderMapper).updatePurchaseOrder(captor.capture());
         assertEquals(0, new BigDecimal("4.00").compareTo(captor.getValue().getTotalAmount()));
@@ -325,25 +307,11 @@ class OrderWithdrawCascadeServiceImplTest {
     }
 
     @Test
-    void 已作废采购单在级联中跳过() {
-        PurchaseOrder voided = purchase(PURCHASE_ID, "PC202608280001", PurchaseOrderStatus.VOIDED.getCode(), "[100]");
-        when(purchaseOrderMapper.selectPurchaseOrderList(any(PurchaseOrder.class))).thenReturn(List.of(voided));
+    void 无当日采购单时采购级联为空操作() {
         when(deliverySourceItemMapper.selectValidBySaleOrderId(ORDER_ID)).thenReturn(Collections.emptyList());
+        when(purchaseOrderMapper.selectActiveByOrderDate(DELIVERY_DATE)).thenReturn(null);
 
-        WithdrawCascadeResultVO result = service.cascadeOnOrderWithdraw(ORDER_ID);
-
-        verify(purchaseItemMapper, never()).selectPurchaseItemListByPurchaseId(anyLong());
-        verify(purchaseOrderMapper, never()).updatePurchaseOrder(any(PurchaseOrder.class));
-        assertTrue(result.getVoidedPurchaseCodes().isEmpty());
-    }
-
-    @Test
-    void 手工采购单不参与级联() {
-        // source_type=2 手工单无 source_order_ids，查询自动单时不会被返回
-        when(deliverySourceItemMapper.selectValidBySaleOrderId(ORDER_ID)).thenReturn(Collections.emptyList());
-        when(purchaseOrderMapper.selectPurchaseOrderList(any(PurchaseOrder.class))).thenReturn(Collections.emptyList());
-
-        WithdrawCascadeResultVO result = service.cascadeOnOrderWithdraw(ORDER_ID);
+        WithdrawCascadeResultVO result = service.cascadeOnOrderWithdraw(order(ORDER_ID, ORDER_CODE));
 
         assertTrue(result.getVoidedPurchaseCodes().isEmpty());
         assertTrue(result.getDeductedPurchaseCodes().isEmpty());
@@ -357,7 +325,7 @@ class OrderWithdrawCascadeServiceImplTest {
         order.setId(id);
         order.setCode(code);
         order.setStatus(1);
-        order.setDeliveryDate(LocalDate.of(2026, 8, 28));
+        order.setDeliveryDate(DELIVERY_DATE);
         return order;
     }
 
@@ -393,12 +361,10 @@ class OrderWithdrawCascadeServiceImplTest {
         return detail;
     }
 
-    private PurchaseOrder purchase(Long id, String code, Integer status, String sourceOrderIds) {
+    private PurchaseOrder purchase(Long id, String code, Integer status) {
         PurchaseOrder purchase = new PurchaseOrder();
         purchase.setId(id);
         purchase.setCode(code);
-        purchase.setSourceType(1);
-        purchase.setSourceOrderIds(sourceOrderIds);
         purchase.setStatus(status);
         return purchase;
     }

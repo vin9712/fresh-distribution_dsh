@@ -53,22 +53,11 @@
         <el-button
           type="primary"
           plain
-          :icon="Plus"
+          :icon="EditPen"
           size="small"
-          @click="handleAdd"
+          @click="handleDayEntry(null)"
           v-hasPermi="['purchase:add']"
-          >新增</el-button
-        >
-      </el-col>
-      <el-col :span="1.5">
-        <el-button
-          type="success"
-          plain
-          :icon="Cpu"
-          size="small"
-          @click="handleGenerate"
-          v-hasPermi="['purchase:add']"
-          >生成采购单</el-button
+          >采购录入</el-button
         >
       </el-col>
       <el-col :span="1.5">
@@ -98,29 +87,31 @@
       <right-toolbar v-model:showSearch="showSearch" @queryTable="getList"></right-toolbar>
     </el-row>
 
+    <!-- D-056：采购单主体 = 采购日期（=配送日期），一天一单；行=进货批次，成本按批次加权 -->
     <el-table v-loading="loading" :data="purchaseList" @selection-change="handleSelectionChange">
       <el-table-column type="selection" width="55" align="center" />
-      <el-table-column label="采购单号" align="center" prop="code" :show-overflow-tooltip="true" />
-      <el-table-column label="采购日期" align="center" prop="orderDate" width="120" />
-      <el-table-column label="来源" align="center" prop="sourceType" width="90">
+      <el-table-column label="采购单号" align="center" prop="code" :show-overflow-tooltip="true" width="150" />
+      <el-table-column label="采购日期" align="center" prop="orderDate" width="110" />
+      <el-table-column label="已采 / 应采" align="center" width="150">
         <template #default="scope">
-          <span>{{ scope.row.sourceType === 1 ? '自动' : '手工' }}</span>
+          <span>{{ num(scope.row.purchasedQty) }} / {{ num(scope.row.requiredQty) }}</span>
         </template>
       </el-table-column>
+      <el-table-column label="批次数" align="center" prop="batchCount" width="80" />
       <el-table-column label="供应商名称" align="center" prop="supplierName" :show-overflow-tooltip="true" />
-      <el-table-column label="采购员" align="center" prop="purchaser" :show-overflow-tooltip="true" />
-      <el-table-column label="采购总额" align="center" prop="totalAmount" width="120" />
+      <el-table-column label="采购员" align="center" prop="purchaser" :show-overflow-tooltip="true" width="90" />
+      <el-table-column label="采购总额" align="center" prop="totalAmount" width="110" />
       <el-table-column label="状态" align="center" prop="status" width="100">
         <template #default="scope">
           <dict-tag :options="dict.type.t_purchase_order_status" :value="scope.row.status" />
         </template>
       </el-table-column>
       <!-- S2-2.2 成本状态提示：已确认=到货/待确认成本；已入库=已确认成本 -->
-      <el-table-column label="成本状态" align="center" width="130">
+      <el-table-column label="成本状态" align="center" width="120">
         <template #default="scope">
           <el-tooltip
             :disabled="scope.row.status !== 1"
-            content="供应商已到货，成本待入库确认；确认后计入已确认成本"
+            content="录入已完成，成本待入库确认；确认后计入已确认成本"
             placement="top"
           >
             <el-tag v-if="scope.row.status === 1" type="warning" size="small">待确认成本</el-tag>
@@ -130,16 +121,15 @@
         </template>
       </el-table-column>
       <el-table-column label="备注" align="center" prop="remark" :show-overflow-tooltip="true" />
-      <el-table-column label="操作" align="center" class-name="small-padding fixed-width" width="380">
+      <el-table-column label="操作" align="center" class-name="small-padding fixed-width" width="360">
         <template #default="scope">
           <el-button
             size="small"
             link
-            :icon="Edit"
-            @click="handleUpdate(scope.row)"
-            v-if="scope.row.status === 0"
-            v-hasPermi="['purchase:edit']"
-            >修改</el-button
+            :icon="EditPen"
+            @click="handleDayEntry(scope.row)"
+            v-hasPermi="['purchase:list']"
+            >{{ scope.row.status === 0 ? "录入" : "查看" }}</el-button
           >
           <el-button
             size="small"
@@ -190,140 +180,29 @@
       </el-table-column>
     </el-table>
 
-    <!-- 添加或修改采购单对话框 -->
-    <el-dialog align-center :title="title" v-model="open" width="920px" append-to-body>
-      <el-form ref="form" :model="form" :rules="rules" label-width="90px">
-        <el-row>
-          <el-col :span="12">
-            <el-form-item label="采购日期" prop="orderDate">
-              <el-date-picker
-                v-model="form.orderDate"
-                type="date"
-                value-format="YYYY-MM-DD"
-                placeholder="请选择采购日期"
-                style="width: 100%"
-              />
-            </el-form-item>
-          </el-col>
-          <el-col :span="12">
-            <el-form-item label="供应商名称" prop="supplierName">
-              <el-input v-model="form.supplierName" placeholder="请输入供应商名称" />
-            </el-form-item>
-          </el-col>
-          <el-col :span="24">
-            <el-form-item label="备注" prop="remark">
-              <el-input v-model="form.remark" type="textarea" placeholder="请输入内容" />
-            </el-form-item>
-          </el-col>
-        </el-row>
+    <!-- 采购录入（日应采汇总 + 分批成本）：新增/查看当日采购单 -->
+    <purchase-day-entry v-model="dayEntryOpen" :order-date="dayEntryDate" @changed="getList" />
 
-        <el-divider content-position="left">采购明细</el-divider>
-        <el-table :data="form.items" size="small" border>
-          <el-table-column label="SKU" align="center" width="220">
-            <template #default="scope">
-              <el-select
-                v-model="scope.row.skuId"
-                filterable
-                clearable
-                placeholder="选择SKU"
-                style="width: 100%"
-                @change="handleSkuChange(scope.row)"
-              >
-                <el-option
-                  v-for="sku in skuOptions"
-                  :key="sku.id"
-                  :label="sku.name"
-                  :value="sku.id"
-                />
-              </el-select>
-            </template>
-          </el-table-column>
-          <el-table-column label="商品名称" align="center" min-width="140">
-            <template #default="scope">
-              <el-input v-model="scope.row.productName" placeholder="商品名称" />
-            </template>
-          </el-table-column>
-          <el-table-column label="规格" align="center" width="120">
-            <template #default="scope">
-              <el-input v-model="scope.row.productSpec" placeholder="规格" />
-            </template>
-          </el-table-column>
-          <el-table-column label="单位" align="center" width="90">
-            <template #default="scope">
-              <el-input v-model="scope.row.productUnit" placeholder="单位" />
-            </template>
-          </el-table-column>
-          <el-table-column label="数量" align="center" width="140">
-            <template #default="scope">
-              <el-input-number
-                v-model="scope.row.quantity"
-                :min="0"
-                :precision="2"
-                :controls="false"
-                style="width: 100%"
-                @change="calcRowSubtotal(scope.row)"
-              />
-            </template>
-          </el-table-column>
-          <el-table-column label="单价" align="center" width="140">
-            <template #default="scope">
-              <el-input-number
-                v-model="scope.row.unitPrice"
-                :min="0"
-                :precision="2"
-                :controls="false"
-                style="width: 100%"
-                @change="calcRowSubtotal(scope.row)"
-              />
-            </template>
-          </el-table-column>
-          <el-table-column label="小计" align="center" width="110">
-            <template #default="scope">
-              <span>{{ scope.row.subtotal }}</span>
-            </template>
-          </el-table-column>
-          <el-table-column label="操作" align="center" width="70">
-            <template #default="scope">
-              <el-button
-                size="small"
-                link
-                :icon="Delete"
-                @click="removeItem(scope.$index)"
-              ></el-button>
-            </template>
-          </el-table-column>
-        </el-table>
-        <div style="margin-top: 8px; display: flex; justify-content: space-between; align-items: center;">
-          <el-button type="primary" plain size="small" :icon="Plus" @click="addItem">添加明细</el-button>
-          <span>总金额：¥ {{ totalAmount }}</span>
-        </div>
-      </el-form>
-      <template #footer>
-        <div class="dialog-footer">
-          <el-button type="primary" @click="submitForm">确 定</el-button>
-          <el-button @click="cancel">取 消</el-button>
-        </div>
-      </template>
-    </el-dialog>
     <!-- S2-2.2 成本调整抽屉（W0-2.5 前端）：已确认采购单逐行调整数量/成本，禁止增删行 -->
     <el-drawer
       v-model="adjustOpen"
       :title="'调整采购成本（' + (adjustOrder.code || '') + '）'"
-      size="620px"
+      size="680px"
       append-to-body
     >
       <el-alert
         type="info"
         :closable="false"
         show-icon
-        title="仅允许修改数量与采购单价（禁止增删行）；保存后重算总额并写入调整审计（前后金额 + 明细快照）。"
+        title="仅允许修改数量与采购单价（禁止增删批次）；保存后重算总额并写入调整审计（前后金额 + 明细快照）。"
         style="margin-bottom: 12px"
       />
       <el-table :data="adjustItems" size="small" border max-height="480">
-        <el-table-column label="商品名称" align="center" prop="productName" min-width="140" />
-        <el-table-column label="规格" align="center" prop="productSpec" width="100" />
-        <el-table-column label="单位" align="center" prop="productUnit" width="70" />
-        <el-table-column label="数量" align="center" width="130">
+        <el-table-column label="批次" align="center" prop="batchNo" width="60" />
+        <el-table-column label="商品名称" align="center" prop="productName" min-width="130" />
+        <el-table-column label="规格" align="center" prop="productSpec" width="90" />
+        <el-table-column label="单位" align="center" prop="productUnit" width="60" />
+        <el-table-column label="数量" align="center" width="120">
           <template #default="scope">
             <el-input-number
               v-model="scope.row.quantity"
@@ -335,7 +214,7 @@
             />
           </template>
         </el-table-column>
-        <el-table-column label="单价" align="center" width="130">
+        <el-table-column label="单价" align="center" width="120">
           <template #default="scope">
             <el-input-number
               v-model="scope.row.unitPrice"
@@ -368,7 +247,7 @@
     <!-- S2-2.2 供应商补录：草稿/已确认采购单补录供应商与采购员 -->
     <el-dialog v-model="supplierOpen" title="供应商补录" width="440px" append-to-body>
       <div style="margin-bottom: 8px; color: #909399; font-size: 12px">
-        采购单 {{ supplierForm.code }}：供应商可拖至入库（确认成本）前补录，补录后写入操作日志。
+        采购单 {{ supplierForm.code }}：默认可空，批次行可单独录供应商；补录后写入操作日志。
       </div>
       <el-form label-width="80px">
         <el-form-item label="供应商">
@@ -389,11 +268,7 @@
 <script>
 import {
   listPurchase,
-  getPurchase,
   getPurchaseItems,
-  generatePurchase,
-  addPurchase,
-  updatePurchase,
   confirmPurchase,
   stockInPurchase,
   batchStockInPurchase,
@@ -401,14 +276,15 @@ import {
   backfillSupplier,
   delPurchase,
 } from "@/api/purchase/purchase";
-import { listSku } from "@/api/product/sku";
-import { Search, Refresh, Plus, Delete, Edit, Cpu, Check, Select, OfficeBuilding } from "@element-plus/icons-vue";
+import PurchaseDayEntry from "./dayEntry.vue";
+import { Search, Refresh, Delete, Edit, Check, Select, OfficeBuilding, EditPen } from "@element-plus/icons-vue";
 
 export default {
   name: "Purchase",
+  components: { PurchaseDayEntry },
   dicts: ["t_purchase_order_status"],
   setup() {
-    return { Search, Refresh, Plus, Delete, Edit, Cpu, Check, Select, OfficeBuilding };
+    return { Search, Refresh, Delete, Edit, Check, Select, OfficeBuilding, EditPen };
   },
   data() {
     return {
@@ -422,24 +298,18 @@ export default {
       showSearch: true,
       // 采购单表格数据
       purchaseList: [],
-      // SKU 选项
-      skuOptions: [],
       // 采购日期范围
       dateRange: [],
-      // 弹出层标题
-      title: "",
-      // 是否显示弹出层
-      open: false,
       // 查询参数
       queryParams: {
         code: null,
         status: null,
-        sourceType: null,
         beginOrderDate: null,
         endOrderDate: null,
       },
-      // 表单参数
-      form: {},
+      // 采购录入（日应采汇总）
+      dayEntryOpen: false,
+      dayEntryDate: null,
       // S2-2.2 成本调整抽屉
       adjustOpen: false,
       adjustOrder: {},
@@ -449,21 +319,9 @@ export default {
       // S2-2.2 供应商补录
       supplierOpen: false,
       supplierForm: {},
-      // 表单校验
-      rules: {
-        orderDate: [
-          { required: true, message: "采购日期不能为空", trigger: "change" },
-        ],
-      },
     };
   },
   computed: {
-    totalAmount() {
-      return (this.form.items || []).reduce(
-        (sum, item) => sum + (Number(item.subtotal) || 0),
-        0
-      ).toFixed(2);
-    },
     /** S2-2.2：勾选行是否全部为已确认（可批量入库/确认成本） */
     stockableSelection() {
       const rows = this.purchaseList.filter((r) => this.ids.includes(r.id));
@@ -480,6 +338,10 @@ export default {
     this.getList();
   },
   methods: {
+    num(v) {
+      if (v === null || v === undefined || v === "") return "0";
+      return Number(v).toString();
+    },
     /** 查询采购单列表 */
     getList() {
       this.loading = true;
@@ -489,22 +351,6 @@ export default {
         this.purchaseList = response.data || [];
         this.loading = false;
       });
-    },
-    // 取消按钮
-    cancel() {
-      this.open = false;
-      this.reset();
-    },
-    // 表单重置
-    reset() {
-      this.form = {
-        id: null,
-        orderDate: this.getTomorrow(),
-        supplierName: null,
-        remark: null,
-        items: [],
-      };
-      this.resetForm("form");
     },
     /** 搜索按钮操作 */
     handleQuery() {
@@ -521,43 +367,15 @@ export default {
       this.ids = selection.map((item) => item.id);
       this.multiple = !selection.length;
     },
-    /** 新增按钮操作 */
-    handleAdd() {
-      this.reset();
-      this.getSkuList();
-      this.open = true;
-      this.title = "新增采购单";
-    },
-    /** 修改按钮操作 */
-    handleUpdate(row) {
-      this.reset();
-      this.getSkuList();
-      getPurchase(row.id).then((response) => {
-        this.form = response.data;
-        return getPurchaseItems(row.id);
-      }).then((response) => {
-        this.form.items = response.data || [];
-        this.open = true;
-        this.title = "修改采购单";
-      });
-    },
-    /** 生成采购单按钮操作（明日配送订单） */
-    handleGenerate() {
-      this.$modal
-        .confirm("生成明日配送订单的采购单？")
-        .then(() => {
-          return generatePurchase({ orderDate: this.getTomorrow() });
-        })
-        .then(() => {
-          this.getList();
-          this.$modal.msgSuccess("生成成功");
-        })
-        .catch(() => {});
+    /** 采购录入：打开当日应采汇总页（row 为空=默认明日） */
+    handleDayEntry(row) {
+      this.dayEntryDate = row ? row.orderDate : null;
+      this.dayEntryOpen = true;
     },
     /** 确认按钮操作 */
     handleConfirm(row) {
       this.$modal
-        .confirm('是否确认采购单【' + row.code + '】？')
+        .confirm('是否确认采购单【' + row.code + '】？确认后批次不可增删。')
         .then(() => {
           return confirmPurchase(row.id);
         })
@@ -593,7 +411,7 @@ export default {
         })
         .catch(() => {});
     },
-    /** S2-2.2 调整成本（W0-2.5 前端）：打开抽屉加载既有明细，仅改数量/单价 */
+    /** S2-2.2 调整成本（W0-2.5 前端）：打开抽屉加载既有批次，仅改数量/单价 */
     handleAdjustCost(row) {
       getPurchaseItems(row.id).then((response) => {
         this.adjustOrder = row;
@@ -658,81 +476,6 @@ export default {
           this.$modal.msgSuccess("删除成功");
         })
         .catch(() => {});
-    },
-    /** 提交按钮 */
-    submitForm() {
-      this.$refs["form"].validate((valid) => {
-        if (valid) {
-          if (this.form.items == null || this.form.items.length === 0) {
-            this.$modal.msgError("请至少添加一条采购明细");
-            return;
-          }
-          if (this.form.id != null) {
-            updatePurchase(this.form).then((response) => {
-              this.$modal.msgSuccess("修改成功");
-              this.open = false;
-              this.getList();
-            });
-          } else {
-            addPurchase(this.form).then((response) => {
-              this.$modal.msgSuccess("新增成功");
-              this.open = false;
-              this.getList();
-            });
-          }
-        }
-      });
-    },
-    /** 查询 SKU 列表 */
-    getSkuList() {
-      listSku().then((response) => {
-        this.skuOptions = response.data || [];
-      });
-    },
-    /** SKU 选择变更：回填商品名称/规格/单位/单价 */
-    handleSkuChange(row) {
-      const sku = this.skuOptions.find((s) => s.id === row.skuId);
-      if (sku) {
-        row.productName = sku.name;
-        row.productSpec = sku.spec;
-        row.productUnit = sku.unit;
-        if (!row.unitPrice) {
-          row.unitPrice = sku.salePrice;
-        }
-      }
-      this.calcRowSubtotal(row);
-    },
-    /** 计算行小计 */
-    calcRowSubtotal(row) {
-      const quantity = Number(row.quantity) || 0;
-      const unitPrice = Number(row.unitPrice) || 0;
-      row.subtotal = Number((quantity * unitPrice).toFixed(2));
-    },
-    /** 添加明细行 */
-    addItem() {
-      this.form.items = this.form.items || [];
-      this.form.items.push({
-        skuId: null,
-        productName: null,
-        productSpec: null,
-        productUnit: null,
-        quantity: 1,
-        unitPrice: 0,
-        subtotal: 0,
-      });
-    },
-    /** 删除明细行 */
-    removeItem(index) {
-      this.form.items.splice(index, 1);
-    },
-    /** 计算明日日期 yyyy-MM-dd */
-    getTomorrow() {
-      const d = new Date();
-      d.setDate(d.getDate() + 1);
-      const y = d.getFullYear();
-      const m = String(d.getMonth() + 1).padStart(2, "0");
-      const day = String(d.getDate()).padStart(2, "0");
-      return y + "-" + m + "-" + day;
     },
   },
 };

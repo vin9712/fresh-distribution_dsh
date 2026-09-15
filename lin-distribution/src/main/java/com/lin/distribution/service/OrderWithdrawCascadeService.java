@@ -24,10 +24,11 @@ public interface OrderWithdrawCascadeService {
     /**
      * 撤回级联执行（调用方保证事务上下文）：
      * 送货侧软删该订单的来源分配并重算聚合行，整单无明细则作废（原因=订单撤回）；
-     * 采购侧按汇总键扣除数量并重算金额，整单无明细则作废（原因=订单撤回）。
+     * 采购侧按 order_date 反查当日采购单，按汇总键在批次维度扣除数量并重算金额，
+     * 整单无明细则作废（原因=订单撤回）。
      *
-     * @param saleOrderId 销售订单ID
+     * @param saleOrder 销售订单（需含 id / 单号 / 配送日期）
      * @return 级联执行摘要（作废/扣除的单号清单）
      */
-    WithdrawCascadeResultVO cascadeOnOrderWithdraw(Long saleOrderId);
+    WithdrawCascadeResultVO cascadeOnOrderWithdraw(SaleOrder saleOrder);
 }

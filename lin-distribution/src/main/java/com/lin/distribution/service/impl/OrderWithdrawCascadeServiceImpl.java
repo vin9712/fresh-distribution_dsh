@@ -1,6 +1,5 @@
 package com.lin.distribution.service.impl;
 
-import com.alibaba.fastjson2.JSON;
 import com.lin.common.exception.ServiceException;
 import com.lin.common.utils.DateUtils;
 import com.lin.common.utils.SecurityUtils;
@@ -31,6 +30,7 @@ import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.Date;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -50,9 +50,9 @@ import java.util.stream.Collectors;
  *   <li>送货扣除：仅处理待打印（PENDING）单；软删该订单的 source_item 分配（唯一键含 is_deleted，
  *       释放后重新生成不撞键），有剩余分配的聚合行按「num=Σ剩余分配量、amount=price×num」重算，
  *       无剩余分配的行删除；整单无有效明细则作废（原因=订单撤回）；共享单保留、不影响其他订单；</li>
- *   <li>采购扣除：按采购汇总键（sku+品名+规格+单位，与 selectSummaryByOrderIds 聚合口径一致）
- *       扣减数量，小计=新数量×原单价，扣至 0/负（含单据被手工编辑后超扣）删除该行；
- *       source_order_ids 移除被撤订单并重算 total_amount；整单无明细则作废（原因=订单撤回）；</li>
+ *   <li>采购扣除（D-061）：按 order_date 反查当日非作废采购单，按采购汇总键（sku+品名+规格+单位）
+ *       在批次维度扣减——按批次 id 倒序（后录入先扣），扣至 0/负删除该行，重算 total_amount；
+ *       整单无明细则作废（原因=订单撤回）；</li>
  *   <li>事务边界：级联在调用方（updateSaleOrderStatus）的 @Transactional 内执行，
  *       校验先行（validateOrderWithdrawable 对全部待撤回订单无副作用预检），任一失败整体回滚。</li>
  * </ul></p>
@@ -66,9 +66,6 @@ public class OrderWithdrawCascadeServiceImpl implements OrderWithdrawCascadeServ
 
     /** 空单自动作废的固定原因（蓝图「空关联单据」：记录原因“订单撤回”） */
     public static final String WITHDRAW_VOID_REASON = "订单撤回";
-
-    /** 来源类型：自动生成（与 PurchaseOrderServiceImpl 口径一致） */
-    private static final int SOURCE_TYPE_AUTO = 1;
 
     private final DeliverySourceItemMapper deliverySourceItemMapper;
     private final DeliveryOrderMapper deliveryOrderMapper;
@@ -117,22 +114,19 @@ public class OrderWithdrawCascadeServiceImpl implements OrderWithdrawCascadeServ
         }
 
         // 采购侧：被已入库采购单引用 → 拒绝（货物已到，扣除会破坏入库事实）
-        List<PurchaseOrder> linkedPurchases = findLinkedAutoPurchases(saleOrder.getId());
-        String stockedCodes = linkedPurchases.stream()
-                .filter(po -> PurchaseOrderStatus.STOCKED.getCode().equals(po.getStatus()))
-                .map(PurchaseOrder::getCode)
-                .collect(Collectors.joining("、"));
-        if (StringUtils.isNotBlank(stockedCodes)) {
-            throw new ServiceException("订单已进入已入库采购单【" + stockedCodes + "】，不可撤回：" + saleOrder.getCode());
+        PurchaseOrder linkedPurchase = findDayPurchase(saleOrder);
+        if (linkedPurchase != null && PurchaseOrderStatus.STOCKED.getCode().equals(linkedPurchase.getStatus())) {
+            throw new ServiceException("订单已进入已入库采购单【" + linkedPurchase.getCode()
+                    + "】，不可撤回：" + saleOrder.getCode());
         }
     }
 
     @Override
-    public WithdrawCascadeResultVO cascadeOnOrderWithdraw(Long saleOrderId) {
-        WithdrawCascadeResultVO result = cascadeDeliveries(saleOrderId);
-        result.merge(cascadePurchases(saleOrderId));
+    public WithdrawCascadeResultVO cascadeOnOrderWithdraw(SaleOrder saleOrder) {
+        WithdrawCascadeResultVO result = cascadeDeliveries(saleOrder.getId());
+        result.merge(cascadePurchases(saleOrder));
         log.info("[order withdraw cascade] 订单 {} 级联完成：作废送货单 {}，扣除送货单 {}，作废采购单 {}，扣除采购单 {}",
-                saleOrderId, result.getVoidedDeliveryCodes(), result.getDeductedDeliveryCodes(),
+                saleOrder.getCode(), result.getVoidedDeliveryCodes(), result.getDeductedDeliveryCodes(),
                 result.getVoidedPurchaseCodes(), result.getDeductedPurchaseCodes());
         return result;
     }
@@ -245,24 +239,26 @@ public class OrderWithdrawCascadeServiceImpl implements OrderWithdrawCascadeServ
     // ==================== 采购级联 ====================
 
     /**
-     * 采购级联：未入库（草稿/已确认）自动采购单扣除/作废；已入库单已在预检拒绝，作废单跳过。
+     * 采购级联（D-061）：当日采购单按批次扣减/作废；已入库单已在预检拒绝，作废单跳过。
      */
-    private WithdrawCascadeResultVO cascadePurchases(Long saleOrderId) {
+    private WithdrawCascadeResultVO cascadePurchases(SaleOrder saleOrder) {
         WithdrawCascadeResultVO result = WithdrawCascadeResultVO.builder().build();
-        for (PurchaseOrder purchase : findLinkedAutoPurchases(saleOrderId)) {
-            if (PurchaseOrderStatus.STOCKED.getCode().equals(purchase.getStatus())) {
-                throw new ServiceException("订单已进入已入库采购单【" + purchase.getCode() + "】，不可撤回");
-            }
-            if (PurchaseOrderStatus.VOIDED.getCode().equals(purchase.getStatus())) {
-                continue;
-            }
-            deductPurchase(purchase, saleOrderId, result);
+        PurchaseOrder purchase = findDayPurchase(saleOrder);
+        if (purchase == null) {
+            return result;
         }
+        if (PurchaseOrderStatus.STOCKED.getCode().equals(purchase.getStatus())) {
+            throw new ServiceException("订单已进入已入库采购单【" + purchase.getCode() + "】，不可撤回");
+        }
+        if (PurchaseOrderStatus.VOIDED.getCode().equals(purchase.getStatus())) {
+            return result;
+        }
+        deductPurchase(purchase, saleOrder.getId(), result);
         return result;
     }
 
     /**
-     * 单张采购单扣除：按汇总键扣数量 → 删零行 → 重算总额 → 移除来源订单 → 空单作废。
+     * 单张采购单扣除（D-061）：按汇总键在批次维度扣数量 → 删零行 → 重算总额 → 空单作废。
      */
     private void deductPurchase(PurchaseOrder purchase, Long saleOrderId, WithdrawCascadeResultVO result) {
         // 该订单的有效明细按采购汇总键聚合（口径与 selectSummaryByOrderIds 一致）
@@ -273,27 +269,31 @@ public class OrderWithdrawCascadeServiceImpl implements OrderWithdrawCascadeServ
                                 row -> Optional.ofNullable(row.getNum()).orElse(BigDecimal.ZERO), BigDecimal::add)));
 
         List<PurchaseItem> items = purchaseItemMapper.selectPurchaseItemListByPurchaseId(purchase.getId());
+        // D-061：批次维度扣减，后录入批次先扣（id 倒序），扣不足钳零
+        List<PurchaseItem> ordered = new ArrayList<>(items);
+        ordered.sort(Comparator.comparing(PurchaseItem::getId).reversed());
         List<PurchaseItem> keptItems = new ArrayList<>();
-        for (PurchaseItem item : items) {
-            BigDecimal deductQty = deductMap.getOrDefault(purchaseSummaryKey(item), BigDecimal.ZERO);
-            BigDecimal newQty = Optional.ofNullable(item.getQuantity()).orElse(BigDecimal.ZERO).subtract(deductQty);
+        for (PurchaseItem item : ordered) {
+            String key = purchaseSummaryKey(item);
+            BigDecimal remaining = deductMap.getOrDefault(key, BigDecimal.ZERO);
+            BigDecimal qty = Optional.ofNullable(item.getQuantity()).orElse(BigDecimal.ZERO);
+            if (remaining.compareTo(BigDecimal.ZERO) <= 0) {
+                keptItems.add(item);
+                continue;
+            }
+            BigDecimal take = remaining.min(qty);
+            BigDecimal newQty = qty.subtract(take);
+            deductMap.put(key, remaining.subtract(take));
             if (newQty.compareTo(BigDecimal.ZERO) <= 0) {
-                // 扣至 0/负（含单据被手工编辑后数量小于应扣量）→ 删除该行，钳到 0 不影响其他行
+                // 扣至 0/负（含单据被手工编辑后数量小于应扣量）→ 删除该批次行
                 purchaseItemMapper.deletePurchaseItemByIds(new Long[]{item.getId()});
                 continue;
             }
-            if (newQty.compareTo(item.getQuantity()) != 0) {
-                item.setQuantity(newQty);
-                item.setSubtotal(newQty.multiply(Optional.ofNullable(item.getUnitPrice()).orElse(BigDecimal.ZERO)));
-                purchaseItemMapper.updatePurchaseItem(item);
-            }
+            item.setQuantity(newQty);
+            item.setSubtotal(newQty.multiply(Optional.ofNullable(item.getUnitPrice()).orElse(BigDecimal.ZERO)));
+            purchaseItemMapper.updatePurchaseItem(item);
             keptItems.add(item);
         }
-
-        // 移除来源订单引用（保留其他订单的追溯）
-        List<Long> sourceIds = parseSourceOrderIds(purchase.getSourceOrderIds());
-        sourceIds.remove(saleOrderId);
-        purchase.setSourceOrderIds(sourceIds.isEmpty() ? null : JSON.toJSONString(sourceIds));
 
         if (keptItems.isEmpty()) {
             voidPurchaseForWithdraw(purchase);
@@ -321,29 +321,14 @@ public class OrderWithdrawCascadeServiceImpl implements OrderWithdrawCascadeServ
     }
 
     /**
-     * 查询引用该订单的自动生成采购单（source_order_ids JSON 包含判定，
-     * 与 PurchaseOrderServiceImpl.checkOrdersNotInAutoPurchase 同口径：小量级，Java 侧过滤）
+     * 查询该订单配送日期对应的当日采购单（D-061：一天一单，按 order_date 反查，取非作废最新一张；
+     * 无配送日期或未建单返回 null）
      */
-    private List<PurchaseOrder> findLinkedAutoPurchases(Long saleOrderId) {
-        PurchaseOrder query = new PurchaseOrder();
-        query.setSourceType(SOURCE_TYPE_AUTO);
-        List<PurchaseOrder> autoPurchases = purchaseOrderMapper.selectPurchaseOrderList(query);
-        return autoPurchases.stream()
-                .filter(po -> parseSourceOrderIds(po.getSourceOrderIds()).contains(saleOrderId))
-                .collect(Collectors.toList());
-    }
-
-    private List<Long> parseSourceOrderIds(String sourceOrderIds) {
-        if (StringUtils.isBlank(sourceOrderIds)) {
-            return new ArrayList<>();
+    private PurchaseOrder findDayPurchase(SaleOrder saleOrder) {
+        if (saleOrder == null || saleOrder.getDeliveryDate() == null) {
+            return null;
         }
-        try {
-            return new ArrayList<>(JSON.parseArray(sourceOrderIds, Long.class));
-        } catch (Exception e) {
-            // 历史脏数据：无法解析视作未引用，不阻断撤回
-            log.warn("[order withdraw cascade] source_order_ids 解析失败：{}", sourceOrderIds, e);
-            return new ArrayList<>();
-        }
+        return purchaseOrderMapper.selectActiveByOrderDate(saleOrder.getDeliveryDate());
     }
 
     // ==================== 汇总键 ====================

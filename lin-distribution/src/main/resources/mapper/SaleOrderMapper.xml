@@ -48,8 +48,8 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
             coalesce(customer.alias, customer.name) as customerName,
             cd.name as customerDeptName,
             (select po.code from purchase_order po
-              where po.source_type = 1 and po.source_order_ids is not null
-                and JSON_CONTAINS(po.source_order_ids, cast(so.id as char)) limit 1) as purchaseOrderCode,
+              where po.order_date = so.delivery_date and po.status != 3
+              order by po.id desc limit 1) as purchaseOrderCode,
             <!-- 送货单引用（2026-09-14）：匹配本单用过的**全部**送货单，不再排除已作废/已释放（source_item 软删）——
                  作废后仍可追溯“曾经进过哪张单”；取最新一张，是否已作废由 deliveryOrderVoided 标记，前端灰显。
                  是否仍占用（阻挡撤回）仍只看有效单 allocated。 -->

@@ -7,18 +7,27 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
     <resultMap type="com.lin.distribution.domain.PurchaseItem" id="PurchaseItemResult">
         <result property="id"    column="id"    />
         <result property="purchaseId"    column="purchase_id"    />
+        <result property="batchNo"    column="batch_no"    />
         <result property="skuId"    column="sku_id"    />
+        <result property="supplierId"    column="supplier_id"    />
+        <result property="supplierName"    column="supplier_name"    />
         <result property="productName"    column="product_name"    />
         <result property="productSpec"    column="product_spec"    />
         <result property="productUnit"    column="product_unit"    />
         <result property="quantity"    column="quantity"    />
+        <result property="requiredQty"    column="required_qty"    />
         <result property="unitPrice"    column="unit_price"    />
         <result property="subtotal"    column="subtotal"    />
         <result property="sort"    column="sort"    />
+        <result property="createBy"    column="create_by"    />
+        <result property="createTime"    column="create_time"    />
+        <result property="remark"    column="remark"    />
     </resultMap>
 
     <sql id="selectPurchaseItemVo">
-        select id, purchase_id, sku_id, product_name, product_spec, product_unit, quantity, unit_price, subtotal, sort from purchase_item
+        select id, purchase_id, batch_no, sku_id, supplier_id, supplier_name, product_name, product_spec,
+               product_unit, quantity, required_qty, unit_price, subtotal, sort, create_by, create_time, remark
+        from purchase_item
     </sql>
 
     <select id="selectPurchaseItemList" parameterType="com.lin.distribution.domain.PurchaseItem" resultMap="PurchaseItemResult">
@@ -28,7 +37,7 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
             <if test="skuId != null "> and sku_id = #{skuId}</if>
             <if test="productName != null  and productName != ''"> and product_name like concat('%', #{productName}, '%')</if>
         </where>
-        order by sort
+        order by sort, id
     </select>
 
     <select id="selectPurchaseItemById" parameterType="Long" resultMap="PurchaseItemResult">
@@ -39,41 +48,58 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
     <select id="selectPurchaseItemListByPurchaseId" parameterType="Long" resultMap="PurchaseItemResult">
         <include refid="selectPurchaseItemVo"/>
         where purchase_id = #{purchaseId}
-        order by sort
+        order by sort, id
     </select>
 
     <insert id="insertPurchaseItem" parameterType="com.lin.distribution.domain.PurchaseItem" useGeneratedKeys="true" keyProperty="id">
         insert into purchase_item
         <trim prefix="(" suffix=")" suffixOverrides=",">
             <if test="purchaseId != null">purchase_id,</if>
+            <if test="batchNo != null">batch_no,</if>
             <if test="skuId != null">sku_id,</if>
+            <if test="supplierId != null">supplier_id,</if>
+            <if test="supplierName != null">supplier_name,</if>
             <if test="productName != null and productName != ''">product_name,</if>
             <if test="productSpec != null">product_spec,</if>
             <if test="productUnit != null">product_unit,</if>
             <if test="quantity != null">quantity,</if>
+            <if test="requiredQty != null">required_qty,</if>
             <if test="unitPrice != null">unit_price,</if>
             <if test="subtotal != null">subtotal,</if>
             <if test="sort != null">sort,</if>
+            <if test="createBy != null">create_by,</if>
+            <if test="createTime != null">create_time,</if>
+            <if test="remark != null">remark,</if>
          </trim>
         <trim prefix="values (" suffix=")" suffixOverrides=",">
             <if test="purchaseId != null">#{purchaseId},</if>
+            <if test="batchNo != null">#{batchNo},</if>
             <if test="skuId != null">#{skuId},</if>
+            <if test="supplierId != null">#{supplierId},</if>
+            <if test="supplierName != null">#{supplierName},</if>
             <if test="productName != null and productName != ''">#{productName},</if>
             <if test="productSpec != null">#{productSpec},</if>
             <if test="productUnit != null">#{productUnit},</if>
             <if test="quantity != null">#{quantity},</if>
+            <if test="requiredQty != null">#{requiredQty},</if>
             <if test="unitPrice != null">#{unitPrice},</if>
             <if test="subtotal != null">#{subtotal},</if>
             <if test="sort != null">#{sort},</if>
+            <if test="createBy != null">#{createBy},</if>
+            <if test="createTime != null">#{createTime},</if>
+            <if test="remark != null">#{remark},</if>
          </trim>
     </insert>
 
     <insert id="insertPurchaseItemBatch" parameterType="java.util.List">
         insert into purchase_item
-        (purchase_id, sku_id, product_name, product_spec, product_unit, quantity, unit_price, subtotal, sort)
+        (purchase_id, batch_no, sku_id, supplier_id, supplier_name, product_name, product_spec, product_unit,
+         quantity, required_qty, unit_price, subtotal, sort, create_by, create_time, remark)
         values
         <foreach collection="list" item="item" separator=",">
-            (#{item.purchaseId}, #{item.skuId}, #{item.productName}, #{item.productSpec}, #{item.productUnit}, #{item.quantity}, #{item.unitPrice}, #{item.subtotal}, #{item.sort})
+            (#{item.purchaseId}, #{item.batchNo}, #{item.skuId}, #{item.supplierId}, #{item.supplierName},
+             #{item.productName}, #{item.productSpec}, #{item.productUnit}, #{item.quantity}, #{item.requiredQty},
+             #{item.unitPrice}, #{item.subtotal}, #{item.sort}, #{item.createBy}, #{item.createTime}, #{item.remark})
         </foreach>
     </insert>
 
@@ -81,15 +107,34 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         update purchase_item
         <trim prefix="SET" suffixOverrides=",">
             <if test="purchaseId != null">purchase_id = #{purchaseId},</if>
+            <if test="batchNo != null">batch_no = #{batchNo},</if>
             <if test="skuId != null">sku_id = #{skuId},</if>
+            <if test="supplierId != null">supplier_id = #{supplierId},</if>
+            <if test="supplierName != null">supplier_name = #{supplierName},</if>
             <if test="productName != null and productName != ''">product_name = #{productName},</if>
             <if test="productSpec != null">product_spec = #{productSpec},</if>
             <if test="productUnit != null">product_unit = #{productUnit},</if>
             <if test="quantity != null">quantity = #{quantity},</if>
+            <if test="requiredQty != null">required_qty = #{requiredQty},</if>
             <if test="unitPrice != null">unit_price = #{unitPrice},</if>
             <if test="subtotal != null">subtotal = #{subtotal},</if>
             <if test="sort != null">sort = #{sort},</if>
+            <if test="createBy != null">create_by = #{createBy},</if>
+            <if test="createTime != null">create_time = #{createTime},</if>
+            <if test="remark != null">remark = #{remark},</if>
         </trim>
+        where id = #{id}
+    </update>
+
+    <!-- 批次可编辑字段（D-057）：允许显式置空供应商/备注，故不用 <if> 包裹 -->
+    <update id="updateBatchFields" parameterType="com.lin.distribution.domain.PurchaseItem">
+        update purchase_item
+        set quantity = #{quantity},
+            unit_price = #{unitPrice},
+            subtotal = #{subtotal},
+            supplier_id = #{supplierId},
+            supplier_name = #{supplierName},
+            remark = #{remark}
         where id = #{id}
     </update>
 
@@ -104,41 +149,24 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         delete from purchase_item where purchase_id = #{purchaseId}
     </delete>
 
-    <select id="selectSummaryByDeliveryDate" parameterType="java.time.LocalDate" resultMap="PurchaseItemResult">
+    <!-- D-056 当日应采清单（订单明细实时视图）：status>=1 非草稿即应送，退货行 num 归 0 自然不计；
+         全为 0 的纯退货组不进清单（having > 0）。 -->
+    <select id="selectRequiredSummary" parameterType="java.time.LocalDate"
+            resultType="com.lin.distribution.vo.PurchaseDaySummaryVO$RequiredRow">
         select
-            d.sku_id,
-            d.product_name,
-            d.product_spec,
-            d.product_unit,
-            sum(d.num) as quantity,
-            min(d.product_price) as unit_price
+            d.sku_id       as skuId,
+            d.product_name as productName,
+            d.product_spec as productSpec,
+            d.product_unit as productUnit,
+            sum(d.num)     as requiredQty
         from t_sale_order_detail d
         join t_sale_order o on o.id = d.order_id
-        where o.status = 1
-          and o.delivery_date = #{deliveryDate}
+        where o.delivery_date = #{orderDate}
+          and o.status &gt;= 1
           and o.is_deleted = 0
           and d.is_deleted = 0
         group by d.sku_id, d.product_name, d.product_spec, d.product_unit
-        order by d.sku_id, d.product_name
-    </select>
-    <select id="selectSummaryByOrderIds" resultMap="PurchaseItemResult">
-        select
-            d.sku_id,
-            d.product_name,
-            d.product_spec,
-            d.product_unit,
-            sum(d.num) as quantity,
-            min(d.product_price) as unit_price
-        from t_sale_order_detail d
-        join t_sale_order o on o.id = d.order_id
-        where o.status = 1
-          and o.is_deleted = 0
-          and d.is_deleted = 0
-          and o.id in
-        <foreach item="orderId" collection="orderIds" open="(" separator="," close=")">
-            #{orderId}
-        </foreach>
-        group by d.sku_id, d.product_name, d.product_spec, d.product_unit
+        having sum(d.num) &gt; 0
         order by d.sku_id, d.product_name
     </select>
 

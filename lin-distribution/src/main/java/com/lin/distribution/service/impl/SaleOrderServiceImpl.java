@@ -293,7 +293,7 @@ public class SaleOrderServiceImpl implements SaleOrderService {
                 orderWithdrawCascadeService.validateOrderWithdrawable(order);
             }
             for (SaleOrder order : orders) {
-                WithdrawCascadeResultVO cascade = orderWithdrawCascadeService.cascadeOnOrderWithdraw(order.getId());
+                WithdrawCascadeResultVO cascade = orderWithdrawCascadeService.cascadeOnOrderWithdraw(order);
                 log.info("[sale order withdraw] 订单 {} 撤回级联：作废送货单 {}，扣除送货单 {}，作废采购单 {}，扣除采购单 {}",
                         order.getCode(), cascade.getVoidedDeliveryCodes(), cascade.getDeductedDeliveryCodes(),
                         cascade.getVoidedPurchaseCodes(), cascade.getDeductedPurchaseCodes());

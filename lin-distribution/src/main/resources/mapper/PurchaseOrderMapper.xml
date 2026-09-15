@@ -8,8 +8,6 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         <result property="id"    column="id"    />
         <result property="code"    column="code"    />
         <result property="orderDate"    column="order_date"    />
-        <result property="sourceType"    column="source_type"    />
-        <result property="sourceOrderIds"    column="source_order_ids"    />
         <result property="supplierId"    column="supplier_id"    />
         <result property="supplierName"    column="supplier_name"    />
         <result property="purchaser"    column="purchaser"    />
@@ -23,28 +21,52 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         <result property="updateBy"    column="update_by"    />
         <result property="updateTime"    column="update_time"    />
         <result property="remark"    column="remark"    />
+        <result property="batchCount"    column="batchCount"    />
+        <result property="purchasedQty"    column="purchasedQty"    />
+        <result property="requiredQty"    column="requiredQty"    />
     </resultMap>
 
+    <!-- 列表聚合列（D-059）：批次数 / 已采数量合计 / 当日应采数量合计（订单视图，status>=1） -->
     <sql id="selectPurchaseOrderVo">
-        select id, code, order_date, source_type, source_order_ids, supplier_id, supplier_name, purchaser, total_amount, status, void_reason, void_by, void_time, create_by, create_time, update_by, update_time, remark from purchase_order
+        select purchase_order.id, purchase_order.code, purchase_order.order_date, purchase_order.supplier_id,
+               purchase_order.supplier_name, purchase_order.purchaser, purchase_order.total_amount,
+               purchase_order.status, purchase_order.void_reason, purchase_order.void_by, purchase_order.void_time,
+               purchase_order.create_by, purchase_order.create_time, purchase_order.update_by,
+               purchase_order.update_time, purchase_order.remark,
+               (select count(1) from purchase_item pi where pi.purchase_id = purchase_order.id) as batchCount,
+               (select coalesce(sum(pi.quantity), 0) from purchase_item pi where pi.purchase_id = purchase_order.id) as purchasedQty,
+               (select coalesce(sum(d.num), 0)
+                  from t_sale_order_detail d
+                  join t_sale_order o on o.id = d.order_id
+                 where o.delivery_date = purchase_order.order_date
+                   and o.status &gt;= 1 and o.is_deleted = 0 and d.is_deleted = 0) as requiredQty
+        from purchase_order
     </sql>
 
     <select id="selectPurchaseOrderList" parameterType="com.lin.distribution.domain.PurchaseOrder" resultMap="PurchaseOrderResult">
         <include refid="selectPurchaseOrderVo"/>
         <where>
-            <if test="code != null  and code != ''"> and code like concat('%', #{code}, '%')</if>
-            <if test="orderDate != null "> and order_date = #{orderDate}</if>
-            <if test="beginOrderDate != null "> and order_date &gt;= #{beginOrderDate}</if>
-            <if test="endOrderDate != null "> and order_date &lt;= #{endOrderDate}</if>
-            <if test="sourceType != null "> and source_type = #{sourceType}</if>
-            <if test="status != null "> and status = #{status}</if>
+            <if test="code != null  and code != ''"> and purchase_order.code like concat('%', #{code}, '%')</if>
+            <if test="orderDate != null "> and purchase_order.order_date = #{orderDate}</if>
+            <if test="beginOrderDate != null "> and purchase_order.order_date &gt;= #{beginOrderDate}</if>
+            <if test="endOrderDate != null "> and purchase_order.order_date &lt;= #{endOrderDate}</if>
+            <if test="status != null "> and purchase_order.status = #{status}</if>
         </where>
-        order by order_date desc, id desc
+        order by purchase_order.order_date desc, purchase_order.id desc
     </select>
 
     <select id="selectPurchaseOrderById" parameterType="Long" resultMap="PurchaseOrderResult">
         <include refid="selectPurchaseOrderVo"/>
-        where id = #{id}
+        where purchase_order.id = #{id}
+    </select>
+
+    <!-- D-056：一天一单，取当日非作废采购单最新一张（作废后重建场景） -->
+    <select id="selectActiveByOrderDate" parameterType="java.time.LocalDate" resultMap="PurchaseOrderResult">
+        <include refid="selectPurchaseOrderVo"/>
+        where purchase_order.order_date = #{orderDate}
+          and purchase_order.status != 3
+        order by purchase_order.id desc
+        limit 1
     </select>
 
     <insert id="insertPurchaseOrder" parameterType="com.lin.distribution.domain.PurchaseOrder" useGeneratedKeys="true" keyProperty="id">
@@ -52,8 +74,6 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         <trim prefix="(" suffix=")" suffixOverrides=",">
             <if test="code != null and code != ''">code,</if>
             <if test="orderDate != null">order_date,</if>
-            <if test="sourceType != null">source_type,</if>
-            <if test="sourceOrderIds != null">source_order_ids,</if>
             <if test="supplierId != null">supplier_id,</if>
             <if test="supplierName != null">supplier_name,</if>
             <if test="purchaser != null">purchaser,</if>
@@ -68,8 +88,6 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         <trim prefix="values (" suffix=")" suffixOverrides=",">
             <if test="code != null and code != ''">#{code},</if>
             <if test="orderDate != null">#{orderDate},</if>
-            <if test="sourceType != null">#{sourceType},</if>
-            <if test="sourceOrderIds != null">#{sourceOrderIds},</if>
             <if test="supplierId != null">#{supplierId},</if>
             <if test="supplierName != null">#{supplierName},</if>
             <if test="purchaser != null">#{purchaser},</if>
@@ -88,8 +106,6 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         <trim prefix="SET" suffixOverrides=",">
             <if test="code != null and code != ''">code = #{code},</if>
             <if test="orderDate != null">order_date = #{orderDate},</if>
-            <if test="sourceType != null">source_type = #{sourceType},</if>
-            <if test="sourceOrderIds != null">source_order_ids = #{sourceOrderIds},</if>
             <if test="supplierId != null">supplier_id = #{supplierId},</if>
             <if test="supplierName != null">supplier_name = #{supplierName},</if>
             <if test="purchaser != null">purchaser = #{purchaser},</if>
@@ -105,22 +121,23 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         where id = #{id}
     </update>
 
+    <!-- 单头可编辑字段（D-059）：允许显式置空默认供应商/采购员/备注，故不用 <if> 包裹 -->
+    <update id="updatePurchaseHeader" parameterType="com.lin.distribution.domain.PurchaseOrder">
+        update purchase_order
+        set supplier_id = #{supplierId},
+            supplier_name = #{supplierName},
+            purchaser = #{purchaser},
+            remark = #{remark},
+            update_by = #{updateBy},
+            update_time = #{updateTime}
+        where id = #{id}
+    </update>
+
     <delete id="deletePurchaseOrderByIds" parameterType="String">
         delete from purchase_order where id in
         <foreach item="id" collection="array" open="(" separator="," close=")">
             #{id}
         </foreach>
     </delete>
-
-    <select id="selectSourceOrderIdsByDeliveryDate" resultType="java.lang.Long">
-        select distinct d.order_id
-        from t_sale_order_detail d
-        join t_sale_order o on o.id = d.order_id
-        where o.status = 1
-          and o.delivery_date = #{deliveryDate}
-          and o.is_deleted = 0
-          and d.is_deleted = 0
-        order by d.order_id
-    </select>
 
 </mapper>

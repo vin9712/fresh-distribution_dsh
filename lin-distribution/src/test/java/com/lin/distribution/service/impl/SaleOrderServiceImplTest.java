@@ -302,7 +302,7 @@ class SaleOrderServiceImplTest {
         assertTrue(ex.getMessage().contains("已打印/已送达"));
         verify(saleOrderMapper, never()).updateSaleOrder(any(SaleOrder.class));
         // 拒绝时不得执行级联扣除
-        verify(orderWithdrawCascadeService, never()).cascadeOnOrderWithdraw(anyLong());
+        verify(orderWithdrawCascadeService, never()).cascadeOnOrderWithdraw(any(SaleOrder.class));
     }
 
     @Test
@@ -334,7 +334,7 @@ class SaleOrderServiceImplTest {
         assertTrue(ex.getMessage().contains("XD202608280002"));
         // 校验未全部通过，任何订单均不更新、不级联
         verify(saleOrderMapper, never()).updateSaleOrder(any(SaleOrder.class));
-        verify(orderWithdrawCascadeService, never()).cascadeOnOrderWithdraw(anyLong());
+        verify(orderWithdrawCascadeService, never()).cascadeOnOrderWithdraw(any(SaleOrder.class));
     }
 
     @Test
@@ -343,7 +343,7 @@ class SaleOrderServiceImplTest {
         SaleOrder a = order(SaleOrderStatus.CONFIRMED.getCode());
         when(saleOrderMapper.selectSaleOrderByIdIn(Collections.singletonList(ORDER_ID)))
                 .thenReturn(Collections.singletonList(a));
-        when(orderWithdrawCascadeService.cascadeOnOrderWithdraw(ORDER_ID))
+        when(orderWithdrawCascadeService.cascadeOnOrderWithdraw(any(SaleOrder.class)))
                 .thenReturn(WithdrawCascadeResultVO.builder()
                         .voidedDeliveryCodes(Arrays.asList("HS202608280001"))
                         .build());
@@ -355,7 +355,7 @@ class SaleOrderServiceImplTest {
         saleOrderService.updateSaleOrderStatus(request);
 
         verify(orderWithdrawCascadeService).validateOrderWithdrawable(any(SaleOrder.class));
-        verify(orderWithdrawCascadeService).cascadeOnOrderWithdraw(ORDER_ID);
+        verify(orderWithdrawCascadeService).cascadeOnOrderWithdraw(any(SaleOrder.class));
         ArgumentCaptor<SaleOrder> captor = ArgumentCaptor.forClass(SaleOrder.class);
         verify(saleOrderMapper).updateSaleOrder(captor.capture());
         assertEquals(SaleOrderStatus.DRAFT.getCode(), captor.getValue().getStatus());
@@ -372,7 +372,7 @@ class SaleOrderServiceImplTest {
 
         List<Long> ids = Arrays.asList(ORDER_ID, 101L);
         when(saleOrderMapper.selectSaleOrderByIdIn(ids)).thenReturn(Arrays.asList(a, b));
-        when(orderWithdrawCascadeService.cascadeOnOrderWithdraw(anyLong()))
+        when(orderWithdrawCascadeService.cascadeOnOrderWithdraw(any(SaleOrder.class)))
                 .thenReturn(WithdrawCascadeResultVO.builder().build());
 
         SaleOrderUpdateStatusDTO request = new SaleOrderUpdateStatusDTO();

@@ -1,6 +1,7 @@
 package com.lin.distribution.mapper;
 
 import com.lin.distribution.domain.PurchaseItem;
+import com.lin.distribution.vo.PurchaseDaySummaryVO;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -44,6 +45,14 @@ public interface PurchaseItemMapper {
     int updatePurchaseItem(PurchaseItem purchaseItem);
 
     /**
+     * 修改批次可编辑字段（数量/进货价/小计/供应商/备注，允许显式置空）
+     *
+     * @param purchaseItem 批次行（id 必填）
+     * @return 结果
+     */
+    int updateBatchFields(PurchaseItem purchaseItem);
+
+    /**
      * 批量删除采购单明细
      *
      * @param ids 需要删除的数据主键集合
@@ -76,18 +85,11 @@ public interface PurchaseItemMapper {
     int insertPurchaseItemBatch(List<PurchaseItem> items);
 
     /**
-     * 按配送日期汇总已确认订单明细（join t_sale_order 过滤 status=1 且 is_deleted=0），按 sku_id 合并数量
+     * 按配送日期汇总当日应采清单（D-056）：订单明细（status>=1）按「sku+品名+规格+单位」聚合 SUM(num)，
+     * 全为 0 的纯退货组不进清单。仅用于读取与批次录入校验，不落库。
      *
-     * @param deliveryDate 配送日期
-     * @return 汇总后的采购明细（quantity=合计数量，unit_price=商品单价，product_name/unit/spec 取首条明细）
+     * @param orderDate 配送日期（=采购日期）
+     * @return 应采清单行（skuId/productName/productSpec/productUnit/requiredQty）
      */
-    List<PurchaseItem> selectSummaryByDeliveryDate(LocalDate deliveryDate);
-
-    /**
-     * 按指定订单ID集合汇总已确认订单明细（join t_sale_order 过滤 status=1 且 is_deleted=0），按 sku_id 合并数量
-     *
-     * @param orderIds 销售订单ID集合
-     * @return 汇总后的采购明细（quantity=合计数量，unit_price=商品单价，product_name/unit/spec 取首条明细）
-     */
-    List<PurchaseItem> selectSummaryByOrderIds(java.util.Collection<Long> orderIds);
+    List<PurchaseDaySummaryVO.RequiredRow> selectRequiredSummary(LocalDate orderDate);
 }
