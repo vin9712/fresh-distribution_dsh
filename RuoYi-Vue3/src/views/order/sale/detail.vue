@@ -1388,9 +1388,15 @@ export default {
   activated() {
     // keep-alive 失活页不响应快捷键（蓝图：仅当前活动工作区响应）
     setEnabledByOwner("SaleOrderDetail", true);
+    // keep-alive 缓存实例：复位离开放行标记，否则上次确认离开后本次守卫被静默击穿
+    this._allowLeave = false;
+    // 缓存后台页不拦截浏览器关闭（仅活动页拦截，与采购录入页策略一致）
+    window.addEventListener("beforeunload", this.handleBeforeUnload);
   },
   deactivated() {
     setEnabledByOwner("SaleOrderDetail", false);
+    // 仅活动页拦截浏览器关闭；缓存后台页仍保留 sale-draft-flush 监听（全局搜索跳转落盘草稿用）
+    window.removeEventListener("beforeunload", this.handleBeforeUnload);
   },
   /** 路由离开守卫（浏览器/标签页返回、切菜单、切标签、全局搜索跳转）：有未保存改动先确认 */
   beforeRouteLeave(to, from, next) {
@@ -1802,6 +1808,8 @@ export default {
     initPageByRoute() {
       const query = this.$route.query || {};
       this._initQuerySig = this.routeQuerySig();
+      // 形态/单据重建后复位离开放行标记，否则上次确认离开后本次守卫被静默击穿
+      this._allowLeave = false;
       // 清掉上一形态的模式残留
       if (this._accSaveTimer) clearTimeout(this._accSaveTimer);
       this.acceptanceMode = false;

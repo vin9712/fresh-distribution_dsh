@@ -270,6 +270,8 @@ export default {
       expandedKeys: [],
       // 展开行内批次是否改过但未保存（离开守卫用）
       batchDirty: false,
+      // 单头保存快照（离开守卫比对单头是否改过）
+      headerSaved: null,
     };
   },
   computed: {
@@ -293,9 +295,23 @@ export default {
       // 数量已默认填（=待采数量，未录时即订单总数），因此以「是否填了进货价」为准
       return this.rows.filter((r) => !r.orphan && this.priceFilled(r) && Number(r._entry.quantity) > 0).length;
     },
-    /** 未提交的录入内容（已填进货价，或展开行改过批次未保存） */
+    /** 未提交的录入内容（行内已填进货价/改过数量、展开行批次改过未保存、单头改过未保存） */
     hasUnsavedDraft() {
-      return this.canEdit && (this.filledCount > 0 || this.batchDirty);
+      return (
+        this.canEdit &&
+        (this.batchDirty || this.headerDirty || this.rows.some((r) => this.entryDirty(r)))
+      );
+    },
+    /** 单头是否改过未保存（与 load() 时的快照比对） */
+    headerDirty() {
+      const h = this.header;
+      const s = this.headerSaved;
+      if (!s) return false;
+      return (
+        (h.supplierName || "") !== (s.supplierName || "") ||
+        (h.purchaser || "") !== (s.purchaser || "") ||
+        (h.remark || "") !== (s.remark || "")
+      );
     },
   },
   created() {
@@ -308,6 +324,8 @@ export default {
   },
   activated() {
     this.registerPageShortcuts();
+    // keep-alive 缓存实例：复位离开放行标记，否则上次确认离开后本次守卫被静默击穿
+    this._allowLeave = false;
     window.addEventListener("beforeunload", this.onBeforeUnload);
   },
   deactivated() {
@@ -318,14 +336,14 @@ export default {
     this.unregisterPageShortcuts();
     window.removeEventListener("beforeunload", this.onBeforeUnload);
   },
-  /** 路由离开守卫：有未提交的录入内容（已填进货价/改批次未保存）先确认，避免丢数据 */
+  /** 路由离开守卫：有未提交的录入内容（行内已填进货价/改数量、批次或单头未保存）先确认，避免丢数据 */
   beforeRouteLeave(to, from, next) {
     if (this._allowLeave || !this.hasUnsavedDraft) {
       next();
       return;
     }
     this.$modal
-      .confirm("采购录入有未提交的内容（已填进货价或改动批次未保存），离开将丢失。确定离开吗？", "未保存提醒", {
+      .confirm("采购录入有未提交的内容（已填进货价、改过数量/批次或单头未保存），离开将丢失。确定离开吗？", "未保存提醒", {
         confirmButtonText: "离开",
         cancelButtonText: "继续编辑",
         type: "warning",
@@ -358,6 +376,15 @@ export default {
     /** 展开行批次改动标记（保存成功后 load() 会清掉） */
     markBatchDirty() {
       this.batchDirty = true;
+    },
+    /** 行内录入是否改过（填了进货价，或数量偏离默认待采数；orphan 行不参与） */
+    entryDirty(row) {
+      if (!row || row.orphan || !row._entry) return false;
+      if (this.priceFilled(row)) return true;
+      const q = Number(row._entry.quantity);
+      if (!(q > 0)) return false;
+      const pending = Number(row.pendingQty);
+      return !(pending > 0) || q !== pending;
     },
     /** 浏览器关闭/刷新：有未提交内容则弹原生确认 */
     onBeforeUnload(e) {
@@ -459,8 +486,11 @@ export default {
             purchaser: this.summary.purchaser || "",
             remark: this.summary.remark || "",
           };
+          this.headerSaved = { ...this.header };
           // 行内录入初始槽：数量默认=待采数量（未录时即订单总数）；进货价必须手填；供应商默认带单头
           this.batchDirty = false;
+          // 复位离开放行标记：重新载入后数据已落库，不能沿用上次确认离开的放行态
+          this._allowLeave = false;
           (this.summary.rows || []).forEach((r) => {
             const pending = Number(r.pendingQty);
             r._entry = {
