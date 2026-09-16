@@ -145,3 +145,12 @@ export function delPurchase(id) {
     method: 'delete'
   })
 }
+
+// 采购新增商品：按关键词（品名/助记码/别名）检索商品库 SKU（≤50 条）
+export function skuOptions(name) {
+  return request({
+    url: '/purchase/sku-options',
+    method: 'get',
+    params: { name: name }
+  })
+}

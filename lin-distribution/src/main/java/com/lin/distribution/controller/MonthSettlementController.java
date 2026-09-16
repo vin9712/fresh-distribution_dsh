@@ -51,7 +51,7 @@ public class MonthSettlementController extends BaseController {
     }
 
     /**
-     * 执行客户月结（冻结该客户该月验收/采购成本/调整单/退货单）
+     * 执行客户月结（冻结该客户该月验收/采购成本/调整单）
      */
     @Operation(summary = "执行客户月结")
     @PreAuthorize("@ss.hasPermi('monthSettlement:settle')")

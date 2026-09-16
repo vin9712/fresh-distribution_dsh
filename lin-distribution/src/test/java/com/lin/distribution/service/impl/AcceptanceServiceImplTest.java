@@ -11,7 +11,6 @@ import com.lin.distribution.domain.AcceptanceRevokeLog;
 import com.lin.distribution.domain.DeliveryOrder;
 import com.lin.distribution.domain.DeliveryOrderDetail;
 import com.lin.distribution.domain.DeliverySourceItem;
-import com.lin.distribution.domain.ReturnItem;
 import com.lin.distribution.domain.SaleOrder;
 import com.lin.distribution.domain.SaleOrderDetail;
 import com.lin.distribution.dto.AcceptanceQuickAcceptDTO;
@@ -81,8 +80,6 @@ class AcceptanceServiceImplTest {
     private SaleOrderMapper saleOrderMapper;
     @Mock
     private SaleOrderDetailMapper saleOrderDetailMapper;
-    @Mock
-    private com.lin.distribution.mapper.ReturnItemMapper returnItemMapper;
     @Mock
     private com.lin.distribution.mapper.MonthSettlementMapper monthSettlementMapper;
     @Mock
@@ -799,11 +796,11 @@ class AcceptanceServiceImplTest {
         assertTrue(vo.getHasAcceptance());
     }
 
-    /* ========== T7 第二轮：明细列表回填 来源对照 / 累计已退（验收页与退货单页共用） ========== */
+    /* ========== T7 第二轮：明细列表回填 来源对照（验收页共用） ========== */
 
-    /** 来源对照回填：按 (delivery_detail_id, customer_dept_id) 匹配 source_item，订单号批量回填；已退数量同时回填 */
+    /** 来源对照回填：按 (delivery_detail_id, customer_dept_id) 匹配 source_item，订单号批量回填 */
     @Test
-    void 明细列表回填来源对照与累计已退() {
+    void 明细列表回填来源对照() {
         when(acceptanceMapper.selectAcceptanceById(1L)).thenReturn(draftAcceptance());
         AcceptanceItem itemA = item(900L, 1L, "5.00", "2.50");
         itemA.setDeliveryItemId(DETAIL_ID);
@@ -817,35 +814,27 @@ class AcceptanceServiceImplTest {
         order.setCode("XS20260817001");
         when(saleOrderMapper.selectSaleOrderByIdIn(List.of(1000L))).thenReturn(List.of(order));
 
-        ReturnItem returned = new ReturnItem();
-        returned.setAcceptanceItemId(900L);
-        returned.setReturnQuantity(new BigDecimal("1.50"));
-        when(returnItemMapper.sumReturnedByAcceptanceItemIds(List.of(900L), null)).thenReturn(List.of(returned));
-
         List<AcceptanceItem> items = acceptanceService.selectItemListByAcceptanceId(1L);
 
         assertEquals(1, items.get(0).getSources().size());
         assertEquals("XS20260817001", items.get(0).getSources().get(0).getOrderCode());
         assertEquals(0, new BigDecimal("5").compareTo(items.get(0).getSources().get(0).getAllocatedQuantity()));
         assertEquals(0, new BigDecimal("2.50").compareTo(items.get(0).getSources().get(0).getUnitPrice()));
-        assertEquals(0, new BigDecimal("1.50").compareTo(items.get(0).getReturnedQuantity()));
     }
 
-    /** 历史单无 source_item：sources 不回填（null→前端展示历史数据），已退数量仍回填零 */
+    /** 历史单无 source_item：sources 不回填（null→前端展示历史数据） */
     @Test
-    void 明细列表历史单无来源对照且已退回填零() {
+    void 明细列表历史单无来源对照() {
         when(acceptanceMapper.selectAcceptanceById(1L)).thenReturn(draftAcceptance());
         AcceptanceItem itemA = item(900L, 1L, "5.00", "2.50");
         itemA.setDeliveryItemId(DETAIL_ID);
         itemA.setCustomerDeptId(DEPT_A);
         when(acceptanceItemMapper.selectListByAcceptanceId(1L)).thenReturn(List.of(itemA));
         when(deliverySourceItemMapper.selectListByDeliveryId(DELIVERY_ID)).thenReturn(List.of());
-        when(returnItemMapper.sumReturnedByAcceptanceItemIds(List.of(900L), null)).thenReturn(List.of());
 
         List<AcceptanceItem> items = acceptanceService.selectItemListByAcceptanceId(1L);
 
         assertNull(items.get(0).getSources());
-        assertEquals(0, BigDecimal.ZERO.compareTo(items.get(0).getReturnedQuantity()));
     }
 
     /** 多来源（同点跨订单合并）回填：两来源行都附到同一验收行，按分配行序返回 */
@@ -870,7 +859,6 @@ class AcceptanceServiceImplTest {
         o2.setId(1001L);
         o2.setCode("XS002");
         when(saleOrderMapper.selectSaleOrderByIdIn(anyList())).thenReturn(List.of(o1, o2));
-        when(returnItemMapper.sumReturnedByAcceptanceItemIds(List.of(900L), null)).thenReturn(List.of());
 
         List<AcceptanceItem> items = acceptanceService.selectItemListByAcceptanceId(1L);
 

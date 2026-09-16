@@ -22,7 +22,7 @@ public interface MonthSettlementService {
     MonthSettlementPreviewVO preview(Long customerId, String billMonth);
 
     /**
-     * 执行客户月结：按「客户 + 结算月」落已结记录；月结后该客户该月验收/采购成本/调整单/退货单冻结
+     * 执行客户月结：按「客户 + 结算月」落已结记录；月结后该客户该月验收/采购成本/调整单冻结
      *
      * @param customerId 客户ID
      * @param billMonth  结算月份（yyyy-MM）

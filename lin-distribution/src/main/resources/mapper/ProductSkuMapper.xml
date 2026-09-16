@@ -58,6 +58,28 @@
     <select id="selectProductSkuList" parameterType="com.lin.distribution.domain.ProductSku"
             resultMap="ProductSkuResult">
         <include refid="selectProductSkuVo"/>
+        <include refid="selectProductSkuWhere"/>
+        order by sku.create_time
+    </select>
+
+    <!-- 采购新增商品选品：仅按品名/助记码/别名 + valid 过滤（不能用共享片段：
+         多参数 @Param 绑定下片段里引用 categoryId 等 POJO 属性会 BindingException） -->
+    <select id="selectProductSkuOptions" resultMap="ProductSkuResult">
+        <include refid="selectProductSkuVo"/>
+        <where>
+            <if test="name != null and name != ''">
+                and ( sku.name like concat('%', #{name}, '%')
+                      or sku.mnemonic_code like concat('%', #{name}, '%')
+                      or sku.id in (select sku_id from product_alias where alias like concat('%', #{name}, '%'))
+                    )
+            </if>
+            <if test="valid != null">and sku.valid = #{valid}</if>
+        </where>
+        order by sku.create_time
+        limit #{limit}
+    </select>
+
+    <sql id="selectProductSkuWhere">
         <where>
             <if test="categoryId != null">and sku.category_id = #{categoryId}</if>
             <if test="spuId != null">and sku.spu_id = #{spuId}</if>
@@ -73,8 +95,7 @@
             <if test="matchedSpu != null and matchedSpu == 0">and sku.spu_id is null</if>
             <if test="matchedSpu != null and matchedSpu == 1">and sku.spu_id is not null</if>
         </where>
-        order by sku.create_time
-    </select>
+    </sql>
 
     <select id="selectProductSkuById" parameterType="Long" resultMap="ProductSkuResult">
         <include refid="selectProductSkuVo"/>

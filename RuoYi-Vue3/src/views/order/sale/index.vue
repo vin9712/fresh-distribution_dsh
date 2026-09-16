@@ -57,35 +57,6 @@
           @keyup.enter="handleQuery"
         />
       </el-form-item>
-      <el-form-item label="订单来源" prop="source">
-        <el-select
-          v-model="queryParams.source"
-          placeholder="请选择订单来源"
-          clearable
-        >
-          <el-option
-            v-for="dict in dict.type.t_sale_order_source"
-            :key="dict.value"
-            :label="dict.label"
-            :value="dict.value"
-          />
-        </el-select>
-      </el-form-item>
-      <el-form-item label="订单类型" prop="type">
-        <el-select
-          v-model="queryParams.type"
-          placeholder="请选择订单类型"
-          @change="handleQuery"
-          clearable
-        >
-          <el-option
-            v-for="dict in dict.type.t_sale_order_type"
-            :key="dict.value"
-            :label="dict.label"
-            :value="dict.value"
-          />
-        </el-select>
-      </el-form-item>
       <el-form-item label="订单状态" prop="status">
         <el-select
           v-model="queryParams.status"
@@ -199,26 +170,11 @@
       @selection-change="handleSelectionChange"
     >
       <el-table-column type="selection" width="55" align="center" />
-      <el-table-column label="送货单位" align="center" prop="deliveryName" />
-      <el-table-column label="订单编号" align="center" prop="code" />
-      <el-table-column label="订单来源" align="center" prop="source">
-        <template #default="scope">
-          <dict-tag
-            :options="dict.type.t_sale_order_source"
-            :value="scope.row.source"
-          />
-        </template>
-      </el-table-column>
-      <el-table-column label="订单类型" align="center" prop="type">
-        <template #default="scope">
-          <dict-tag
-            :options="dict.type.t_sale_order_type"
-            :value="scope.row.type"
-          />
-        </template>
-      </el-table-column>
+      <el-table-column label="客户" align="center" prop="customerName" :show-overflow-tooltip="true" />
+      <el-table-column label="配送点" align="center" prop="customerDeptName" />
+      <el-table-column label="订单编号" align="center" prop="code" min-width="170" />
       <el-table-column label="总金额" align="center" prop="amount" />
-      <el-table-column label="订单状态" align="center" prop="status">
+      <el-table-column label="订单状态" align="center" prop="status" width="180">
         <template #default="scope">
           <dict-tag
             :options="dict.type.t_sale_order_status"
@@ -237,20 +193,7 @@
               >可撤回</el-tag
             >
           </el-tooltip>
-        </template>
-      </el-table-column>
-      <el-table-column
-        label="配送日期"
-        align="center"
-        prop="deliveryDate"
-        width="180"
-      >
-        <template #default="scope">
-          <span>{{ parseTime(scope.row.deliveryDate, "{y}-{m}-{d}") }}</span>
-        </template>
-      </el-table-column>
-      <el-table-column label="流程单据" align="center" width="110">
-        <template #default="scope">
+          <!-- 流程单据（原独立列并入状态列）：采购单/送货单号 tooltip -->
           <el-tooltip
             v-if="scope.row.purchaseOrderCode"
             :content="'采购单：' + scope.row.purchaseOrderCode"
@@ -273,11 +216,16 @@
               ><Van
             /></el-icon>
           </el-tooltip>
-          <span
-            v-if="!scope.row.purchaseOrderCode && !scope.row.deliveryOrderCode"
-            class="doc-empty"
-            >—</span
-          >
+        </template>
+      </el-table-column>
+      <el-table-column
+        label="配送日期"
+        align="center"
+        prop="deliveryDate"
+        width="180"
+      >
+        <template #default="scope">
+          <span>{{ parseTime(scope.row.deliveryDate, "{y}-{m}-{d}") }}</span>
         </template>
       </el-table-column>
       <el-table-column label="备注" align="center" prop="remark" />
@@ -462,80 +410,7 @@
     />
 
     <!-- 添加或修改销售订单对话框 -->
-    <el-dialog
-      align-center
-      :title="title"
-      v-model="open"
-      width="500px"
-      append-to-body
-    >
-      <el-form ref="form" :model="form" :rules="rules" label-width="80px">
-        <el-form-item label="订单编号" prop="code">
-          <el-input v-model="form.code" placeholder="请输入订单编号" />
-        </el-form-item>
-        <el-form-item label="订单来源" prop="source">
-          <el-select v-model="form.source" placeholder="请选择订单来源">
-            <el-option
-              v-for="dict in dict.type.t_sale_order_source"
-              :key="dict.value"
-              :label="dict.label"
-              :value="parseInt(dict.value)"
-            ></el-option>
-          </el-select>
-        </el-form-item>
-        <el-form-item label="订单类型" prop="type">
-          <el-select v-model="form.type" placeholder="请选择订单类型">
-            <el-option
-              v-for="dict in dict.type.t_sale_order_type"
-              :key="dict.value"
-              :label="dict.label"
-              :value="parseInt(dict.value)"
-            ></el-option>
-          </el-select>
-        </el-form-item>
-        <el-form-item label="总金额" prop="amount">
-          <el-input v-model="form.amount" placeholder="请输入总金额" />
-        </el-form-item>
-        <el-form-item label="状态" prop="status">
-          <el-select v-model="form.status" placeholder="请选择状态">
-            <el-option
-              v-for="dict in dict.type.t_sale_order_status"
-              :key="dict.value"
-              :label="dict.label"
-              :value="parseInt(dict.value)"
-            ></el-option>
-          </el-select>
-        </el-form-item>
-        <el-form-item label="配送日期" prop="deliveryDate">
-          <el-date-picker
-            clearable
-            v-model="form.deliveryDate"
-            type="date"
-            value-format="YYYY-MM-DD"
-            placeholder="请选择配送日期"
-          >
-          </el-date-picker>
-        </el-form-item>
-        <el-form-item label="逻辑删除" prop="isDeleted">
-          <el-input v-model="form.isDeleted" placeholder="请输入逻辑删除" />
-        </el-form-item>
-        <el-form-item label="备注" prop="remark">
-          <el-input
-            v-model="form.remark"
-            type="textarea"
-            placeholder="请输入内容"
-          />
-        </el-form-item>
-      </el-form>
-      <template #footer>
-        <div class="dialog-footer">
-          <el-button type="primary" @click="submitForm">确 定</el-button>
-          <el-button @click="cancel">取 消</el-button>
-        </div>
-      </template>
-    </el-dialog>
-
-    <!-- 订单调整对话框（S14 退役：写入口已下线，验收后真实退货走退货单 /order/return，补货走新增销售订单） -->
+    <!-- 订单调整对话框（S14 退役：写入口已下线，配送后真实退货走「配送后变更（退货标记）」，补货走新增销售订单） -->
 
 
   </div>
@@ -545,10 +420,7 @@
 import {
   pageSaleOrder,
   listSale,
-  getSaleOrder,
   delSale,
-  addSale,
-  updateSale,
   updateOrderStatus,
 } from "@/api/order/sale";
 import { getOrderAdjustmentSummary } from "@/api/order/monthAdjustment";
@@ -574,7 +446,7 @@ import {
 
 export default {
   name: "Sale",
-  dicts: ["t_sale_order_status", "t_sale_order_type", "t_sale_order_source"],
+  dicts: ["t_sale_order_status"],
   setup() {
     return {
       Search,
@@ -610,10 +482,6 @@ export default {
       total: 0,
       // 销售订单表格数据
       saleList: [],
-      // 弹出层标题
-      title: "",
-      // 是否显示弹出层
-      open: false,
       // 查询参数
       queryParams: {
         pageNum: 1,
@@ -623,49 +491,9 @@ export default {
         customerIds: [],
         customerDeptIds: [],
         code: null,
-        source: null,
-        type: null,
         amount: null,
         status: null,
         deliveryDate: null,
-      },
-      // 表单参数
-      form: {},
-      // 表单校验
-      rules: {
-        code: [
-          { required: true, message: "订单编号不能为空", trigger: "blur" },
-        ],
-        source: [
-          {
-            required: true,
-            message: "订单来源：1后台下单,2线上下单不能为空",
-            trigger: "change",
-          },
-        ],
-        type: [
-          {
-            required: true,
-            message: "订单类型不能为空",
-            trigger: "change",
-          },
-        ],
-        amount: [
-          { required: true, message: "总金额不能为空", trigger: "blur" },
-        ],
-        status: [
-          {
-            required: true,
-            message: "订单状态不能为空",
-            trigger: "change",
-          },
-        ],
-        deliveryDate: [
-          { required: true, message: "配送日期不能为空", trigger: "blur" },
-        ],
-        createTime: [
-          { required: true, message: "创建时间不能为空", trigger: "blur" },
-        ],
       },
       // 已选择的列表
       formSelectedOptions: [],
@@ -673,7 +501,7 @@ export default {
       selectedCustomerDepts: [],
       // 送货单位树列表
       customerDeptOptions: [],
-      // 订单调整对话框（S14 退役：写入口已下线，真实退货走退货单 /order/return，补货走新增销售订单）
+      // 订单调整对话框（S14 退役：写入口已下线，配送后真实退货走「配送后变更（退货标记）」，补货走新增销售订单）
       // 月结调整摘要对话框（蓝图 §2「月结调整追溯」）
       adjustmentSummary: {
         open: false,
@@ -759,33 +587,6 @@ export default {
         this.loading = false;
       });
     },
-    // 取消按钮
-    cancel() {
-      this.open = false;
-      this.reset();
-    },
-    // 表单重置
-    reset() {
-      this.form = {
-        id: null,
-        customerId: null,
-        customerDeptId: null,
-        code: null,
-        source: null,
-        type: null,
-        amount: null,
-        status: null,
-        deliveryDate: null,
-        isDeleted: null,
-        version: null,
-        createBy: null,
-        createTime: null,
-        updateBy: null,
-        updateTime: null,
-        remark: null,
-      };
-      this.resetForm("form");
-    },
     /** 搜索按钮操作 */
     handleQuery() {
       this.queryParams.pageNum = 1;
@@ -820,7 +621,6 @@ export default {
     },
     /** 修改按钮操作 */
     handleUpdate(row) {
-      this.reset();
       const orderId = row.id;
       // 跳转到订单详情
       this.$router.push({
@@ -1055,26 +855,6 @@ export default {
         query: { orderId: row.id },
       });
     },
-    /** 提交按钮 */
-    submitForm() {
-      this.$refs["form"].validate((valid) => {
-        if (valid) {
-          if (this.form.id != null) {
-            updateSale(this.form).then((response) => {
-              this.$modal.msgSuccess("修改成功");
-              this.open = false;
-              this.getPageList();
-            });
-          } else {
-            addSale(this.form).then((response) => {
-              this.$modal.msgSuccess("新增成功");
-              this.open = false;
-              this.getPageList();
-            });
-          }
-        }
-      });
-    },
     /** 月结调整摘要（蓝图 §2「月结调整追溯」：客户+结算月粒度，订单归月=最近已提交验收单验收月） */
     handleAdjustmentSummary(row) {
       getOrderAdjustmentSummary(row.id)
@@ -1156,7 +936,7 @@ export default {
         return newItem;
       });
     },
-    // 行内调整（S14 退役）：入口已下线，配送后真实退货走退货单 /order/return，补货走新增销售订单
+    // 行内调整（S14 退役）：入口已下线，配送后真实退货走「配送后变更（退货标记）」，补货走新增销售订单
   },
 };
 </script>
@@ -1221,14 +1001,14 @@ export default {
     }
   }
 }
-/* 流程单据图标列 */
+/* 流程单据图标（并入订单状态列） */
 .doc-icon {
-  font-size: 18px;
+  font-size: 16px;
   vertical-align: middle;
   cursor: default;
+  margin-left: 4px;
   &.doc-purchase {
     color: #e6a23c;
-    margin-right: 4px;
   }
   &.doc-delivery {
     color: #67c23a;
@@ -1238,9 +1018,6 @@ export default {
     color: #c0c4cc;
     text-decoration: line-through;
   }
-}
-.doc-empty {
-  color: #c0c4cc;
 }
 /* 可撤回标识 / 撤回禁用提示 */
 .recallable-tag {

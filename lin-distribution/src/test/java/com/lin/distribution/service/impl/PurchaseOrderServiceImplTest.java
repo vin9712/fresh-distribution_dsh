@@ -7,6 +7,7 @@ import com.lin.distribution.domain.PurchaseModifyLog;
 import com.lin.distribution.domain.PurchaseOrder;
 import com.lin.distribution.dto.PurchaseBatchDTO;
 import com.lin.distribution.mapper.MonthSettlementMapper;
+import com.lin.distribution.mapper.ProductSkuMapper;
 import com.lin.distribution.mapper.PurchaseItemMapper;
 import com.lin.distribution.mapper.PurchaseModifyLogMapper;
 import com.lin.distribution.mapper.PurchaseOrderMapper;
@@ -52,6 +53,8 @@ class PurchaseOrderServiceImplTest {
     private PurchaseModifyLogMapper purchaseModifyLogMapper;
     @Mock
     private MonthSettlementMapper monthSettlementMapper;
+    @Mock
+    private ProductSkuMapper productSkuMapper;
     @Mock
     private BizCodeService bizCodeService;
 
@@ -167,6 +170,33 @@ class PurchaseOrderServiceImplTest {
     }
 
     @Test
+    void 日汇总撤回遗留孤儿与手动新增同键并存时应可继续录入() {
+        PurchaseOrder purchase = purchase(99L, "PC20260822001", PurchaseOrderStatus.DRAFT.getCode(), "9.00");
+        // 应采清单里已无土豆（订单撤回），遗留批次（is_manual=0）+ 手动新增同商品批次（is_manual=1）并存
+        when(purchaseItemMapper.selectRequiredSummary(DATE))
+                .thenReturn(Collections.singletonList(required(SKU_1, "白菜", "", "斤", "5")));
+        when(purchaseOrderMapper.selectActiveByOrderDate(DATE)).thenReturn(purchase);
+        PurchaseItem orphanBatch = batch(3L, 1, SKU_2, "土豆", "大", "斤", "3", "2.00", "6.00");
+        orphanBatch.setIsManual(Boolean.FALSE);
+        PurchaseItem manualBatch = batch(4L, 2, SKU_2, "土豆", "大", "斤", "2", "1.50", "3.00");
+        manualBatch.setIsManual(Boolean.TRUE);
+        when(purchaseItemMapper.selectPurchaseItemListByPurchaseId(99L))
+                .thenReturn(Arrays.asList(orphanBatch, manualBatch));
+
+        PurchaseDaySummaryVO vo = purchaseOrderService.daySummary(DATE);
+
+        assertEquals(2, vo.getRows().size());
+        PurchaseDaySummaryVO.Row merged = vo.getRows().get(1);
+        // 存在手动批次 → 行可继续录入，不再标孤儿
+        assertTrue(merged.getManual());
+        assertFalse(merged.getOrphan());
+        assertEquals(0, new BigDecimal("5").compareTo(merged.getPurchasedQty()));
+        assertEquals(2, merged.getBatchCount());
+        // 可录入行计入已录品种
+        assertEquals(1, vo.getPurchasedItemCount());
+    }
+
+    @Test
     void 日汇总采购日期为空应报错() {
         assertThrows(ServiceException.class, () -> purchaseOrderService.daySummary(null));
     }
@@ -269,15 +299,58 @@ class PurchaseOrderServiceImplTest {
     }
 
     @Test
-    void 录入批次商品不在当日订单商品内应拒绝() {
+    void 录入批次不在应采清单时按手动新增落库() {
+        when(purchaseOrderMapper.selectPurchaseOrderById(99L))
+                .thenReturn(purchase(99L, "PC20260822001", PurchaseOrderStatus.DRAFT.getCode(), "0"));
+        when(purchaseItemMapper.selectRequiredSummary(DATE))
+                .thenReturn(Collections.singletonList(required(SKU_1, "白菜", "", "斤", "5")));
+        List<PurchaseItem> stored = new ArrayList<>();
+        when(purchaseItemMapper.selectPurchaseItemListByPurchaseId(99L)).thenReturn(stored);
+        when(purchaseItemMapper.insertPurchaseItem(any(PurchaseItem.class))).thenAnswer(inv -> {
+            ((PurchaseItem) inv.getArgument(0)).setId(2L);
+            return 1;
+        });
+        when(purchaseOrderMapper.updatePurchaseOrder(any(PurchaseOrder.class))).thenReturn(1);
+
+        PurchaseItem saved = purchaseOrderService.addBatch(99L, dto(SKU_2, "土豆", "大", "斤", "3", "2.00"));
+
+        assertEquals("土豆", saved.getProductName());
+        assertEquals(Boolean.TRUE, saved.getIsManual());
+        assertEquals(0, BigDecimal.ZERO.compareTo(saved.getRequiredQty()));
+        assertEquals(0, new BigDecimal("6.00").compareTo(saved.getSubtotal()));
+    }
+
+    @Test
+    void 手动新增商品缺品名应拒绝() {
         when(purchaseOrderMapper.selectPurchaseOrderById(99L))
                 .thenReturn(purchase(99L, "PC20260822001", PurchaseOrderStatus.DRAFT.getCode(), "0"));
         when(purchaseItemMapper.selectRequiredSummary(DATE))
                 .thenReturn(Collections.singletonList(required(SKU_1, "白菜", "", "斤", "5")));
 
         ServiceException ex = assertThrows(ServiceException.class,
-                () -> purchaseOrderService.addBatch(99L, dto(SKU_2, "土豆", "大", "斤", "3", "2.00")));
-        assertTrue(ex.getMessage().contains("不在当日订单商品内"));
+                () -> purchaseOrderService.addBatch(99L, dto(SKU_2, null, null, null, "3", "2.00")));
+        assertTrue(ex.getMessage().contains("商品名称不能为空"));
+    }
+
+    @Test
+    void 临时商品单位缺省为斤() {
+        when(purchaseOrderMapper.selectPurchaseOrderById(99L))
+                .thenReturn(purchase(99L, "PC20260822001", PurchaseOrderStatus.DRAFT.getCode(), "0"));
+        when(purchaseItemMapper.selectRequiredSummary(DATE))
+                .thenReturn(Collections.singletonList(required(SKU_1, "白菜", "", "斤", "5")));
+        List<PurchaseItem> stored = new ArrayList<>();
+        when(purchaseItemMapper.selectPurchaseItemListByPurchaseId(99L)).thenReturn(stored);
+        when(purchaseItemMapper.insertPurchaseItem(any(PurchaseItem.class))).thenAnswer(inv -> {
+            ((PurchaseItem) inv.getArgument(0)).setId(3L);
+            return 1;
+        });
+        when(purchaseOrderMapper.updatePurchaseOrder(any(PurchaseOrder.class))).thenReturn(1);
+
+        PurchaseItem saved = purchaseOrderService.addBatch(99L, dto(null, "临时菜", null, null, "1", "1.00"));
+
+        assertNull(saved.getSkuId());
+        assertEquals("斤", saved.getProductUnit());
+        assertEquals(Boolean.TRUE, saved.getIsManual());
     }
 
     @Test

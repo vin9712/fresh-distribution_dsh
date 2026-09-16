@@ -31,7 +31,7 @@
         <el-button :icon="Printer" :disabled="!hasData" @click="handlePrint">{{
           mode === "pick" ? "打印本页" : "打印总单"
         }}</el-button>
-        <!-- OA：验收改订单维度（一订单一验），此入口改为按客户批量验收（配送点 tab + 批量一键验收） -->
+        <!-- OA：验收改订单维度（一订单一验），此入口改为按客户批量验收（配送点 tab + 批量验收） -->
         <el-button
           type="success"
           plain
@@ -47,13 +47,13 @@
     <!-- 当日打印清单抽屉（PT-2：全客户总单+点单批量队列出纸） -->
     <print-manifest-drawer v-model="manifestOpen" :delivery-date="deliveryDate" @printed="onManifestPrinted" />
 
-    <!-- OA：按客户批量验收（配送点 tab 区分，逐单/批量一键验收；跳转订单页验收模式） -->
+    <!-- OA：按客户批量验收（配送点 tab 区分，逐单/批量验收；跳转订单页验收模式） -->
     <el-dialog align-center title="按客户验收" v-model="accOpen" width="760px" append-to-body>
       <el-alert
         type="info"
         :closable="false"
         show-icon
-        title="批量一键验收 = 勾选订单按下单数量与金额整单确认（已保存过实收草稿的按草稿提交）；需逐行调整请点「去验收」进订单明细页"
+        title="批量验收 = 勾选订单按下单数量与金额整单确认（已保存过实收草稿的按草稿提交）；需逐行调整请点「去验收」进订单明细页"
         style="margin-bottom: 10px"
       />
       <el-tabs v-model="accActiveTab">
@@ -76,7 +76,7 @@
           :disabled="!accCurrentSelected.length"
           :loading="accBatchRunning"
           @click="handleBatchAccept"
-        >批量一键验收（{{ accCurrentSelected.length }}）</el-button>
+        >批量验收（{{ accCurrentSelected.length }}）</el-button>
       </div>
       <el-table
         v-loading="accLoading"
@@ -335,6 +335,7 @@ import { listCustomer } from "@/api/partner/customer";
 import { issuePrintTicket } from "@/api/print/ticket";
 import { resolvePrintTemplate } from "@/api/print/template";
 import PrintManifestDrawer from "./printManifestDrawer.vue";
+import { defaultDeliveryDate } from "@/utils/index";
 import { Search, Printer, CircleCheck } from "@element-plus/icons-vue";
 
 export default {
@@ -362,7 +363,7 @@ export default {
       pointRows: [],
       // 当日打印清单抽屉（PT-2 批量打印）
       manifestOpen: false,
-      // OA：按客户批量验收（配送点 tab + 勾选批量一键验收）
+      // OA：按客户批量验收（配送点 tab + 勾选批量验收）
       accOpen: false,
       accLoading: false,
       accOrders: [],
@@ -450,9 +451,10 @@ export default {
     if (this.$route.query.customerId) {
       this.customerId = Number(this.$route.query.customerId);
     }
-    if (this.$route.query.deliveryDate) {
-      this.deliveryDate = String(this.$route.query.deliveryDate);
-    }
+    // 配送日期默认：15:00 前=当天，之后=次日（与订单明细口径一致）；带参跳转优先用参数
+    this.deliveryDate = this.$route.query.deliveryDate
+      ? String(this.$route.query.deliveryDate)
+      : defaultDeliveryDate();
     // 打印回执（PT-3）：报表页真实打印后写 localStorage['print_receipt']，本页监听刷新分界标识
     window.addEventListener("storage", this.onPrintReceipt);
     listCustomer().then((response) => {
@@ -589,7 +591,7 @@ export default {
           this.pointPrinted = false;
         });
     },
-    /** OA：按客户批量验收——展示该客户日逐单状态（配送点 tab），支持勾选批量一键验收与跳转订单页验收模式（Q2 确认：不再按客户日建单） */
+    /** OA：按客户批量验收——展示该客户日逐单状态（配送点 tab），支持勾选批量验收与跳转订单页验收模式（Q2 确认：不再按客户日建单） */
     handleAcceptance() {
       this.accOpen = true;
       this.loadAccOrders();
@@ -635,7 +637,7 @@ export default {
     toggleCurrentTabSelection(v) {
       this.accCurrentSelectable.forEach((r) => (r._selected = !!v));
     },
-    /** 批量一键验收：逐单调 quick-accept（后端幂等，失败中断并提示已完成数） */
+    /** 批量验收：逐单调 quick-accept（后端幂等，失败中断并提示已完成数） */
     handleBatchAccept() {
       const targets = this.accCurrentSelected.slice();
       if (!targets.length) return;
@@ -838,8 +840,10 @@ export default {
     }
   }
 }
+</style>
 
-/* 打印态：只保留总表正文 */
+<!-- 打印态：只保留总表正文（必须非 scoped，否则 body * 会被编译为 body[data-v-xxx] * 而永不匹配） -->
+<style>
 @media print {
   body * {
     visibility: hidden;

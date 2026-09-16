@@ -3,6 +3,7 @@ package com.lin.distribution.service;
 import com.lin.distribution.domain.PurchaseItem;
 import com.lin.distribution.domain.PurchaseModifyLog;
 import com.lin.distribution.domain.PurchaseOrder;
+import com.lin.distribution.domain.ProductSku;
 import com.lin.distribution.dto.PurchaseBatchDTO;
 import com.lin.distribution.vo.PurchaseDaySummaryVO;
 
@@ -40,6 +41,14 @@ public interface PurchaseOrderService {
      * @return 采购明细集合
      */
     List<PurchaseItem> selectPurchaseItemListByPurchaseId(Long purchaseId);
+
+    /**
+     * 采购新增商品：按关键词（品名/助记码/别名）检索商品库 SKU（有效商品，≤50 条）
+     *
+     * @param name 关键词
+     * @return SKU 选项
+     */
+    List<ProductSku> searchSkuOptions(String name);
 
     /**
      * 当日应采汇总（D-056/D-059）：订单明细实时视图（应采）∪ 已录批次，

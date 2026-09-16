@@ -1,6 +1,6 @@
 // 页面级 E2E 冒烟（T2/T7/T8 遗留补验，2026-08-28）
 // 前置：本地环境已启动（./dev.sh start，前端 1025 → 后端 8090 → 远程库）
-// 范围：登录 + v1.3 五个关键页面加载（订单/送货/验收/客户日总表/退货单）
+// 范围：登录 + 单据管理五个关键页面加载（销售订单/送货单据/采购管理/验收单/送货单据(历史)）
 // 判定：无 pageerror、无 5xx 接口响应；每次运行只读不写，不产生业务数据
 // 运行：node tests/e2e-smoke.mjs
 import { chromium } from "playwright-core";
@@ -8,10 +8,10 @@ import { chromium } from "playwright-core";
 const BASE = "http://localhost:1025";
 const PAGES = [
   ["/order/sale", "销售订单"],
-  ["/order/delivery", "送货单据"],
+  ["/order/batch", "送货单据"],
+  ["/order/purchase", "采购管理"],
   ["/order/acceptance", "验收单"],
-  ["/order/batch", "客户日总表"],
-  ["/order/return", "退货单"],
+  ["/order/delivery", "送货单据(历史)"],
 ];
 
 const problems = [];

@@ -45,7 +45,7 @@ public class AcceptanceItem implements Serializable {
     @Excel(name = "SKU ID")
     private Long skuId;
 
-    /** SKU 编码（关联 t_product_sku.code；扫码枪扫码定位用，非表字段） */
+    /** SKU 编码（关联 t_product_sku.code，只读展示/对照用，非表字段） */
     @Excel(name = "商品编码")
     private String skuCode;
 
@@ -94,9 +94,6 @@ public class AcceptanceItem implements Serializable {
 
     /** 来源对照（S14 §八：来源订单号/下单数量/下单单价，join t_delivery_source_item；历史单为空列表，前端展示“—历史数据—”）——非持久化字段 */
     private transient List<DeliverySourceVO.SourceRow> sources;
-
-    /** 累计已退数量（退货单页面可退量=实收−累计已退，含草稿/已提交占用；status=3 已完成不占用）——非持久化字段 */
-    private transient BigDecimal returnedQuantity;
 
     /** 来源订单号（AC-6，《验收模块订单明细视角重构设计》：新口径验收行=订单明细行，按 sale_order_detail_id 反查）——非持久化字段 */
     private transient String orderCode;

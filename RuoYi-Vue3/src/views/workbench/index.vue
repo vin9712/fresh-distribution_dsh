@@ -109,7 +109,7 @@ export default {
           key: "chainPurchase",
           title: "批量采购",
           color: "#67c23a",
-          path: "/purchase",
+          path: "/order/purchase",
           descFn: (s) =>
             `待确认 ${s.purchaseDraft || 0} 单，到货待确认成本 ${s.purchasePendingCost || 0} 单`,
         },

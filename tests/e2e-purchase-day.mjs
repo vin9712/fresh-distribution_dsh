@@ -88,7 +88,7 @@ try {
   ok("UI 登录", true, page.url());
 
   // ---------- 从列表进入采购录入整页 ----------
-  await page.goto(BASE + "/purchase", { waitUntil: "networkidle" });
+  await page.goto(BASE + "/order/purchase", { waitUntil: "networkidle" });
   await page.getByRole("button", { name: "采购录入" }).first().click();
   await page.waitForURL((u) => String(u).includes("/purchase/day"), { timeout: 15000 });
   await page.waitForSelector(".pd-stats", { state: "visible", timeout: 15000 });

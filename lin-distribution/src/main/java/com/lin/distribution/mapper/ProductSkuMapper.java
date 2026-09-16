@@ -30,6 +30,18 @@ public interface ProductSkuMapper extends BaseMapper<ProductSku> {
     List<ProductSku> selectProductSkuList(ProductSku productSku);
 
     /**
+     * 采购新增商品选品：同 selectProductSkuList 的筛选条件，但带 SQL 级 LIMIT
+     *
+     * @param name  品名/助记码关键词（可空）
+     * @param valid 是否有效（1=有效）
+     * @param limit 最大返回条数
+     * @return 商品信息集合（≤ limit）
+     */
+    List<ProductSku> selectProductSkuOptions(@Param("name") String name,
+                                             @Param("valid") Integer valid,
+                                             @Param("limit") int limit);
+
+    /**
      * 新增商品信息
      *
      * @param productSku 商品信息

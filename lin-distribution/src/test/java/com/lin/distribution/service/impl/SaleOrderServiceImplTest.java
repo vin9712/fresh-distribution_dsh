@@ -202,7 +202,7 @@ class SaleOrderServiceImplTest {
 
         ServiceException ex = assertThrows(ServiceException.class,
                 () -> saleOrderService.updateSaleOrderWithDetails(updateRequest()));
-        assertTrue(ex.getMessage().contains("新增销售订单/退货单"));
+        assertTrue(ex.getMessage().contains("配送后变更（加单/退货标记）或新增销售订单"));
         verify(saleOrderDetailMapper, never()).existsValidAllocation(anyLong());
     }
 
@@ -212,7 +212,7 @@ class SaleOrderServiceImplTest {
 
         ServiceException ex = assertThrows(ServiceException.class,
                 () -> saleOrderService.updateSaleOrderWithDetails(updateRequest()));
-        assertTrue(ex.getMessage().contains("新增销售订单/退货单"));
+        assertTrue(ex.getMessage().contains("配送后变更（加单/退货标记）或新增销售订单"));
     }
 
     @Test

@@ -62,9 +62,9 @@ async function main() {
   const badges = await page.locator(".chain-node-badge").allTextContents();
   if (badges.length !== 5) problems.push(`[待办链] 徽标数量异常: ${badges.join(",")}`);
 
-  // 点击「批量采购」节点 → 跳转 /purchase
+  // 点击「批量采购」节点 → 跳转 /order/purchase（s31：采购管理移入单据管理目录）
   await page.locator(".chain-node", { hasText: "批量采购" }).first().click();
-  await page.waitForURL((u) => String(u).includes("/purchase"), { timeout: 10000 });
+  await page.waitForURL((u) => String(u).includes("/order/purchase"), { timeout: 10000 });
 
   // ---------- 种子数据：建采购单并确认（API） ----------
   const createResp = await page.request.post(API + "/purchase", {
@@ -95,7 +95,7 @@ async function main() {
   }
 
   // ---------- S2-2.2 采购页：成本状态提示 ----------
-  await page.goto(BASE + "/purchase", { waitUntil: "networkidle" });
+  await page.goto(BASE + "/order/purchase", { waitUntil: "networkidle" });
   await page.waitForTimeout(1500);
 
   const costColHeader = await page.locator("th:has-text('成本状态')").count();

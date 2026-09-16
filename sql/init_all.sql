@@ -1160,8 +1160,8 @@ CREATE TABLE `t_sale_order`
     `customer_id`      bigint(10) unsigned DEFAULT NULL COMMENT '客户ID',
     `customer_dept_id` bigint(10) unsigned DEFAULT NULL COMMENT '客户部门ID',
     `code`             varchar(200) NOT NULL COMMENT '订单编号',
-    `source`           tinyint(3) unsigned NOT NULL COMMENT '订单来源：1后台下单,2线上下单',
-    `type`             tinyint(3) unsigned NOT NULL COMMENT '订单类型：1正常订单,2加单',
+    `source`           tinyint(3) unsigned NOT NULL DEFAULT 1 COMMENT '订单来源：1后台下单,2线上下单（默认1后台下单）',
+    `type`             tinyint(3) unsigned NOT NULL DEFAULT 1 COMMENT '订单类型：1正常订单,2加单（默认1正常订单）',
     `amount`           decimal(10, 2) unsigned NOT NULL COMMENT '总金额',
     `status`           tinyint(3) unsigned NOT NULL COMMENT '状态：0制单,1审核,2送货,3验收,4完成',
     `delivery_date`    date         NOT NULL COMMENT '预计配送日期',
@@ -1679,6 +1679,7 @@ CREATE TABLE IF NOT EXISTS `purchase_item` (
   `product_unit`  varchar(50)   DEFAULT NULL COMMENT '单位快照',
   `quantity`      decimal(10,2) NOT NULL DEFAULT 0 COMMENT '数量（本批次进货数量）',
   `required_qty`  decimal(12,2) DEFAULT NULL COMMENT '录入时快照的应采数量（差异审计用）',
+  `is_manual`     tinyint(1)    NOT NULL DEFAULT 0 COMMENT '是否手动新增商品批次（0否=应采清单/订单撤回遗留，1是=新增商品或临时商品）',
   `unit_price`    decimal(10,2) NOT NULL DEFAULT 0 COMMENT '采购单价（进货成本价）',
   `subtotal`      decimal(12,2) NOT NULL DEFAULT 0 COMMENT '小计',
   `sort`          int(10)       NOT NULL DEFAULT 0 COMMENT '排序',
@@ -4503,7 +4504,7 @@ DROP TABLE IF EXISTS `t_print_task`;
 --   s22_print_data_params.sql          打印数据集 URL 与参数补声明（客户+日期(+点) 主体 + ticket 透传）
 --   s25_print_matrix_long_template.sql 总单长表模板（横向动态列，t_print_template id=13 默认切长表）
 --   s26_print_receipt_hook.sql         打印回执钩子（PT-3：js_str v=11 + 长表模板补引导；真实打印才登记分界）
--- 导入顺序：s0_3_jimureport_init.sql → s6_2_print_seed（FLAT 点单默认模板）→ s18 → s22 → s24_print_view_enhance（打印 view 页增强：查询栏关闭 + 标注工具栏 js_str 引导；s6_2/s18 已内联同款状态，重跑兑底）→ s25 → s26
+-- 导入顺序：s0_3_jimureport_init.sql → s6_2_print_seed（FLAT 点单默认模板）→ s18 → s22 → s24_print_view_enhance（打印 view 页增强：查询栏关闭 + 标注工具栏 js_str 引导；s6_2/s18 已内联同款状态，重跑兜底）→ s25 → s26
 -- （s16 的 print_form 列已在 [36] 节建好，s18/s22/s25 依赖它）
 
 -- ============================================================
@@ -4712,6 +4713,100 @@ SET @idx_exists := (
 );
 SET @ddl := IF(@idx_exists = 0,
     'ALTER TABLE `purchase_order` ADD UNIQUE KEY `uk_purchase_order_active_date` (`active_date`)',
+    'SELECT 1');
+PREPARE stmt FROM @ddl;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+-- ============================================================
+-- [46] 单据管理目录重构 + 退货单模块退役  | 源: s31_archive_menu_reorg.sql
+--      1) 目录 5 保持「单据管理」（子菜单收敛为 销售订单 / 送货单据 / 采购管理）；
+--      2) 2116「客户日总表」→「送货单据」；2036 旧送货单据页更名「送货单据(历史)」保持隐藏；
+--      3) 2075「采购管理」由顶级移入目录 5（前端路由 /purchase → /order/purchase）；
+--      4) 退货单 2106 + 按钮、return_quality_result 字典、t_return_* 表全部退役
+--         （配送后退货标记 change_type=3 仍保留）；
+--      5) 2081 验收单取消隐藏：台账页（查看/打印；历史送货单维度可补建/维护）。
+--      注意：DROP 段为最终态，本块须在 [29]/[38] 建表加列之后执行。
+-- ============================================================
+
+SET NAMES utf8mb4;
+
+UPDATE `sys_menu`
+SET `menu_name` = '单据管理',
+    `remark` = '单据管理目录：销售订单 / 送货单据 / 采购管理（视图性单据集中查看与打印）',
+    `update_by` = 'system', `update_time` = NOW()
+WHERE `menu_id` = 5;
+
+UPDATE `sys_menu`
+SET `menu_name` = '送货单据', `order_num` = 2,
+    `remark` = '送货单据（客户日报表视图：矩阵/配货/点单三口径，打印与验收入口）',
+    `update_by` = 'system', `update_time` = NOW()
+WHERE `menu_id` = 2116 OR `component` = 'order/batch/view'; -- 兜底：本块上方 insert 为自增 id，新装库 menu_id≠2116
+
+UPDATE `sys_menu` SET `order_num` = 1, `update_by` = 'system', `update_time` = NOW() WHERE `menu_id` = 2030; -- 销售订单
+UPDATE `sys_menu` SET `order_num` = 3, `update_by` = 'system', `update_time` = NOW() WHERE `menu_id` = 2075; -- 采购管理（移入后）
+UPDATE `sys_menu` SET `order_num` = 4, `update_by` = 'system', `update_time` = NOW() WHERE `menu_id` = 2081; -- 验收单（隐藏）
+UPDATE `sys_menu` SET `order_num` = 5, `update_by` = 'system', `update_time` = NOW() WHERE `menu_id` = 2036; -- 送货单据(历史)（隐藏）
+
+UPDATE `sys_menu`
+SET `menu_name` = '送货单据(历史)', `visible` = '1',
+    `remark` = CONCAT(IFNULL(`remark`, ''), ' [更名历史，仅路由/组件保留，URL 直达历史单证]'),
+    `update_by` = 'system', `update_time` = NOW()
+WHERE `menu_id` = 2036;
+
+UPDATE `sys_menu`
+SET `parent_id` = 5, `order_num` = 3, `update_by` = 'system', `update_time` = NOW()
+WHERE `menu_id` = 2075;
+UPDATE `sys_menu`
+SET `parent_id` = 5, `update_by` = 'system', `update_time` = NOW()
+WHERE `component` = 'purchase/index' AND `menu_type` = 'C' AND `parent_id` <> 5;
+
+DELETE FROM `sys_role_menu` WHERE `menu_id` IN (2106, 2107, 2108, 2109, 2110, 2111, 2112);
+DELETE FROM `sys_menu` WHERE `menu_id` IN (2106, 2107, 2108, 2109, 2110, 2111, 2112);
+DELETE FROM `sys_role_menu`
+WHERE `menu_id` IN (SELECT `menu_id` FROM `sys_menu` WHERE `perms` LIKE 'return:%' OR `component` = 'order/return/index');
+DELETE FROM `sys_menu` WHERE `perms` LIKE 'return:%' OR `component` = 'order/return/index';
+
+DELETE FROM `sys_dict_data` WHERE `dict_type` = 'return_quality_result';
+DELETE FROM `sys_dict_type` WHERE `dict_type` = 'return_quality_result';
+
+DROP TABLE IF EXISTS `t_return_item`;
+DROP TABLE IF EXISTS `t_return_order`;
+-- ⚠ 缓存提醒：字典直删 DB 后，后端 Redis 可能残留缓存键，需手动清理：
+--   redis-cli DEL sys_dict:return_quality_result
+
+-- 验收单台账上线（取消隐藏；订单维度只读+打印，历史送货单维度保留维护入口）
+UPDATE `sys_menu`
+SET `visible` = '0', `status` = '0', `order_num` = 4,
+    `remark` = '验收单台账：查看/打印；订单验收在订单明细页「去验收」，历史送货单维度可补建/录入/提交/撤销',
+    `update_by` = 'system', `update_time` = NOW()
+WHERE `menu_id` = 2081 OR `component` = 'order/acceptance/index';
+
+-- ============================================================
+-- [47] 销售订单来源/类型默认值  | 源: s32_order_source_type_default.sql
+--      业务无可选项：来源固定 1后台下单、类型固定 1正常订单；
+--      前端已移除录入/筛选/列表展示，后端建单不再设置 source/type；
+--      insert 为动态列（<if test="source != null">），值为 null 时整列省略 →
+--      由本 DEFAULT 兜底（必需，去掉后后端建单报无默认值错误）。
+-- ============================================================
+
+ALTER TABLE `t_sale_order`
+    MODIFY COLUMN `source` tinyint(3) unsigned NOT NULL DEFAULT 1 COMMENT '订单来源：1后台下单,2线上下单（默认1后台下单）',
+    MODIFY COLUMN `type`   tinyint(3) unsigned NOT NULL DEFAULT 1 COMMENT '订单类型：1正常订单,2加单（默认1正常订单）';
+
+-- ============================================================
+-- [48] 采购手动新增商品批次  | 源: s33_purchase_manual_item.sql
+--      采购录入支持「新增商品」（SKU 库选品 / 临时商品），purchase_item 加 is_manual 区分
+--      「手动新增」（可继续录入、不标孤儿）与「订单撤回遗留」（只读）。
+-- ============================================================
+
+SET @col_exists := (
+    SELECT COUNT(*) FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'purchase_item' AND COLUMN_NAME = 'is_manual'
+);
+SET @ddl := IF(@col_exists = 0,
+    'ALTER TABLE `purchase_item`
+        ADD COLUMN `is_manual` tinyint(1) NOT NULL DEFAULT 0 COMMENT ''是否手动新增商品批次（0否=应采清单/订单撤回遗留，1是=新增商品或临时商品）'' AFTER `required_qty`',
     'SELECT 1');
 PREPARE stmt FROM @ddl;
 EXECUTE stmt;

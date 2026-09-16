@@ -20,7 +20,7 @@
             >撤销验收</el-button>
           </template>
           <template v-else>
-            验收模式：左侧为下单时快照不可修改；实收默认=下单数量，可逐行修改、标记换/退/加，或直接一键验收
+            验收模式：左侧为下单时快照不可修改；实收默认=下单数量，可逐行修改、标记换/退/加，或直接验收
           </template>
           <el-button size="small" @click="exitAcceptanceMode">退出验收</el-button>
         </span>
@@ -66,7 +66,7 @@
     >
       <template #title>
         <span class="draft-banner-title">
-          该订单已进入配送/验收流程，明细为生成送货单时的冻结快照；配送后的真实退货请使用退货单，补货请新增销售订单
+          该订单已进入配送/验收流程，明细为生成送货单时的冻结快照；配送后的真实退货请走「配送后变更（退货标记）」，补货请新增销售订单
         </span>
       </template>
     </el-alert>
@@ -456,7 +456,7 @@
                 </template>
               </vxe-column>
               <vxe-column field="amount" title="金额" min-width="100" :formatter="decimalFormatter('amount')"> </vxe-column>
-              <!-- OA 验收模式：实收数量可编辑 + 差异 + 差异原因（载入默认=下单数量，一键/草稿保存落验收单） -->
+              <!-- OA 验收模式：实收数量可编辑 + 差异 + 差异原因（载入默认=下单数量，验收/草稿保存落验收单） -->
               <vxe-column
                 v-if="acceptanceMode"
                 field="acceptActual"
@@ -571,7 +571,7 @@
             <el-form-item
               style="text-align: center; margin-left: -100px; margin-top: 10px"
             >
-              <!-- OA 验收模式工具条：加单（浅绿=新增，居左）/ 一键验收 / 保存草稿 / 验收日期 / 撤销验收（已验收态） -->
+              <!-- OA 验收模式工具条：加单（浅绿=新增，居左）/ 验收 / 保存草稿 / 退出验收 / 验收日期（最右） -->
               <template v-if="acceptanceMode">
                 <el-button
                   v-if="!acceptanceReadonly"
@@ -588,13 +588,14 @@
                   :loading="quickAccepting"
                   @click="handleQuickAccept"
                   v-hasPermi="['acceptance:submit']"
-                >一键验收</el-button>
+                >验收</el-button>
                 <el-button
                   v-if="!acceptanceReadonly"
                   :loading="accSaving"
                   @click="saveAcceptanceDraft"
                   v-hasPermi="['acceptance:edit']"
                 >保存草稿</el-button>
+                <el-button @click="exitAcceptanceMode">退出验收</el-button>
                 <span v-if="!acceptanceReadonly" class="acc-date-label">
                   验收日期
                   <el-date-picker
@@ -605,14 +606,6 @@
                     style="width: 140px"
                   />
                 </span>
-                <el-button
-                  v-if="!acceptanceReadonly"
-                  type="warning"
-                  plain
-                  @click="showRevokeDialog"
-                  v-hasPermi="['acceptance:revoke']"
-                >撤销验收</el-button>
-                <el-button @click="exitAcceptanceMode">退出验收</el-button>
               </template>
               <!-- D-055 配送后变更模式工具条：加单（居左）+ 返回；无实收/验收动作 -->
               <template v-else-if="changeMode">
@@ -865,7 +858,7 @@
       </el-table>
     </el-dialog>
 
-    <!-- 按客户批量确认草稿订单（D-055：确认后才会进入客户日总表与验收链路） -->
+    <!-- 按客户批量确认草稿订单（D-055：确认后才会进入送货单据与验收链路） -->
     <el-drawer
       v-model="batchConfirmVisible"
       title="按客户批量确认草稿订单"
@@ -938,7 +931,7 @@
         >
       </div>
       <div class="batch-confirm-tip">
-        确认后订单变为「已确认」，即进入客户日总表（矩阵/配货/点单）与验收链路；确认后的订单不可再修改。
+        确认后订单变为「已确认」，即进入送货单据（矩阵/配货/点单）与验收链路；确认后的订单不可再修改。
       </div>
     </el-drawer>
 
@@ -995,6 +988,7 @@ import { listCustomerDept } from "@/api/partner/customerDept";
 import { Refresh, Rank, Plus, Minus, Search, DocumentCopy, Check } from "@element-plus/icons-vue";
 import SplitWorkspace from "@/components/SplitWorkspace/index.vue";
 import { registerShortcuts, setEnabledByOwner, SCOPE } from "@/utils/shortcut";
+import { defaultDeliveryDate } from "@/utils/index";
 
 import XEUtils from "xe-utils";
 import Sortable from "sortablejs";
@@ -1709,7 +1703,7 @@ export default {
           this.batchConfirmLoading = false;
         });
     },
-    /** 批量确认所选草稿订单（后端要求全部为制单状态，确认后进入客户日总表与验收链路） */
+    /** 批量确认所选草稿订单（后端要求全部为制单状态，确认后进入送货单据与验收链路） */
     submitBatchConfirm() {
       const orderIds = this.batchConfirmSelection.map((o) => o.id);
       if (!orderIds.length) {
@@ -1726,7 +1720,7 @@ export default {
           return updateOrderStatus({ orderIds, status: 1 });
         })
         .then(() => {
-          this.$modal.msgSuccess("已确认 " + orderIds.length + " 条订单，可在「单据管理 → 客户日总表」查看与打印");
+          this.$modal.msgSuccess("已确认 " + orderIds.length + " 条订单，可在「单据管理 → 送货单据」查看与打印");
           // 若当前正在编辑的订单也在其中，同步状态避免页面残留旧状态
           if (this.orderForm.orderId && orderIds.includes(this.orderForm.orderId)) {
             this.orderStatus = 1;
@@ -1926,21 +1920,8 @@ export default {
             this.customerDeptDisabled = false;
             this.selectedCustomerDepts = [];
 
-            // 初始化送货日期
-            const today = new Date();
-            const nowHour = today.getHours();
-            const tomorrow = new Date(today);
-            tomorrow.setDate(today.getDate() + 1);
-            const formatDay = (d) => {
-              const y = d.getFullYear();
-              const m = String(d.getMonth() + 1).padStart(2, "0");
-              const day = String(d.getDate()).padStart(2, "0");
-              return `${y}-${m}-${day}`;
-            };
-
-            // 若当前时间小于15点，则送货时间为今天，否则为明天
-            const deliveryDate = nowHour < 15 ? formatDay(today) : formatDay(tomorrow);
-            this.orderForm.deliveryDate = deliveryDate;
+            // 初始化送货日期（与全局默认口径一致：15 点前=今天，之后=明天）
+            this.orderForm.deliveryDate = defaultDeliveryDate();
 
             // 初始化订单表格
             this.orderDetailList = [];
@@ -2464,7 +2445,7 @@ export default {
         // 退货（整行）：行内一步确认（Q3 定稿：整行退，应送/实收归 0）
         this.$modal
           .confirm(
-            `整行退货【${row.productName}】？确认后该行应送/实收归 0（验收金额不计）；部分退货请走退货单`
+            `整行退货【${row.productName}】？确认后该行应送/实收归 0（验收金额不计）；其余调整请走新增销售订单`
           )
           .then(() => deliveryReturn(this.orderForm.orderId, { targetDetailId: row.id }))
           .then(() => {
@@ -3475,12 +3456,8 @@ export default {
                 sourceCustomerId.toString()
               )
             : [];
-        // 送货日期重算：15 点前=今天，之后=明天
-        const today = new Date();
-        const tomorrow = new Date(today);
-        tomorrow.setDate(today.getDate() + 1);
-        const fmt = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-        this.orderForm.deliveryDate = today.getHours() < 15 ? fmt(today) : fmt(tomorrow);
+        // 送货日期重算（与全局默认口径一致：15 点前=今天，之后=明天）
+        this.orderForm.deliveryDate = defaultDeliveryDate();
         // 订单号按 §3.2 重新分配
         genOrderCode({ refresh: false }).then((res) => {
           this.orderForm.orderCode = res.msg;

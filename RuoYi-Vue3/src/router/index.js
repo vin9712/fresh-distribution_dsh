@@ -235,7 +235,7 @@ export const dynamicRoutes = [
     ]
   },
   {
-    path: '/purchase/day',
+    path: '/order/purchase/day',
     component: Layout,
     hidden: true,
     permissions: ['purchase:list'],
@@ -244,7 +244,7 @@ export const dynamicRoutes = [
         path: 'index/',
         component: () => import('@/views/purchase/day'),
         name: 'PurchaseDayEntry',
-        meta: { title: '采购录入', activeMenu: '/purchase' }
+        meta: { title: '采购录入', activeMenu: '/order/purchase' }
       }
     ]
   }

@@ -116,6 +116,8 @@ public class PurchaseDaySummaryVO implements Serializable {
         private BigDecimal amount;
         /** 订单已撤回（应采=0 但仍有批次） */
         private Boolean orphan;
+        /** 手动新增商品（SKU 库选品 / 临时商品）：应有=0 但非订单遗留，可继续录入 */
+        private Boolean manual;
 
         @Builder.Default
         private List<Batch> batches = new ArrayList<>();

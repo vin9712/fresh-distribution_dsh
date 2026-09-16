@@ -16,6 +16,7 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         <result property="productUnit"    column="product_unit"    />
         <result property="quantity"    column="quantity"    />
         <result property="requiredQty"    column="required_qty"    />
+        <result property="isManual"    column="is_manual"    />
         <result property="unitPrice"    column="unit_price"    />
         <result property="subtotal"    column="subtotal"    />
         <result property="sort"    column="sort"    />
@@ -26,7 +27,7 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
 
     <sql id="selectPurchaseItemVo">
         select id, purchase_id, batch_no, sku_id, supplier_id, supplier_name, product_name, product_spec,
-               product_unit, quantity, required_qty, unit_price, subtotal, sort, create_by, create_time, remark
+               product_unit, quantity, required_qty, is_manual, unit_price, subtotal, sort, create_by, create_time, remark
         from purchase_item
     </sql>
 
@@ -64,6 +65,7 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
             <if test="productUnit != null">product_unit,</if>
             <if test="quantity != null">quantity,</if>
             <if test="requiredQty != null">required_qty,</if>
+            <if test="isManual != null">is_manual,</if>
             <if test="unitPrice != null">unit_price,</if>
             <if test="subtotal != null">subtotal,</if>
             <if test="sort != null">sort,</if>
@@ -82,6 +84,7 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
             <if test="productUnit != null">#{productUnit},</if>
             <if test="quantity != null">#{quantity},</if>
             <if test="requiredQty != null">#{requiredQty},</if>
+            <if test="isManual != null">#{isManual},</if>
             <if test="unitPrice != null">#{unitPrice},</if>
             <if test="subtotal != null">#{subtotal},</if>
             <if test="sort != null">#{sort},</if>
@@ -94,12 +97,12 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
     <insert id="insertPurchaseItemBatch" parameterType="java.util.List">
         insert into purchase_item
         (purchase_id, batch_no, sku_id, supplier_id, supplier_name, product_name, product_spec, product_unit,
-         quantity, required_qty, unit_price, subtotal, sort, create_by, create_time, remark)
+         quantity, required_qty, is_manual, unit_price, subtotal, sort, create_by, create_time, remark)
         values
         <foreach collection="list" item="item" separator=",">
             (#{item.purchaseId}, #{item.batchNo}, #{item.skuId}, #{item.supplierId}, #{item.supplierName},
              #{item.productName}, #{item.productSpec}, #{item.productUnit}, #{item.quantity}, #{item.requiredQty},
-             #{item.unitPrice}, #{item.subtotal}, #{item.sort}, #{item.createBy}, #{item.createTime}, #{item.remark})
+             #{item.isManual}, #{item.unitPrice}, #{item.subtotal}, #{item.sort}, #{item.createBy}, #{item.createTime}, #{item.remark})
         </foreach>
     </insert>
 

@@ -180,7 +180,7 @@
       </el-table-column>
     </el-table>
 
-    <!-- 采购录入已改为独立整页（/purchase/day/index/），无嵌套弹窗 -->
+    <!-- 采购录入已改为独立整页（/order/purchase/day/index/），无嵌套弹窗 -->
 
     <!-- S2-2.2 成本调整抽屉（W0-2.5 前端）：已确认采购单逐行调整数量/成本，禁止增删行 -->
     <el-drawer
@@ -304,7 +304,7 @@ export default {
         beginOrderDate: null,
         endOrderDate: null,
       },
-      // 采购录入（独立整页 /purchase/day/index/）
+      // 采购录入（独立整页 /order/purchase/day/index/）
       // S2-2.2 成本调整抽屉
       adjustOpen: false,
       adjustOrder: {},
@@ -377,7 +377,7 @@ export default {
     /** 采购录入：跳转独立整页（row 为空=默认明日） */
     handleDayEntry(row) {
       this.$router.push({
-        path: "/purchase/day/index/",
+        path: "/order/purchase/day/index/",
         query: { orderDate: row ? row.orderDate : "" },
       });
     },

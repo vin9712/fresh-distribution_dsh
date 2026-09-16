@@ -53,6 +53,16 @@ public class PurchaseOrderController extends BaseController {
     }
 
     /**
+     * 采购新增商品：按关键词检索商品库 SKU（供采购录入选品，权限走 purchase:list）
+     */
+    @Operation(summary = "采购新增商品-SKU 检索")
+    @PreAuthorize("@ss.hasPermi('purchase:list')")
+    @GetMapping("/sku-options")
+    public AjaxResult skuOptions(@RequestParam(value = "name", required = false) String name) {
+        return success(purchaseOrderService.searchSkuOptions(name));
+    }
+
+    /**
      * 取或惰性创建当日采购单（有写副作用，故用 POST 保证不被预取/爬虫误触）
      */
     @Operation(summary = "取或创建当日采购单")

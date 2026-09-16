@@ -60,6 +60,9 @@ public class PurchaseItem implements Serializable {
     /** 录入时快照的应采数量（差异审计用） */
     private BigDecimal requiredQty;
 
+    /** 是否手动新增商品批次（0否=应采清单/订单撤回遗留，1是=新增商品或临时商品） */
+    private Boolean isManual;
+
     /** 采购单价（进货成本价） */
     @Excel(name = "采购单价")
     private BigDecimal unitPrice;
@@ -98,6 +101,7 @@ public class PurchaseItem implements Serializable {
             .append("productUnit", getProductUnit())
             .append("quantity", getQuantity())
             .append("requiredQty", getRequiredQty())
+            .append("isManual", getIsManual())
             .append("unitPrice", getUnitPrice())
             .append("subtotal", getSubtotal())
             .append("sort", getSort())

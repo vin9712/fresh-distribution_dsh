@@ -15,7 +15,6 @@ import com.lin.distribution.domain.CustomerDept;
 import com.lin.distribution.domain.DeliveryOrder;
 import com.lin.distribution.domain.DeliveryOrderDetail;
 import com.lin.distribution.domain.DeliverySourceItem;
-import com.lin.distribution.domain.ReturnItem;
 import com.lin.distribution.domain.SaleOrder;
 import com.lin.distribution.domain.SaleOrderDetail;
 import com.lin.distribution.dto.AcceptanceUpdateDTO;
@@ -27,7 +26,6 @@ import com.lin.distribution.mapper.DeliveryOrderDetailMapper;
 import com.lin.distribution.mapper.DeliveryOrderMapper;
 import com.lin.distribution.mapper.DeliverySourceItemMapper;
 import com.lin.distribution.mapper.MonthSettlementMapper;
-import com.lin.distribution.mapper.ReturnItemMapper;
 import com.lin.distribution.mapper.SaleOrderDetailMapper;
 import com.lin.distribution.mapper.SaleOrderMapper;
 import com.lin.distribution.domain.MonthSettlement;
@@ -84,7 +82,6 @@ public class AcceptanceServiceImpl implements AcceptanceService {
     private final CustomerDeptMapper customerDeptMapper;
     private final SaleOrderMapper saleOrderMapper;
     private final SaleOrderDetailMapper saleOrderDetailMapper;
-    private final ReturnItemMapper returnItemMapper;
     private final MonthSettlementMapper monthSettlementMapper;
     private final BizCodeService bizCodeService;
 
@@ -102,7 +99,6 @@ public class AcceptanceServiceImpl implements AcceptanceService {
     public List<AcceptanceItem> selectItemListByAcceptanceId(Long acceptanceId) {
         List<AcceptanceItem> items = acceptanceItemMapper.selectListByAcceptanceId(acceptanceId);
         fillSources(items);
-        fillReturnedQuantity(items);
         fillOrderInfo(items);
         return items;
     }
@@ -206,27 +202,6 @@ public class AcceptanceServiceImpl implements AcceptanceService {
     private Long findDeliveryOrderId(Long acceptanceId) {
         Acceptance acceptance = acceptanceMapper.selectAcceptanceById(acceptanceId);
         return acceptance == null ? null : acceptance.getDeliveryOrderId();
-    }
-
-    /**
-     * 累计已退回填（退货单页面可退量=实收−累计已退）：
-     * 含草稿/已提交退货单占用，仅 status=3 已完成释放（同 ReturnOrderServiceImpl 口径）。
-     */
-    private void fillReturnedQuantity(List<AcceptanceItem> items) {
-        if (items == null || items.isEmpty()) {
-            return;
-        }
-        List<Long> itemIds = items.stream()
-                .map(AcceptanceItem::getId).filter(Objects::nonNull).collect(Collectors.toList());
-        if (itemIds.isEmpty()) {
-            return;
-        }
-        Map<Long, BigDecimal> returnedMap = returnItemMapper.sumReturnedByAcceptanceItemIds(itemIds, null).stream()
-                .filter(ri -> ri.getAcceptanceItemId() != null)
-                .collect(Collectors.toMap(ReturnItem::getAcceptanceItemId, ReturnItem::getReturnQuantity, (a, b) -> a));
-        for (AcceptanceItem item : items) {
-            item.setReturnedQuantity(returnedMap.getOrDefault(item.getId(), BigDecimal.ZERO));
-        }
     }
 
     /**
@@ -950,7 +925,7 @@ public class AcceptanceServiceImpl implements AcceptanceService {
             syncActualMirror(id, acceptance.getDeliveryOrderId());
         } else {
             // D-055 点单验收（无送货单）：应送行=订单明细，实收 1:1 回写 actual_* 镜像；
-            // 来源订单 CONFIRMED→ACCEPTED（验收后订单冻结，再要退补走退货单/新订单）
+            // 来源订单 CONFIRMED→ACCEPTED（验收后订单冻结，再要退补走配送后变更标记/新增销售订单）
             syncActualMirrorFromOrderDetails(id);
             List<Long> orderIds = sourceOrderIdsFromItems(id);
             if (!orderIds.isEmpty()) {

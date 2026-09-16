@@ -390,7 +390,7 @@ public class SaleOrderServiceImpl implements SaleOrderService {
      * 订单编辑护栏（S14/G6 + D-055/OA + 2026-09-14 状态收敛，DESIGN.md §5.5 / §七 操作可行性矩阵）：
      * <p><b>只有「草稿」可直接改单</b>（2026-09-14 业务定稿）：已确认及之后必须先在订单列表
      * 「撤回」为草稿，避免“已确认单被静默改内容、已生成的下游单据对不上”。</p>
-     * DELIVERED/ACCEPTED → 拒改（配送后的调整用新增销售订单/退货单）；
+     * DELIVERED/ACCEPTED → 拒改（配送后的调整用配送后变更标记/新增销售订单）；
      * SETTLED → 拒改；
      * CONFIRMED + 已进有效送货单 → 拒改（提示先作废送货单）；
      * CONFIRMED（其他）→ 拒改（提示先撤回）；
@@ -402,7 +402,7 @@ public class SaleOrderServiceImpl implements SaleOrderService {
         if (!SaleOrderStatus.DRAFT.getCode().equals(status)) {
             if (SaleOrderStatus.DELIVERED.getCode().equals(status)
                     || SaleOrderStatus.ACCEPTED.getCode().equals(status)) {
-                throw new ServiceException("配送后的订单不可修改，如需调整请使用新增销售订单/退货单：" + order.getCode());
+                throw new ServiceException("配送后的订单不可修改，如需调整请使用配送后变更（加单/退货标记）或新增销售订单：" + order.getCode());
             }
             if (SaleOrderStatus.SETTLED.getCode().equals(status)) {
                 throw new ServiceException("已结算订单禁止修改：" + order.getCode());

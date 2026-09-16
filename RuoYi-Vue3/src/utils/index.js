@@ -16,6 +16,23 @@ export function formatDate(cellValue) {
 }
 
 /**
+ * 默认配送日期（与订单明细页口径一致）：当前时间 < 15:00 取当天，否则取次日。
+ * 订单明细、送货单据等页面共用，避免各处重复实现。
+ * @returns {string} yyyy-MM-dd
+ */
+export function defaultDeliveryDate() {
+  const today = new Date()
+  const target = new Date(today)
+  if (today.getHours() >= 15) {
+    target.setDate(today.getDate() + 1)
+  }
+  const y = target.getFullYear()
+  const m = String(target.getMonth() + 1).padStart(2, '0')
+  const d = String(target.getDate()).padStart(2, '0')
+  return `${y}-${m}-${d}`
+}
+
+/**
  * @param {number} time
  * @param {string} option
  * @returns {string}
