@@ -46,6 +46,17 @@ public interface SaleOrderMapper {
     List<SaleOrder> selectSaleOrderList(SaleOrder saleOrder);
 
     /**
+     * 客户视角分组聚合分页（D-064）：一行 = 客户 + 配送日期
+     *
+     * <p>筛选条件与 {@link #selectSaleOrderList} 逐条对齐，仅分组口径不同；
+     * 分页单位 = 客户行，故必须在 SQL 层 group by（前端分页会切断同一客户）。</p>
+     *
+     * @param saleOrder 销售订单（复用其筛选字段）
+     * @return 客户维度聚合行集合
+     */
+    List<com.lin.distribution.vo.SaleCustomerPageVO> selectCustomerPage(SaleOrder saleOrder);
+
+    /**
      * 新增销售订单
      *
      * @param saleOrder 销售订单
@@ -124,8 +135,12 @@ public interface SaleOrderMapper {
      *
      * @param customerDeptId 配送点ID
      * @param deliveryDate   配送日期
+     * @param shiftCode      班次过滤值（null=不按班次过滤；启用班次的客户传归一化后的班次）
+     * @param defaultShift   无班次历史单归入的班次（业务口径：归白班），用于同口径匹配
      * @return 草稿订单集合（通常最多1个，按创建时间倒序取最新）
      */
     List<SaleOrder> selectExistingDraftOrder(@Param("customerDeptId") Long customerDeptId,
-                                             @Param("deliveryDate") LocalDate deliveryDate);
+                                             @Param("deliveryDate") LocalDate deliveryDate,
+                                             @Param("shiftCode") String shiftCode,
+                                             @Param("defaultShift") String defaultShift);
 }

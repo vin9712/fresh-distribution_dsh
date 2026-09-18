@@ -32,6 +32,14 @@ public interface SaleOrderService {
     List<SaleOrder> selectSaleOrderList(SaleOrder saleOrder);
 
     /**
+     * 客户视角分组聚合分页（D-064）：一行 = 客户 + 配送日期
+     *
+     * @param saleOrder 销售订单（复用其筛选字段）
+     * @return 客户维度聚合行集合
+     */
+    List<com.lin.distribution.vo.SaleCustomerPageVO> selectCustomerPage(SaleOrder saleOrder);
+
+    /**
      * 新增销售订单
      *
      * @param saleOrder 销售订单
@@ -111,7 +119,8 @@ public interface SaleOrderService {
      *
      * @param customerDeptId 配送点ID
      * @param deliveryDate   配送日期
+     * @param shiftCode      班次（启用班次的客户参与判重；空=白班；未启用班次的客户忽略）
      * @return 最新一条草稿订单；无则返回 null
      */
-    SaleOrder findExistingDraftOrder(Long customerDeptId, java.time.LocalDate deliveryDate);
+    SaleOrder findExistingDraftOrder(Long customerDeptId, java.time.LocalDate deliveryDate, String shiftCode);
 }

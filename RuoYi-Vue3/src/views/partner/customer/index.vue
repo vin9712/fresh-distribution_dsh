@@ -215,6 +215,11 @@
         </el-form-item>
         <!-- 组单策略 / 相同商品合并两字段已随 D-055 下线：送货单不再是独立单证，
              矩阵/配货/点单均按订单明细实时取数；DB 列与批次快照保留历史值不再参与业务 -->
+        <!-- 班次开关（s35）：开启后该客户的配送点可配白/夜班，下单需选班次，总单按「配送点×班次」出列 -->
+        <el-form-item label="启用班次">
+          <el-switch v-model="form.shiftEnabled" :active-value="true" :inactive-value="false" />
+          <span class="shift-tip">开启后需在配送点维护白/夜班，下单时选择班次</span>
+        </el-form-item>
         <el-form-item label="打印模板">
           <div v-loading="templateLoading" style="width: 100%">
             <template v-if="form.id != null">
@@ -367,7 +372,10 @@ export default {
         valid: null,
       },
       // 表单参数
-      form: {},
+      form: {
+        // 班次开关（s35）：默认关闭，行为与引入前一致
+        shiftEnabled: false,
+      },
       // 表单校验
       rules: {
         name: [
@@ -426,6 +434,8 @@ export default {
         valid: 1,
         docScopeType: "DELIVERY_POINT_DATE",
         docMergeSameItem: true,
+        // 班次开关（s35）：默认关闭，行为与引入前一致
+        shiftEnabled: false,
         isDeleted: 0,
         createBy: null,
         createTime: null,

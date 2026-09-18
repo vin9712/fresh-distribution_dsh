@@ -8,6 +8,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
+import com.lin.distribution.domain.Customer;
 import com.lin.distribution.domain.CustomerDept;
 import com.lin.distribution.domain.DeliveryBatch;
 import com.lin.distribution.domain.DeliveryPrintLog;
@@ -28,6 +29,7 @@ import com.lin.distribution.vo.DeliveryMatrixVO;
 import com.lin.distribution.vo.PrintManifestVO;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.apache.commons.lang3.StringUtils;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
@@ -83,6 +85,13 @@ class DeliveryBatchServiceImplTest {
         return row(skuId, name, null, null, deptId, deptName, qty);
     }
 
+    private DeliveryBatchViewVO.Row rowWithShift(Long skuId, String name, Long deptId, String deptName,
+                                                 String shiftCode, String qty) {
+        DeliveryBatchViewVO.Row row = row(skuId, name, deptId, deptName, qty);
+        row.setShiftCode(shiftCode);
+        return row;
+    }
+
     private DeliveryBatchViewVO.Row row(Long skuId, String name, String spec, String unit,
                                         Long deptId, String deptName, String qty) {
         DeliveryBatchViewVO.Row row = new DeliveryBatchViewVO.Row();
@@ -123,6 +132,24 @@ class DeliveryBatchServiceImplTest {
 
     private Column col(Long deptId, String code, String name) {
         return Column.builder().deptId(deptId).code(code).name(name).adHoc(false).build();
+    }
+
+    private Column colWithShifts(Long deptId, String code, String name, String shiftCodes) {
+        return Column.builder().deptId(deptId).code(code).name(name).shiftCodes(shiftCodes).adHoc(false).build();
+    }
+
+    private DeliveryMatrixVO.CellRow cellWithShift(Long detailId, Long deptId, String shiftCode, String qty) {
+        DeliveryMatrixVO.CellRow c = cell(detailId, deptId, qty);
+        c.setShiftCode(shiftCode);
+        return c;
+    }
+
+    private Customer shiftCustomer(boolean enabled) {
+        Customer customer = new Customer();
+        customer.setId(CUSTOMER);
+        customer.setName("大长江");
+        customer.setShiftEnabled(enabled);
+        return customer;
     }
 
     /** 已存布局快照：列 + 可选既有价档（rank 已定） */
@@ -191,6 +218,44 @@ class DeliveryBatchServiceImplTest {
     }
 
     // ==================== 客户日总表（D-027/28） ====================
+
+    // ================= s35：配货总表按班次展开 =================
+
+    /** 启用班次：点小计按「配送点×班次」展开（与总单矩阵列同口径），品名行仍不因班次拆行 */
+    @Test
+    void 配货总表按班次展开点小计() {
+        when(customerMapper.selectCustomerById(CUSTOMER)).thenReturn(shiftCustomer(true));
+        when(deliveryBatchMapper.selectBatchViewRowsFromOrder(CUSTOMER, DATE)).thenReturn(List.of(
+                rowWithShift(11L, "白菜", 201L, "华铃", "DAY", "5"),
+                rowWithShift(11L, "白菜", 201L, "华铃", "NIGHT", "3"),
+                rowWithShift(11L, "白菜", 202L, "棠下", "DAY", "2")));
+
+        List<DeliveryBatchViewVO> result = service.selectBatchView(CUSTOMER, DATE);
+
+        assertEquals(1, result.size(), "同一品名仍是一行，不因班次拆品名行");
+        DeliveryBatchViewVO cabbage = result.get(0);
+        assertEquals(0, new BigDecimal("10").compareTo(cabbage.getTotalQuantity()));
+        assertEquals(3, cabbage.getDepts().size(), "同一配送点的白/夜班是两个小计");
+        assertEquals(List.of("华铃白班", "华铃夜班", "棠下白班"),
+                cabbage.getDepts().stream().map(DeliveryBatchViewVO.DeptRow::getDeptName).toList());
+        assertEquals("DAY", cabbage.getDepts().get(0).getShiftCode());
+        assertEquals(0, new BigDecimal("5").compareTo(cabbage.getDepts().get(0).getQuantity()));
+        assertEquals(0, new BigDecimal("3").compareTo(cabbage.getDepts().get(1).getQuantity()));
+    }
+
+    /** 未启用班次的客户：点小计不带班次（回归） */
+    @Test
+    void 配货总表未启用班次时不分班次() {
+        when(customerMapper.selectCustomerById(CUSTOMER)).thenReturn(shiftCustomer(false));
+        when(deliveryBatchMapper.selectBatchViewRowsFromOrder(CUSTOMER, DATE)).thenReturn(List.of(
+                rowWithShift(11L, "白菜", 201L, "华铃", "DAY", "5")));
+
+        List<DeliveryBatchViewVO> result = service.selectBatchView(CUSTOMER, DATE);
+
+        assertEquals(1, result.get(0).getDepts().size());
+        assertEquals("华铃", result.get(0).getDepts().get(0).getDeptName(), "列名不加班次后缀");
+        assertEquals("", StringUtils.defaultString(result.get(0).getDepts().get(0).getShiftCode()));
+    }
 
     /** 同品跨点/跨价多行聚合成一个品名行，总量=各点合计，无价格字段拆行 */
     @Test
@@ -340,12 +405,99 @@ class DeliveryBatchServiceImplTest {
         assertTrue(vo.getIdentityOk());
     }
 
+    // ================= s35：配送点 × 班次 =================
+
+    /** 启用班次：列 = 配送点×班次（列名拼班次），格值按 deptId#班次 对位，行合计不变 */
+    @Test
+    void 启用班次时列按配送点乘班次展开() {
+        stubBatch(batchWith(null));
+        when(customerMapper.selectCustomerById(CUSTOMER)).thenReturn(shiftCustomer(true));
+        when(deliveryBatchMapper.selectMatrixColumns(CUSTOMER)).thenReturn(Arrays.asList(
+                colWithShifts(POINT_1, "D01", "华铃", "DAY,NIGHT"),
+                colWithShifts(POINT_2, "D02", "棠下", "DAY")));
+        stubDetails(List.of(detail(901L, 801L, "HS001", 11L, "土豆", "500g", "份", "8", "3.20")));
+        stubCells(List.of(
+                cellWithShift(901L, POINT_1, "DAY", "5"),
+                cellWithShift(901L, POINT_1, "NIGHT", "3")));
+
+        DeliveryMatrixVO vo = service.selectMatrix(CUSTOMER, DATE);
+
+        assertEquals(3, vo.getColumns().size());
+        assertEquals("华铃白班", vo.getColumns().get(0).getName(), "同一配送点的白/夜班是两个独立列");
+        assertEquals("华铃夜班", vo.getColumns().get(1).getName());
+        assertEquals("棠下白班", vo.getColumns().get(2).getName());
+        assertEquals("DAY", vo.getColumns().get(0).getShiftCode());
+        assertEquals("NIGHT", vo.getColumns().get(1).getShiftCode());
+        DeliveryMatrixVO.RowVO row = vo.getRows().get(0);
+        assertEquals(0, new BigDecimal("5").compareTo(row.getCells().get(POINT_1 + "#DAY")));
+        assertEquals(0, new BigDecimal("3").compareTo(row.getCells().get(POINT_1 + "#NIGHT")));
+        assertEquals(0, new BigDecimal("8").compareTo(row.getTotalQuantity()));
+        assertTrue(vo.getIdentityOk());
+    }
+
+    /** 历史无班次单归白班：不造出「未分班次」列，也不丢量 */
+    @Test
+    void 历史无班次单归白班列() {
+        stubBatch(batchWith(null));
+        when(customerMapper.selectCustomerById(CUSTOMER)).thenReturn(shiftCustomer(true));
+        when(deliveryBatchMapper.selectMatrixColumns(CUSTOMER)).thenReturn(List.of(
+                colWithShifts(POINT_1, "D01", "华铃", "DAY,NIGHT")));
+        stubDetails(List.of(detail(901L, 801L, "HS001", 11L, "土豆", "500g", "份", "5", "3.20")));
+        stubCells(List.of(cell(901L, POINT_1, "5")));
+
+        DeliveryMatrixVO vo = service.selectMatrix(CUSTOMER, DATE);
+
+        assertEquals(2, vo.getColumns().size(), "白/夜两列，历史单不额外多出未分班次列");
+        assertEquals("DAY", vo.getColumns().get(0).getShiftCode());
+        DeliveryMatrixVO.RowVO row = vo.getRows().get(0);
+        assertEquals(0, new BigDecimal("5").compareTo(row.getCells().get(POINT_1 + "#DAY")), "无班次历史单归白班");
+        assertEquals(0, new BigDecimal("5").compareTo(row.getTotalQuantity()));
+    }
+
+    /** 回归：旧快照列无班次键 × 启用班次客户 → 列班次归一化为白班，量落原列而非 adHoc 补列 */
+    @Test
+    void 旧快照列在启用班次客户下归一化为白班() {
+        stubBatch(batchWith(layoutJson(List.of(col(POINT_1, "D01", "华铃")), null, 1)));
+        when(customerMapper.selectCustomerById(CUSTOMER)).thenReturn(shiftCustomer(true));
+        stubDetails(List.of(detail(901L, 801L, "HS001", 11L, "土豆", "500g", "份", "5", "3.20")));
+        stubCells(List.of(cell(901L, POINT_1, "5")));
+
+        DeliveryMatrixVO vo = service.selectMatrix(CUSTOMER, DATE);
+
+        assertEquals(1, vo.getColumns().size(), "旧快照列归一化为白班，不应额外 adHoc 补列");
+        assertEquals("DAY", vo.getColumns().get(0).getShiftCode());
+        assertEquals("华铃", vo.getColumns().get(0).getName(), "快照列名保持定格不回写");
+        assertFalse(vo.getColumns().get(0).getAdHoc());
+        DeliveryMatrixVO.RowVO row = vo.getRows().get(0);
+        assertEquals(0, new BigDecimal("5").compareTo(row.getCells().get(POINT_1 + "#DAY")));
+        assertTrue(vo.getIdentityOk());
+    }
+
+    /** 未启用班次的客户：列与格键与引入前完全一致（回归） */
+    @Test
+    void 未启用班次时列不分班次() {
+        stubBatch(batchWith(null));
+        when(customerMapper.selectCustomerById(CUSTOMER)).thenReturn(shiftCustomer(false));
+        when(deliveryBatchMapper.selectMatrixColumns(CUSTOMER)).thenReturn(List.of(
+                colWithShifts(POINT_1, "D01", "华铃", "DAY,NIGHT")));
+        stubDetails(List.of(detail(901L, 801L, "HS001", 11L, "土豆", "500g", "份", "5", "3.20")));
+        stubCells(List.of(cell(901L, POINT_1, "5")));
+
+        DeliveryMatrixVO vo = service.selectMatrix(CUSTOMER, DATE);
+
+        assertEquals(1, vo.getColumns().size(), "未启用班次的客户声明也不生效");
+        assertEquals("华铃", vo.getColumns().get(0).getName(), "列名不加班次后缀");
+        assertEquals("", StringUtils.defaultString(vo.getColumns().get(0).getShiftCode()));
+        DeliveryMatrixVO.RowVO row = vo.getRows().get(0);
+        assertEquals(0, new BigDecimal("5").compareTo(row.getCells().get(String.valueOf(POINT_1))), "格键仍为纯 deptId");
+    }
+
     /** 列块划分：>colsPerPage 走横向列分页（D-049 兜底） */
     @Test
     void 列块划分与页码() {
         List<Column> columns = new ArrayList<>();
         List<DeliveryMatrixVO.CellRow> cells = new ArrayList<>();
-        for (long i = 1; i <= 7; i++) {
+        for (long i = 1; i <= 8; i++) {
             columns.add(col(200L + i, "D0" + i, "点" + i));
             cells.add(cell(901L, 200L + i, "1"));
         }
@@ -355,10 +507,10 @@ class DeliveryBatchServiceImplTest {
 
         DeliveryMatrixVO vo = service.selectMatrix(CUSTOMER, DATE);
 
-        assertEquals(7, vo.getColumns().size());
+        assertEquals(8, vo.getColumns().size());
         assertEquals(1, vo.getColumns().get(0).getBlockNo());
-        assertEquals(1, vo.getColumns().get(5).getBlockNo());
-        assertEquals(2, vo.getColumns().get(6).getBlockNo(), "第7列落第二列块（每页6列）");
+        assertEquals(1, vo.getColumns().get(6).getBlockNo());
+        assertEquals(2, vo.getColumns().get(7).getBlockNo(), "第8列落第二列块（每页7列，金满楼样张7部门一页）");
         assertEquals(2, vo.getColBlocks());
     }
 

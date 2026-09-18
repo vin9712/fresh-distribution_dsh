@@ -1,0 +1,58 @@
+[
+  {
+    "name": "金鸿楼",
+    "customerId": 14,
+    "templateId": "18",
+    "reportId": "178966232517853987",
+    "sampleReportId": "2165664293554113882",
+    "datasetCode": "jinhongDs",
+    "rows": 47,
+    "slots": 7,
+    "deptNames": [
+      "上杂",
+      "中厨",
+      "味部",
+      "点心",
+      "福食",
+      "铁板",
+      "鲍鱼"
+    ],
+    "expectedColumns": [
+      "上杂",
+      "中厨",
+      "味部",
+      "点心",
+      "福食",
+      "铁板",
+      "鲍鱼"
+    ]
+  },
+  {
+    "name": "金兴楼",
+    "customerId": 15,
+    "templateId": "20",
+    "reportId": "178966234258380380",
+    "sampleReportId": "3428363084263017311",
+    "datasetCode": "jinxingDs",
+    "rows": 32,
+    "slots": 7,
+    "deptNames": [
+      "上杂",
+      "中厨",
+      "味部",
+      "点心",
+      "福食",
+      "铁板",
+      "鲍鱼"
+    ],
+    "expectedColumns": [
+      "上杂",
+      "中厨",
+      "味部",
+      "点心",
+      "福食",
+      "铁板",
+      "鲍鱼"
+    ]
+  }
+]

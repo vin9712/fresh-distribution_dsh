@@ -74,6 +74,14 @@
         <el-form-item label="助记码" prop="mnemonicCode">
           <el-input v-model="form.mnemonicCode" placeholder="请输入助记码" :disabled="form.id == null" />
         </el-form-item>
+        <!-- 班次（s35）：仅当当前客户启用班次时出现，矩阵/总单按「配送点×班次」出列 -->
+        <el-form-item v-if="shiftEnabledForForm" label="班次">
+          <el-select v-model="shiftCodeArray" multiple placeholder="请选择该配送点支持的班次" style="width: 100%">
+            <el-option v-for="dict in dict.type.biz_shift_type" :key="dict.value" :label="dict.label"
+              :value="dict.value" />
+          </el-select>
+          <div class="shift-tip">白班/夜班同属一个配送点；下单时按此处声明的范围选择班次</div>
+        </el-form-item>
         <el-form-item label="是否有效" prop="valid">
           <el-radio-group v-model="form.valid">
             <el-radio v-for="dict in dict.type.biz_yes_no" :key="dict.value" :value="parseInt(dict.value)">{{ dict.label
@@ -102,7 +110,7 @@ import { Search, Refresh, Plus, Edit, Delete, Download } from "@element-plus/ico
 
 export default {
   name: "CustomerDept",
-  dicts: ['t_customer_type', 'biz_yes_no'],
+  dicts: ['t_customer_type', 'biz_yes_no', 'biz_shift_type'],
   setup() {
     return { Search, Refresh, Plus, Edit, Delete, Download };
   },
@@ -151,6 +159,8 @@ export default {
       },
       // 表单参数
       form: {},
+      // 班次多选绑定（与 form.shiftCodes 的逗号串互转，s35）
+      shiftCodeArray: [],
       // 表单校验
       rules: {
         customerId: [
@@ -184,6 +194,13 @@ export default {
     this.queryParams.customerId = this.defaultCustomerId;
     this.getCustomerList();
     this.getPageList();
+  },
+  computed: {
+    /** 当前表单客户的班次开关（未启用班次的客户不展示班次字段，s35） */
+    shiftEnabledForForm() {
+      const current = (this.customerOptions || []).find(item => item.id === this.form.customerId);
+      return !!(current && current.shiftEnabled);
+    },
   },
   methods: {
     /** 查询配送点列表 */
@@ -232,6 +249,7 @@ export default {
         updateTime: null,
         remark: null
       };
+      this.shiftCodeArray = [];
       this.resetForm("form");
     },
     /** 搜索按钮操作 */
@@ -263,6 +281,7 @@ export default {
       const id = row.id || this.ids
       getCustomerDept(id).then(response => {
         this.form = response.data;
+        this.shiftCodeArray = (response.data.shiftCodes || '').split(',').map(s => s.trim()).filter(Boolean);
         this.open = true;
         this.title = "修改配送点";
       });
@@ -271,6 +290,8 @@ export default {
     submitForm() {
       this.$refs["form"].validate(valid => {
         if (valid) {
+          // 班次仅对启用班次的客户生效；其余客户一律置空，避免残留脏配置
+          this.form.shiftCodes = this.shiftEnabledForForm ? this.shiftCodeArray.join(',') : '';
           if (this.form.id != null) {
             updateCustomerDept(this.form).then(response => {
               this.$modal.msgSuccess("修改成功");

@@ -76,10 +76,10 @@ await rowOf(targetName).locator('button:has-text("换")').first().click();
 await page.waitForTimeout(1500);
 ok("点「换」进入编辑态（确认/取消可用）",
   (await editRow().count()) === 1
-    && (await editRow().locator('button:has-text("取消")').count()) === 1);
+  && (await editRow().locator('button:has-text("取消")').count()) === 1);
 
 // 打开候选菜面板
-await editRow().locator("td").nth(2).click().catch(() => {});
+await editRow().locator("td").nth(2).click().catch(() => { });
 await page.waitForTimeout(1500);
 const candidates = await page.evaluate((sel) =>
   [...document.querySelectorAll(sel)].map((tr) => tr.innerText.replace(/\s+/g, " ").trim()), DROP);
@@ -104,7 +104,7 @@ if (normalRow) {
   await openPage("acceptance");
   await rowOf(normalRow.productName).locator('button:has-text("换")').first().click();
   await page.waitForTimeout(1500);
-  await editRow().locator("td").nth(2).click().catch(() => {});
+  await editRow().locator("td").nth(2).click().catch(() => { });
   await page.waitForTimeout(1500);
   await page.locator(DROP).first().click(); // 选第一个候选（已被过滤掉待换菜）
   await page.waitForTimeout(1200);
@@ -146,8 +146,8 @@ if (normalRow) {
   const restored = afterRevert.find((d) => d.id === normalRow.id);
   ok("换货回退：被换行恢复原数量、换入行删除",
     restored && Number(restored.changeType) === 0
-      && Number(restored.num) === Number(normalRow.num)
-      && !afterRevert.some((d) => (d.changeType ?? 0) === 2 && d.id !== normalRow.id),
+    && Number(restored.num) === Number(normalRow.num)
+    && !afterRevert.some((d) => (d.changeType ?? 0) === 2 && d.id !== normalRow.id),
     restored ? `${restored.productName} num=${restored.num} changeType=${restored.changeType}` : "-");
 }
 

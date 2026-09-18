@@ -15,6 +15,7 @@
         <result property="isDeleted"    column="is_deleted"    />
         <result property="docScopeType"    column="doc_scope_type"    />
         <result property="docMergeSameItem"    column="doc_merge_same_item"    />
+        <result property="shiftEnabled"    column="shift_enabled"    />
         <result property="createBy"    column="create_by"    />
         <result property="createTime"    column="create_time"    />
         <result property="updateBy"    column="update_by"    />
@@ -23,7 +24,7 @@
     </resultMap>
 
     <sql id="selectCustomerVo">
-        select id, name, alias, type, tel, address, valid, is_deleted, doc_scope_type, doc_merge_same_item, create_by, create_time, update_by, update_time, remark from t_customer
+        select id, name, alias, type, tel, address, valid, is_deleted, doc_scope_type, doc_merge_same_item, shift_enabled, create_by, create_time, update_by, update_time, remark from t_customer
     </sql>
 
     <select id="selectCustomerList" parameterType="com.lin.distribution.domain.Customer" resultMap="CustomerResult">
@@ -54,6 +55,7 @@
             <if test="isDeleted != null">is_deleted,</if>
             <if test="docScopeType != null and docScopeType != ''">doc_scope_type,</if>
             <if test="docMergeSameItem != null">doc_merge_same_item,</if>
+            <if test="shiftEnabled != null">shift_enabled,</if>
             <if test="createBy != null">create_by,</if>
             <if test="createTime != null">create_time,</if>
             <if test="updateBy != null">update_by,</if>
@@ -70,6 +72,7 @@
             <if test="isDeleted != null">#{isDeleted},</if>
             <if test="docScopeType != null and docScopeType != ''">#{docScopeType},</if>
             <if test="docMergeSameItem != null">#{docMergeSameItem},</if>
+            <if test="shiftEnabled != null">#{shiftEnabled},</if>
             <if test="createBy != null">#{createBy},</if>
             <if test="createTime != null">#{createTime},</if>
             <if test="updateBy != null">#{updateBy},</if>
@@ -90,6 +93,7 @@
             <if test="isDeleted != null">is_deleted = #{isDeleted},</if>
             <if test="docScopeType != null and docScopeType != ''">doc_scope_type = #{docScopeType},</if>
             <if test="docMergeSameItem != null">doc_merge_same_item = #{docMergeSameItem},</if>
+            <if test="shiftEnabled != null">shift_enabled = #{shiftEnabled},</if>
             <if test="createBy != null">create_by = #{createBy},</if>
             <if test="createTime != null">create_time = #{createTime},</if>
             <if test="updateBy != null">update_by = #{updateBy},</if>

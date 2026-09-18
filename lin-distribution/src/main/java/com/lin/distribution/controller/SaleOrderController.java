@@ -5,7 +5,9 @@ import com.lin.common.core.controller.BaseController;
 import com.lin.common.core.domain.AjaxResult;
 import com.lin.common.core.page.TableDataInfo;
 import com.lin.common.enums.BusinessType;
+import com.lin.common.utils.SecurityUtils;
 import com.lin.common.utils.poi.ExcelUtil;
+import com.lin.distribution.constant.SaleOrderStatus;
 import com.lin.distribution.domain.SaleOrder;
 import com.lin.distribution.dto.SaleGeneratePreviewVO;
 import com.lin.distribution.dto.SaleOrderGeneratePreviewDTO;
@@ -43,6 +45,21 @@ public class SaleOrderController extends BaseController {
     public TableDataInfo page(SaleOrder saleOrder) {
         startPage();
         List<SaleOrder> list = saleOrderService.selectSaleOrderList(saleOrder);
+        return getDataTable(list);
+    }
+
+    /**
+     * 客户视角分组聚合分页（D-064：一行 = 客户 + 配送日期）
+     *
+     * <p>必须后端分组——前端分页会切断同一客户（同 D-043 送货单批次视图）。
+     * 筛选条件与 {@link #page(SaleOrder)} 共用同一 {@link SaleOrder} 入参，口径一致；
+     * 分页单位 = 客户行。子行由前端展开时调 {@code /order/sale/list} 拉取。</p>
+     */
+    @PreAuthorize("@ss.hasPermi('order:sale:list')")
+    @GetMapping("/customer-page")
+    public TableDataInfo customerPage(SaleOrder saleOrder) {
+        startPage();
+        List<com.lin.distribution.vo.SaleCustomerPageVO> list = saleOrderService.selectCustomerPage(saleOrder);
         return getDataTable(list);
     }
 
@@ -161,6 +178,17 @@ public class SaleOrderController extends BaseController {
     @PutMapping("/status")
     @Log(title = "销售订单状态变更", businessType = BusinessType.UPDATE)
     public AjaxResult updateSaleOrder(@RequestBody @Validated SaleOrderUpdateStatusDTO request) {
+        // 按目标状态校验操作权限（与前端按钮的 v-hasPermi 同口径，闭合任意登录用户可改状态的漏洞）：
+        // 确认→order:sale:edit；撤回/还原→order:sale:recall；结算→order:sale:settle；
+        // 其余中间态（配送/验收，正常由送货/验收流程推进）→order:sale:edit
+        String permi = switch (SaleOrderStatus.fromCode(request.getStatus())) {
+            case DRAFT -> "order:sale:recall";
+            case SETTLED -> "order:sale:settle";
+            default -> "order:sale:edit";
+        };
+        if (!SecurityUtils.hasPermi(permi)) {
+            throw new com.lin.common.exception.ServiceException("无操作权限：" + permi);
+        }
         saleOrderService.updateSaleOrderStatus(request);
         return success();
     }
@@ -182,12 +210,14 @@ public class SaleOrderController extends BaseController {
      *
      * @param customerDeptId 配送点ID
      * @param deliveryDate   配送日期（yyyy-MM-dd）
+     * @param shiftCode      班次（启用班次的客户参与判重，空=白班；未启用班次的客户忽略）
      * @return 最新一条草稿订单；无则返回 null
      */
     @PreAuthorize("@ss.hasPermi('order:sale:add')")
     @GetMapping("/checkDraft")
     public AjaxResult checkExistingDraft(@RequestParam("customerDeptId") Long customerDeptId,
-                                         @RequestParam("deliveryDate") @org.springframework.format.annotation.DateTimeFormat(pattern = "yyyy-MM-dd") java.time.LocalDate deliveryDate) {
-        return success(saleOrderService.findExistingDraftOrder(customerDeptId, deliveryDate));
+                                         @RequestParam("deliveryDate") @org.springframework.format.annotation.DateTimeFormat(pattern = "yyyy-MM-dd") java.time.LocalDate deliveryDate,
+                                         @RequestParam(name = "shiftCode", required = false) String shiftCode) {
+        return success(saleOrderService.findExistingDraftOrder(customerDeptId, deliveryDate, shiftCode));
     }
 }

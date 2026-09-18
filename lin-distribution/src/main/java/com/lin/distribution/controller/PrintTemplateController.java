@@ -191,6 +191,23 @@ public class PrintTemplateController extends BaseController {
     @Log(title = "打印模板", businessType = BusinessType.IMPORT)
     @PostMapping("/import")
     public AjaxResult importTemplate(@RequestBody String packageJson) {
+        // 创建配置与旧开放包共用入口，但静态样板必须实际创建 Jimu 报表，不能把 JSON 当报表 ID。
+        // 长度口径与 JimuSampleImporter.validate 一致用 UTF-8 字节（String.length() 是 UTF-16 char 数，
+        // 多字节中文包会被低估，边界大小的 create 包会误路由到旧 importTemplates）
+        int byteLen = packageJson == null ? 0 : packageJson.getBytes(java.nio.charset.StandardCharsets.UTF_8).length;
+        if (byteLen > 0 && byteLen <= com.lin.distribution.service.support.TemplateContentGovernor.IMPORT_MAX_BYTES) {
+            try {
+                com.alibaba.fastjson2.JSONObject config = com.alibaba.fastjson2.JSON.parseObject(packageJson);
+                if (config != null && "create".equals(config.getString("action"))) {
+                    return success(jimuSampleImporter.importSample(packageJson));
+                }
+            } catch (com.alibaba.fastjson2.JSONException e) {
+                throw new com.lin.common.exception.ServiceException("导入包不是合法 JSON 对象");
+            }
+        }
         return success(printTemplateService.importTemplates(packageJson));
     }
+
+    @Autowired
+    private com.lin.distribution.service.support.JimuSampleImporter jimuSampleImporter;
 }

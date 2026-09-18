@@ -1,0 +1,129 @@
+{
+  "action": "create",
+  "reportName": "大长江总表",
+  "datasets": [
+    {
+      "dbCode": "dachangjiangDs",
+      "dbChName": "大长江总表静态明细",
+      "dbType": "3",
+      "isList": "1",
+      "isPage": "0",
+      "fieldList": [
+        ["name", "名称"], ["unit", "单位"],
+        ["hlb", "华铃白班"], ["hln", "华铃夜班"], ["dcj", "大长江白班"], ["tx", "棠下白班"],
+        ["remark", "备注"],
+        ["nameColor", "名称文字颜色"], ["unitColor", "单位文字颜色"], ["bgColor", "名称与单位背景颜色"],
+        ["hlbColor", "华铃白班文字颜色"], ["hlnColor", "华铃夜班文字颜色"],
+        ["dcjColor", "大长江文字颜色"], ["txColor", "棠下文字颜色"], ["xjColor", "小计文字颜色"]
+      ],
+      "jsonData": [
+        {"name":"大白菜","unit":"斤","hlb":30,"hln":0,"dcj":0,"tx":0,"remark":"","nameColor":"#000000","unitColor":"#000000","bgColor":"#ffffff","hlbColor":"#000000","hlnColor":"#000000","dcjColor":"#000000","txColor":"#000000","xjColor":"#000000"},
+        {"name":"生菜","unit":"斤","hlb":60,"hln":60,"dcj":0,"tx":0,"remark":"","nameColor":"#000000","unitColor":"#000000","bgColor":"#ffffff","hlbColor":"#000000","hlnColor":"#000000","dcjColor":"#000000","txColor":"#000000","xjColor":"#000000"},
+        {"name":"油唛菜","unit":"斤","hlb":150,"hln":0,"dcj":0,"tx":0,"remark":"","nameColor":"#000000","unitColor":"#000000","bgColor":"#ffffff","hlbColor":"#000000","hlnColor":"#000000","dcjColor":"#000000","txColor":"#000000","xjColor":"#000000"},
+        {"name":"大豆芽","unit":"斤","hlb":37,"hln":0,"dcj":0,"tx":0,"remark":"","nameColor":"#ff0000","unitColor":"#ff0000","bgColor":"#ffffff","hlbColor":"#ff0000","hlnColor":"#000000","dcjColor":"#000000","txColor":"#000000","xjColor":"#ff0000"},
+        {"name":"绿豆芽","unit":"斤","hlb":32.4,"hln":0,"dcj":0,"tx":0,"remark":"","nameColor":"#ff0000","unitColor":"#ff0000","bgColor":"#ffffff","hlbColor":"#ff0000","hlnColor":"#000000","dcjColor":"#000000","txColor":"#000000","xjColor":"#ff0000"},
+        {"name":"芜茜","unit":"斤","hlb":4,"hln":0,"dcj":0,"tx":0,"remark":"","nameColor":"#000000","unitColor":"#000000","bgColor":"#ffffff","hlbColor":"#000000","hlnColor":"#000000","dcjColor":"#000000","txColor":"#000000","xjColor":"#000000"},
+        {"name":"红洋葱","unit":"斤","hlb":0,"hln":30,"dcj":0,"tx":0,"remark":"","nameColor":"#000000","unitColor":"#000000","bgColor":"#ffffff","hlbColor":"#000000","hlnColor":"#000000","dcjColor":"#000000","txColor":"#000000","xjColor":"#000000"},
+        {"name":"豆角","unit":"斤","hlb":25,"hln":0,"dcj":0,"tx":0,"remark":"","nameColor":"#000000","unitColor":"#000000","bgColor":"#ffffff","hlbColor":"#000000","hlnColor":"#000000","dcjColor":"#000000","txColor":"#000000","xjColor":"#000000"},
+        {"name":"荷兰豆","unit":"斤","hlb":0,"hln":6,"dcj":0,"tx":0,"remark":"","nameColor":"#000000","unitColor":"#000000","bgColor":"#ffffff","hlbColor":"#000000","hlnColor":"#000000","dcjColor":"#000000","txColor":"#000000","xjColor":"#000000"},
+        {"name":"蕃茄","unit":"斤","hlb":60,"hln":36,"dcj":0,"tx":0,"remark":"","nameColor":"#000000","unitColor":"#000000","bgColor":"#ffffff","hlbColor":"#000000","hlnColor":"#000000","dcjColor":"#000000","txColor":"#000000","xjColor":"#000000"},
+        {"name":"西芹","unit":"斤","hlb":0,"hln":12,"dcj":0,"tx":0,"remark":"","nameColor":"#000000","unitColor":"#000000","bgColor":"#ffffff","hlbColor":"#000000","hlnColor":"#000000","dcjColor":"#000000","txColor":"#000000","xjColor":"#000000"},
+        {"name":"唛头","unit":"斤","hlb":32,"hln":0,"dcj":0,"tx":0,"remark":"","nameColor":"#000000","unitColor":"#000000","bgColor":"#ffffff","hlbColor":"#000000","hlnColor":"#000000","dcjColor":"#000000","txColor":"#000000","xjColor":"#000000"},
+        {"name":"大葱","unit":"斤","hlb":9.1,"hln":0,"dcj":0,"tx":0,"remark":"","nameColor":"#000000","unitColor":"#000000","bgColor":"#ffffff","hlbColor":"#000000","hlnColor":"#000000","dcjColor":"#000000","txColor":"#000000","xjColor":"#000000"},
+        {"name":"红萝卜","unit":"斤","hlb":10,"hln":28.6,"dcj":0,"tx":0,"remark":"","nameColor":"#000000","unitColor":"#000000","bgColor":"#ffffff","hlbColor":"#000000","hlnColor":"#000000","dcjColor":"#000000","txColor":"#000000","xjColor":"#000000"},
+        {"name":"青瓜","unit":"斤","hlb":30,"hln":0,"dcj":0,"tx":0,"remark":"","nameColor":"#000000","unitColor":"#000000","bgColor":"#ffffff","hlbColor":"#000000","hlnColor":"#000000","dcjColor":"#000000","txColor":"#000000","xjColor":"#000000"},
+        {"name":"青皮冬瓜","unit":"斤","hlb":0,"hln":100,"dcj":0,"tx":0,"remark":"","nameColor":"#000000","unitColor":"#000000","bgColor":"#ffffff","hlbColor":"#000000","hlnColor":"#000000","dcjColor":"#000000","txColor":"#000000","xjColor":"#000000"},
+        {"name":"肥瓜","unit":"斤","hlb":18,"hln":0,"dcj":0,"tx":0,"remark":"","nameColor":"#000000","unitColor":"#000000","bgColor":"#ffffff","hlbColor":"#000000","hlnColor":"#000000","dcjColor":"#000000","txColor":"#000000","xjColor":"#000000"},
+        {"name":"白萝卜","unit":"斤","hlb":50,"hln":0,"dcj":0,"tx":0,"remark":"","nameColor":"#000000","unitColor":"#000000","bgColor":"#ffffff","hlbColor":"#000000","hlnColor":"#000000","dcjColor":"#000000","txColor":"#000000","xjColor":"#000000"},
+        {"name":"云南小瓜","unit":"斤","hlb":22.4,"hln":0,"dcj":0,"tx":0,"remark":"","nameColor":"#000000","unitColor":"#000000","bgColor":"#ffffff","hlbColor":"#000000","hlnColor":"#000000","dcjColor":"#000000","txColor":"#000000","xjColor":"#000000"},
+        {"name":"冬菇","unit":"斤","hlb":4.8,"hln":0,"dcj":0,"tx":0,"remark":"文亿","nameColor":"#ff0000","unitColor":"#ff0000","bgColor":"#ffffff","hlbColor":"#ff0000","hlnColor":"#000000","dcjColor":"#000000","txColor":"#000000","xjColor":"#ff0000"},
+        {"name":"杏鲍菇","unit":"斤","hlb":16,"hln":0,"dcj":0,"tx":0,"remark":"文亿","nameColor":"#000000","unitColor":"#000000","bgColor":"#ffffff","hlbColor":"#000000","hlnColor":"#000000","dcjColor":"#000000","txColor":"#000000","xjColor":"#000000"},
+        {"name":"平菇","unit":"斤","hlb":7.2,"hln":0,"dcj":0,"tx":0,"remark":"文亿","nameColor":"#ff0000","unitColor":"#ff0000","bgColor":"#ffffff","hlbColor":"#ff0000","hlnColor":"#000000","dcjColor":"#000000","txColor":"#000000","xjColor":"#ff0000"},
+        {"name":"口蘑（平）","unit":"斤","hlb":6,"hln":0,"dcj":0,"tx":0,"remark":"中山强","nameColor":"#ff0000","unitColor":"#ff0000","bgColor":"#ffffff","hlbColor":"#ff0000","hlnColor":"#000000","dcjColor":"#000000","txColor":"#000000","xjColor":"#ff0000"},
+        {"name":"新鲜土豆/100g以上","unit":"斤","hlb":57.6,"hln":0,"dcj":0,"tx":0,"remark":"","nameColor":"#000000","unitColor":"#000000","bgColor":"#71b85c","hlbColor":"#000000","hlnColor":"#000000","dcjColor":"#000000","txColor":"#000000","xjColor":"#000000"},
+        {"name":"青尖椒(中)","unit":"斤","hlb":19.8,"hln":0,"dcj":0,"tx":0,"remark":"","nameColor":"#000000","unitColor":"#000000","bgColor":"#ffffff","hlbColor":"#000000","hlnColor":"#000000","dcjColor":"#000000","txColor":"#000000","xjColor":"#000000"},
+        {"name":"红尖椒","unit":"斤","hlb":3.6,"hln":0,"dcj":0,"tx":0,"remark":"","nameColor":"#000000","unitColor":"#000000","bgColor":"#ffffff","hlbColor":"#000000","hlnColor":"#000000","dcjColor":"#000000","txColor":"#000000","xjColor":"#000000"},
+        {"name":"有皮玉米","unit":"斤","hlb":8,"hln":16.8,"dcj":0,"tx":0,"remark":"廉记","nameColor":"#ff0000","unitColor":"#ff0000","bgColor":"#ffffff","hlbColor":"#ff0000","hlnColor":"#2222cc","dcjColor":"#000000","txColor":"#000000","xjColor":"#ff0000"},
+        {"name":"葱肉","unit":"斤","hlb":8,"hln":0,"dcj":0,"tx":0,"remark":"","nameColor":"#000000","unitColor":"#000000","bgColor":"#ffffff","hlbColor":"#000000","hlnColor":"#000000","dcjColor":"#000000","txColor":"#000000","xjColor":"#000000"},
+        {"name":"姜肉","unit":"斤","hlb":12,"hln":0,"dcj":0,"tx":0,"remark":"姜蒜","nameColor":"#ff0000","unitColor":"#ff0000","bgColor":"#ffffff","hlbColor":"#ff0000","hlnColor":"#000000","dcjColor":"#000000","txColor":"#000000","xjColor":"#ff0000"},
+        {"name":"蒜肉","unit":"斤","hlb":15,"hln":0,"dcj":0,"tx":0,"remark":"姜蒜","nameColor":"#ff0000","unitColor":"#ff0000","bgColor":"#ffffff","hlbColor":"#ff0000","hlnColor":"#000000","dcjColor":"#000000","txColor":"#000000","xjColor":"#ff0000"},
+        {"name":"子姜","unit":"斤","hlb":18,"hln":0,"dcj":0,"tx":0,"remark":"","nameColor":"#ff0000","unitColor":"#ff0000","bgColor":"#ffffff","hlbColor":"#ff0000","hlnColor":"#000000","dcjColor":"#000000","txColor":"#000000","xjColor":"#ff0000"},
+        {"name":"沙姜","unit":"斤","hlb":2.5,"hln":0,"dcj":0,"tx":0,"remark":"","nameColor":"#ff0000","unitColor":"#ff0000","bgColor":"#ffffff","hlbColor":"#ff0000","hlnColor":"#000000","dcjColor":"#000000","txColor":"#000000","xjColor":"#ff0000"},
+        {"name":"小番薯","unit":"斤","hlb":8,"hln":0,"dcj":0,"tx":0,"remark":"","nameColor":"#000000","unitColor":"#000000","bgColor":"#ffffff","hlbColor":"#000000","hlnColor":"#000000","dcjColor":"#000000","txColor":"#000000","xjColor":"#000000"},
+        {"name":"碎碎牛肉","unit":"斤","hlb":60,"hln":0,"dcj":75,"tx":90,"remark":"麻园牛肉","nameColor":"#000000","unitColor":"#000000","bgColor":"#ffffff","hlbColor":"#000000","hlnColor":"#000000","dcjColor":"#2222cc","txColor":"#2222cc","xjColor":"#000000"}
+      ]
+    }
+  ],
+  "table": {
+    "datasetCode": "dachangjiangDs",
+    "title": "大长江总表",
+    "columns": [
+      {"field":"name","title":"名称","width":118},
+      {"field":"unit","title":"单位","width":42},
+      {"field":"hlb","title":"华铃白班","width":60},
+      {"field":"hln","title":"华铃夜班","width":60},
+      {"field":"dcj","title":"大长江白班","width":60},
+      {"field":"tx","title":"棠下白班","width":60}
+    ]
+  },
+  "customRows": {
+    "len": 100,
+    "0": {"height":24,"cells":{
+      "0":{"text":"","style":2},
+      "1":{"text":"供货日期：2026年09月18日","style":4,"merge":[0,6]}
+    }},
+    "1": {"height":22,"cells":{
+      "0":{"text":"","style":2},
+      "1":{"text":"食堂\n材料　　数量","style":0,"merge":[1,1]},
+      "3":{"text":"华铃食堂","style":3,"merge":[0,1]},
+      "5":{"text":"大长江","style":3},
+      "6":{"text":"棠下","style":3},
+      "7":{"text":"小计","style":1,"merge":[1,0]}
+    }},
+    "2": {"height":22,"cells":{
+      "0":{"text":"","style":2},
+      "3":{"text":"白班","style":1},
+      "4":{"text":"夜班","style":1},
+      "5":{"text":"白班","style":1},
+      "6":{"text":"白班","style":1}
+    }},
+    "3": {"height":22,"cells":{
+      "0":{"text":"","style":2},
+      "1":{"text":"=COLOR('#{dachangjiangDs.name}','#{dachangjiangDs.nameColor}','#{dachangjiangDs.bgColor}')","style":0},
+      "2":{"text":"=COLOR('#{dachangjiangDs.unit}','#{dachangjiangDs.unitColor}','#{dachangjiangDs.bgColor}')","style":1},
+      "3":{"text":"=IF(#{dachangjiangDs.hlb}==0,'',color(#{dachangjiangDs.hlb},'#{dachangjiangDs.hlbColor}','#ffffff'))","style":1},
+      "4":{"text":"=IF(#{dachangjiangDs.hln}==0,'',color(#{dachangjiangDs.hln},'#{dachangjiangDs.hlnColor}','#ffffff'))","style":1},
+      "5":{"text":"=IF(#{dachangjiangDs.dcj}==0,'',color(#{dachangjiangDs.dcj},'#{dachangjiangDs.dcjColor}','#ffffff'))","style":1},
+      "6":{"text":"=IF(#{dachangjiangDs.tx}==0,'',color(#{dachangjiangDs.tx},'#{dachangjiangDs.txColor}','#ffffff'))","style":1},
+      "7":{"text":"=color(#{dachangjiangDs.hlb}+#{dachangjiangDs.hln}+#{dachangjiangDs.dcj}+#{dachangjiangDs.tx},'#{dachangjiangDs.xjColor}','#ffffff')","style":1},
+      "8":{"text":"#{dachangjiangDs.remark}","style":5}
+    }},
+    "4": {"height":24,"cells":{
+      "0":{"text":"","style":2},
+      "1":{"text":"合　计","style":6,"merge":[0,1]},
+      "3":{"text":"=SUM(D4)","style":6},
+      "4":{"text":"=SUM(E4)","style":6},
+      "5":{"text":"=SUM(F4)","style":7},
+      "6":{"text":"=SUM(G4)","style":7},
+      "7":{"text":"=SUM(H4)","style":6},
+      "8":{"text":"","style":5}
+    }}
+  },
+  "customMerges": ["B1:H1","B2:C3","D2:E2","H2:H3","B5:C5"],
+  "customCols": {
+    "len": 100,
+    "0":{"width":30},"1":{"width":118},"2":{"width":42},
+    "3":{"width":60},"4":{"width":60},"5":{"width":60},
+    "6":{"width":60},"7":{"width":62},"8":{"width":70}
+  },
+  "customStyles": [
+    {"border":{"bottom":["thin","#000000"],"top":["thin","#000000"],"left":["thin","#000000"],"right":["thin","#000000"]},"align":"left","valign":"middle","color":"#000000","bgcolor":"#ffffff","font":{"name":"SimSun","size":12,"bold":true}},
+    {"border":{"bottom":["thin","#000000"],"top":["thin","#000000"],"left":["thin","#000000"],"right":["thin","#000000"]},"align":"center","valign":"middle","color":"#000000","bgcolor":"#ffffff","font":{"name":"SimSun","size":12,"bold":true}},
+    {"align":"left","valign":"middle","color":"#000000","bgcolor":"#ffffff","font":{"name":"SimSun","size":12,"bold":true}},
+    {"border":{"bottom":["thin","#000000"],"top":["thin","#000000"],"left":["thin","#000000"],"right":["thin","#000000"]},"align":"center","valign":"middle","color":"#ff0000","bgcolor":"#ffffff","font":{"name":"SimSun","size":12,"bold":true}},
+    {"align":"left","valign":"middle","color":"#000000","bgcolor":"#ffffff","font":{"name":"SimSun","size":12,"bold":true}},
+    {"align":"center","valign":"middle","color":"#000000","bgcolor":"#ffffff","font":{"name":"SimSun","size":12,"bold":true}},
+    {"border":{"bottom":["thin","#000000"],"top":["thin","#000000"],"left":["thin","#000000"],"right":["thin","#000000"]},"align":"center","valign":"middle","color":"#000000","bgcolor":"#d9ead3","font":{"name":"SimSun","size":12,"bold":true}},
+    {"border":{"bottom":["thin","#000000"],"top":["thin","#000000"],"left":["thin","#000000"],"right":["thin","#000000"]},"align":"center","valign":"middle","color":"#2222cc","bgcolor":"#d9ead3","font":{"name":"SimSun","size":12,"bold":true}}
+  ]
+}

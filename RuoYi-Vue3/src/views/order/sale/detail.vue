@@ -153,7 +153,7 @@
             >草稿箱{{ availableDrafts.length ? '(' + availableDrafts.length + ')' : '' }}</el-button>
             <div v-if="accLikeMode" class="acc-header-info">
               <span>客户：{{ orderForm.customerName || '—' }}</span>
-              <span>配送点：{{ orderForm.customerDeptName || orderForm.customerDeptDisplayName || '—' }}</span>
+              <span>配送点：{{ orderForm.customerDeptName || orderForm.customerDeptDisplayName || '—' }}{{ orderForm.shiftCode ? '·' + shiftLabel(orderForm.shiftCode) : '' }}</span>
               <span>配送日期：{{ orderForm.deliveryDate || '—' }}</span>
               <span>订单编号：{{ orderForm.orderCode || '—' }}</span>
               <span v-if="acceptanceInfo">验收单：{{ acceptanceInfo.code }}</span>
@@ -189,6 +189,26 @@
                     >重开新单</el-button
                   >
                 </div>
+              </el-form-item>
+              <!-- 班次（s35）：仅当所选客户启用班次时出现；选项来自所选配送点声明的班次 -->
+              <el-form-item v-if="shiftEnabledForOrder" label="班次" prop="shiftCode">
+                <el-select
+                  v-model="orderForm.shiftCode"
+                  placeholder="请选择班次"
+                  :disabled="shiftSelectDisabled"
+                  style="width: 140px"
+                  @change="handleShiftChanged"
+                >
+                  <el-option
+                    v-for="code in availableShiftCodes"
+                    :key="code"
+                    :label="shiftLabel(code)"
+                    :value="code"
+                  />
+                </el-select>
+                <span v-if="availableShiftCodes.length === 1" class="shift-tip">
+                  该配送点仅有{{ shiftLabel(availableShiftCodes[0]) }}
+                </span>
               </el-form-item>
               <el-form-item label="配送日期" prop="deliveryDate">
                 <el-date-picker
@@ -664,6 +684,9 @@
             <div v-if="!orderForm.customerId" class="frequent-empty">
               <el-empty description="请先选择送货单位" :image-size="60" />
             </div>
+            <div v-else-if="needShiftFirst" class="frequent-empty">
+              <el-empty description="请选择班次" :image-size="60" />
+            </div>
             <div v-else-if="!frequentList.length" class="frequent-empty">
               <el-empty
                 description="暂无常用商品（按近30天下单频率统计）"
@@ -705,6 +728,9 @@
             </div>
             <div v-if="!orderForm.customerId" class="frequent-empty">
               <el-empty description="请先选择送货单位" :image-size="60" />
+            </div>
+            <div v-else-if="needShiftFirst" class="frequent-empty">
+              <el-empty description="请选择班次" :image-size="60" />
             </div>
             <div v-else-if="!searchResults.length" class="frequent-empty">
               <el-empty description="输入关键词检索客户商品池与临时商品" :image-size="60" />
@@ -1086,7 +1112,7 @@ export default {
   name: "SaleDetail",
   components: { SplitWorkspace },
   // 损耗原因固定字典（验收实收差异行必选；OA 差异原因下拉取短收/超收字典）
-  dicts: ["biz_loss_reason", "t_sale_order_status", "acceptance_shortfall_reason", "acceptance_overage_reason"],
+  dicts: ["biz_loss_reason", "t_sale_order_status", "acceptance_shortfall_reason", "acceptance_overage_reason", "biz_shift_type"],
   setup() {
     return { Refresh, Rank, Plus, Minus, Search, DocumentCopy, Check };
   },
@@ -1147,6 +1173,8 @@ export default {
       recentOrderList: [],
       // 客户列表数据
       customerOptions: [],
+      // 配送点班次声明：deptId → 'DAY,NIGHT'（s35）
+      customerDeptShiftMap: {},
       // 已选择的送货单位
       selectedCustomerDepts: [],
       // 送货单位map: <customerDeptId, customerId>
@@ -1165,6 +1193,8 @@ export default {
         orderCode: null,
         customerId: null,
         customerDeptId: null,
+        // 班次（s35）：客户启用班次时必填，选项来自所选配送点声明
+        shiftCode: null,
         deliveryDate: null,
         remark: null,
         orderDetails: [],
@@ -1176,6 +1206,22 @@ export default {
         ],
         customerDeptId: [
           { required: true, message: "送货单位不能为空", trigger: "blur" },
+        ],
+        // 班次（s35）：启用班次的客户必选（与送货单位同为必填，带必填星号）；
+        // 未启用时字段不渲染（v-if），规则不注册，不影响其他客户保存
+        shiftCode: [
+          { required: true, message: "请选择班次", trigger: "change" },
+          {
+            validator: (rule, value, callback) => {
+              // 前端提前拦「不在该配送点声明范围内」；后端 resolveShiftCode 同口径校验
+              if (value && !this.availableShiftCodes.includes(value)) {
+                callback(new Error("班次不在该配送点支持范围内"));
+                return;
+              }
+              callback();
+            },
+            trigger: "change",
+          },
         ],
         deliveryDate: [
           { required: true, message: "送货日期不能为空", trigger: "blur" },
@@ -1456,9 +1502,30 @@ export default {
     isOrderDirty() {
       if (this.checkTableUpdted()) return true;
       if (!this.originalOrderForm) return false;
-      const { orderId, orderCode, customerId, customerDeptId, deliveryDate, remark } = this.orderForm;
-      const cur = { orderId, orderCode, customerId, customerDeptId, deliveryDate, remark };
+      const { orderId, orderCode, customerId, customerDeptId, shiftCode, deliveryDate, remark } = this.orderForm;
+      const cur = { orderId, orderCode, customerId, customerDeptId, shiftCode, deliveryDate, remark };
       return JSON.stringify(cur) !== JSON.stringify(this.originalOrderForm);
+    },
+    /** 当前客户是否启用班次（s35）：关闭时整块隐藏，行为与引入前一致 */
+    shiftEnabledForOrder() {
+      const customer = (this.customerOptions || []).find(
+        (item) => item.id === this.orderForm.customerId
+      );
+      return !!(customer && customer.shiftEnabled);
+    },
+    /** 所选配送点声明的班次列表 */
+    availableShiftCodes() {
+      const raw = this.customerDeptShiftMap[this.orderForm.customerDeptId] || "";
+      return raw.split(",").map((s) => s.trim()).filter(Boolean);
+    },
+    /** 单班次不再自动带出（s35 定稿：启用班次的客户一律留空，由用户显式选择，
+     *  否则自动带上默认白班会让夜班单无法录入）；订单已锁定/浏览态仍只读 */
+    shiftSelectDisabled() {
+      return this.customerDeptLocked || this.browseMode;
+    },
+    /** 已选配送点但还没选班次：明细区与商品面板一并拦住，提示同「未选送货单位」 */
+    needShiftFirst() {
+      return this.shiftEnabledForOrder && !!this.orderForm.customerDeptId && !this.orderForm.shiftCode;
     },
     /* ========== 录单页交互细化（客户锁定 / 浏览模式 / 验收态） ========== */
     /** OA：验收/配送后变更共用的单栏模式（右侧选单区隐藏、头部信息卡、行内变更列） */
@@ -2809,16 +2876,35 @@ export default {
       if (this.showEditExistingBanner) {
         this.showEditExistingBanner = false;
       }
-      // 录单态明细区门禁：未选定客户(+配送点)前禁止编辑，引导先选送货单位
-      if (!this.orderForm.customerDeptId) {
-        const now = Date.now();
-        if (now - this._gateWarnAt > 2000) {
-          this._gateWarnAt = now;
-          this.$modal.msgWarning("请先选择送货单位");
-        }
+      // 录单态明细区门禁：未选定客户(+配送点)前禁止编辑，引导先选送货单位；
+      // 启用班次的客户未选班次同样禁止（否则会先录明细、再被迫改班次）
+      if (!this.entryGateOk()) {
         return false;
       }
       return true;
+    },
+    /**
+     * 明细录入门禁（s35）：返回 false 并提示。
+     * 与「未选送货单位」同一套引导：先选送货单位 → 启用班次时再选班次 → 才允许录明细。
+     */
+    entryGateOk() {
+      if (!this.orderForm.customerDeptId) {
+        this.warnEntryGate("请先选择送货单位");
+        return false;
+      }
+      if (this.needShiftFirst) {
+        this.warnEntryGate("请选择班次");
+        return false;
+      }
+      return true;
+    },
+    /** 门禁提示限频（避免拖动/连点时刷屏） */
+    warnEntryGate(message) {
+      const now = Date.now();
+      if (now - this._gateWarnAt > 2000) {
+        this._gateWarnAt = now;
+        this.$modal.msgWarning(message);
+      }
     },
     /** 行拖拽 */
     rowDrop() {
@@ -2848,14 +2934,7 @@ export default {
     /** 添加行（明细区门禁：浏览态禁加行；未选送货单位时仅保留默认空行，禁止加行） */
     handleAddRow(rowIndex) {
       if (this.browseMode && (this.orderDetailList || []).length >= 1) return;
-      if (!this.orderForm.customerDeptId && (this.orderDetailList || []).length >= 1) {
-        const now = Date.now();
-        if (now - this._gateWarnAt > 2000) {
-          this._gateWarnAt = now;
-          this.$modal.msgWarning("请先选择送货单位");
-        }
-        return;
-      }
+      if ((this.orderDetailList || []).length >= 1 && !this.entryGateOk()) return;
       // 用户真正新增行时，隐藏"编辑已有订单"提示横幅（初始加载不算）
       if (this._initialLoadDone && this.showEditExistingBanner) {
         this.showEditExistingBanner = false;
@@ -3112,9 +3191,13 @@ export default {
         return !added.has(key);
       });
     },
+    /** 班次下拉选项文案（字典驱动） */
+    shiftLabel(code) {
+      const dict = (this.dict.type.biz_shift_type || []).find((d) => d.value === code);
+      return dict ? dict.label : code;
+    },
     /** 选择送货单位树回调 */
-    handleFormOptionsChanged(value) {
-      // Element Plus 的 togglePopperVisible 在 disabled 状态下会早退（无法关面板），
+    handleFormOptionsChanged(value) {      // Element Plus 的 togglePopperVisible 在 disabled 状态下会早退（无法关面板），
       // 而选定送货单位后组件立即锁定，故必须在置值锁定前先手动收起下拉面板
       const cascader = this.$refs.deptCascader;
       if (cascader && cascader.togglePopperVisible) {
@@ -3133,24 +3216,51 @@ export default {
       // init skuQuoteDetails
       this.getSkuQuoteDetailList();
 
-      // 新增订单：选完客户后检测同配送点+同日期的草稿订单，存在则提示可继续添加并跳转已有明细
-      if (!this.orderForm.orderId && customerDeptId && this.orderForm.deliveryDate) {
+      // 班次（s35）：切换配送点后仅做有效性校正——启用班次的客户**默认留空**，由用户显式选择；
+      // 不自动带出班次（自动带默认白班会让夜班单无法录入），也不在未选班次时判重
+      if (this.shiftEnabledForOrder) {
+        if (!this.availableShiftCodes.includes(this.orderForm.shiftCode)) {
+          this.orderForm.shiftCode = null;
+        }
+      } else {
+        this.orderForm.shiftCode = null;
+      }
+
+      // 新增订单：检测同配送点+同日期（启用班次时再加同班次）的草稿订单
+      if (this.shouldCheckDraft()) {
         this.checkExistingDraftOrder();
       }
     },
-    /** 新增订单防重复：同配送点+同日期已存在草稿订单时，提示并跳转到对应订单明细 */
+    /** 是否应判重：启用班次的客户在未选班次前不判重（否则会用默认白班口径拦住夜班录单） */
+    shouldCheckDraft() {
+      if (this.orderForm.orderId) return false;
+      if (!this.orderForm.customerDeptId || !this.orderForm.deliveryDate) return false;
+      if (this.shiftEnabledForOrder && !this.orderForm.shiftCode) return false;
+      return true;
+    },
+    /** 班次变化（s35）：选了班次才按「配送点+日期+班次」判重
+     *  （不同班次是两次独立配送，不能因为白班已有草稿就拦住夜班录单） */
+    handleShiftChanged() {
+      if (this.shouldCheckDraft()) {
+        this.checkExistingDraftOrder();
+      }
+    },
+    /** 新增订单防重复：同配送点+同日期（启用班次时再加同班次）已存在草稿订单时，提示并跳转到对应订单明细 */
     checkExistingDraftOrder() {
       checkExistingDraft({
         customerDeptId: this.orderForm.customerDeptId,
         deliveryDate: this.orderForm.deliveryDate,
+        // s35：班次参与判重——不同班次是两次独立配送，不算重复（后端仅对启用班次的客户生效）
+        shiftCode: this.orderForm.shiftCode || undefined,
       })
         .then((response) => {
           const order = response.data || null;
           if (!order || !order.id) return;
           const deptName = this.deptNameOf(order.customerDeptId) || "该配送点";
+          const shiftText = order.shiftCode ? "·" + this.shiftLabel(order.shiftCode) : "";
           this.$confirm(
-            "【" + deptName + "】在 " + this.orderForm.deliveryDate +
-              " 已有一个可继续添加的草稿订单（编号：" + order.code + "），可直接在原有明细上继续录入。",
+            "【" + deptName + shiftText + "】在 " + this.orderForm.deliveryDate +
+              " 已有一个可继续添加的草稿订单（编号：“" + order.code + "”），可直接在原有明细上继续录入。",
             "提示",
             {
               confirmButtonText: "去编辑已有订单",
@@ -3177,10 +3287,26 @@ export default {
           this.customerDeptMap = Object.fromEntries(
             response.data.map(({ id, customerId }) => [id, customerId])
           );
+          // init 配送点班次声明（s35）：下单时按所选点声明的范围选班次
+          this.customerDeptShiftMap = Object.fromEntries(
+            response.data.map(({ id, shiftCodes }) => [id, shiftCodes || ""])
+          );
 
           // init customerDeptOptions
           const treeList = this.handleTree(response.data);
           this.customerDeptOptions = this.transformData(treeList);
+          // 历史无班次单（s35 前）编辑：按业务口径预置白班，与后端归一化一致，避免保存被拒
+          if (this.orderForm.orderId && !this.orderForm.shiftCode) {
+            const shifts = (this.customerDeptShiftMap[this.orderForm.customerDeptId] || "")
+              .split(",").map((s) => s.trim()).filter(Boolean);
+            if (shifts.includes("DAY")) {
+              this.orderForm.shiftCode = "DAY";
+              // 预置属于基线口径而非用户编辑：同步初始快照，避免打开历史单即被判「脏」
+              if (this.originalOrderForm && !this.originalOrderForm.shiftCode) {
+                this.originalOrderForm.shiftCode = "DAY";
+              }
+            }
+          }
         })
         .then(() => {
           this.customerDeptDisabled = false;
@@ -3605,12 +3731,15 @@ export default {
     },
     /** 记录表单初始快照（不含 orderDetails，用于脏判定） */
     snapshotOriginalOrderForm() {
-      const { orderId, orderCode, customerId, customerDeptId, deliveryDate, remark } = this.orderForm;
+      // s35：shiftCode 必须与 isOrderDirty 的比较字段一一对应（含 key 顺序），
+      // 否则 JSON.stringify 永不相等 → isOrderDirty 恒为 true → 离开守卫/草稿自动保存全线误触发
+      const { orderId, orderCode, customerId, customerDeptId, shiftCode, deliveryDate, remark } = this.orderForm;
       this.originalOrderForm = {
         orderId,
         orderCode,
         customerId,
         customerDeptId,
+        shiftCode,
         deliveryDate,
         remark,
       };
@@ -3714,6 +3843,8 @@ export default {
     },
     /** 点击常用商品：插入明细行（末尾）→ 取价 → 光标落数量列 */
     addFrequentProduct(item) {
+      // 未选送货单位/未选班次时不得插入明细（否则会写到上一行上）
+      if (!this.entryGateOk()) return;
       this.handleAddRow(-1);
       const row = this.orderDetailList[this.orderDetailList.length - 1];
       row.productName = item.productName;
@@ -3795,10 +3926,7 @@ export default {
     },
     /** F2 插入空行：当前编辑行下方插入，否则末尾追加 */
     insertRowAtActive() {
-      if (!this.orderForm.customerDeptId && (this.orderDetailList || []).length >= 1) {
-        this.$modal.msgWarning("请先选择送货单位");
-        return;
-      }
+      if ((this.orderDetailList || []).length >= 1 && !this.entryGateOk()) return;
       const cell = this.activeEditRow();
       if (cell) {
         const idx = this.orderDetailList.indexOf(cell.row);
@@ -3864,10 +3992,7 @@ export default {
       const text = e.clipboardData && e.clipboardData.getData("text/plain");
       if (!text || !text.includes("\n")) return; // 单行粘贴仍走原生行为（不影响输入框）
       e.preventDefault();
-      if (!this.orderForm.customerDeptId) {
-        this.$modal.msgWarning("请先选择送货单位");
-        return;
-      }
+      if (!this.entryGateOk()) return;
       const lines = String(text)
         .split(/\r?\n/)
         .map((l) => l.trim())
@@ -4017,6 +4142,10 @@ export default {
     handleSearchProducts() {
       if (!this.orderForm.customerId) {
         this.$modal.msgWarning("请先选择送货单位");
+        return;
+      }
+      if (this.needShiftFirst) {
+        this.$modal.msgWarning("请选择班次");
         return;
       }
       this.getSkuQuoteDetailList(this.searchKeyword || "").then(() => {

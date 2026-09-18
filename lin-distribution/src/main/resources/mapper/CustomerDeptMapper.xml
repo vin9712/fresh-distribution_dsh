@@ -10,6 +10,7 @@
         <result property="code" column="code"/>
         <result property="name" column="name"/>
         <result property="mnemonicCode" column="mnemonic_code"/>
+        <result property="shiftCodes" column="shift_codes"/>
         <result property="address" column="address"/>
         <result property="location" column="location"/>
         <result property="valid" column="valid"/>
@@ -28,6 +29,7 @@
                code,
                name,
                mnemonic_code,
+               shift_codes,
                address,
                location,
                valid,
@@ -47,6 +49,7 @@
                tcd.code,
                tcd.name,
                tcd.mnemonic_code,
+               tcd.shift_codes,
                tcd.address,
                tcd.location,
                tcd.valid,
@@ -123,6 +126,9 @@
             <if test="mnemonicCode != null and mnemonicCode != ''">
                 mnemonic_code,
             </if>
+            <if test="shiftCodes != null">
+                shift_codes,
+            </if>
             <if test="address != null">
                 address,
             </if>
@@ -166,6 +172,9 @@
             </if>
             <if test="mnemonicCode != null and mnemonicCode != ''">
                 #{mnemonicCode},
+            </if>
+            <if test="shiftCodes != null">
+                #{shiftCodes},
             </if>
             <if test="address != null">
                 #{address},
@@ -215,6 +224,9 @@
             <if test="mnemonicCode != null and mnemonicCode != ''">
                 mnemonic_code = #{mnemonicCode},
             </if>
+            <if test="shiftCodes != null">
+                shift_codes = #{shiftCodes},
+            </if>
             <if test="address != null">
                 address = #{address},
             </if>
@@ -260,8 +272,12 @@
         </foreach>
     </delete>
 
+    <!-- 配送点重名校验：同一客户下配送点不得同名。
+         s35：排除根节点（parent_id=0，它是客户节点而非配送点），
+         否则客户名与其自营食堂点名相同（如大长江 + 子点「大长江」）会被误拦。 -->
     <select id="checkUniqueCustomerDept" resultMap="CustomerDeptResult">
         <include refid="selectCustomerDeptVo"/>
         where customer_id = #{customerId} and name = #{name} and is_deleted = 0
+          and parent_id is not null and parent_id != 0
     </select>
 </mapper>

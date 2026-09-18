@@ -78,6 +78,11 @@ public class Customer extends BaseEntity {
      */
     private Boolean docMergeSameItem;
 
+    /**
+     * 是否启用班次（客户级配置，仅大长江）：开启后下单需选班次，矩阵/总单按「配送点×班次」出列
+     */
+    private Boolean shiftEnabled;
+
 
     @Override
     public String toString() {
@@ -92,6 +97,7 @@ public class Customer extends BaseEntity {
                 .append("isDeleted" , getIsDeleted())
                 .append("docScopeType" , getDocScopeType())
                 .append("docMergeSameItem" , getDocMergeSameItem())
+                .append("shiftEnabled" , getShiftEnabled())
                 .append("createBy" , getCreateBy())
                 .append("createTime" , getCreateTime())
                 .append("updateBy" , getUpdateBy())

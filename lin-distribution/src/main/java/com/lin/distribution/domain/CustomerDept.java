@@ -53,6 +53,11 @@ public class CustomerDept extends BaseEntity {
     private String mnemonicCode;
 
     /**
+     * 该配送点支持的班次（biz_shift_type 字典值逗号分隔，如 DAY,NIGHT；空=不分班次）
+     */
+    private String shiftCodes;
+
+    /**
      * 客户配送地址
      */
     private String address;
@@ -82,6 +87,7 @@ public class CustomerDept extends BaseEntity {
                 .append("parentId", getParentId())
                 .append("name", getName())
                 .append("mnemonicCode", getMnemonicCode())
+                .append("shiftCodes", getShiftCodes())
                 .append("address", getAddress())
                 .append("location", getLocation())
                 .append("valid", getValid())

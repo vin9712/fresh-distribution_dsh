@@ -679,16 +679,20 @@ export default {
         query: { mode: "acceptance", orderId: row.id },
       });
     },
+    /** 矩阵格键（s35）：deptId（未启用班次）或 deptId#班次（启用班次），与后端 ShiftCodes.cellKey 同口径 */
+    cellKey(col) {
+      return col.shiftCode ? `${col.deptId}#${col.shiftCode}` : String(col.deptId);
+    },
     /** 格值：null=该点当日无此菜（空格）；历史单无台账打 — */
     cellText(row, col) {
-      const qty = (row.cells || {})[col.deptId];
+      const qty = (row.cells || {})[this.cellKey(col)];
       if (qty !== undefined && qty !== null) {
         return qty;
       }
       return this.matrix.historyFallback ? "—" : "";
     },
     isQty(row, col) {
-      const qty = (row.cells || {})[col.deptId];
+      const qty = (row.cells || {})[this.cellKey(col)];
       return qty !== undefined && qty !== null && Number(qty) !== 0;
     },
     /** 恒等式不一致行标红（D-047） */

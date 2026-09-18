@@ -1,0 +1,30 @@
+[
+  {
+    "name": "丽宫",
+    "customerId": 10,
+    "templateId": "22",
+    "reportId": "178966339607382852",
+    "sampleReportId": "3700885169889495141",
+    "datasetCode": "ligongDs",
+    "rows": 46,
+    "slots": 7,
+    "deptNames": [
+      "味部",
+      "国中",
+      "国点",
+      "点心",
+      "烧味",
+      "西厨",
+      "饭堂"
+    ],
+    "expectedColumns": [
+      "味部",
+      "国中",
+      "国点",
+      "点心",
+      "烧味",
+      "西厨",
+      "饭堂"
+    ]
+  }
+]

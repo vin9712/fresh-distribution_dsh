@@ -158,11 +158,13 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
 
     <!-- ================= 矩阵总表（D-044~D-053 + D-055 视图化，《送货单矩阵总表与批次视图设计》§三/§四/§十八） ================= -->
 
-    <!-- 列快照源：仅启用点进列（停用点不进列，当日有单时由服务层 adHoc 临时补列），code/id 稳定排序 -->
+    <!-- 列快照源：仅启用点进列（停用点不进列，当日有单时由服务层 adHoc 临时补列），code/id 稳定排序。
+         s35：同时回传 shift_codes，由服务层按「配送点×班次」展开为多个列（客户未启用班次时不分班次）。 -->
     <select id="selectMatrixColumns" resultType="com.lin.distribution.vo.DeliveryMatrixLayout$Column">
         select tcd.id      as deptId,
                tcd.code    as code,
-               tcd.name    as name
+               tcd.name    as name,
+               tcd.shift_codes as shiftCodes
         from t_customer_dept tcd
         where tcd.customer_id = #{customerId}
           and tcd.valid = 1
@@ -206,6 +208,7 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
     <select id="selectMatrixCellsFromOrder" resultType="com.lin.distribution.vo.DeliveryMatrixVO$CellRow">
         select min(d.id)                                            as detailId,
                coalesce(d.customer_dept_id, o.customer_dept_id)     as deptId,
+               o.shift_code                                         as shiftCode,
                d.sku_id                                             as skuId,
                d.product_name                                       as productName,
                d.product_spec                                       as spec,
@@ -218,17 +221,19 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
           and o.customer_id = #{customerId}
           and o.delivery_date = #{deliveryDate}
         group by d.sku_id, d.product_name, d.product_spec, d.product_unit, d.product_price,
-                 coalesce(d.customer_dept_id, o.customer_dept_id)
+                 coalesce(d.customer_dept_id, o.customer_dept_id), o.shift_code
         having sum(d.num) &gt; 0
     </select>
 
-    <!-- 客户日总表·配货口径（D-055 视图化·主口径）：订单明细聚合 标准品名×配送点（不拆价不显价 D-027/28） -->
+    <!-- 客户日总表·配货口径（D-055 视图化·主口径）：订单明细聚合 标准品名×配送点×班次（不拆价不显价 D-027/28）。
+         s35：启用班次的客户按「配送点×班次」展开行（与总单矩阵列同口径）；未启用时 shift_code 为空，行为不变。 -->
     <select id="selectBatchViewRowsFromOrder" resultType="com.lin.distribution.vo.DeliveryBatchViewVO$Row">
         select d.sku_id                                             as skuId,
                coalesce(sku.name, d.product_name)                   as productName,
                d.product_spec                                       as spec,
                d.product_unit                                       as unit,
                coalesce(d.customer_dept_id, o.customer_dept_id)     as deptId,
+               o.shift_code                                         as shiftCode,
                cd.name                                              as deptName,
                sum(d.num)                                           as quantity
         from t_sale_order_detail d
@@ -239,7 +244,7 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
           and o.customer_id = #{customerId}
           and o.delivery_date = #{deliveryDate}
         group by d.sku_id, coalesce(sku.name, d.product_name), d.product_spec, d.product_unit,
-                 coalesce(d.customer_dept_id, o.customer_dept_id), cd.name
+                 coalesce(d.customer_dept_id, o.customer_dept_id), o.shift_code, cd.name
         having sum(d.num) &gt; 0
         order by productName, spec, unit, deptName
     </select>

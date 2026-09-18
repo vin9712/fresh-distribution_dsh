@@ -99,8 +99,11 @@ public class DeliveryMatrixVO implements Serializable {
         /** 点编码快照 */
         private String code;
 
-        /** 点名称快照 */
+        /** 点名称快照（含班次后缀，即纸面列名） */
         private String name;
+
+        /** 班次（biz_shift_type 字典值；空=该客户未启用班次） */
+        private String shiftCode;
 
         /** 临时补列（点已停用但当日有单，D-053） */
         private Boolean adHoc;
@@ -170,8 +173,10 @@ public class DeliveryMatrixVO implements Serializable {
         /** 备注（D-046/D-053：同名多行靠备注列标档位，纸面不打价）；无档标时为空白 */
         private String remark;
 
-        /** 格值：deptId → 该点分配量（无该点数据则不含此 key） */
-        private Map<Long, BigDecimal> cells = new LinkedHashMap<>();
+        /** 格值：列键 → 该列分配量（无该列数据则不含此 key）。
+         *  列键 = {@code deptId}（客户未启用班次）或 {@code deptId#班次}（启用班次，s35）；
+         *  非班次客户的键与历史完全一致（JSON 对象键本就是字符串）。 */
+        private Map<String, BigDecimal> cells = new LinkedHashMap<>();
 
         /** 格值按列顺序展开（与 columns 一一对应，null=空格）——打印与前端渲染用 */
         private List<BigDecimal> columnValues = new ArrayList<>();
@@ -236,6 +241,8 @@ public class DeliveryMatrixVO implements Serializable {
 
         private Long detailId;
         private Long deptId;
+        /** 班次（订单口径回传；历史口径为 null，服务层归白班） */
+        private String shiftCode;
         private BigDecimal quantity;
         /** 以下五字段仅订单明细口径回传（历史口径为 null，服务层改按 detailId 对位） */
         private Long skuId;

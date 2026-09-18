@@ -9,7 +9,16 @@ export function pageSaleOrder(query) {
   })
 }
 
-// 查询销售订单列表
+// 客户视角分组聚合分页（D-064：一行 = 客户 + 配送日期，分页单位 = 客户行）
+export function pageSaleCustomer(query) {
+  return request({
+    url: '/order/sale/customer-page',
+    method: 'get',
+    params: query
+  })
+}
+
+// 查询销售订单列表（客户视角子行 / 明细视角共用）
 export function listSale(query) {
   return request({
     url: '/order/sale/list',

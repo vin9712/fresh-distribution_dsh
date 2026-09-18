@@ -8,6 +8,7 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         <result property="id"    column="id"    />
         <result property="customerId"    column="customer_id"    />
         <result property="customerDeptId"    column="customer_dept_id"    />
+        <result property="shiftCode"    column="shift_code"    />
         <result property="code"    column="code"    />
         <result property="source"    column="source"    />
         <result property="type"    column="type"    />
@@ -32,6 +33,7 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
             so.id,
             so.customer_id,
             so.customer_dept_id,
+            so.shift_code,
             so.code,
             so.source,
             so.type,
@@ -108,6 +110,51 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         order by so.create_time desc, so.id desc
     </select>
 
+    <!-- D-064 客户视角分组聚合分页：一行 = 客户 + 配送日期。
+         筛选条件与 selectSaleOrderList 逐条对齐（口径一致），仅多 group by。
+         故意不复用 selectSaleOrderVo：其 purchaseOrderCode/deliveryOrderCode/allocated
+         三个相关子查询在 group by 下会被逐行放大；主行也不需要这些逐单字段。
+         子行（单号/配送点/班次/状态/操作）由前端展开时复用 /order/sale/list 拉取。 -->
+    <select id="selectCustomerPage" parameterType="com.lin.distribution.domain.SaleOrder"
+            resultType="com.lin.distribution.vo.SaleCustomerPageVO">
+        select so.customer_id                                  as customerId,
+               coalesce(customer.alias, customer.name)          as customerName,
+               so.delivery_date                                 as deliveryDate,
+               count(*)                                         as orderCount,
+               count(distinct coalesce(so.customer_dept_id, 0))  as pointCount,
+               coalesce(sum(so.amount), 0)                      as totalAmount,
+               sum(case when so.status = 0 then 1 else 0 end)   as draftCount,
+               sum(case when so.status = 1 then 1 else 0 end)   as confirmedCount,
+               sum(case when so.status = 2 then 1 else 0 end)   as deliveredCount,
+               sum(case when so.status = 3 then 1 else 0 end)   as acceptedCount,
+               sum(case when so.status = 4 then 1 else 0 end)   as settledCount
+        from t_sale_order so
+        left join t_customer customer on customer.id = so.customer_id
+        <where>
+            so.is_deleted = 0
+            <if test="customerId != null "> and so.customer_id = #{customerId}</if>
+            <if test="customerDeptId != null "> and so.customer_dept_id = #{customerDeptId}</if>
+            <if test="customerDeptIds != null and customerDeptIds.size() > 0"> and so.customer_dept_id in
+                <foreach item="id" collection="customerDeptIds" open="(" separator="," close=")">
+                    #{id}
+                </foreach>
+            </if>
+            <if test="customerIds != null and customerIds.size() > 0"> and so.customer_id in
+                <foreach item="id" collection="customerIds" open="(" separator="," close=")">
+                    #{id}
+                </foreach>
+            </if>
+            <if test="code != null  and code != ''"> and so.code = #{code}</if>
+            <if test="source != null "> and so.source = #{source}</if>
+            <if test="type != null "> and so.type = #{type}</if>
+            <if test="amount != null "> and so.amount = #{amount}</if>
+            <if test="status != null "> and so.status = #{status}</if>
+            <if test="deliveryDate != null "> and so.delivery_date = #{deliveryDate}</if>
+        </where>
+        group by so.customer_id, coalesce(customer.alias, customer.name), so.delivery_date
+        order by max(so.create_time) desc, max(so.id) desc
+    </select>
+
     <select id="selectSaleOrderById" parameterType="Long" resultMap="SaleOrderResult">
         <include refid="selectSaleOrderVo"/>
         where so.id = #{id}
@@ -126,6 +173,7 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         <trim prefix="(" suffix=")" suffixOverrides=",">
             <if test="customerId != null">customer_id,</if>
             <if test="customerDeptId != null">customer_dept_id,</if>
+            <if test="shiftCode != null">shift_code,</if>
             <if test="code != null and code != ''">code,</if>
             <if test="source != null">source,</if>
             <if test="type != null">type,</if>
@@ -143,6 +191,7 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         <trim prefix="values (" suffix=")" suffixOverrides=",">
             <if test="customerId != null">#{customerId},</if>
             <if test="customerDeptId != null">#{customerDeptId},</if>
+            <if test="shiftCode != null">#{shiftCode},</if>
             <if test="code != null and code != ''">#{code},</if>
             <if test="source != null">#{source},</if>
             <if test="type != null">#{type},</if>
@@ -164,6 +213,7 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         <trim prefix="SET" suffixOverrides=",">
             <if test="customerId != null">customer_id = #{customerId},</if>
             <if test="customerDeptId != null">customer_dept_id = #{customerDeptId},</if>
+            <if test="shiftCode != null">shift_code = #{shiftCode},</if>
             <if test="code != null and code != ''">code = #{code},</if>
             <if test="source != null">source = #{source},</if>
             <if test="type != null">type = #{type},</if>
@@ -256,6 +306,11 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
           and so.status = 0
           and so.customer_dept_id = #{customerDeptId}
           and so.delivery_date = #{deliveryDate}
+        <!-- s35：启用班次的客户按「配送点+日期+班次」判重（不同班次不算重复）；
+             历史无班次单按业务口径归 defaultShift（白班），与新单同一口径匹配 -->
+        <if test="shiftCode != null and shiftCode != ''">
+          and coalesce(nullif(so.shift_code, ''), #{defaultShift}) = #{shiftCode}
+        </if>
         order by so.create_time desc, so.id desc
     </select>
 </mapper>

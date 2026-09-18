@@ -22,8 +22,8 @@ import lombok.NoArgsConstructor;
  *       停用点不进列，但当日有单时以 {@code adHoc=true} 临时补列（D-053）；</li>
  *   <li><b>价档快照（append-only）</b>：同一「品名+规格+单位」下的不同单价按升序定 rank，
  *       新价只追加新档、<b>已有档号永不重排</b>，保证已打印纸面的档标不变；</li>
- *   <li><b>分页参数</b>：{@code colsPerPage} 默认 6（单客户最多 5~6 点，A4 纵向一页放得下），
- *       超出走横向列分页兜底。</li>
+ *   <li><b>分页参数</b>：{@code colsPerPage} 默认 7（金满楼样张为 7 部门一页；≤7 点单客户
+ *       A4 纵向一页放得下，多于 7 点走横向列分页兜底）。</li>
  * </ul>
  *
  * <p>D-055 视图化后布局不再由生成动作定格：无快照的批次按启用配送点<b>实时推导</b>
@@ -43,8 +43,8 @@ public class DeliveryMatrixLayout implements Serializable {
     public static final String FORM_MATRIX = "MATRIX";
     /** 打印形态：一维明细（B/C 类每点一单） */
     public static final String FORM_FLAT = "FLAT";
-    /** 每页点列数默认值（A4 纵向约 6 列，设计 §四 列分页容量参考） */
-    public static final int DEFAULT_COLS_PER_PAGE = 6;
+    /** 每页点列数默认值（A4 纵向 7 列；参照金满楼总表样张 7 部门一页） */
+    public static final int DEFAULT_COLS_PER_PAGE = 7;
     /** 圈码档标（GB2312 内含 ①~⑩，针式/A4 中文字库均可渲染） */
     private static final String[] CIRCLED = {"①", "②", "③", "④", "⑤", "⑥", "⑦", "⑧", "⑨", "⑩"};
 
@@ -182,8 +182,14 @@ public class DeliveryMatrixLayout implements Serializable {
         /** 点编码快照（列排序依据，仅记录用） */
         private String code;
 
-        /** 点名称快照（不回落实时主数据） */
+        /** 点名称快照（不回落实时主数据；含班次后缀时即纸面列名） */
         private String name;
+
+        /** 班次（biz_shift_type 字典值；空=该客户未启用班次） */
+        private String shiftCode;
+
+        /** 主数据声明的班次列表（仅推导列时由 selectMatrixColumns 回传，不入快照） */
+        private transient String shiftCodes;
 
         /** 是否临时补列（点已停用但当日有单，D-053） */
         private Boolean adHoc;

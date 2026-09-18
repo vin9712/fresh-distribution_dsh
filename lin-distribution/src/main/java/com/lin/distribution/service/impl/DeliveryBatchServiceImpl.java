@@ -14,6 +14,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import org.apache.commons.lang3.BooleanUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.stereotype.Service;
 
@@ -31,6 +32,7 @@ import com.lin.distribution.mapper.CustomerSkuMappingMapper;
 import com.lin.distribution.mapper.DeliveryBatchMapper;
 import com.lin.distribution.mapper.DeliveryPrintLogMapper;
 import com.lin.distribution.util.PrintBizKeys;
+import com.lin.distribution.util.ShiftCodes;
 import com.lin.distribution.mapper.SaleOrderDetailMapper;
 import com.lin.distribution.service.DeliveryBatchService;
 import com.lin.distribution.vo.DeliveryBatchViewVO;
@@ -66,7 +68,6 @@ import lombok.extern.slf4j.Slf4j;
 public class DeliveryBatchServiceImpl implements DeliveryBatchService {
 
     private static final DateTimeFormatter ISO = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss");
-
     private final DeliveryBatchMapper deliveryBatchMapper;
     private final CustomerDeptMapper customerDeptMapper;
     private final CustomerMapper customerMapper;
@@ -184,6 +185,9 @@ public class DeliveryBatchServiceImpl implements DeliveryBatchService {
 
         // 行键 = 标准品名 + 规格 + 单位（P0-A 修正：原只到品名会把同品名不同规格/单位错并成一行）；
         // 不显价也不因价拆行（D-028），故价格不进键
+        // s35：启用班次的客户，点小计按「配送点×班次」展开（与总单矩阵列同口径）
+        Customer customer = customerMapper.selectCustomerById(customerId);
+        boolean shiftEnabled = customer != null && BooleanUtils.isTrue(customer.getShiftEnabled());
         Map<String, DeliveryBatchViewVO> byProduct = new LinkedHashMap<>();
         for (DeliveryBatchViewVO.Row row : rows) {
             String key = (row.getSkuId() == null ? "name:" + row.getProductName() : "sku:" + row.getSkuId())
@@ -201,14 +205,16 @@ public class DeliveryBatchServiceImpl implements DeliveryBatchService {
             BigDecimal qty = row.getQuantity() == null ? BigDecimal.ZERO : row.getQuantity();
             vo.setTotalQuantity(vo.getTotalQuantity().add(qty));
 
-            String deptKey = String.valueOf(row.getDeptId());
+            String shift = normalizeShift(shiftEnabled, row.getShiftCode());
+            String deptKey = ShiftCodes.cellKey(row.getDeptId(), shift);
             DeliveryBatchViewVO.DeptRow dept = vo.getDepts().stream()
-                    .filter(d -> String.valueOf(d.getDeptId()).equals(deptKey))
+                    .filter(d -> ShiftCodes.cellKey(d.getDeptId(), d.getShiftCode()).equals(deptKey))
                     .findFirst()
                     .orElseGet(() -> {
                         DeliveryBatchViewVO.DeptRow d = new DeliveryBatchViewVO.DeptRow();
                         d.setDeptId(row.getDeptId());
-                        d.setDeptName(row.getDeptName());
+                        d.setShiftCode(shift);
+                        d.setDeptName(ShiftCodes.columnName(row.getDeptName(), shift));
                         d.setQuantity(BigDecimal.ZERO);
                         vo.getDepts().add(d);
                         return d;
@@ -289,6 +295,9 @@ public class DeliveryBatchServiceImpl implements DeliveryBatchService {
         vo.setColsPerPage(DeliveryMatrixLayout.DEFAULT_COLS_PER_PAGE);
         vo.setColBlocks(1);
         fillCustomer(vo, customerId);
+        // 班次（s35）：仅启用班次的客户参与列/格展开，其余客户全链路行为与引入前一致
+        Customer customer = customerMapper.selectCustomerById(customerId);
+        boolean shiftEnabled = customer != null && BooleanUtils.isTrue(customer.getShiftEnabled());
 
         DeliveryBatch batch = deliveryBatchMapper.selectByCustomerAndDate(customerId, deliveryDate);
         if (batch != null) {
@@ -315,7 +324,7 @@ public class DeliveryBatchServiceImpl implements DeliveryBatchService {
         boolean usable = rawSnapshot != null && !rawSnapshot.getColumns().isEmpty();
         DeliveryMatrixLayout snapshot = usable ? rawSnapshot : null;
         vo.setLayoutDerived(!usable);
-        DeliveryMatrixLayout layout = composeLayout(snapshot, customerId, details, cellRows, !usable);
+        DeliveryMatrixLayout layout = composeLayout(snapshot, customerId, details, cellRows, !usable, shiftEnabled);
         vo.setPrintForm(layout.getPrintForm());
         vo.setColsPerPage(layout.getColsPerPage());
         // 已存快照时回显批次落库版本（读取路径的 adHoc 补列不刷版本，留给下次生成定格）
@@ -331,6 +340,7 @@ public class DeliveryBatchServiceImpl implements DeliveryBatchService {
                     .deptId(c.getDeptId())
                     .code(c.getCode())
                     .name(c.getName())
+                    .shiftCode(c.getShiftCode())
                     .adHoc(c.isAdHoc())
                     .hasData(Boolean.FALSE)
                     .blockNo(colsPerPage > 0 ? i / colsPerPage + 1 : 1)
@@ -339,8 +349,8 @@ public class DeliveryBatchServiceImpl implements DeliveryBatchService {
         vo.setColumns(columns);
         vo.setColBlocks(colsPerPage > 0 ? Math.max(1, (int) Math.ceil(columns.size() / (double) colsPerPage)) : 1);
 
-        // 格：行身份键 → (deptId → 数量)。主口径按五元组对位，历史口径按送货明细行ID对位
-        Map<String, Map<Long, BigDecimal>> cellIndex = new LinkedHashMap<>();
+        // 格：行身份键 → (列键 → 数量)。列键 = deptId 或 deptId#班次（s35）；主口径按五元组对位，历史口径按送货明细行ID对位
+        Map<String, Map<String, BigDecimal>> cellIndex = new LinkedHashMap<>();
         for (DeliveryMatrixVO.CellRow cell : cellRows) {
             if (cell.getDeptId() == null) {
                 continue;
@@ -351,7 +361,8 @@ public class DeliveryBatchServiceImpl implements DeliveryBatchService {
                 continue;
             }
             cellIndex.computeIfAbsent(key, k -> new LinkedHashMap<>())
-                    .merge(cell.getDeptId(), nvl(cell.getQuantity()), BigDecimal::add);
+                    .merge(ShiftCodes.cellKey(cell.getDeptId(), normalizeShift(shiftEnabled, cell.getShiftCode())),
+                            nvl(cell.getQuantity()), BigDecimal::add);
         }
         // 历史单完全无点级分配台账 = 旧旧数据，点列打 —（D-051）
         vo.setHistoryFallback(legacy && cellIndex.isEmpty());
@@ -360,7 +371,7 @@ public class DeliveryBatchServiceImpl implements DeliveryBatchService {
 
         BigDecimal grandTotal = BigDecimal.ZERO;
         for (DeliveryMatrixVO.DetailRow detail : details) {
-            Map<Long, BigDecimal> rowCells = cellIndex.getOrDefault(
+            Map<String, BigDecimal> rowCells = cellIndex.getOrDefault(
                     legacy ? legacyRowKey(detail.getDetailId())
                             : matrixRowKey(detail.getSkuId(), detail.getProductName(), detail.getSpec(),
                             detail.getUnit(), detail.getPrice()),
@@ -381,7 +392,7 @@ public class DeliveryBatchServiceImpl implements DeliveryBatchService {
 
             List<BigDecimal> columnValues = new ArrayList<>(columns.size());
             for (DeliveryMatrixVO.ColumnVO column : columns) {
-                BigDecimal qty = rowCells.get(column.getDeptId());
+                BigDecimal qty = rowCells.get(ShiftCodes.cellKey(column.getDeptId(), column.getShiftCode()));
                 columnValues.add(qty);
                 if (qty != null && qty.compareTo(BigDecimal.ZERO) != 0) {
                     column.setHasData(Boolean.TRUE);
@@ -460,38 +471,67 @@ public class DeliveryBatchServiceImpl implements DeliveryBatchService {
     private DeliveryMatrixLayout composeLayout(DeliveryMatrixLayout base, Long customerId,
                                                List<DeliveryMatrixVO.DetailRow> details,
                                                List<DeliveryMatrixVO.CellRow> cells,
-                                               boolean includeValidDepts) {
+                                               boolean includeValidDepts,
+                                               boolean shiftEnabled) {
         DeliveryMatrixLayout src = (base == null ? DeliveryMatrixLayout.newInstance() : base).normalize();
 
-        // ---------- 列：快照列 → 启用点补列 → adHoc 临时补列 ----------
+        // ---------- 列：快照列 → 启用点（×班次）补列 → adHoc 临时补列 ----------
+        // 列身份键 = deptId 或 deptId#班次（s35）：同一配送点的白/夜班是两个独立列
         List<Column> columns = new ArrayList<>();
-        Set<Long> deptSeen = new LinkedHashSet<>();
+        Set<String> deptSeen = new LinkedHashSet<>();
         for (Column c : src.getColumns()) {
-            if (c.getDeptId() != null && deptSeen.add(c.getDeptId())) {
-                columns.add(Column.builder().deptId(c.getDeptId()).code(c.getCode()).name(c.getName())
-                        .adHoc(c.isAdHoc()).build());
+            if (c.getDeptId() == null) {
+                continue;
             }
+            // s35：快照列班次与格值同一口径归一化（启用→空班次归白班，停用→清空）。
+            // 否则旧快照列（无班次键）与归一化后的格值键错位：老列恒空、量全部落进 adHoc 补列
+            String shift = shiftEnabled ? ShiftCodes.orDefault(c.getShiftCode()) : "";
+            if (!deptSeen.add(ShiftCodes.cellKey(c.getDeptId(), shift))) {
+                continue;
+            }
+            columns.add(Column.builder().deptId(c.getDeptId()).code(c.getCode()).name(c.getName())
+                    .shiftCode(shift)
+                    .adHoc(c.isAdHoc()).build());
         }
         if (includeValidDepts) {
             for (Column c : nullSafe(deliveryBatchMapper.selectMatrixColumns(customerId))) {
-                if (c.getDeptId() != null && deptSeen.add(c.getDeptId())) {
-                    columns.add(Column.builder().deptId(c.getDeptId()).code(c.getCode()).name(c.getName())
-                            .adHoc(Boolean.FALSE).build());
+                if (c.getDeptId() == null) {
+                    continue;
+                }
+                // 启用班次的客户按该点声明的班次展开；未声明班次（或客户未启用）保持单列
+                List<String> shifts = shiftEnabled ? ShiftCodes.parse(c.getShiftCodes()) : new ArrayList<>();
+                if (shifts.isEmpty()) {
+                    shifts.add("");
+                }
+                for (String shift : shifts) {
+                    if (deptSeen.add(ShiftCodes.cellKey(c.getDeptId(), shift))) {
+                        columns.add(Column.builder().deptId(c.getDeptId()).code(c.getCode())
+                                .name(ShiftCodes.columnName(c.getName(), shift))
+                                .shiftCode(shift)
+                                .adHoc(Boolean.FALSE).build());
+                    }
                 }
             }
         }
-        // 停用点当日有单 → 临时补列并告警，绝不静默丢量（D-053）
-        for (Long deptId : distinctCellDeptIds(cells)) {
-            if (deptSeen.add(deptId)) {
-                CustomerDept dept = customerDeptMapper.selectCustomerDeptById(deptId);
-                columns.add(Column.builder()
-                        .deptId(deptId)
-                        .code(dept == null ? null : dept.getCode())
-                        .name(dept == null ? "已停用配送点" : dept.getName())
-                        .adHoc(Boolean.TRUE)
-                        .build());
-                log.warn("矩阵总表临时补列：客户={} 配送点={}（不在布局快照内，多为已停用但当日有单）", customerId, deptId);
+        // 停用点/未声明班次当日有单 → 临时补列并告警，绝不静默丢量（D-053）
+        for (DeliveryMatrixVO.CellRow cell : nullSafe(cells)) {
+            if (cell.getDeptId() == null) {
+                continue;
             }
+            String shift = normalizeShift(shiftEnabled, cell.getShiftCode());
+            if (!deptSeen.add(ShiftCodes.cellKey(cell.getDeptId(), shift))) {
+                continue;
+            }
+            CustomerDept dept = customerDeptMapper.selectCustomerDeptById(cell.getDeptId());
+            columns.add(Column.builder()
+                    .deptId(cell.getDeptId())
+                    .code(dept == null ? null : dept.getCode())
+                    .name(dept == null ? "已停用配送点" : ShiftCodes.columnName(dept.getName(), shift))
+                    .shiftCode(shift)
+                    .adHoc(Boolean.TRUE)
+                    .build());
+            log.warn("矩阵总表临时补列：客户={} 配送点={} 班次={}（不在布局快照内，多为已停用点或未声明班次但当日有单）",
+                    customerId, cell.getDeptId(), shift);
         }
 
         // ---------- 价档：快照档 → 新价按升序追加档号（已有档号绝不重排） ----------
@@ -613,12 +653,11 @@ public class DeliveryBatchServiceImpl implements DeliveryBatchService {
                 .orElse(null);
     }
 
-    private List<Long> distinctCellDeptIds(List<DeliveryMatrixVO.CellRow> cells) {
-        return nullSafe(cells).stream()
-                .map(DeliveryMatrixVO.CellRow::getDeptId)
-                .filter(Objects::nonNull)
-                .distinct()
-                .collect(Collectors.toList());
+    /**
+     * 班次归一化：启用班次的客户把空班次（历史单）归白班；未启用的客户一律置空（不参与列/格键）。
+     */
+    private String normalizeShift(boolean shiftEnabled, String shiftCode) {
+        return shiftEnabled ? ShiftCodes.orDefault(shiftCode) : "";
     }
 
     private <T> List<T> nullSafe(List<T> list) {

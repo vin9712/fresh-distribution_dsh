@@ -26,6 +26,11 @@ public class SaleOrderCreateDTO implements Serializable {
     private Long customerId;
     @NotNull
     private Long customerDeptId;
+    /**
+     * 订单班次（biz_shift_type 字典值）：客户启用班次时必填，须在该配送点支持列表内；
+     * 未启用班次的客户忽略该字段（后端归一化为空串）
+     */
+    private String shiftCode;
     @NotEmpty
     private String orderCode;
     @NotNull

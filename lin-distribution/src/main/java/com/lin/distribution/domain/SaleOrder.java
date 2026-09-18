@@ -9,6 +9,7 @@ import com.baomidou.mybatisplus.annotation.Version;
 import com.fasterxml.jackson.annotation.JsonFormat;
 import com.lin.common.annotation.Excel;
 import com.lin.common.core.domain.BaseEntity;
+import com.lin.distribution.util.ShiftCodes;
 import lombok.*;
 import org.apache.commons.lang3.StringUtils;
 
@@ -42,6 +43,11 @@ public class SaleOrder extends BaseEntity {
      */
     @Excel(name = "配送点ID")
     private Long customerDeptId;
+
+    /**
+     * 订单班次（biz_shift_type 字典值；客户启用班次时必填且须在该配送点支持列表内；空=不分班次）
+     */
+    private String shiftCode;
 
     /**
      * 订单编号
@@ -148,10 +154,12 @@ public class SaleOrder extends BaseEntity {
     private java.util.List<Long> customerIds;
 
     public String getDeliveryName() {
-        if (!StringUtils.equals(customerName, customerDeptName)) {
-            return customerName + "-" + customerDeptName;
-        } else {
-            return customerName;
-        }
+        String base = StringUtils.equals(customerName, customerDeptName)
+                ? StringUtils.defaultString(customerName)
+                : StringUtils.defaultString(customerName) + "-" + StringUtils.defaultString(customerDeptName);
+        // s35：启用班次的客户，送货单位展示带上班次（如「大长江-华铃-白班」），
+        // 最近订单/批量确认等所有复用该展示口径的地方一并可见；未启用班次的客户不受影响
+        String shiftLabel = ShiftCodes.label(shiftCode);
+        return shiftLabel.isEmpty() ? base : base + "-" + shiftLabel;
     }
 }

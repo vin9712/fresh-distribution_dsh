@@ -1,0 +1,122 @@
+{
+  "action": "create",
+  "reportName": "金兴楼总表",
+  "datasets": [
+    {
+      "dbCode": "jinxingDs",
+      "dbChName": "金兴楼总表静态明细",
+      "dbType": "3",
+      "isList": "1",
+      "isPage": "0",
+      "fieldList": [
+        ["name", "名称"], ["unit", "单位"],
+        ["zhongchu", "中厨"], ["dianxin", "点心"], ["weibu", "味部"],
+        ["tieban", "铁板"], ["shangza", "上杂"], ["fushi", "福食"], ["baoyu", "鲍鱼"],
+        ["nameColor", "名称文字颜色"], ["unitColor", "单位文字颜色"],
+        ["bgColor", "名称与单位背景颜色"]
+      ],
+      "jsonData": [
+        {"name":"靓菜芯","unit":"斤","zhongchu":0,"dianxin":15,"weibu":0,"tieban":0,"shangza":0,"fushi":0,"baoyu":0,"nameColor":"#000000","unitColor":"#000000","bgColor":"#ffffff"},
+        {"name":"生菜","unit":"斤","zhongchu":0,"dianxin":10,"weibu":0,"tieban":0,"shangza":0,"fushi":0,"baoyu":0,"nameColor":"#000000","unitColor":"#000000","bgColor":"#ffffff"},
+        {"name":"椰菜","unit":"斤","zhongchu":5,"dianxin":0,"weibu":0,"tieban":0,"shangza":0,"fushi":0,"baoyu":0,"nameColor":"#000000","unitColor":"#000000","bgColor":"#ffffff"},
+        {"name":"广州小唐菜","unit":"斤","zhongchu":0,"dianxin":8,"weibu":0,"tieban":0,"shangza":0,"fushi":0,"baoyu":0,"nameColor":"#000000","unitColor":"#000000","bgColor":"#ffffff"},
+        {"name":"娃娃菜/500g","unit":"包","zhongchu":6,"dianxin":0,"weibu":0,"tieban":0,"shangza":0,"fushi":0,"baoyu":0,"nameColor":"#000000","unitColor":"#ff0000","bgColor":"#ffffff"},
+        {"name":"唛头（莴笋）","unit":"斤","zhongchu":0,"dianxin":3,"weibu":0,"tieban":0,"shangza":0,"fushi":0,"baoyu":0,"nameColor":"#000000","unitColor":"#000000","bgColor":"#ffffff"},
+        {"name":"西芹","unit":"斤","zhongchu":6,"dianxin":0,"weibu":0,"tieban":0,"shangza":0,"fushi":0,"baoyu":0,"nameColor":"#000000","unitColor":"#000000","bgColor":"#ffffff"},
+        {"name":"香芹","unit":"斤","zhongchu":5,"dianxin":2,"weibu":0,"tieban":0,"shangza":0,"fushi":0,"baoyu":0,"nameColor":"#000000","unitColor":"#000000","bgColor":"#ffffff"},
+        {"name":"西兰花","unit":"斤","zhongchu":15,"dianxin":0,"weibu":0,"tieban":0,"shangza":0,"fushi":0,"baoyu":0,"nameColor":"#000000","unitColor":"#000000","bgColor":"#ffffff"},
+        {"name":"盒装豆腐","unit":"斤","zhongchu":6,"dianxin":0,"weibu":0,"tieban":0,"shangza":0,"fushi":0,"baoyu":0,"nameColor":"#ff0000","unitColor":"#ff0000","bgColor":"#ffff00"},
+        {"name":"马蹄肉","unit":"斤","zhongchu":0,"dianxin":5,"weibu":0,"tieban":0,"shangza":0,"fushi":0,"baoyu":0,"nameColor":"#000000","unitColor":"#000000","bgColor":"#ffffff"},
+        {"name":"小韭菜","unit":"斤","zhongchu":0,"dianxin":2,"weibu":0,"tieban":0,"shangza":0,"fushi":0,"baoyu":0,"nameColor":"#000000","unitColor":"#000000","bgColor":"#ffffff"},
+        {"name":"白萝卜","unit":"斤","zhongchu":10,"dianxin":0,"weibu":0,"tieban":0,"shangza":0,"fushi":0,"baoyu":0,"nameColor":"#000000","unitColor":"#000000","bgColor":"#ffffff"},
+        {"name":"青瓜","unit":"斤","zhongchu":3,"dianxin":0,"weibu":5,"tieban":0,"shangza":0,"fushi":0,"baoyu":0,"nameColor":"#000000","unitColor":"#000000","bgColor":"#ffffff"},
+        {"name":"栗子肉","unit":"斤","zhongchu":0,"dianxin":3,"weibu":0,"tieban":0,"shangza":0,"fushi":0,"baoyu":0,"nameColor":"#000000","unitColor":"#000000","bgColor":"#ffffff"},
+        {"name":"青尖椒","unit":"斤","zhongchu":10,"dianxin":0,"weibu":0,"tieban":0,"shangza":0,"fushi":0,"baoyu":0,"nameColor":"#000000","unitColor":"#000000","bgColor":"#ffffff"},
+        {"name":"红尖椒","unit":"斤","zhongchu":5,"dianxin":0,"weibu":0,"tieban":0,"shangza":0,"fushi":0,"baoyu":0,"nameColor":"#000000","unitColor":"#000000","bgColor":"#ffffff"},
+        {"name":"芫茜（干水）","unit":"斤","zhongchu":2,"dianxin":1,"weibu":1,"tieban":0,"shangza":0,"fushi":0,"baoyu":0,"nameColor":"#000000","unitColor":"#000000","bgColor":"#ffffff"},
+        {"name":"干葱","unit":"斤","zhongchu":0,"dianxin":4,"weibu":1,"tieban":0,"shangza":0,"fushi":0,"baoyu":0,"nameColor":"#000000","unitColor":"#000000","bgColor":"#ffffff"},
+        {"name":"蒜肉","unit":"斤","zhongchu":0,"dianxin":4,"weibu":0,"tieban":0,"shangza":0,"fushi":0,"baoyu":0,"nameColor":"#000000","unitColor":"#000000","bgColor":"#ffffff"},
+        {"name":"沙姜","unit":"斤","zhongchu":0,"dianxin":5,"weibu":0,"tieban":0,"shangza":0,"fushi":0,"baoyu":0,"nameColor":"#000000","unitColor":"#000000","bgColor":"#ffffff"},
+        {"name":"大豆芽（去根）","unit":"斤","zhongchu":5,"dianxin":0,"weibu":0,"tieban":0,"shangza":0,"fushi":0,"baoyu":0,"nameColor":"#000000","unitColor":"#000000","bgColor":"#ffffff"},
+        {"name":"银芽","unit":"斤","zhongchu":3,"dianxin":0,"weibu":0,"tieban":0,"shangza":0,"fushi":0,"baoyu":0,"nameColor":"#000000","unitColor":"#000000","bgColor":"#ffffff"},
+        {"name":"秋葵","unit":"斤","zhongchu":2,"dianxin":0,"weibu":0,"tieban":0,"shangza":0,"fushi":0,"baoyu":0,"nameColor":"#000000","unitColor":"#000000","bgColor":"#ffffff"},
+        {"name":"灰冬瓜","unit":"斤","zhongchu":0,"dianxin":0,"weibu":0,"tieban":0,"shangza":15,"fushi":0,"baoyu":0,"nameColor":"#000000","unitColor":"#000000","bgColor":"#ffffff"},
+        {"name":"有皮黄姜","unit":"斤","zhongchu":10,"dianxin":0,"weibu":0,"tieban":0,"shangza":0,"fushi":0,"baoyu":0,"nameColor":"#ff0000","unitColor":"#ff0000","bgColor":"#ffffff"},
+        {"name":"金针菇","unit":"斤","zhongchu":0,"dianxin":1,"weibu":0,"tieban":0,"shangza":0,"fushi":0,"baoyu":0,"nameColor":"#000000","unitColor":"#000000","bgColor":"#ffffff"},
+        {"name":"潮州咸菜","unit":"件","zhongchu":1,"dianxin":0,"weibu":0,"tieban":0,"shangza":0,"fushi":0,"baoyu":0,"nameColor":"#ff0000","unitColor":"#ff0000","bgColor":"#ffffff"},
+        {"name":"莲藕","unit":"斤","zhongchu":0,"dianxin":0,"weibu":0,"tieban":0,"shangza":0,"fushi":12,"baoyu":0,"nameColor":"#000000","unitColor":"#000000","bgColor":"#f8cbad"},
+        {"name":"香芹","unit":"斤","zhongchu":0,"dianxin":0,"weibu":0,"tieban":0,"shangza":0,"fushi":4,"baoyu":0,"nameColor":"#000000","unitColor":"#000000","bgColor":"#f8cbad"},
+        {"name":"梅菜","unit":"斤","zhongchu":0,"dianxin":0,"weibu":0,"tieban":0,"shangza":0,"fushi":5,"baoyu":0,"nameColor":"#000000","unitColor":"#000000","bgColor":"#f8cbad"},
+        {"name":"蒜苗","unit":"斤","zhongchu":0,"dianxin":0,"weibu":0,"tieban":0,"shangza":0,"fushi":4,"baoyu":0,"nameColor":"#000000","unitColor":"#000000","bgColor":"#f8cbad"}
+      ]
+    }
+  ],
+  "table": {
+    "datasetCode": "jinxingDs",
+    "title": "金兴楼 总表",
+    "columns": [
+      {"field":"name","title":"名称","width":149},
+      {"field":"unit","title":"单位","width":53},
+      {"field":"zhongchu","title":"中厨","width":53},
+      {"field":"dianxin","title":"点心","width":53},
+      {"field":"weibu","title":"味部","width":53},
+      {"field":"tieban","title":"铁板","width":53},
+      {"field":"shangza","title":"上杂","width":53},
+      {"field":"fushi","title":"福食","width":53},
+      {"field":"baoyu","title":"鲍鱼","width":53}
+    ]
+  },
+  "customRows": {
+    "len": 100,
+    "0": {"height":28,"cells":{
+      "0":{"text":"","style":2},
+      "1":{"text":"金兴楼 总表","style":4,"merge":[0,9]}
+    }},
+    "1": {"height":24,"cells":{
+      "0":{"text":"","style":2},
+      "1":{"text":"9月16日","style":2,"merge":[0,9]}
+    }},
+    "2": {"height":26,"cells":{
+      "0":{"text":"","style":2},
+      "1":{"text":"名称","style":0},
+      "2":{"text":"单位","style":1},
+      "3":{"text":"中厨","style":1},
+      "4":{"text":"点心","style":1},
+      "5":{"text":"味部","style":1},
+      "6":{"text":"铁板","style":1},
+      "7":{"text":"上杂","style":1},
+      "8":{"text":"福食","style":1},
+      "9":{"text":"鲍鱼","style":1},
+      "10":{"text":"合计","style":1}
+    }},
+    "3": {"height":26.5,"cells":{
+      "0":{"text":"","style":2},
+      "1":{"text":"=COLOR('#{jinxingDs.name}','#{jinxingDs.nameColor}','#{jinxingDs.bgColor}')","style":0},
+      "2":{"text":"=COLOR('#{jinxingDs.unit}','#{jinxingDs.unitColor}','#{jinxingDs.bgColor}')","style":1},
+      "3":{"text":"=IF(#{jinxingDs.zhongchu}==0,'',#{jinxingDs.zhongchu})","style":1},
+      "4":{"text":"=IF(#{jinxingDs.dianxin}==0,'',#{jinxingDs.dianxin})","style":1},
+      "5":{"text":"=IF(#{jinxingDs.weibu}==0,'',#{jinxingDs.weibu})","style":1},
+      "6":{"text":"=IF(#{jinxingDs.tieban}==0,'',#{jinxingDs.tieban})","style":1},
+      "7":{"text":"=IF(#{jinxingDs.shangza}==0,'',#{jinxingDs.shangza})","style":1},
+      "8":{"text":"=IF(#{jinxingDs.fushi}==0,'',#{jinxingDs.fushi})","style":1},
+      "9":{"text":"=IF(#{jinxingDs.baoyu}==0,'',#{jinxingDs.baoyu})","style":1},
+      "10":{"text":"=#{jinxingDs.zhongchu}+#{jinxingDs.dianxin}+#{jinxingDs.weibu}+#{jinxingDs.tieban}+#{jinxingDs.shangza}+#{jinxingDs.fushi}+#{jinxingDs.baoyu}","style":5}
+    }}
+  },
+  "customMerges": ["B1:K1","B2:K2"],
+  "customCols": {
+    "len": 100,
+    "0":{"width":30},"1":{"width":149},"2":{"width":53},
+    "3":{"width":53},"4":{"width":53},"5":{"width":53},
+    "6":{"width":53},"7":{"width":53},"8":{"width":53},
+    "9":{"width":53},"10":{"width":53}
+  },
+  "customStyles": [
+    {"border":{"bottom":["thin","#000000"],"top":["thin","#000000"],"left":["thin","#000000"],"right":["thin","#000000"]},"align":"left","valign":"middle","color":"#000000","bgcolor":"#ffffff","font":{"name":"SimSun","size":12,"bold":true}},
+    {"border":{"bottom":["thin","#000000"],"top":["thin","#000000"],"left":["thin","#000000"],"right":["thin","#000000"]},"align":"center","valign":"middle","color":"#000000","bgcolor":"#ffffff","font":{"name":"SimSun","size":12,"bold":true}},
+    {"align":"left","valign":"middle","color":"#000000","bgcolor":"#ffffff","font":{"name":"SimSun","size":12,"bold":true}},
+    {"align":"center","valign":"middle","color":"#000000","bgcolor":"#ffffff","font":{"name":"SimSun","size":12,"bold":true}},
+    {"align":"center","valign":"middle","color":"#000000","bgcolor":"#ffffff","font":{"name":"SimSun","size":14,"bold":true}},
+    {"border":{"bottom":["thin","#000000"],"top":["thin","#000000"],"left":["thin","#000000"],"right":["thin","#000000"]},"align":"right","valign":"middle","color":"#000000","bgcolor":"#ffffff","font":{"name":"SimSun","size":12,"bold":true}}
+  ]
+}

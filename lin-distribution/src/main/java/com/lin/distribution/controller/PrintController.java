@@ -20,6 +20,7 @@ import com.lin.distribution.service.DeliveryBatchService;
 import com.lin.distribution.service.PrintTemplateService;
 import com.lin.distribution.service.PrintTicketService;
 import com.lin.distribution.util.PrintBizKeys;
+import com.lin.distribution.util.ShiftCodes;
 import com.lin.distribution.vo.DeliveryMatrixLayout;
 import com.lin.distribution.vo.DeliveryMatrixVO;
 import io.swagger.v3.oas.annotations.Operation;
@@ -463,7 +464,8 @@ public class PrintController extends BaseController {
                     // 列头显示名带零填充序号（01·点心）：横向动态列组序由引擎决定，序号前缀保证纸面列序稳定可读
                     cell.put("deptLabel", String.format("%02d·%s", deptSeq, StringUtils.defaultString(column.getName())));
                     cell.put("deptCode", StringUtils.defaultString(column.getCode()));
-                    BigDecimal qty = row.getCells().get(column.getDeptId());
+                    cell.put("shiftCode", StringUtils.defaultString(column.getShiftCode()));
+                    BigDecimal qty = row.getCells().get(ShiftCodes.cellKey(column.getDeptId(), column.getShiftCode()));
                     cell.put("num", qty);                          // null=空格
                     cell.put("rowTotal", row.getTotalQuantity());
                     rowMetas.add(cell);
@@ -473,7 +475,8 @@ public class PrintController extends BaseController {
             }
             for (int i = 0; i < slots; i++) {
                 DeliveryMatrixVO.ColumnVO column = i < blockColumns.size() ? blockColumns.get(i) : null;
-                BigDecimal qty = column == null ? null : row.getCells().get(column.getDeptId());
+                BigDecimal qty = column == null ? null
+                        : row.getCells().get(ShiftCodes.cellKey(column.getDeptId(), column.getShiftCode()));
                 // 历史单无点级台账：格位打 —（D-051）
                 line.put("c" + (i + 1), qty != null ? qty : (Boolean.TRUE.equals(matrix.getHistoryFallback()) ? "—" : ""));
             }

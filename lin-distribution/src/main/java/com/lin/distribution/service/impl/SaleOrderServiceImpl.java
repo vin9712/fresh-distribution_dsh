@@ -5,6 +5,8 @@ import com.lin.common.utils.DateUtils;
 import com.lin.common.utils.SecurityUtils;
 import com.lin.distribution.constant.SaleOrderStatus;
 import com.lin.distribution.domain.Acceptance;
+import com.lin.distribution.domain.Customer;
+import com.lin.distribution.domain.CustomerDept;
 import com.lin.distribution.domain.SaleOrder;
 import com.lin.distribution.domain.SaleOrderDetail;
 import com.lin.distribution.dto.SaleGeneratePreviewVO;
@@ -12,6 +14,8 @@ import com.lin.distribution.dto.SaleOrderCreateDTO;
 import com.lin.distribution.dto.SaleOrderUpdateStatusDTO;
 import com.lin.distribution.dto.WithdrawCascadeResultVO;
 import com.lin.distribution.mapper.AcceptanceMapper;
+import com.lin.distribution.mapper.CustomerDeptMapper;
+import com.lin.distribution.mapper.CustomerMapper;
 import com.lin.distribution.mapper.SaleOrderDetailMapper;
 import com.lin.distribution.mapper.SaleOrderMapper;
 import com.lin.distribution.service.BizCodeService;
@@ -19,6 +23,7 @@ import com.lin.distribution.service.BizCodeService;
 import com.lin.distribution.service.DeliveryOrderService;
 import com.lin.distribution.service.OrderWithdrawCascadeService;
 import com.lin.distribution.service.SaleOrderService;
+import com.lin.distribution.util.ShiftCodes;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
@@ -58,6 +63,8 @@ public class SaleOrderServiceImpl implements SaleOrderService {
     private final DeliveryOrderService deliveryOrderService;
     private final OrderWithdrawCascadeService orderWithdrawCascadeService;
     private final BizCodeService bizCodeService;
+    private final CustomerMapper customerMapper;
+    private final CustomerDeptMapper customerDeptMapper;
 
     /**
      * 查询销售订单
@@ -79,6 +86,17 @@ public class SaleOrderServiceImpl implements SaleOrderService {
     @Override
     public List<SaleOrder> selectSaleOrderList(SaleOrder saleOrder) {
         return saleOrderMapper.selectSaleOrderList(saleOrder);
+    }
+
+    /**
+     * 客户视角分组聚合分页（D-064）：一行 = 客户 + 配送日期。
+     *
+     * <p>纯直出：聚合在 SQL 层完成（分页单位 = 客户行），服务层不需要补字段——
+     * 班次是订单级属性，只在子行展示（D-065）。</p>
+     */
+    @Override
+    public List<com.lin.distribution.vo.SaleCustomerPageVO> selectCustomerPage(SaleOrder saleOrder) {
+        return saleOrderMapper.selectCustomerPage(saleOrder);
     }
 
     /**
@@ -165,11 +183,14 @@ public class SaleOrderServiceImpl implements SaleOrderService {
         List<SaleOrderDetail> orderDetails = request.getOrderDetails();
         // calc amount (校验订单金额不得为 0)
         BigDecimal amount = calcAndValidateOrderAmount(orderDetails);
+        // 班次（s35）：未启用班次的客户归一化为空串，启用时校验落在该配送点声明范围内
+        String shiftCode = resolveShiftCode(customerId, customerDeptId, request.getShiftCode());
 
         // insert order
         SaleOrder order = SaleOrder.builder()
                 .customerId(customerId)
                 .customerDeptId(customerDeptId)
+                .shiftCode(shiftCode)
                 .code(orderCode)
                 .deliveryDate(request.getDeliveryDate())
                 .amount(amount)
@@ -225,10 +246,19 @@ public class SaleOrderServiceImpl implements SaleOrderService {
         // 快照不可变护栏（蓝图 W0-1/「基础资料快照」）：客户/配送点/单号为订单快照标识字段，
         // 编辑时不可变更；换客户或换配送点应新开订单，主数据修改不回写历史/未确认订单
         checkSnapshotImmutable(order, request);
+        // 班次（s35）：与配送点同为订单快照标识，编辑时不可变更；
+        // 历史无班次单按白班归一化后比对，并在本次落库时补齐为白班（业务口径：无班次归白班）
+        String shiftCode = resolveShiftCode(customerId, customerDeptId, request.getShiftCode());
+        // s35：快照不可变仅约束「已落班次」的订单；历史无班次单（空）允许本次落库补齐。
+        // 否则配送点声明里没有 DAY（如只配夜班）时，历史单会被「班次不可修改」死锁，无法编辑
+        if (StringUtils.isNotBlank(order.getShiftCode()) && !shiftCode.equals(order.getShiftCode().trim())) {
+            throw new ServiceException("订单班次不可修改，如需更换班次请新开订单：" + order.getCode());
+        }
 
         // update order
         order.setDeliveryDate(request.getDeliveryDate());
         order.setAmount(amount);
+        order.setShiftCode(shiftCode);
         order.setRemark(request.getRemark());
         saleOrderMapper.updateSaleOrder(order);
 
@@ -387,6 +417,41 @@ public class SaleOrderServiceImpl implements SaleOrderService {
     }
 
     /**
+     * 解析并校验订单班次（s35《配送点班次配置》）：
+     * <ul>
+     *   <li>客户未启用班次 → 一律返回空串（不落库班次，行为与引入前一致）；</li>
+     *   <li>客户启用班次 → 必落在该配送点声明的班次内；单班次配送点可省略（自动带出）；</li>
+     *   <li>配送点未声明任何班次 → 拒绝（提示先维护，避免静默丢班次维度）。</li>
+     * </ul>
+     */
+    private String resolveShiftCode(Long customerId, Long customerDeptId, String requested) {
+        Customer customer = customerId == null ? null : customerMapper.selectCustomerById(customerId);
+        if (customer == null || !BooleanUtils.isTrue(customer.getShiftEnabled())) {
+            return "";
+        }
+        CustomerDept dept = customerDeptId == null ? null : customerDeptMapper.selectCustomerDeptById(customerDeptId);
+        if (dept == null) {
+            throw new ServiceException("配送点不存在：" + customerDeptId);
+        }
+        List<String> supported = ShiftCodes.parse(dept.getShiftCodes());
+        if (supported.isEmpty()) {
+            throw new ServiceException("该客户已启用班次，但配送点【" + dept.getName() + "】未配置班次，请先在配送点维护班次");
+        }
+        String shift = StringUtils.trimToEmpty(requested);
+        if (shift.isEmpty()) {
+            if (supported.size() == 1) {
+                return supported.get(0);
+            }
+            throw new ServiceException("请选择班次（配送点【" + dept.getName() + "】支持：" + String.join("/", supported) + "）");
+        }
+        if (!supported.contains(shift)) {
+            throw new ServiceException("班次不在配送点【" + dept.getName() + "】支持的范围内："
+                    + shift + "（支持：" + String.join("/", supported) + "）");
+        }
+        return shift;
+    }
+
+    /**
      * 订单编辑护栏（S14/G6 + D-055/OA + 2026-09-14 状态收敛，DESIGN.md §5.5 / §七 操作可行性矩阵）：
      * <p><b>只有「草稿」可直接改单</b>（2026-09-14 业务定稿）：已确认及之后必须先在订单列表
      * 「撤回」为草稿，避免“已确认单被静默改内容、已生成的下游单据对不上”。</p>
@@ -466,14 +531,25 @@ public class SaleOrderServiceImpl implements SaleOrderService {
     }
 
     /**
-     * 查询同配送点+同日期的草稿订单（新增订单时，选中客户后检测是否已有可继续添加的草稿）
+     * 查询同配送点+同日期（启用班次时再加同班次）的草稿订单（新增订单时，选中客户后检测是否已有可继续添加的草稿）。
+     *
+     * <p>s35：启用班次的客户，不同班次是两次独立配送，不算重复（否则白班草稿会拦住夜班录单）；
+     * 未启用班次的客户忽略班次，判重口径与引入前完全一致。</p>
      */
     @Override
-    public SaleOrder findExistingDraftOrder(Long customerDeptId, LocalDate deliveryDate) {
+    public SaleOrder findExistingDraftOrder(Long customerDeptId, LocalDate deliveryDate, String shiftCode) {
         if (customerDeptId == null || deliveryDate == null) {
             return null;
         }
-        List<SaleOrder> list = saleOrderMapper.selectExistingDraftOrder(customerDeptId, deliveryDate);
+        // 班次过滤值：仅启用班次的客户参与；空班次按白班归一化（与矩阵/订单落库同一口径）
+        String shiftFilter = null;
+        CustomerDept dept = customerDeptMapper.selectCustomerDeptById(customerDeptId);
+        Customer customer = dept == null ? null : customerMapper.selectCustomerById(dept.getCustomerId());
+        if (customer != null && BooleanUtils.isTrue(customer.getShiftEnabled())) {
+            shiftFilter = ShiftCodes.orDefault(shiftCode);
+        }
+        List<SaleOrder> list = saleOrderMapper.selectExistingDraftOrder(customerDeptId, deliveryDate, shiftFilter,
+                ShiftCodes.DAY);
         return CollectionUtils.isNotEmpty(list) ? list.get(0) : null;
     }
 

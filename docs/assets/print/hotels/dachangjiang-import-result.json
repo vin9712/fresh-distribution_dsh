@@ -1,0 +1,25 @@
+[
+  {
+    "name": "大长江",
+    "customerId": 11,
+    "templateId": "32",
+    "reportId": "178974531149691924",
+    "sampleReportId": "4483173564331868570",
+    "datasetCode": "dachangjiangDs",
+    "rows": 34,
+    "slots": 6,
+    "deptNames": [
+      "华铃",
+      "大长江",
+      "棠下"
+    ],
+    "expectedColumns": [
+      "华铃夜班",
+      "华铃白班",
+      "大长江夜班",
+      "大长江白班",
+      "棠下夜班",
+      "棠下白班"
+    ]
+  }
+]

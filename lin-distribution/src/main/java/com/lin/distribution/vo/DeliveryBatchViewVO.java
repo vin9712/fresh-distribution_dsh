@@ -41,8 +41,11 @@ public class DeliveryBatchViewVO {
         /** 配送点ID */
         private Long deptId;
 
-        /** 配送点名称 */
+        /** 配送点名称（启用班次时为「点名+班次名」，与总单矩阵列名同口径） */
         private String deptName;
+
+        /** 班次（biz_shift_type 字典值；空=该客户未启用班次） */
+        private String shiftCode;
 
         /** 小计数量 */
         private BigDecimal quantity;
@@ -66,6 +69,9 @@ public class DeliveryBatchViewVO {
         private Long deptId;
 
         private String deptName;
+
+        /** 班次（订单口径回传；历史台账口径为 null，服务层归白班） */
+        private String shiftCode;
 
         private BigDecimal quantity;
     }

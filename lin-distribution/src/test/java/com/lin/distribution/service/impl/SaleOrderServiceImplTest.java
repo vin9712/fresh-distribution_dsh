@@ -9,6 +9,8 @@ import com.lin.distribution.dto.SaleOrderCreateDTO;
 import com.lin.distribution.dto.SaleOrderUpdateStatusDTO;
 import com.lin.distribution.dto.WithdrawCascadeResultVO;
 import com.lin.distribution.mapper.AcceptanceMapper;
+import com.lin.distribution.mapper.CustomerDeptMapper;
+import com.lin.distribution.mapper.CustomerMapper;
 import com.lin.distribution.mapper.SaleOrderDetailMapper;
 import com.lin.distribution.mapper.SaleOrderMapper;
 import com.lin.distribution.service.BizCodeService;
@@ -28,6 +30,7 @@ import java.util.Collections;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -63,6 +66,10 @@ class SaleOrderServiceImplTest {
     private OrderWithdrawCascadeService orderWithdrawCascadeService;
     @Mock
     private BizCodeService bizCodeService;
+    @Mock
+    private CustomerMapper customerMapper;
+    @Mock
+    private CustomerDeptMapper customerDeptMapper;
 
     @InjectMocks
     private SaleOrderServiceImpl saleOrderService;
@@ -83,20 +90,62 @@ class SaleOrderServiceImplTest {
         return order;
     }
 
-    private SaleOrderCreateDTO updateRequest() {
+    private SaleOrderDetail detail() {
         SaleOrderDetail detail = new SaleOrderDetail();
         detail.setSkuId(11L);
         detail.setProductName("白菜");
         detail.setProductPrice(new BigDecimal("2.00"));
         detail.setNum(new BigDecimal("5"));
+        return detail;
+    }
+
+    private SaleOrderCreateDTO updateRequest() {
         return SaleOrderCreateDTO.builder()
                 .orderId(ORDER_ID)
                 .customerId(1000L)
                 .customerDeptId(1001L)
                 .orderCode("XD202608280001")
                 .deliveryDate(DATE)
-                .orderDetails(Collections.singletonList(detail))
+                .orderDetails(Collections.singletonList(detail()))
                 .build();
+    }
+
+    // ================= s35：草稿判重按班次 =================
+
+    /** 启用班次：按「配送点+日期+班次」判重（不同班次不算重复，否则白班草稿会拦住夜班录单） */
+    @Test
+    void 启用班次时判重带上班次() {
+        when(customerDeptMapper.selectCustomerDeptById(1001L)).thenReturn(dept("DAY,NIGHT"));
+        when(customerMapper.selectCustomerById(1000L)).thenReturn(customer(true));
+        when(saleOrderMapper.selectExistingDraftOrder(1001L, DATE, "NIGHT", "DAY")).thenReturn(Collections.emptyList());
+
+        assertNull(saleOrderService.findExistingDraftOrder(1001L, DATE, "NIGHT"));
+
+        verify(saleOrderMapper).selectExistingDraftOrder(1001L, DATE, "NIGHT", "DAY");
+    }
+
+    /** 启用班次 + 未传班次：按业务口径归白班后判重（历史无班次单同一口径） */
+    @Test
+    void 启用班次时空班次归白班判重() {
+        when(customerDeptMapper.selectCustomerDeptById(1001L)).thenReturn(dept("DAY,NIGHT"));
+        when(customerMapper.selectCustomerById(1000L)).thenReturn(customer(true));
+        when(saleOrderMapper.selectExistingDraftOrder(1001L, DATE, "DAY", "DAY")).thenReturn(Collections.emptyList());
+
+        assertNull(saleOrderService.findExistingDraftOrder(1001L, DATE, null));
+
+        verify(saleOrderMapper).selectExistingDraftOrder(1001L, DATE, "DAY", "DAY");
+    }
+
+    /** 未启用班次：不按班次过滤，判重口径与引入前一致（回归） */
+    @Test
+    void 未启用班次时判重不带班次() {
+        when(customerDeptMapper.selectCustomerDeptById(1001L)).thenReturn(dept("DAY,NIGHT"));
+        when(customerMapper.selectCustomerById(1000L)).thenReturn(customer(false));
+        when(saleOrderMapper.selectExistingDraftOrder(1001L, DATE, null, "DAY")).thenReturn(Collections.emptyList());
+
+        assertNull(saleOrderService.findExistingDraftOrder(1001L, DATE, "NIGHT"));
+
+        verify(saleOrderMapper).selectExistingDraftOrder(1001L, DATE, null, "DAY");
     }
 
     // ================= G6：整单改写护栏 =================
@@ -109,6 +158,145 @@ class SaleOrderServiceImplTest {
 
         verify(saleOrderMapper).updateSaleOrder(any(SaleOrder.class));
         verify(saleOrderDetailMapper).deleteSaleOrderDetailByOrderId(ORDER_ID);
+    }
+
+    // ================= s35：班次（客户开关 + 配送点班次） =================
+
+    private com.lin.distribution.domain.Customer customer(boolean shiftEnabled) {
+        com.lin.distribution.domain.Customer customer = new com.lin.distribution.domain.Customer();
+        customer.setId(1000L);
+        customer.setShiftEnabled(shiftEnabled);
+        return customer;
+    }
+
+    private com.lin.distribution.domain.CustomerDept dept(String shiftCodes) {
+        com.lin.distribution.domain.CustomerDept dept = new com.lin.distribution.domain.CustomerDept();
+        dept.setId(1001L);
+        dept.setCustomerId(1000L);
+        dept.setName("华铃");
+        dept.setShiftCodes(shiftCodes);
+        return dept;
+    }
+
+    @Test
+    void 未启用班次的客户忽略请求班次() {
+        when(customerMapper.selectCustomerById(1000L)).thenReturn(customer(false));
+
+        SaleOrder order = saleOrderService.createSaleOrder(SaleOrderCreateDTO.builder()
+                .customerId(1000L).customerDeptId(1001L).orderCode("XD001").deliveryDate(DATE)
+                .shiftCode("NIGHT")
+                .orderDetails(Collections.singletonList(detail()))
+                .build());
+
+        assertEquals("", order.getShiftCode(), "未启用班次的客户不落班次，行为与引入前一致");
+        verify(customerDeptMapper, never()).selectCustomerDeptById(anyLong());
+    }
+
+    @Test
+    void 启用班次时单班次配送点可省略并自动带出() {
+        when(customerMapper.selectCustomerById(1000L)).thenReturn(customer(true));
+        when(customerDeptMapper.selectCustomerDeptById(1001L)).thenReturn(dept("DAY"));
+
+        SaleOrder order = saleOrderService.createSaleOrder(SaleOrderCreateDTO.builder()
+                .customerId(1000L).customerDeptId(1001L).orderCode("XD002").deliveryDate(DATE)
+                .orderDetails(Collections.singletonList(detail()))
+                .build());
+
+        assertEquals("DAY", order.getShiftCode());
+    }
+
+    @Test
+    void 启用班次时多班次配送点必须选班次() {
+        when(customerMapper.selectCustomerById(1000L)).thenReturn(customer(true));
+        when(customerDeptMapper.selectCustomerDeptById(1001L)).thenReturn(dept("DAY,NIGHT"));
+
+        SaleOrderCreateDTO request = SaleOrderCreateDTO.builder()
+                .customerId(1000L).customerDeptId(1001L).orderCode("XD003").deliveryDate(DATE)
+                .orderDetails(Collections.singletonList(detail()))
+                .build();
+
+        ServiceException ex = assertThrows(ServiceException.class, () -> saleOrderService.createSaleOrder(request));
+        assertTrue(ex.getMessage().contains("请选择班次"), ex.getMessage());
+    }
+
+    @Test
+    void 启用班次时班次必须在该配送点声明范围内() {
+        when(customerMapper.selectCustomerById(1000L)).thenReturn(customer(true));
+        when(customerDeptMapper.selectCustomerDeptById(1001L)).thenReturn(dept("DAY"));
+
+        SaleOrderCreateDTO request = SaleOrderCreateDTO.builder()
+                .customerId(1000L).customerDeptId(1001L).orderCode("XD004").deliveryDate(DATE)
+                .shiftCode("NIGHT")
+                .orderDetails(Collections.singletonList(detail()))
+                .build();
+
+        ServiceException ex = assertThrows(ServiceException.class, () -> saleOrderService.createSaleOrder(request));
+        assertTrue(ex.getMessage().contains("班次不在配送点"), ex.getMessage());
+        verify(saleOrderMapper, never()).insertSaleOrder(any(SaleOrder.class));
+    }
+
+    @Test
+    void 启用班次但配送点未维护班次时拒绝下单() {
+        when(customerMapper.selectCustomerById(1000L)).thenReturn(customer(true));
+        when(customerDeptMapper.selectCustomerDeptById(1001L)).thenReturn(dept(""));
+
+        SaleOrderCreateDTO request = SaleOrderCreateDTO.builder()
+                .customerId(1000L).customerDeptId(1001L).orderCode("XD005").deliveryDate(DATE)
+                .orderDetails(Collections.singletonList(detail()))
+                .build();
+
+        ServiceException ex = assertThrows(ServiceException.class, () -> saleOrderService.createSaleOrder(request));
+        assertTrue(ex.getMessage().contains("未配置班次"), ex.getMessage());
+    }
+
+    @Test
+    void 编辑时班次不可变更() {
+        SaleOrder existing = order(SaleOrderStatus.DRAFT.getCode());
+        existing.setShiftCode("DAY");
+        when(saleOrderMapper.selectSaleOrderById(ORDER_ID)).thenReturn(existing);
+        when(customerMapper.selectCustomerById(1000L)).thenReturn(customer(true));
+        when(customerDeptMapper.selectCustomerDeptById(1001L)).thenReturn(dept("DAY,NIGHT"));
+        SaleOrderCreateDTO request = updateRequest();
+        request.setShiftCode("NIGHT");
+
+        ServiceException ex = assertThrows(ServiceException.class, () -> saleOrderService.updateSaleOrderWithDetails(request));
+        assertTrue(ex.getMessage().contains("订单班次不可修改"), ex.getMessage());
+        verify(saleOrderMapper, never()).updateSaleOrder(any(SaleOrder.class));
+    }
+
+    @Test
+    void 历史无班次单编辑时归白班不报错() {
+        SaleOrder existing = order(SaleOrderStatus.DRAFT.getCode());
+        existing.setShiftCode("");
+        when(saleOrderMapper.selectSaleOrderById(ORDER_ID)).thenReturn(existing);
+        when(customerMapper.selectCustomerById(1000L)).thenReturn(customer(true));
+        when(customerDeptMapper.selectCustomerDeptById(1001L)).thenReturn(dept("DAY,NIGHT"));
+        SaleOrderCreateDTO request = updateRequest();
+        request.setShiftCode("DAY");
+
+        saleOrderService.updateSaleOrderWithDetails(request);
+
+        ArgumentCaptor<SaleOrder> captor = ArgumentCaptor.forClass(SaleOrder.class);
+        verify(saleOrderMapper).updateSaleOrder(captor.capture());
+        assertEquals("DAY", captor.getValue().getShiftCode(), "历史无班次单编辑时补齐为白班");
+    }
+
+    @Test
+    void 历史无班次单在只配夜班的配送点仍可编辑补齐夜班() {
+        // 回归：旧实现把空班次归白班后比对，配送点只声明 NIGHT 时历史单会被「班次不可修改」死锁
+        SaleOrder existing = order(SaleOrderStatus.DRAFT.getCode());
+        existing.setShiftCode("");
+        when(saleOrderMapper.selectSaleOrderById(ORDER_ID)).thenReturn(existing);
+        when(customerMapper.selectCustomerById(1000L)).thenReturn(customer(true));
+        when(customerDeptMapper.selectCustomerDeptById(1001L)).thenReturn(dept("NIGHT"));
+        SaleOrderCreateDTO request = updateRequest();
+        request.setShiftCode("NIGHT");
+
+        saleOrderService.updateSaleOrderWithDetails(request);
+
+        ArgumentCaptor<SaleOrder> captor = ArgumentCaptor.forClass(SaleOrder.class);
+        verify(saleOrderMapper).updateSaleOrder(captor.capture());
+        assertEquals("NIGHT", captor.getValue().getShiftCode(), "历史空班次允许落库补齐为该点声明的班次");
     }
 
     // ================= 删除护栏与逻辑删除（2026-09-14） =================
@@ -395,33 +583,61 @@ class SaleOrderServiceImplTest {
         SaleOrder latest = order(SaleOrderStatus.DRAFT.getCode());
         latest.setId(200L);
         latest.setCode("XD202608280200");
-        when(saleOrderMapper.selectExistingDraftOrder(1001L, DATE))
+        // 客户未启用班次（customerDept 查不到）→ 不按班次过滤，口径与引入前一致
+        when(saleOrderMapper.selectExistingDraftOrder(1001L, DATE, null, "DAY"))
                 .thenReturn(Arrays.asList(latest, order(SaleOrderStatus.DRAFT.getCode())));
 
-        SaleOrder result = saleOrderService.findExistingDraftOrder(1001L, DATE);
+        SaleOrder result = saleOrderService.findExistingDraftOrder(1001L, DATE, null);
 
         assertEquals(200L, result.getId());
         assertEquals("XD202608280200", result.getCode());
-        verify(saleOrderMapper).selectExistingDraftOrder(1001L, DATE);
+        verify(saleOrderMapper).selectExistingDraftOrder(1001L, DATE, null, "DAY");
     }
 
     @Test
     void 同配送点同日期无草稿订单则返回null() {
-        when(saleOrderMapper.selectExistingDraftOrder(1001L, DATE))
+        when(saleOrderMapper.selectExistingDraftOrder(1001L, DATE, null, "DAY"))
                 .thenReturn(Collections.emptyList());
 
-        SaleOrder result = saleOrderService.findExistingDraftOrder(1001L, DATE);
+        SaleOrder result = saleOrderService.findExistingDraftOrder(1001L, DATE, null);
 
         assertEquals(null, result);
     }
 
     @Test
     void 防重复检测参数缺一不查返回null() {
-        SaleOrder result1 = saleOrderService.findExistingDraftOrder(null, DATE);
-        SaleOrder result2 = saleOrderService.findExistingDraftOrder(1001L, null);
+        SaleOrder result1 = saleOrderService.findExistingDraftOrder(null, DATE, null);
+        SaleOrder result2 = saleOrderService.findExistingDraftOrder(1001L, null, null);
 
         assertEquals(null, result1);
         assertEquals(null, result2);
-        verify(saleOrderMapper, never()).selectExistingDraftOrder(anyLong(), any());
+        verify(saleOrderMapper, never()).selectExistingDraftOrder(anyLong(), any(), any(), any());
+    }
+
+    /**
+     * D-064 客户视角分组分页：服务层为纯直出，筛选条件必须原样传给 mapper（口径与明细视角一致），
+     * 且不额外补字段（班次是订单级属性，只在子行展示 D-065）。
+     */
+    @Test
+    void 客户视角分组分页筛选条件原样下传() {
+        SaleOrder query = new SaleOrder();
+        query.setDeliveryDate(DATE);
+        query.setStatus(SaleOrderStatus.DELIVERED.getCode());
+        query.setCustomerDeptIds(Arrays.asList(1001L, 1002L));
+        com.lin.distribution.vo.SaleCustomerPageVO row = new com.lin.distribution.vo.SaleCustomerPageVO();
+        row.setCustomerId(7L);
+        row.setOrderCount(3);
+        row.setPointCount(2);
+        when(saleOrderMapper.selectCustomerPage(query)).thenReturn(Collections.singletonList(row));
+
+        List<com.lin.distribution.vo.SaleCustomerPageVO> result = saleOrderService.selectCustomerPage(query);
+
+        assertEquals(1, result.size());
+        assertEquals(7L, result.get(0).getCustomerId());
+        assertEquals(3, result.get(0).getOrderCount());
+        // 入参未被服务层改写（否则分组口径会与明细视角漂移）
+        assertEquals(DATE, query.getDeliveryDate());
+        assertEquals(Arrays.asList(1001L, 1002L), query.getCustomerDeptIds());
+        verify(saleOrderMapper).selectCustomerPage(query);
     }
 }

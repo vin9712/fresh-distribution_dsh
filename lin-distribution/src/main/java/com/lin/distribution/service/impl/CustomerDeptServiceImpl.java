@@ -137,6 +137,11 @@ public class CustomerDeptServiceImpl implements CustomerDeptService {
         if (customerDept == null) {
             throw new ServiceException("customerDept is null");
         }
+        // s35：根节点（parent_id=0）是客户节点而非配送点，不参与配送点重名空间，
+        // 否则客户名与其自营食堂点名相同（如大长江 + 子点「大长江」）时根节点无法再维护
+        if (Long.valueOf(0L).equals(customerDept.getParentId())) {
+            return;
+        }
 
         // check dept unique
         List<CustomerDept> customerDeptList = customerDeptMapper.checkUniqueCustomerDept(customerDept);
