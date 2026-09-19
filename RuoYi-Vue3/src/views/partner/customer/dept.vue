@@ -1,6 +1,6 @@
 <template>
   <div class="app-container">
-    <el-form :model="queryParams" :rules="queryFormRules" ref="queryForm" size="small" :inline="true" v-show="showSearch"
+    <el-form :model="queryParams" :rules="queryFormRules" ref="queryForm" size="small" :inline="true" v-show="showSearch && !sortMode"
       label-width="80px">
       <el-form-item label="当前客户" prop="customerId">
         <el-select v-model="queryParams.customerId" filterable @change="handleQuery">
@@ -23,29 +23,48 @@
     </el-form>
 
     <el-row :gutter="10" class="mb8">
-      <el-col :span="1.5">
-        <el-button type="primary" plain :icon="Plus" size="small" @click="handleAdd">新增</el-button>
-      </el-col>
-      <el-col :span="1.5">
-        <el-button type="success" plain :icon="Edit" size="small" :disabled="single" @click="handleUpdate">修改</el-button>
-      </el-col>
-      <el-col :span="1.5">
-        <el-button type="danger" plain :icon="Delete" size="small" :disabled="multiple" @click="handleDelete">删除</el-button>
-      </el-col>
-      <el-col :span="1.5">
-        <el-button type="warning" plain :icon="Download" size="small" @click="handleExport">导出</el-button>
-      </el-col>
-      <el-col :span="9" class="dept-sort-tip">
-        <el-icon><Rank /></el-icon> 拖拽行首「排序」图标可调整总单/总表列顺序（松手即保存）
-      </el-col>
-      <right-toolbar v-model:showSearch="showSearch" @queryTable="getPageList"></right-toolbar>
+      <template v-if="!sortMode">
+        <el-col :span="1.5">
+          <el-button type="primary" plain :icon="Plus" size="small" @click="handleAdd">新增</el-button>
+        </el-col>
+        <el-col :span="1.5">
+          <el-button type="success" plain :icon="Edit" size="small" :disabled="single" @click="handleUpdate">修改</el-button>
+        </el-col>
+        <el-col :span="1.5">
+          <el-button type="danger" plain :icon="Delete" size="small" :disabled="multiple" @click="handleDelete">删除</el-button>
+        </el-col>
+        <el-col :span="1.5">
+          <el-button type="warning" plain :icon="Download" size="small" @click="handleExport">导出</el-button>
+        </el-col>
+        <el-col :span="1.5">
+          <el-button type="warning" plain :icon="Rank" size="small" :disabled="!queryParams.customerId"
+            @click="handleEnterSort">调整排序</el-button>
+        </el-col>
+        <el-col :span="9" class="dept-sort-tip">
+          <el-icon><Rank /></el-icon> 点「调整排序」后可拖动行调整总单/总表列顺序
+        </el-col>
+      </template>
+      <template v-else>
+        <el-col :span="1.5">
+          <el-button type="primary" plain :icon="Check" size="small" @click="handleConfirmSort">确认排序</el-button>
+        </el-col>
+        <el-col :span="1.5">
+          <el-button plain size="small" @click="handleCancelSort">取消</el-button>
+        </el-col>
+        <el-col :span="14" class="dept-sort-tip">
+          <el-icon><Rank /></el-icon> 排序模式：拖动任意行调整顺序（共 {{ customerDeptList.length }} 个配送点，不分页），完成后点「确认排序」
+        </el-col>
+      </template>
+      <right-toolbar v-if="!sortMode" v-model:showSearch="showSearch" @queryTable="getPageList"></right-toolbar>
     </el-row>
 
-    <el-table ref="deptTable" v-loading="loading" :data="customerDeptList" @selection-change="handleSelectionChange">
-      <el-table-column type="selection" width="55" align="center" />
+    <el-table ref="deptTable" v-loading="loading" :data="customerDeptList" row-key="id"
+      @selection-change="handleSelectionChange">
+      <el-table-column v-if="!sortMode" type="selection" width="55" align="center" />
       <el-table-column label="排序" width="60" align="center">
         <template #default>
-          <el-icon class="dept-drag-btn" title="拖拽调整总单列顺序"><Rank /></el-icon>
+          <el-icon class="dept-drag-btn" :class="{ 'is-active': sortMode }"
+            :title="sortMode ? '拖动调整顺序' : '点「调整排序」后可拖动'"><Rank /></el-icon>
         </template>
       </el-table-column>
       <el-table-column label="编号" align="center" prop="code" />
@@ -56,7 +75,7 @@
         </template>
       </el-table-column>
       <el-table-column label="备注" align="center" prop="remark" />
-      <el-table-column label="操作" align="center" class-name="small-padding fixed-width">
+      <el-table-column v-if="!sortMode" label="操作" align="center" class-name="small-padding fixed-width">
         <template #default="scope">
           <el-button size="small" link :icon="Edit" @click="handleUpdate(scope.row)">修改</el-button>
           <el-button size="small" link :icon="Delete" @click="handleDelete(scope.row)">删除</el-button>
@@ -64,7 +83,7 @@
       </el-table-column>
     </el-table>
 
-    <pagination v-show="total > 0" :total="total" v-model:page="queryParams.pageNum" v-model:limit="queryParams.pageSize"
+    <pagination v-show="!sortMode && total > 0" :total="total" v-model:page="queryParams.pageNum" v-model:limit="queryParams.pageSize"
       @pagination="getPageList" />
 
     <!-- 添加或修改配送点对话框 -->
@@ -115,13 +134,13 @@ import { pageCustomerDept, listCustomerDept, getCustomerDept, delCustomerDept, a
 import { listCustomer } from "@/api/partner/customer";
 import { pinyin } from "pinyin-pro";
 import Sortable from "sortablejs";
-import { Search, Refresh, Plus, Edit, Delete, Download, Rank } from "@element-plus/icons-vue";
+import { Search, Refresh, Plus, Edit, Delete, Download, Rank, Check } from "@element-plus/icons-vue";
 
 export default {
   name: "CustomerDept",
   dicts: ['t_customer_type', 'biz_yes_no', 'biz_shift_type'],
   setup() {
-    return { Search, Refresh, Plus, Edit, Delete, Download, Rank };
+    return { Search, Refresh, Plus, Edit, Delete, Download, Rank, Check };
   },
   data() {
     return {
@@ -147,6 +166,8 @@ export default {
       customerDeptList: [],
       // 拖拽排序实例（D-074 总单列顺序）
       sortableDept: null,
+      // 排序模式：进入后全量不分页、拖动调整、确认后一次性保存
+      sortMode: false,
       // 弹出层标题
       title: "",
       // 是否显示弹出层
@@ -229,10 +250,66 @@ export default {
         this.customerDeptList = response.rows;
         this.total = response.total;
         this.loading = false;
-        this.initDeptSortable();
+        if (this.sortMode) this.initDeptSortable();
       });
     },
-    /** D-074：初始化拖拽排序（行首拖拽 → 保存总单列顺序） */
+    /**
+     * 进入排序模式：拉该客户**全量配送点**（不分页、不含根节点），拖动调整后一次性保存。
+     * 避免「松手即保存 + 跨页合并」带来的顺序偏差，也让用户能先看清结果再确认。
+     */
+    async handleEnterSort() {
+      const customerId = this.queryParams.customerId;
+      if (!customerId) {
+        this.$modal.msgWarning("请先选择客户");
+        return;
+      }
+      this.loading = true;
+      try {
+        const res = await listCustomerDept({ customerId, hideParent: true });
+        const rows = (res.data || []).filter(d => Number(d.parentId) !== 0 && !d.isDeleted);
+        if (rows.length < 2) {
+          this.$modal.msgWarning("该客户配送点少于 2 个，无需排序");
+          return;
+        }
+        this.customerDeptList = rows;
+        this.total = rows.length;
+        this.sortMode = true;
+        this.$nextTick(() => this.initDeptSortable());
+      } finally {
+        this.loading = false;
+      }
+    },
+    /** 确认排序：按当前顺序一次性提交 sortNo = 1..N */
+    async handleConfirmSort() {
+      const customerId = this.queryParams.customerId;
+      const ids = this.customerDeptList.map(r => r.id);
+      try {
+        await sortCustomerDept({ customerId, ids });
+        this.$modal.msgSuccess("排序已保存（总单/总表列顺序已更新）");
+        this.sortMode = false;
+        this.destroyDeptSortable();
+        this.getPageList();
+      } catch (e) {
+        /* 错误提示由 request 拦截器统一处理，保持排序模式可重试 */
+      }
+    },
+    /** 取消排序：丢弃本次拖动，恢复分页列表 */
+    handleCancelSort() {
+      this.sortMode = false;
+      this.destroyDeptSortable();
+      this.getPageList();
+    },
+    /** 销毁拖拽实例（退出排序模式必须调用，否则非排序模式拖手柄仍会触发重排） */
+    destroyDeptSortable() {
+      if (this.sortableDept) {
+        this.sortableDept.destroy();
+        this.sortableDept = null;
+      }
+    },
+    /**
+     * 排序模式下的拖拽：仅重排本地数组（单一事实来源），确认时才落库。
+     * row-key="id" + 重排后重建实例，避免 Sortable 已移动 DOM 与 Vue 重渲染双重应用导致顺序错乱。
+     */
     initDeptSortable() {
       this.$nextTick(() => {
         const wrap = this.$refs.deptTable && this.$refs.deptTable.$el;
@@ -242,48 +319,20 @@ export default {
           this.sortableDept.destroy();
           this.sortableDept = null;
         }
+        if (!this.sortMode) return;
         this.sortableDept = Sortable.create(tbody, {
           handle: ".dept-drag-btn",
           animation: 150,
           // 用鼠标事件回退拖拽（不依赖原生 HTML5 DnD）：跨浏览器一致、且可自动化验证
           forceFallback: true,
           fallbackClass: "dept-drag-ghost",
-          onEnd: async ({ newIndex, oldIndex }) => {
+          onEnd: ({ newIndex, oldIndex }) => {
             if (newIndex === oldIndex) return;
-            const customerId = this.queryParams.customerId;
-            if (!customerId) return;
-            // 本页视觉重排（乐观更新，失败由下方 getPageList 回滚）
             const rows = this.customerDeptList;
             const moved = rows.splice(oldIndex, 1)[0];
             rows.splice(newIndex, 0, moved);
-            try {
-              // 跨页安全：拉该客户全量列表（/list 不分页，与页面同为 sort_no 升序），
-              // 把本页行的新顺序按占位合并进全量序列后整体提交。
-              // 只发本页 ids 会被后端重排为 1..N，与其它页的 sortNo 互相覆盖。
-              const res = await listCustomerDept({ customerId });
-              const fullIds = (res.data || []).map((d) => d.id);
-              const pageIdsNew = rows.map((r) => r.id);
-              const pageIdSet = new Set(pageIdsNew);
-              const slots = [];
-              fullIds.forEach((id, idx) => {
-                if (pageIdSet.has(id)) slots.push(idx);
-              });
-              if (slots.length !== pageIdsNew.length) {
-                // 全量与页面行数对不上（拖拽期间数据被增删）：放弃本次排序
-                this.$modal.msgWarning("配送点列表已变化，本次排序未保存，请重试");
-                return;
-              }
-              const merged = fullIds.slice();
-              slots.forEach((idx, k) => {
-                merged[idx] = pageIdsNew[k];
-              });
-              await sortCustomerDept({ customerId, ids: merged });
-              this.$modal.msgSuccess("排序已保存（总单/总表列顺序已更新）");
-            } catch (e) {
-              // 提交失败：静默，下方 finally 刷新回滚
-            } finally {
-              this.getPageList();
-            }
+            // 由 Vue 按新数组重渲染后再重建 Sortable，使其内部顺序与 DOM 一致
+            this.$nextTick(() => this.initDeptSortable());
           },
         });
       });
@@ -410,10 +459,7 @@ export default {
     },
   },
   beforeUnmount() {
-    if (this.sortableDept) {
-      this.sortableDept.destroy();
-      this.sortableDept = null;
-    }
+    this.destroyDeptSortable();
   },
 }
 </script>
@@ -424,6 +470,10 @@ export default {
   cursor: grab;
   color: var(--el-text-color-secondary, #909399);
   font-size: 16px;
+  &.is-active {
+    color: var(--el-color-primary, #409eff);
+    font-size: 18px;
+  }
   &:active {
     cursor: grabbing;
   }
