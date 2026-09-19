@@ -100,7 +100,13 @@ public interface SaleOrderMapper {
     List<SaleOrder> selectRecentOrderList(@Param("customerId") Long customerId,
                                           @Param("keyword") String keyword,
                                           @Param("createStartTime") LocalDateTime createStartTime,
-                                          @Param("createEndTime") LocalDateTime createEndTime);
+                                          @Param("createEndTime") LocalDateTime createEndTime,
+                                          @Param("statuses") List<Integer> statuses);
+
+    /**
+     * 按订单编号批量查询（草稿箱陈旧判定用：只取 id/code/status/update_time，不做关联子查询）
+     */
+    List<SaleOrder> selectSaleOrderByCodes(@Param("codes") List<String> codes);
 
     /**
      * 按送货单来源回写订单状态（S14/G2/G3 修复：只动来源订单，废除按客户+日期推断）

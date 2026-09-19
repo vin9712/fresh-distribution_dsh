@@ -35,11 +35,19 @@
       <el-col :span="1.5">
         <el-button type="warning" plain :icon="Download" size="small" @click="handleExport">导出</el-button>
       </el-col>
+      <el-col :span="9" class="dept-sort-tip">
+        <el-icon><Rank /></el-icon> 拖拽行首「排序」图标可调整总单/总表列顺序（松手即保存）
+      </el-col>
       <right-toolbar v-model:showSearch="showSearch" @queryTable="getPageList"></right-toolbar>
     </el-row>
 
-    <el-table v-loading="loading" :data="customerDeptList" @selection-change="handleSelectionChange">
+    <el-table ref="deptTable" v-loading="loading" :data="customerDeptList" @selection-change="handleSelectionChange">
       <el-table-column type="selection" width="55" align="center" />
+      <el-table-column label="排序" width="60" align="center">
+        <template #default>
+          <el-icon class="dept-drag-btn" title="拖拽调整总单列顺序"><Rank /></el-icon>
+        </template>
+      </el-table-column>
       <el-table-column label="编号" align="center" prop="code" />
       <el-table-column label="配送点" align="center" prop="name" />
       <el-table-column label="是否有效" align="center" prop="valid">
@@ -103,16 +111,17 @@
 </template>
 
 <script>
-import { pageCustomerDept, listCustomerDept, getCustomerDept, delCustomerDept, addCustomerDept, updateCustomerDept } from "@/api/partner/customerDept";
+import { pageCustomerDept, listCustomerDept, getCustomerDept, delCustomerDept, addCustomerDept, updateCustomerDept, sortCustomerDept } from "@/api/partner/customerDept";
 import { listCustomer } from "@/api/partner/customer";
 import { pinyin } from "pinyin-pro";
-import { Search, Refresh, Plus, Edit, Delete, Download } from "@element-plus/icons-vue";
+import Sortable from "sortablejs";
+import { Search, Refresh, Plus, Edit, Delete, Download, Rank } from "@element-plus/icons-vue";
 
 export default {
   name: "CustomerDept",
   dicts: ['t_customer_type', 'biz_yes_no', 'biz_shift_type'],
   setup() {
-    return { Search, Refresh, Plus, Edit, Delete, Download };
+    return { Search, Refresh, Plus, Edit, Delete, Download, Rank };
   },
   data() {
     return {
@@ -136,6 +145,8 @@ export default {
       customerOptions: [],
       // 配送点表格数据
       customerDeptList: [],
+      // 拖拽排序实例（D-074 总单列顺序）
+      sortableDept: null,
       // 弹出层标题
       title: "",
       // 是否显示弹出层
@@ -218,6 +229,63 @@ export default {
         this.customerDeptList = response.rows;
         this.total = response.total;
         this.loading = false;
+        this.initDeptSortable();
+      });
+    },
+    /** D-074：初始化拖拽排序（行首拖拽 → 保存总单列顺序） */
+    initDeptSortable() {
+      this.$nextTick(() => {
+        const wrap = this.$refs.deptTable && this.$refs.deptTable.$el;
+        const tbody = wrap && wrap.querySelector(".el-table__body-wrapper tbody");
+        if (!tbody) return;
+        if (this.sortableDept) {
+          this.sortableDept.destroy();
+          this.sortableDept = null;
+        }
+        this.sortableDept = Sortable.create(tbody, {
+          handle: ".dept-drag-btn",
+          animation: 150,
+          // 用鼠标事件回退拖拽（不依赖原生 HTML5 DnD）：跨浏览器一致、且可自动化验证
+          forceFallback: true,
+          fallbackClass: "dept-drag-ghost",
+          onEnd: async ({ newIndex, oldIndex }) => {
+            if (newIndex === oldIndex) return;
+            const customerId = this.queryParams.customerId;
+            if (!customerId) return;
+            // 本页视觉重排（乐观更新，失败由下方 getPageList 回滚）
+            const rows = this.customerDeptList;
+            const moved = rows.splice(oldIndex, 1)[0];
+            rows.splice(newIndex, 0, moved);
+            try {
+              // 跨页安全：拉该客户全量列表（/list 不分页，与页面同为 sort_no 升序），
+              // 把本页行的新顺序按占位合并进全量序列后整体提交。
+              // 只发本页 ids 会被后端重排为 1..N，与其它页的 sortNo 互相覆盖。
+              const res = await listCustomerDept({ customerId });
+              const fullIds = (res.data || []).map((d) => d.id);
+              const pageIdsNew = rows.map((r) => r.id);
+              const pageIdSet = new Set(pageIdsNew);
+              const slots = [];
+              fullIds.forEach((id, idx) => {
+                if (pageIdSet.has(id)) slots.push(idx);
+              });
+              if (slots.length !== pageIdsNew.length) {
+                // 全量与页面行数对不上（拖拽期间数据被增删）：放弃本次排序
+                this.$modal.msgWarning("配送点列表已变化，本次排序未保存，请重试");
+                return;
+              }
+              const merged = fullIds.slice();
+              slots.forEach((idx, k) => {
+                merged[idx] = pageIdsNew[k];
+              });
+              await sortCustomerDept({ customerId, ids: merged });
+              this.$modal.msgSuccess("排序已保存（总单/总表列顺序已更新）");
+            } catch (e) {
+              // 提交失败：静默，下方 finally 刷新回滚
+            } finally {
+              this.getPageList();
+            }
+          },
+        });
       });
     },
     /** 查询客户列表 */
@@ -340,6 +408,34 @@ export default {
         .join("")
         .toUpperCase();
     },
-  }
+  },
+  beforeUnmount() {
+    if (this.sortableDept) {
+      this.sortableDept.destroy();
+      this.sortableDept = null;
+    }
+  },
 }
 </script>
+
+<style lang="scss" scoped>
+/* D-074：行首拖拽手柄（总单列顺序） */
+.dept-drag-btn {
+  cursor: grab;
+  color: var(--el-text-color-secondary, #909399);
+  font-size: 16px;
+  &:active {
+    cursor: grabbing;
+  }
+  &:hover {
+    color: var(--el-color-primary, #409eff);
+  }
+}
+.dept-sort-tip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--el-text-color-secondary, #909399);
+  font-size: 12px;
+}
+</style>

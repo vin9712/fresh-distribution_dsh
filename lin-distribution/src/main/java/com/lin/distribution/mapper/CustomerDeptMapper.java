@@ -74,4 +74,10 @@ public interface CustomerDeptMapper {
      * @return 结果
      */
     List<CustomerDept> checkUniqueCustomerDept(CustomerDept customerDept);
+
+    /**
+     * 更新单个配送点排序（D-074 总单列顺序）
+     */
+    int updateSortNo(@org.apache.ibatis.annotations.Param("id") Long id,
+                     @org.apache.ibatis.annotations.Param("sortNo") Integer sortNo);
 }

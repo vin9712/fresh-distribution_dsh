@@ -97,7 +97,23 @@
       </el-form-item>
     </el-form>
 
-    <el-row :gutter="10" class="mb8">
+    <!-- 视角切换（D-066）：独立一行置于操作按钮之上，避免与「新增明细 / 工具栏」挤在一行 -->
+    <div class="view-switch-bar">
+      <span class="view-switch-label">视角</span>
+      <el-radio-group v-model="listView" @change="handleViewChange">
+        <el-radio-button value="customer">客户视角</el-radio-button>
+        <el-radio-button value="detail">明细视角</el-radio-button>
+      </el-radio-group>
+      <span class="view-switch-desc">
+        {{
+          listView === "customer"
+            ? "一行 = 客户 + 配送日期，展开看当日订单"
+            : "一行 = 一张订单（平铺）"
+        }}
+      </span>
+    </div>
+
+    <el-row :gutter="10" class="mb8 toolbar-row">
       <el-col :span="1.5">
         <el-button
           type="primary"
@@ -108,17 +124,6 @@
           v-hasPermi="['order:sale:add']"
           >新增明细</el-button
         >
-      </el-col>
-      <el-col :span="1.5">
-        <!-- D-066：客户视角（默认）/ 明细视角切换，选择记忆到 localStorage -->
-        <el-radio-group
-          v-model="listView"
-          size="small"
-          @change="handleViewChange"
-        >
-          <el-radio-button value="customer">客户视角</el-radio-button>
-          <el-radio-button value="detail">明细视角</el-radio-button>
-        </el-radio-group>
       </el-col>
       <right-toolbar
         v-model:showSearch="showSearch"
@@ -382,7 +387,7 @@
       <el-table-column
         label="操作"
         align="center"
-        width="190"
+        width="230"
         class-name="small-padding fixed-width"
       >
         <template #default="scope">
@@ -407,6 +412,17 @@
             v-hasPermi="['order:sale:settle']"
             >批量月结</el-button
           >
+          <!-- D-073：该客户当日订单已全部确认（无草稿）→ 可看送货单据的矩阵总单 -->
+          <el-button
+            v-if="canViewMatrix(scope.row)"
+            v-hasPermi="['order:delivery:batch']"
+            size="small"
+            link
+            type="warning"
+            :icon="Tickets"
+            @click="handleViewMatrix(scope.row)"
+            >看总单</el-button
+          >
         </template>
       </el-table-column>
     </el-table>
@@ -427,7 +443,23 @@
         prop="customerName"
         :show-overflow-tooltip="true"
       />
-      <el-table-column label="配送点" align="center" prop="customerDeptName" />
+      <el-table-column label="配送点" align="center" prop="customerDeptName">
+        <template #default="scope">
+          <span class="dept-shift-cell">
+            <span v-if="scope.row.customerDeptName">{{ scope.row.customerDeptName }}</span>
+            <span v-else class="text-muted">未指定配送点</span>
+            <!-- 有班次时在配送点列补班次 tag（与客户视角口径一致） -->
+            <el-tag
+              v-if="scope.row.shiftCode"
+              size="small"
+              effect="plain"
+              type="primary"
+              class="dept-shift-tag"
+              >{{ shiftLabel(scope.row.shiftCode) }}</el-tag
+            >
+          </span>
+        </template>
+      </el-table-column>
       <el-table-column
         label="订单编号"
         align="center"
@@ -582,6 +614,7 @@ import {
   RefreshLeft,
   Close,
   Delete,
+  Tickets,
 } from "@element-plus/icons-vue";
 
 /** 视角记忆键（D-066）：客户视角 customer（默认）/ 明细视角 detail */
@@ -602,6 +635,7 @@ export default {
       RefreshLeft,
       Close,
       Delete,
+      Tickets,
     };
   },
   data() {
@@ -1147,6 +1181,20 @@ export default {
      * 客户行「确认草稿」（D-067）：整组确认该客户当日全部草稿订单。
      * 子行可能未加载，故先确保加载再按状态过滤；无草稿则提示不写库。
      */
+    /**
+     * D-073：该客户当日订单是否可看矩阵总单 —— 已全部确认（无草稿）且有订单。
+     * 送货单视图化后，status>=1 即可打印；有草稿时先「确认草稿」再出总单。
+     */
+    canViewMatrix(row) {
+      return !row.draftCount && Number(row.orderCount) > 0;
+    },
+    /** D-073：跳送货单据页看该客户当日的矩阵总单（带 customerId/日期直接定位） */
+    handleViewMatrix(row) {
+      this.$router.push({
+        path: "/order/batch",
+        query: { customerId: row.customerId, deliveryDate: row.deliveryDate },
+      });
+    },
     handleGroupConfirm(row) {
       this.loadCustomerChildren(row)
         .then(() => {
@@ -1447,6 +1495,27 @@ export default {
 .view-switch-tip {
   margin-bottom: 10px;
 }
+/* 视角切换条（D-066）：独立一行，与新增/工具栏解耦，留白不拥挤 */
+.view-switch-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+
+  .view-switch-label {
+    font-size: 13px;
+    color: var(--el-text-color-regular, #606266);
+  }
+  .view-switch-desc {
+    font-size: 12px;
+    color: var(--el-text-color-secondary, #909399);
+  }
+}
+.toolbar-row {
+  display: flex;
+  align-items: center;
+}
 /* 客户视角：主行层级（客户名最重，金额次之，辅助信息最轻） */
 .cust-name {
   font-weight: 600;
@@ -1464,6 +1533,18 @@ export default {
 }
 .text-muted {
   color: #a8abb2;
+}
+
+/* 明细视角：配送点 + 班次 tag 同行居中 */
+.dept-shift-cell {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+.dept-shift-tag {
+  flex-shrink: 0;
 }
 
 /* 客户视角：展开区（子订单表）—— 底色 + 左侧引导线，建立“客户 > 订单”层级 */

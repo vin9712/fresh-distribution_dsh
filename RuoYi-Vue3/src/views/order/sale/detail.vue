@@ -42,20 +42,7 @@
       </template>
     </el-alert>
     <!-- 浏览模式横幅：查看历史订单时常驻「返回我的新单」入口 -->
-    <el-alert
-      v-if="browseMode && !accLikeMode"
-      type="info"
-      :closable="false"
-      show-icon
-      class="browse-banner"
-    >
-      <template #title>
-        <span class="draft-banner-title">
-          浏览模式：正在查看历史订单【{{ browsedOrder ? browsedOrder.code : '' }}】，数据只读、自动保存已暂停
-          <el-button type="primary" size="small" @click="exitBrowseMode">← 返回我的新单</el-button>
-        </span>
-      </template>
-    </el-alert>
+    <!-- 已并入订单卡内模式条（2026-09-19 无感化）：顶部不再放大 alert -->
     <!-- 配送/验收冻结提示条：已进入配送流程的订单明细为生成时快照，不可改单（S14/G6 护栏） -->
     <el-alert
       v-if="frozenBannerVisible"
@@ -70,20 +57,7 @@
         </span>
       </template>
     </el-alert>
-    <!-- 已确认订单只读提示条：非草稿不可直接改单，需先在订单列表撤回（2026-09-14 定稿） -->
-    <el-alert
-      v-if="confirmedReadonlyBanner"
-      type="info"
-      :closable="false"
-      show-icon
-      class="browse-banner"
-    >
-      <template #title>
-        <span class="draft-banner-title">
-          该订单<b>已确认</b>，页面为只读快照：如需改动请先回到订单列表点「撤回」使其回到草稿，再点「修改」编辑（改完需重新确认）
-        </span>
-      </template>
-    </el-alert>
+    <!-- 已确认订单只读提示条：已并入订单卡内模式条（可就地「撤回并编辑」） -->
     <!-- 草稿恢复提示条（新单页，检测到未完成草稿时显示） -->
     <el-alert
       v-if="showDraftBanner && availableDrafts.length && !accLikeMode"
@@ -100,20 +74,7 @@
         </span>
       </template>
     </el-alert>
-    <!-- 编辑已有草稿订单后的提示横幅：点错了？返回重开新单 -->
-    <el-alert
-      v-if="showEditExistingBanner && !accLikeMode"
-      type="warning"
-      show-icon
-      class="edit-existing-banner"
-    >
-      <template #title>
-        <span class="draft-banner-title">
-          正在编辑已有草稿订单，点错了？
-          <el-button type="danger" size="small" @click="returnToNewOrder">← 返回重开新单</el-button>
-        </span>
-      </template>
-    </el-alert>
+    <!-- 编辑已有草稿订单：已并入订单卡内模式条（顶部不再放大 alert） -->
     <!-- S1 订单桌面工作台：左右可拖拽分屏（W0-5.1 SplitWorkspace），宽度本机按登录用户记忆 -->
     <split-workspace
       ref="splitWorkspace"
@@ -157,6 +118,32 @@
               <span>配送日期：{{ orderForm.deliveryDate || '—' }}</span>
               <span>订单编号：{{ orderForm.orderCode || '—' }}</span>
               <span v-if="acceptanceInfo">验收单：{{ acceptanceInfo.code }}</span>
+            </div>
+            <!-- 订单模式条（2026-09-19 无感化）：新单不显示；编辑草稿/只读浏览/已确认只读在此提示 + 返回/撤回 -->
+            <div
+              v-if="orderModeStrip && !accLikeMode"
+              class="order-mode-strip"
+              :class="'is-' + orderModeStrip.type"
+            >
+              <span class="order-mode-left">
+                <el-tag size="small" :type="orderModeStrip.tagType" effect="plain">{{ orderModeStrip.label }}</el-tag>
+                <span v-if="orderModeStrip.code" class="order-mode-code">【{{ orderModeStrip.code }}】</span>
+                <span class="order-mode-hint">{{ orderModeStrip.hint }}</span>
+              </span>
+              <span class="order-mode-right">
+                <el-button
+                  v-if="orderModeStrip.canRecall"
+                  v-hasPermi="['order:sale:recall']"
+                  type="warning"
+                  size="small"
+                  plain
+                  @click="handleRecallAndEdit"
+                  >撤回并编辑</el-button
+                >
+                <el-button v-if="canReturnToStash" size="small" @click="returnToMyWorkspace"
+                  >← {{ stashReturnLabel }}</el-button
+                >
+              </span>
             </div>
             <el-form
               v-show="!accLikeMode"
@@ -758,15 +745,16 @@
               :model="recentQuery"
               size="small"
               ref="recentOrderForm"
-              label-width="80px"
+              label-width="68px"
+              class="recent-query-form"
             >
               <!-- 第一行：天数选择器和客户选择器 -->
-              <el-row :gutter="20">
-                <el-col :span="9">
+              <el-row :gutter="20" class="recent-query-row">
+                <el-col :span="10">
                   <el-form-item label="查询天数" prop="days">
                     <el-select
                       v-model="recentQuery.recentDays"
-                      placeholder="请选择查询天数"
+                      placeholder="请选择"
                       @change="handleRecentQuery"
                       style="width: 100%"
                     >
@@ -778,13 +766,14 @@
                     </el-select>
                   </el-form-item>
                 </el-col>
-                <el-col :span="15">
+                <el-col :span="14">
                   <el-form-item label="送货客户" prop="customerId">
                     <el-select
                       v-model="recentQuery.customerId"
                       @change="handleRecentQuery"
                       filterable
                       clearable
+                      placeholder="全部客户"
                       style="width: 100%"
                     >
                       <el-option
@@ -798,40 +787,56 @@
                 </el-col>
               </el-row>
 
-              <!-- 第二行：搜索词输入框和按钮 -->
-              <el-row :gutter="20" style="display: flex; align-items: center">
+              <!-- 第二行：状态筛选（默认草稿+已确认） -->
+              <el-row :gutter="20" class="recent-query-row">
+                <el-col :span="24">
+                  <el-form-item label="状态">
+                    <el-radio-group
+                      v-model="recentStatusPreset"
+                      size="small"
+                      class="recent-status-group"
+                      @change="handleRecentQuery"
+                    >
+                      <el-radio-button
+                        v-for="opt in recentStatusOptions"
+                        :key="opt.value"
+                        :value="opt.value"
+                        >{{ opt.label }}</el-radio-button
+                      >
+                    </el-radio-group>
+                  </el-form-item>
+                </el-col>
+              </el-row>
+
+              <!-- 第三行：搜索词输入框和按钮 -->
+              <el-row :gutter="20" class="recent-query-row recent-query-row--last">
                 <el-col :span="18">
-                  <el-form-item
-                    label="搜索词"
-                    prop="keyword"
-                    style="margin-bottom: 0"
-                  >
+                  <el-form-item label="搜索词" prop="keyword">
                     <el-input
                       v-model="recentQuery.keyword"
-                      placeholder="请输入订单编号/送货单位"
+                      placeholder="订单编号/送货单位"
                       clearable
                       style="width: 100%"
+                      @keyup.enter="handleRecentQuery"
                     ></el-input>
                   </el-form-item>
                 </el-col>
-                <el-col
-                  :span="6"
-                  style="display: flex; justify-content: flex-end"
-                >
-                  <el-button
-                    :icon="Search"
-                    type="primary"
-                    @click="handleRecentQuery"
-                    circle
-                    title="搜索"
-                  ></el-button>
-                  <el-button
-                    :icon="Refresh"
-                    @click="resetQuery"
-                    circle
-                    title="重置"
-                    style="margin-left: 10px"
-                  ></el-button>
+                <el-col :span="6">
+                  <div class="recent-query-actions">
+                    <el-button
+                      :icon="Search"
+                      type="primary"
+                      @click="handleRecentQuery"
+                      circle
+                      title="搜索"
+                    ></el-button>
+                    <el-button
+                      :icon="Refresh"
+                      @click="resetQuery"
+                      circle
+                      title="重置"
+                    ></el-button>
+                  </div>
                 </el-col>
               </el-row>
             </el-form>
@@ -849,8 +854,12 @@
               :row-config="{ isHover: true, isCurrent: true }"
               :data="recentOrderList"
               :columns="recentTableColumns"
-              @current-change="handleRecentOrderRowChange"
-            />
+              @current-change="openRecentOrder"
+            >
+              <template #recentStatusCell="{ row }">
+                <order-status-cell :row="row" />
+              </template>
+            </vxe-grid>
             </div>
           </div>
         </el-card>
@@ -867,15 +876,18 @@
         style="margin-bottom: 10px"
       />
       <el-table :data="availableDrafts" size="small" empty-text="暂无草稿">
-        <el-table-column prop="deptName" label="送货单位" min-width="120" />
+        <el-table-column label="类型" width="72">
+          <template #default="{ row }">{{ row.orderId ? '编辑单' : '新单' }}</template>
+        </el-table-column>
+        <el-table-column prop="deptName" label="送货单位" min-width="110" />
         <el-table-column prop="orderCode" label="订单编号" width="130" />
-        <el-table-column label="明细行数" width="80">
+        <el-table-column label="明细行数" width="76">
           <template #default="{ row }">{{ (row.details || []).length }}</template>
         </el-table-column>
-        <el-table-column label="保存时间" width="150">
+        <el-table-column label="保存时间" width="118">
           <template #default="{ row }">{{ formatFullSavedAt(row.savedAt) }}</template>
         </el-table-column>
-        <el-table-column label="操作" width="140" fixed="right">
+        <el-table-column label="操作" width="112" fixed="right">
           <template #default="{ row }">
             <el-button link type="primary" size="small" @click="restoreDraftFromBox(row)">恢复</el-button>
             <el-button link type="danger" size="small" @click="deleteDraftFromBox(row)">删除</el-button>
@@ -995,7 +1007,7 @@
 </template>
 
 <script>
-import { pageSaleOrder, getSaleOrder, genOrderCode, createSaleOrder, updateSaleOrder, recentSaleOrder, checkExistingDraft, listSale, updateOrderStatus, deliverySupplement, deliveryExchange, deliveryReturn, revokeDeliveryChange } from "@/api/order/sale";
+import { pageSaleOrder, getSaleOrder, genOrderCode, createSaleOrder, updateSaleOrder, recentSaleOrder, checkExistingDraft, listSale, updateOrderStatus, deliverySupplement, deliveryExchange, deliveryReturn, revokeDeliveryChange, getOrderBriefByCodes } from "@/api/order/sale";
 import { listSaleDetail, frequentSaleDetail } from "@/api/order/saleDetail";
 import {
   getAcceptance,
@@ -1013,6 +1025,7 @@ import { listCustomer } from "@/api/partner/customer";
 import { listCustomerDept } from "@/api/partner/customerDept";
 import { Refresh, Rank, Plus, Minus, Search, DocumentCopy, Check } from "@element-plus/icons-vue";
 import SplitWorkspace from "@/components/SplitWorkspace/index.vue";
+import OrderStatusCell from "./orderStatusCell.vue";
 import { registerShortcuts, setEnabledByOwner, SCOPE } from "@/utils/shortcut";
 import { defaultDeliveryDate } from "@/utils/index";
 
@@ -1110,7 +1123,7 @@ function deepEqual(obj1, obj2, path = '') {
 
 export default {
   name: "SaleDetail",
-  components: { SplitWorkspace },
+  components: { SplitWorkspace, OrderStatusCell },
   // 损耗原因固定字典（验收实收差异行必选；OA 差异原因下拉取短收/超收字典）
   dicts: ["biz_loss_reason", "t_sale_order_status", "acceptance_shortfall_reason", "acceptance_overage_reason", "biz_shift_type"],
   setup() {
@@ -1122,6 +1135,8 @@ export default {
       defaultOrderId: null,
       // 当前加载订单的状态（null=新单；2=已配送进入验收态；3+只读）
       orderStatus: null,
+      // 当前订单载入时的服务端 updateTime（草稿基线）：用于判断草稿是否已被服务端保存/推进而过期
+      orderBaseUpdateTime: null,
       // 浏览模式：查看历史订单（收起/恢复模型，不覆盖录入工作区）
       browseMode: false,
       browsedOrder: null,
@@ -1162,12 +1177,27 @@ export default {
         keyword: null,
         recentDays: 3,
       },
-      // 最近订单表格列
+      // 最近订单状态筛选（2026-09-19 灵活化）：默认草稿+已确认，可切到仅草稿/仅已确认/全部
+      recentStatusPreset: "draft_confirmed",
+      recentStatusOptions: [
+        { label: "草稿+已确认", value: "draft_confirmed", statuses: [0, 1] },
+        { label: "仅草稿", value: "draft", statuses: [0] },
+        { label: "仅已确认", value: "confirmed", statuses: [1] },
+        { label: "全部", value: "all", statuses: [0, 1, 2, 3, 4] },
+      ],
+      // 最近订单表格列（状态列复用 orderStatusCell，与订单列表页口径一致）
       recentTableColumns: [
-        { field: "code", title: "订单编号" },
-        { field: "deliveryDate", title: "配送时间" },
-        { field: "deliveryName", title: "送货单位" },
-        { field: "remark", title: "备注" },
+        { field: "code", title: "订单编号", minWidth: 130 },
+        {
+          field: "status",
+          title: "状态",
+          width: 96,
+          align: "center",
+          slots: { default: "recentStatusCell" },
+        },
+        { field: "deliveryDate", title: "配送时间", width: 100 },
+        { field: "deliveryName", title: "送货单位", minWidth: 140 },
+        { field: "remark", title: "备注", minWidth: 100 },
       ],
       // 最近订单列表
       recentOrderList: [],
@@ -1282,8 +1312,6 @@ export default {
       maxRows: 15,
       // 是否继续添加订单
       isContinueAdd: true,
-      // 编辑已有草稿订单后的提示横幅（点错了？返回重开新单）
-      showEditExistingBanner: false,
       // 当前正在编辑的草稿订单ID（用于重开新单后清空）
       existingDraftOrderId: null,
       /* ========== S1 订单桌面工作台 ========== */
@@ -1310,9 +1338,6 @@ export default {
   mounted() {
     // 对添加行事件的加入节流处理, 150毫秒内多次触发只会执行一次
     this.throttledAddRow = throttle(150, this.handleAddRow.bind(this));
-    // 初始加载标记：initOrderDetailPage 完成前置 false，完成后置 true
-    // 用于区分 handleAddRow 是初始化调用还是用户手动操作
-    this._initialLoadDone = false;
 
     // 组件挂载完成后添加一行
     this.throttledAddRow();
@@ -1608,15 +1633,67 @@ export default {
         this.orderStatus >= 2
       );
     },
-    /** 已确认订单只读提示条（2026-09-14 定稿：已确认不可直接改单，需先撤回为草稿） */
-    confirmedReadonlyBanner() {
-      return (
-        !this.browseMode &&
-        !this.accLikeMode &&
-        !!this.orderForm.orderId &&
-        this.orderStatus != null &&
-        Number(this.orderStatus) === 1
-      );
+    /**
+     * 订单模式条（2026-09-19 无感化）：新单返回 null（不显示）；
+     * 编辑草稿 / 只读浏览 / 已确认只读 在此统一提示，并承载「返回上一张单」「撤回并编辑」。
+     */
+    orderModeStrip() {
+      if (this.accLikeMode) return null;
+      const code =
+        this.orderForm.orderCode || (this.browsedOrder && this.browsedOrder.code) || "";
+      if (this.browseMode) {
+        const st = this.browsedOrder ? Number(this.browsedOrder.status) : null;
+        return {
+          type: "readonly",
+          tagType: st === 1 ? "warning" : "info",
+          label: st === 1 ? "只读浏览 · 已确认" : "只读浏览",
+          code,
+          hint: st === 1 ? "如需改动可撤回为草稿后就地编辑" : "数据只读，自动保存已暂停",
+          canRecall: st === 1,
+        };
+      }
+      if (this.orderForm.orderId) {
+        const st = this.orderStatus == null ? null : Number(this.orderStatus);
+        if (st === 0) {
+          return {
+            type: "edit",
+            tagType: "primary",
+            label: "编辑草稿",
+            code,
+            hint: "改动会自动保存到该草稿",
+            canRecall: false,
+          };
+        }
+        if (st === 1) {
+          return {
+            type: "confirmed",
+            tagType: "warning",
+            label: "只读 · 已确认",
+            code,
+            hint: "如需改动可撤回为草稿后就地编辑",
+            canRecall: true,
+          };
+        }
+        return {
+          type: "readonly",
+          tagType: "info",
+          label: "只读快照",
+          code,
+          hint: "该订单已进入后续流程，明细不可改",
+          canRecall: false,
+        };
+      }
+      return null;
+    },
+    /** 是否有被暂存的上一张单/新单（有则模式条显示返回入口） */
+    canReturnToStash() {
+      return !!this.stashedWorkspace;
+    },
+    /** 返回按钮文案：暂存的是已保存单→「返回上一张单」，否则→「返回我的新单」 */
+    stashReturnLabel() {
+      const s = this.stashedWorkspace;
+      if (s && s.orderForm && s.orderForm.orderId) return "返回上一张单";
+      return "返回我的新单";
     },
     /** 实收列展示：订单状态≥已配送 */
     showActualColumns() {
@@ -1666,7 +1743,7 @@ export default {
     draftTipText() {
       if (this.draftStatusType === "saving") return "检测到改动，5 秒内自动保存草稿（本地 + 服务器双写）";
       if (this.draftStatusType === "saved") return "草稿已自动保存（本地 + 服务器双写）；提交订单成功后自动清除";
-      return "当前改动不足以生成草稿（需先选送货单位并录入商品）";
+      return "当前改动不足以生成草稿（需先选送货单位；启用班次的客户还需选班次，并录入商品）";
     },
   },
   created() {
@@ -1712,9 +1789,18 @@ export default {
       // 送货单位变化：常用商品按新配送点白名单重新过滤
       this.loadFrequentProducts();
     },
+    // 左右联动：已打开订单变化后，在右侧最近列表高亮对应行（切换/刷新列表后保持“选中感”）
+    "orderForm.orderId"() {
+      this.$nextTick(() => this.syncRecentCurrentRow());
+    },
     "orderForm.deliveryDate"(val, oldVal) {
       // S1-1.4 头字段变更提示：配送日期影响取价基准与商品池；已录明细保留但单价快照不自动刷新
       if (!val || !oldVal || val === oldVal) return;
+      // 程序性载入订单/草稿/返回暂存引起的日期变化不提示（只有用户手改才提示）
+      if (this._suppressDeliveryDateWarn) {
+        this._suppressDeliveryDateWarn = false;
+        return;
+      }
       // 用户取消后的程序性还原不再二次确认（防死循环）
       if (this._revertingDeliveryDate) {
         this._revertingDeliveryDate = false;
@@ -1733,11 +1819,58 @@ export default {
     },
   },
   methods: {
-    /** 查询最近订单列表 */
+    /** 查询最近订单列表（状态预设 → statuses 逗号串；不传由后端默认草稿+已确认） */
     handleRecentQuery() {
-      recentSaleOrder(this.recentQuery).then((response) => {
+      const preset =
+        this.recentStatusOptions.find((o) => o.value === this.recentStatusPreset) ||
+        this.recentStatusOptions[0];
+      const params = { ...this.recentQuery };
+      if (preset.statuses && preset.statuses.length) {
+        params.statuses = preset.statuses.join(",");
+      }
+      recentSaleOrder(params).then((response) => {
         this.recentOrderList = response.data;
+        // 列表重载后重新定位当前打开订单的高亮行
+        this.$nextTick(() => this.syncRecentCurrentRow());
       });
+    },
+    /**
+     * 左右联动：在右侧最近列表高亮当前打开的订单行。
+     * · 未打开任何订单 → 清除高亮；
+     * · 已打开订单在当前列表 → 设为当前行（触发 current-change，但 openRecentOrder 同 id 直接返回，无循环）；
+     * · 已打开订单不在当前筛选结果中 → 清除高亮。
+     */
+    syncRecentCurrentRow() {
+      const table = this.$refs.recentOrderTable;
+      if (!table) return;
+      const orderId = this.orderForm.orderId;
+      if (!orderId) {
+        table.clearCurrentRow();
+        return;
+      }
+      const row = (this.recentOrderList || []).find((r) => r.id === orderId);
+      if (row) {
+        table.setCurrentRow(row);
+      } else {
+        table.clearCurrentRow();
+      }
+    },
+    /**
+     * 复位左侧做单区滚动到第一行（打开已有单/恢复草稿时，避免沿用上一张单的滚动位置）。
+     * · 做单区整体滚动条实际在 `.order-card .el-card__body`（订单信息+表头+明细）；
+     * · 明细表若自身可滚（小视口/多行），还需在替换 orderDetailList 前 await clearScroll：
+     *   vxe 在 loadTableData 开始时快照 internalData.lastScrollTop，并在数据变更后
+     *   restoreScrollLocation 回该值，只有先 clearScroll（会把 lastScrollTop 归零）才能真正回顶。
+     */
+    async resetOrderAreaScroll() {
+      const t = this.$refs.xTable;
+      if (t && t.clearScroll) {
+        await t.clearScroll();
+      }
+      const body = this.$el && this.$el.querySelector(".order-card .el-card__body");
+      if (body) body.scrollTop = 0;
+      const container = this.$el && this.$el.querySelector(".order-table-container");
+      if (container) container.scrollTop = 0;
     },
     /** 查询客户列表 */
     /** 按客户批量确认：打开抽屉（默认带出当前表单客户与配送日期） */
@@ -1805,9 +1938,10 @@ export default {
         this.customerOptions = response.data;
       });
     },
-    /** 重置查询条件 */
+    /** 重置查询条件（含状态预设回默认） */
     resetQuery() {
       this.resetForm("recentOrderForm");
+      this.recentStatusPreset = "draft_confirmed";
       this.handleRecentQuery();
     },
     /** 获取当前客户的商品选项列表（客户商品池按配送点白名单过滤+临时商品） */
@@ -1906,13 +2040,17 @@ export default {
         this.checkDraftOnEnter();
       }
     },
-    /** 初始化订单明细页 */
-    initOrderDetailPage(orderId) {
+    /** 初始化订单明细页；preserveStash=true 时保留暂存工作区（从最近列表切换订单用） */
+    initOrderDetailPage(orderId, { preserveStash = false } = {}) {
       // 重置浏览模式与订单状态标记（acceptanceMode 由 created 设置，此处不清除）
       this.browseMode = false;
       this.browsedOrder = null;
-      this.stashedWorkspace = null;
+      if (!preserveStash) {
+        this.stashedWorkspace = null;
+        this.stashWasEmpty = true;
+      }
       this.orderStatus = null;
+      this.orderBaseUpdateTime = null;
       // 页面就绪 Promise：验收模式需等订单明细载入后再合并验收行
       let pagePromise = Promise.resolve();
       if (orderId) {
@@ -1925,8 +2063,12 @@ export default {
               orderId: orderData.id,
               orderCode: orderData.code,
             };
+            // 赋值后再抑制：nextTick 需排在 watcher flush 之后，否则标志会被提前清掉
+            this.suppressDeliveryDateWarn();
             // 记录状态：2=已配送（验收态），≥3 只读
             this.orderStatus = orderData.status != null ? Number(orderData.status) : null;
+            // 草稿基线：记录载入时的服务端 updateTime（同编号订单若被保存/推进，则本地草稿过期）
+            this.orderBaseUpdateTime = orderData.updateTime || null;
             // 初始化送货单位下拉列表
             this.customerDeptDisabled = true;
             this.selectedCustomerDepts = this.fillWithParentCustomerDeptId(
@@ -1936,7 +2078,7 @@ export default {
           })
           .then(() => {
             // 初始化订单表格
-            listSaleDetail({ orderId: orderId }).then((response) => {
+            listSaleDetail({ orderId: orderId }).then(async (response) => {
               const responseOrderDetails = response.data.map((item) => {
                 const row = {
                   ...item,
@@ -1956,6 +2098,8 @@ export default {
                 }
                 return row;
               });
+              // 左侧明细回第一行：必须在替换 orderDetailList 前 clearScroll（见 resetOrderAreaScroll）
+              await this.resetOrderAreaScroll();
               this.orderDetailList =
                 this.deepCloneOrderDetailList(responseOrderDetails);
               this.originalOrderDetailList =
@@ -1989,6 +2133,7 @@ export default {
 
             // 初始化送货日期（与全局默认口径一致：15 点前=今天，之后=明天）
             this.orderForm.deliveryDate = defaultDeliveryDate();
+            this.suppressDeliveryDateWarn();
 
             // 初始化订单表格
             this.orderDetailList = [];
@@ -2872,10 +3017,6 @@ export default {
       }
       // S1-1.2 撤销支持：进入单元格编辑前推入快照（编辑前的明细状态）
       this.pushUndoSnapshot();
-      // 用户真正点击单元格编辑时，隐藏"编辑已有订单"提示横幅
-      if (this.showEditExistingBanner) {
-        this.showEditExistingBanner = false;
-      }
       // 录单态明细区门禁：未选定客户(+配送点)前禁止编辑，引导先选送货单位；
       // 启用班次的客户未选班次同样禁止（否则会先录明细、再被迫改班次）
       if (!this.entryGateOk()) {
@@ -2935,10 +3076,6 @@ export default {
     handleAddRow(rowIndex) {
       if (this.browseMode && (this.orderDetailList || []).length >= 1) return;
       if ((this.orderDetailList || []).length >= 1 && !this.entryGateOk()) return;
-      // 用户真正新增行时，隐藏"编辑已有订单"提示横幅（初始加载不算）
-      if (this._initialLoadDone && this.showEditExistingBanner) {
-        this.showEditExistingBanner = false;
-      }
       if (!this.orderDetailList) {
         this.orderDetailList = [];
       }
@@ -3374,57 +3511,45 @@ export default {
       this.customerDeptDisabled =
         !!this.orderForm.orderId || !!this.orderForm.customerDeptId;
     },
-    /* ========== 浏览模式（收起/恢复模型） ========== */
+    /* ========== 打开最近订单（浏览 / 编辑无感切换） ========== */
     /**
-     * 最近订单行点击：
-     * · 工作区为空（没在做新单，典型如送货单位未选）→ 直接以「编辑模式」打开该草稿单；
-     * · 正在录新单 → 收起当前工作区，进只读浏览模式（顶部可「返回我的新单」）。
+     * 最近订单行点击统一入口（2026-09-19 无感化）：
+     * · 不再弹「收起新单？」模态，直接静默暂存当前工作区；
+     * · 草稿（status=0）→ 载入后即可编辑；已确认/已配送等 → 只读快照
+     *   （已确认可在订单卡模式条「撤回并编辑」就地转草稿）；
+     * · 模式条提供「返回我的新单」回到暂存工作区，实现无感往返。
      */
-    handleRecentOrderRowChange(event) {
+    openRecentOrder(event) {
       if (!event || !event.row) return;
       const row = event.row;
       const orderId = row.id;
-      if (this.browseMode) {
-        // 已在浏览中：直接切换目标订单
-        this.loadBrowseOrder(orderId);
-        return;
+      if (!orderId) return;
+      // 已是当前打开的单：不重复载入（避免打断正在编辑的现场）
+      if (this.orderForm.orderId === orderId) return;
+      // 仅在「首次离开录入态」时暂存；浏览态内切换历史单不覆盖原暂存（否则新单工作区丢失）
+      if (!this.browseMode) {
+        // 切换前先落盘当前工作区草稿：避免 5s 防抖窗口内的改动只留在内存暂存里（硬离开页面会丢）
+        if (this._draftTimer) clearTimeout(this._draftTimer);
+        this.saveDraftIfMeaningful();
+        this.stashCurrentWorkspace(this.isWorkspaceEmpty);
       }
-      const workspaceEmpty = this.isWorkspaceEmpty;
-      // 「最近」面板当前只列草稿（selectRecentOrderList 写死 status=0）；
-      // 万一以后放开状态，非草稿仍只能只读浏览，不能就地改
-      const editable = row.status != null && Number(row.status) === 0;
-      if (editable && workspaceEmpty) {
-        this.openDraftForEdit(orderId);
-        return;
-      }
-      const proceed = () => {
-        this.enterBrowseMode(orderId, workspaceEmpty);
-      };
-      if (!workspaceEmpty) {
-        this.$modal
-          .confirm("当前正在录入的新单将暂时收起，进入浏览模式？")
-          .then(proceed)
-          .catch(() => {
-            this.$refs.recentOrderTable.clearCurrentRow();
-          });
+      if (row.status != null && Number(row.status) === 0) {
+        this.openDraftForEdit(orderId, { preserveStash: true });
       } else {
-        proceed();
+        this.enterBrowseMode(orderId, { preserveStash: true });
       }
     },
-    /** 以编辑模式打开一张草稿订单（S15 防重复弹窗与「最近」面板共用），并挂「返回重开新单」横幅 */
-    openDraftForEdit(orderId) {
+    /** 以编辑模式打开一张草稿订单（防重复弹窗与「最近」面板共用） */
+    openDraftForEdit(orderId, { preserveStash = false } = {}) {
       this.existingDraftOrderId = orderId;
-      this.initOrderDetailPage(orderId);
-      // 延迟显示横幅，等订单加载完成后
-      this.$nextTick(() => {
-        this.showEditExistingBanner = true;
-      });
+      this.initOrderDetailPage(orderId, { preserveStash });
     },
-    /** 收起当前工作区并载入历史订单浏览 */
-    enterBrowseMode(orderId, wasEmpty) {
-      this.stashCurrentWorkspace(wasEmpty);
-      // 浏览态为只读，不应再挂“正在编辑已有草稿”的横幅
-      this.showEditExistingBanner = false;
+    /** 载入历史订单只读浏览（暂存已由 openRecentOrder 统一处理，避免重复 stash 覆盖） */
+    enterBrowseMode(orderId, { preserveStash = false } = {}) {
+      if (!preserveStash) {
+        // 兼容其它入口：未显式暂存时按当前工作区空否自行暂存
+        this.stashCurrentWorkspace(this.isWorkspaceEmpty);
+      }
       this.existingDraftOrderId = null;
       // 清除新单态下“送货单位”失焦残留的“不能为空”校验态，避免进入浏览模式后仍挂红字
       this.$nextTick(() => {
@@ -3459,8 +3584,11 @@ export default {
           orderId: orderData.id,
           orderCode: orderData.code,
         };
+        // 赋值后再抑制（nextTick 排在 watcher flush 之后）
+        this.suppressDeliveryDateWarn();
         this.orderStatus =
           orderData.status != null ? Number(orderData.status) : null;
+        this.orderBaseUpdateTime = orderData.updateTime || null;
         this.customerDeptDisabled = true;
         this.selectedCustomerDepts = this.orderForm.customerDeptId
           ? this.fillWithParentCustomerDeptId(
@@ -3474,7 +3602,7 @@ export default {
           this.$refs.orderForm && this.$refs.orderForm.clearValidate("customerDeptId");
         });
       });
-      listSaleDetail({ orderId }).then((response) => {
+      listSaleDetail({ orderId }).then(async (response) => {
         const details = (response.data || []).map((item) => ({
           ...item,
           productPrice: XEUtils.commafy(item.productPrice, { digits: 2 }),
@@ -3485,17 +3613,22 @@ export default {
               ? XEUtils.commafy(item.actualNum, { digits: 2 })
               : item.actualNum,
         }));
+        // 左侧明细回第一行：必须在替换 orderDetailList 前 clearScroll
+        await this.resetOrderAreaScroll();
         // 直接替换展示列表；浏览态自动保存已暂停，不污染草稿
         this.orderDetailList = details;
         this.originalOrderDetailList = this.deepCloneOrderDetailList(details);
+        this.draftStatusText = "";
+        this.draftStatusType = "idle";
       });
       this.browseMode = true;
     },
-    /** 返回我的新单：原样恢复收起的录入工作区 */
-    exitBrowseMode() {
+    /** 返回上一张单/我的新单：原样恢复收起的录入工作区 */
+    returnToMyWorkspace() {
       const stash = this.stashedWorkspace;
       if (stash) {
         this.orderForm = stash.orderForm;
+        this.suppressDeliveryDateWarn();
         this.orderDetailList = stash.orderDetailList.map((r) => ({ ...r }));
         this.originalOrderDetailList = stash.originalOrderDetailList;
         this.selectedCustomerDepts = stash.selectedCustomerDepts;
@@ -3511,6 +3644,44 @@ export default {
           this.$refs.recentOrderTable.clearCurrentRow();
         }
       });
+    },
+    /**
+     * 已确认单就地「撤回并编辑」（2026-09-19 无感化）：
+     * 不必再回订单列表撤回——直接调状态接口 CONFIRMED→DRAFT，成功后当前页转可编辑。
+     * 后端会做可撤回预检（未作废送货单/已入库采购单会拒绝）并级联作废/扣除，失败信息由请求拦截器提示。
+     */
+    handleRecallAndEdit() {
+      const orderId = this.orderForm.orderId;
+      if (!orderId) return;
+      this.$modal
+        .confirm(
+          `撤回订单【${this.orderForm.orderCode}】后，订单回到<b>草稿</b>状态并可直接编辑（改完需重新确认）。<br/><br/>` +
+            `撤回时会自动<b>作废/扣除</b>该订单尚未入库的采购单（共享采购单仅扣除本单部分）；<br/>` +
+            `若该订单已进入<b>未作废的送货单</b>、或采购单<b>已入库</b>，则不提供撤回，请先作废对应单据。`,
+          "撤回并编辑",
+          { dangerouslyUseHTMLString: true, confirmButtonText: "确认撤回" }
+        )
+        .then(() => updateOrderStatus({ orderIds: [orderId], status: 0 }))
+        .then(() => {
+          this.$modal.msgSuccess("已撤回为草稿，可直接编辑");
+          // 就地转草稿态：已加载的 orderForm/明细直接复用，无需重载；
+          // 若当前是浏览态（已确认单从最近列表打开）则退出浏览、保留暂存，切到可编辑
+          this.browseMode = false;
+          this.browsedOrder = null;
+          this.orderStatus = 0;
+          // 刷新草稿基线：撤回本身会推进服务端 update_time（状态回写 update_time=now），
+          // 沿用载入时的旧基线会让本单草稿被 pruneStaleDrafts 误判「别处已改」而清理（丢改动）。
+          // 先同步置 null 兜底（防 5s 防抖内的自动保存带着旧基线落盘），再异步取新值。
+          this.orderBaseUpdateTime = null;
+          getSaleOrder(orderId)
+            .then((res) => {
+              this.orderBaseUpdateTime = (res.data && res.data.updateTime) || null;
+            })
+            .catch(() => {});
+          const row = (this.recentOrderList || []).find((r) => r.id === orderId);
+          if (row) row.status = 0;
+        })
+        .catch(() => {});
     },
     /* ========== 复制为新单 ========== */
     /** 历史订单 → 新单：商品+数量灌入；单价按当前执行价逐行重取；日期/编号重新分配 */
@@ -3559,8 +3730,6 @@ export default {
         this.browseMode = false;
         this.browsedOrder = null;
         this.stashedWorkspace = null;
-        // 已切到空白新单，不应再挂“正在编辑已有草稿”横幅
-        this.showEditExistingBanner = false;
         this.existingDraftOrderId = null;
         this.orderForm = {
           orderId: null,
@@ -3584,6 +3753,7 @@ export default {
             : [];
         // 送货日期重算（与全局默认口径一致：15 点前=今天，之后=明天）
         this.orderForm.deliveryDate = defaultDeliveryDate();
+        this.suppressDeliveryDateWarn();
         // 订单号按 §3.2 重新分配
         genOrderCode({ refresh: false }).then((res) => {
           this.orderForm.orderCode = res.msg;
@@ -3638,14 +3808,8 @@ export default {
     },
     /** 清空送货单位：彻底重置为新单状态（与重置按钮效果一致） */
     clearDeliveryUnit() {
-      this.showEditExistingBanner = false;
       this.existingDraftOrderId = null;
       this.initOrderDetailPage(null);
-    },
-    /** 横幅点击：返回重开新单 */
-    returnToNewOrder() {
-      this.clearDeliveryUnit();
-      this.$modal.msgSuccess("已清空，可重新选择送货单位开新单");
     },
 
     /* ========== 草稿自动保存（Phase 1.1） ========== */
@@ -3680,6 +3844,81 @@ export default {
       this.availableDrafts = listDrafts();
       this.showDraftBanner =
         !this.defaultOrderId && this.availableDrafts.length > 0;
+      // 异步核对/清理陈旧草稿（不阻塞横幅先显示）
+      this.pruneStaleDrafts();
+    },
+    /**
+     * 清理无效/陈旧草稿（草稿箱与恢复横幅共用）：
+     * ① 无送货单位，或启用班次的客户缺班次 → 无效半成品；
+     * ② 同编号订单已在服务端被保存/推进 → 旧数据：
+     *    - 新单草稿（无 orderId）：编号已落库即说明该新单已被保存；
+     *    - 编辑草稿：订单已非草稿态，或当前 updateTime 与草稿基线（baseUpdateTime）不一致。
+     * 命中即本地 + 后端一并删除，并刷新 availableDrafts / 横幅。
+     * 网络异常时保守跳过（不误删），下次进入再核。
+     */
+    async pruneStaleDrafts({ notify = false } = {}) {
+      if (this._pruningDrafts) return;
+      this._pruningDrafts = true;
+      try {
+        const drafts = listDrafts();
+        if (!drafts.length) {
+          this.availableDrafts = drafts;
+          this.showDraftBanner = false;
+          return;
+        }
+        const stale = new Set();
+        // ① 本地可判定的无效草稿
+        drafts.forEach((d) => {
+          if (!d.customerDeptId) {
+            stale.add(d.key);
+            return;
+          }
+          const customer = (this.customerOptions || []).find((c) => c.id === d.customerId);
+          if (customer && customer.shiftEnabled && !d.shiftCode) {
+            stale.add(d.key);
+          }
+        });
+        // ② 向服务端核对编号：同编号订单已保存/推进 → 本地草稿为旧数据
+        const codes = [...new Set(drafts.map((d) => d.orderCode).filter(Boolean))];
+        if (codes.length) {
+          try {
+            const res = await getOrderBriefByCodes(codes);
+            const byCode = new Map((res.data || []).map((b) => [b.code, b]));
+            drafts.forEach((d) => {
+              if (!d.orderCode) return;
+              const brief = byCode.get(d.orderCode);
+              if (!brief) return;
+              if (!d.orderId) {
+                // 新单草稿：编号已落库 = 该新单已被保存，草稿过期
+                stale.add(d.key);
+              } else if (Number(brief.status) !== 0) {
+                // 编辑草稿：订单已被确认/配送/验收/结算，不可再改，草稿过期
+                stale.add(d.key);
+              } else if (d.baseUpdateTime && brief.updateTime !== d.baseUpdateTime) {
+                // 编辑草稿：订单在别处被改过（updateTime 与载入基线不一致），草稿过期
+                stale.add(d.key);
+              }
+            });
+          } catch (e) {
+            // 网络异常：保守跳过，不误删
+          }
+        }
+        if (stale.size) {
+          drafts.forEach((d) => {
+            if (!stale.has(d.key)) return;
+            removeDraft(d.key);
+            removeDraftFromServer(d.orderId, d.customerDeptId);
+          });
+          this.availableDrafts = listDrafts();
+          this.showDraftBanner =
+            !this.defaultOrderId && this.availableDrafts.length > 0;
+          if (notify) {
+            this.$modal.msgSuccess(`已清理 ${stale.size} 条过期草稿（对应订单已保存或已推进）`);
+          }
+        }
+      } finally {
+        this._pruningDrafts = false;
+      }
     },
     /** 恢复最新一条草稿 */
     restoreLatestDraft() {
@@ -3692,7 +3931,7 @@ export default {
       this.showDraftBanner = false;
     },
     /** 将草稿恢复到表单：校验客户/配送点仍存在，恢复后清除本地+后端草稿 */
-    restoreDraftIntoForm(draft) {
+    async restoreDraftIntoForm(draft) {
       const deptId = draft.customerDeptId;
       // 客户配送点树已加载时校验存在性
       if (
@@ -3710,13 +3949,18 @@ export default {
         orderCode: draft.orderCode || null,
         customerId: draft.customerId || null,
         customerDeptId: draft.customerDeptId || null,
+        shiftCode: draft.shiftCode || null,
         deliveryDate: draft.deliveryDate || null,
         remark: draft.remark || null,
       };
+      // 恢复基线：后续若服务端同编号订单被保存/推进，本草稿才能被判过期
+      this.orderBaseUpdateTime = draft.baseUpdateTime || null;
+      this.suppressDeliveryDateWarn();
       this.selectedCustomerDepts = this.fillWithParentCustomerDeptId(
         this.customerDeptOptions,
         deptId ? String(deptId) : ""
       );
+      await this.resetOrderAreaScroll();
       this.orderDetailList = (draft.details || []).map((row) => ({ ...row }));
       this.originalOrderDetailList = this.deepCloneOrderDetailList(
         this.orderDetailList
@@ -3761,6 +4005,19 @@ export default {
       find(this.customerDeptOptions);
       return name;
     },
+    /**
+     * 程序性载入订单/草稿/暂存后调用（须在赋值语句之后）：抑制「配送日期变更」确认弹窗。
+     * 原因：打开一张跨配送日期的订单（编辑草稿/只读浏览/复制/返回暂存）会以编程方式改
+     * orderForm.deliveryDate，旧逻辑会误当成用户改期而弹框；只有用户手改日期才需要提示。
+     * 实现：置标志 + nextTick 兜底清除；必须在赋值后调用，才能让 nextTick 排在 watcher flush 之后
+     * （否则清除回调会先于 watcher 执行，标志失效）。watcher 命中后也会主动置 false。
+     */
+    suppressDeliveryDateWarn() {
+      this._suppressDeliveryDateWarn = true;
+      this.$nextTick(() => {
+        this._suppressDeliveryDateWarn = false;
+      });
+    },
     /** 格式化保存时间 HH:mm */
     formatSavedAt(savedAt) {
       if (!savedAt) return "";
@@ -3789,7 +4046,10 @@ export default {
           row.productName &&
           (XEUtils.toNumber(row.num) > 0 || row.skuId)
       );
-      if (!deptId || !hasContent) {
+      // 门禁（s35）：未选送货单位、或启用班次的客户未选班次 → 不生成草稿
+      // （避免草稿箱里出现缺送货单位/班次的半成品，恢复后也必填不过）
+      const needShift = this.shiftEnabledForOrder && !this.orderForm.shiftCode;
+      if (!deptId || needShift || !hasContent) {
         this.draftStatusText = "未保存";
         this.draftStatusType = "idle";
         return;
@@ -3800,8 +4060,12 @@ export default {
         customerDeptId: deptId,
         deptName: this.deptNameOf(deptId),
         orderCode: this.orderForm.orderCode,
+        // 班次（s35）：必须随草稿持久化，否则恢复后启用班次的客户会丢字段
+        shiftCode: this.orderForm.shiftCode || null,
         deliveryDate: this.orderForm.deliveryDate,
         remark: this.orderForm.remark,
+        // 载入时的服务端 updateTime（新单为 null）：草稿箱据此刻画“同编号订单是否已被保存/推进”
+        baseUpdateTime: this.orderBaseUpdateTime || null,
         details: this.deepCloneOrderDetailList(this.orderDetailList),
         savedAt: new Date().toISOString(),
       };
@@ -4100,9 +4364,11 @@ export default {
     },
 
     /* ========== S1-1.5 草稿箱 ========== */
-    openDraftBox() {
+    async openDraftBox() {
       this.availableDrafts = listDrafts();
       this.draftBoxVisible = true;
+      // 打开时核对/清理陈旧草稿（并给出提示）
+      await this.pruneStaleDrafts({ notify: true });
     },
     restoreDraftFromBox(draft) {
       this.draftBoxVisible = false;
@@ -4226,11 +4492,23 @@ export default {
   display: flex;
   flex-direction: column;
   height: 100%;
+
+  /* 左右联动：当前打开的订单行在右侧列表高亮（比 vxe 默认更明显，左侧色条 + 加粗） */
+  :deep(.vxe-body--row.row--current > .vxe-body--column) {
+    background-color: var(--el-color-primary-light-9, #ecf5ff) !important;
+  }
+  :deep(.vxe-body--row.row--current > .vxe-body--column:first-child) {
+    box-shadow: inset 3px 0 0 var(--el-color-primary, #409eff);
+  }
+  :deep(.vxe-body--row.row--current) {
+    font-weight: 600;
+  }
 }
 
 .recent-order-table-container {
   flex-grow: 1; /* 让表格区域占据剩余的所有空间 */
   overflow-y: auto; /* 如果内容超出容器高度，允许滚动 */
+  margin-top: 10px;
 }
 
 .drag-btn {
@@ -4262,14 +4540,72 @@ export default {
   }
 }
 
-/* 编辑已有草稿订单提示横幅 */
-.edit-existing-banner {
-  margin-bottom: 10px;
-  .draft-banner-title {
+/* 订单模式条（编辑草稿 / 只读浏览 / 已确认） */
+.order-mode-strip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: 0 0 10px;
+  padding: 6px 10px;
+  border-radius: 4px;
+  font-size: 12px;
+  background: var(--el-fill-color-light, #f5f7fa);
+  border-left: 3px solid var(--el-color-info, #909399);
+
+  &.is-edit {
+    border-left-color: var(--el-color-primary, #409eff);
+  }
+  &.is-confirmed {
+    border-left-color: var(--el-color-warning, #e6a23c);
+  }
+  .order-mode-left {
     display: inline-flex;
     align-items: center;
-    gap: 10px;
+    gap: 6px;
+    min-width: 0;
   }
+  .order-mode-code {
+    font-weight: 600;
+  }
+  .order-mode-hint {
+    color: var(--el-text-color-secondary, #909399);
+  }
+  .order-mode-right {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+  }
+}
+
+/* 最近面板查询表单：面板窄，label 收窄 + 各行等距留白（避免拥挤） */
+.recent-query-form {
+  .el-form-item {
+    margin-bottom: 0;
+  }
+}
+.recent-query-row {
+  margin-bottom: 10px;
+
+  &--last {
+    margin-bottom: 0;
+  }
+}
+.recent-query-actions {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 8px;
+}
+
+/* 最近面板状态筛选（表单内带「状态」label，与其它搜索条件对齐） */
+.recent-status-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  line-height: 1;
 }
 
 /* 订单头部草稿状态标签 */

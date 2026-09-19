@@ -36,6 +36,15 @@ export function recentSaleOrder(query) {
   })
 }
 
+// 按订单编号批量查询简报（草稿箱陈旧判定：编号已在服务端保存/推进 → 本地草稿为旧数据）
+export function getOrderBriefByCodes(codes) {
+  return request({
+    url: '/order/sale/by-codes',
+    method: 'get',
+    params: { codes: (codes || []).join(',') }
+  })
+}
+
 // 查询销售订单详细
 export function getSaleOrder(id) {
   return request({

@@ -51,3 +51,12 @@ export function delCustomerDept(id) {
     method: 'delete'
   })
 }
+
+// 配送点排序（D-074：总单列顺序；按 ids 先后顺序重排为 sortNo = 1..N）
+export function sortCustomerDept(data) {
+  return request({
+    url: '/partner/customerDept/sort',
+    method: 'put',
+    data: data
+  })
+}

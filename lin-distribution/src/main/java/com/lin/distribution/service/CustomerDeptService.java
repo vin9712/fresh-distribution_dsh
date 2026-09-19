@@ -76,4 +76,13 @@ public interface CustomerDeptService
      * @return
      */
     String generateCustomerDeptNo(Long customerId, String mnemonicCode, Boolean isParent);
+
+    /**
+     * 批量排序配送点（D-074 总单列顺序）：按 ids 先后顺序重排为 sortNo = 1..N
+     *
+     * @param customerId 客户ID（校验 ids 均属于该客户）
+     * @param ids        配送点ID有序集合
+     * @return 更新条数
+     */
+    int sortCustomerDepts(Long customerId, List<Long> ids);
 }

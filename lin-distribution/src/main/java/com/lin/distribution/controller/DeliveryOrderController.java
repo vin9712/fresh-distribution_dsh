@@ -75,6 +75,18 @@ public class DeliveryOrderController extends BaseController {
     }
 
     /**
+     * 当日全部客户总览（送货单据页「卡片视角」，D-071）：配送日期默认有值，进入即按当日汇总所有客户。
+     *
+     * <p>D-055 送货单视图化后，送货单 = 已确认订单（{@code status >= 1}）的视图，不再有物理送货单；
+     * 故本接口按**订单**口径聚合（单数/点数/数量/金额/状态数），与矩阵/配货/点单/当日打印清单同源。</p>
+     */
+    @PreAuthorize("@ss.hasPermi('order:delivery:batch')")
+    @GetMapping("/batch/order-overview")
+    public AjaxResult orderOverview(@RequestParam("deliveryDate") String deliveryDate) {
+        return success(deliveryBatchService.selectOrderOverviewByDate(deliveryDate));
+    }
+
+    /**
      * 查询送货单据列表
      */
     @PreAuthorize("@ss.hasPermi('order:delivery:list')")

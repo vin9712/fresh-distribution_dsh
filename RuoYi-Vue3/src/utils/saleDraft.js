@@ -171,6 +171,10 @@ export function saveDraft(payload) {
     customerDeptId: payload.customerDeptId || null,
     deptName: payload.deptName || '',
     orderCode: payload.orderCode || null,
+    // 班次（s35）：草稿需一并持久化，否则恢复后启用班次的客户会因缺班次而被拒/丢字段
+    shiftCode: payload.shiftCode || null,
+    // 载入时的服务端 updateTime（新单为 null）：草稿箱陈旧判定基线
+    baseUpdateTime: payload.baseUpdateTime || null,
     deliveryDate: payload.deliveryDate || null,
     remark: payload.remark || null,
     details: payload.details || [],

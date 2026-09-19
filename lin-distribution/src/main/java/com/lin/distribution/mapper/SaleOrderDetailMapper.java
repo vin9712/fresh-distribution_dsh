@@ -92,6 +92,13 @@ public interface SaleOrderDetailMapper {
     List<PrintManifestVO.Row> selectPrintManifestRows(@Param("deliveryDate") LocalDate deliveryDate);
 
     /**
+     * 当日全部客户总览（D-071 卡片视角）：按客户聚合已确认订单（status&gt;=1）的单数/点数/数量/金额/状态数。
+     *
+     * @param deliveryDate 配送日期
+     */
+    List<com.lin.distribution.vo.DeliveryOrderOverviewVO> selectOrderOverviewByDate(@Param("deliveryDate") LocalDate deliveryDate);
+
+    /**
      * 新增销售订单详情
      *
      * @param saleOrderDetail 销售订单详情

@@ -74,6 +74,12 @@ public class CustomerDept extends BaseEntity {
     private Integer valid;
 
     /**
+     * 排序（总单列顺序，小在前；0=未设置，排在已设置之后按编号）
+     */
+    @Excel(name = "排序")
+    private Integer sortNo;
+
+    /**
      * 逻辑删除
      */
     private Boolean isDeleted;

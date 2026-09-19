@@ -93,4 +93,9 @@ public interface DeliveryBatchService {
      * @return 清单（customer_id 升序，点内按 deptId 升序）
      */
     List<PrintManifestVO> selectPrintManifest(String deliveryDate);
+
+    /**
+     * 当日全部客户总览（D-071 卡片视角）：按客户聚合已确认订单（status&gt;=1）的单数/点数/数量/金额/状态数。
+     */
+    List<com.lin.distribution.vo.DeliveryOrderOverviewVO> selectOrderOverviewByDate(String deliveryDate);
 }

@@ -201,6 +201,8 @@ public class SaleOrderServiceImpl implements SaleOrderService {
                 .isDeleted(Boolean.FALSE)
                 .build();
         order.setRemark(request.getRemark());
+        // 维护 update_time（草稿箱陈旧判定基线：同编号订单被保存后 update_time 应变化）
+        order.setUpdateTime(DateUtils.getNowDate());
         saleOrderMapper.insertSaleOrder(order);
 
         // batch insert order details
@@ -260,6 +262,7 @@ public class SaleOrderServiceImpl implements SaleOrderService {
         order.setAmount(amount);
         order.setShiftCode(shiftCode);
         order.setRemark(request.getRemark());
+        order.setUpdateTime(DateUtils.getNowDate());
         saleOrderMapper.updateSaleOrder(order);
 
         saleOrderDetailMapper.deleteSaleOrderDetailByOrderId(orderId);
@@ -279,11 +282,38 @@ public class SaleOrderServiceImpl implements SaleOrderService {
     }
 
     @Override
-    public List<SaleOrder> selectRecentOrderList(Long customerId, String keyword, Integer recentDays) {
+    public List<SaleOrder> selectRecentOrderList(Long customerId, String keyword, Integer recentDays, List<Integer> statuses) {
         int days = Optional.ofNullable(recentDays).orElse(7);
         LocalDateTime createEndTime = LocalDate.now().atTime(LocalTime.MAX);
         LocalDateTime createStartTime = LocalDate.now().minusDays(days).atStartOfDay();
-        return saleOrderMapper.selectRecentOrderList(customerId, keyword, createStartTime, createEndTime);
+        // 默认只看「草稿 + 已确认」：这两类才是录单时需要参考/继续处理的单；
+        // 显式传空集合=全部状态（前端「全部」筛选），传非空=按传入状态过滤
+        List<Integer> effectiveStatuses = statuses == null
+                ? List.of(SaleOrderStatus.DRAFT.getCode(), SaleOrderStatus.CONFIRMED.getCode())
+                : statuses;
+        return saleOrderMapper.selectRecentOrderList(customerId, keyword, createStartTime, createEndTime, effectiveStatuses);
+    }
+
+    @Override
+    public List<com.lin.distribution.vo.SaleOrderBriefVO> selectBriefByCodes(List<String> codes) {
+        if (CollectionUtils.isEmpty(codes)) {
+            return List.of();
+        }
+        // 去重 + 去空，避免 IN 里带重复/空串
+        List<String> normalized = codes.stream()
+                .filter(StringUtils::isNotBlank)
+                .distinct()
+                .toList();
+        if (normalized.isEmpty()) {
+            return List.of();
+        }
+        return saleOrderMapper.selectSaleOrderByCodes(normalized).stream()
+                .map(order -> new com.lin.distribution.vo.SaleOrderBriefVO(
+                        order.getId(),
+                        order.getCode(),
+                        order.getStatus(),
+                        order.getUpdateTime() == null ? null : DateUtils.parseDateToStr(DateUtils.YYYY_MM_DD_HH_MM_SS, order.getUpdateTime())))
+                .toList();
     }
 
     @Override
@@ -333,6 +363,7 @@ public class SaleOrderServiceImpl implements SaleOrderService {
         // update order list
         for (SaleOrder order : orders) {
             order.setStatus(newStatus.getCode());
+            order.setUpdateTime(DateUtils.getNowDate());
             saleOrderMapper.updateSaleOrder(order);
         }
 

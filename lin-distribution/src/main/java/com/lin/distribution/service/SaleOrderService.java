@@ -95,9 +95,18 @@ public interface SaleOrderService {
 
     /**
      * 查询最近销售订单
+     *
+     * @param statuses 需要包含的订单状态集合；为空时默认「草稿 + 已确认」（0,1）
      * @return
      */
-    List<SaleOrder> selectRecentOrderList(Long customerId, String keyword, Integer recentDays);
+    List<SaleOrder> selectRecentOrderList(Long customerId, String keyword, Integer recentDays, List<Integer> statuses);
+
+    /**
+     * 按订单编号批量查询简报（草稿箱陈旧判定）
+     *
+     * @param codes 订单编号集合；空集合返回空列表
+     */
+    List<com.lin.distribution.vo.SaleOrderBriefVO> selectBriefByCodes(List<String> codes);
 
     /**
      * 批量更新订单状态

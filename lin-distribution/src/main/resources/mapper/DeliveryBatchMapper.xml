@@ -171,7 +171,8 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
           and tcd.is_deleted = 0
           and tcd.parent_id is not null
           and tcd.parent_id != 0
-        order by tcd.code, tcd.id
+        <!-- sort_no=0（未设置）排最后，组内按编号；与配送点列表口径一致（D-074） -->
+        order by if(tcd.sort_no = 0, 1, 0) asc, tcd.sort_no asc, tcd.code asc, tcd.id asc
     </select>
 
     <!-- 【主口径 · D-055 视图化】数据源 = 订单明细 t_sale_order_detail（送货单不再写入） -->

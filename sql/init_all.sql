@@ -1024,6 +1024,7 @@ CREATE TABLE `t_customer_dept`
     `address`       varchar(200)          DEFAULT NULL COMMENT '客户配送地址',
     `location`      GEOMETRY              DEFAULT NULL COMMENT '位置坐标',
     `valid`         tinyint(1) NOT NULL DEFAULT '1' COMMENT '是否有效',
+    `sort_no`       int(10) NOT NULL DEFAULT '0' COMMENT '排序（总单列顺序，小在前；0=未设置，排在已设置之后按编号）',
     `is_deleted`    tinyint(1) NOT NULL DEFAULT '0' COMMENT '逻辑删除',
     `create_by`     varchar(64)           DEFAULT '' COMMENT '创建者',
     `create_time`   timestamp    NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',

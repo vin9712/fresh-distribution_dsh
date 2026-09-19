@@ -443,4 +443,27 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
           and o.delivery_date = #{deliveryDate}
         order by o.customer_id, coalesce(d.customer_dept_id, o.customer_dept_id), d.id
     </select>
+
+    <!-- 当日全部客户总览（D-071 卡片视角）：按客户聚合已确认订单（status>=1） -->
+    <select id="selectOrderOverviewByDate" resultType="com.lin.distribution.vo.DeliveryOrderOverviewVO">
+        select o.customer_id                                              as customerId,
+               coalesce(customer.alias, customer.name)                     as customerName,
+               o.delivery_date                                             as deliveryDate,
+               count(distinct o.id)                                        as orderCount,
+               count(distinct coalesce(d.customer_dept_id, o.customer_dept_id)) as pointCount,
+               coalesce(sum(d.num), 0)                                     as totalQuantity,
+               coalesce(sum(d.expect_amount), 0)                           as totalAmount,
+               count(distinct case when o.status = 1 then o.id end)        as confirmedCount,
+               count(distinct case when o.status = 2 then o.id end)        as deliveredCount,
+               count(distinct case when o.status = 3 then o.id end)        as acceptedCount,
+               count(distinct case when o.status = 4 then o.id end)        as settledCount
+        from t_sale_order o
+        left join t_sale_order_detail d on d.order_id = o.id and d.is_deleted = 0
+        left join t_customer customer on customer.id = o.customer_id
+        where o.is_deleted = 0
+          and o.status &gt;= 1
+          and o.delivery_date = #{deliveryDate}
+        group by o.customer_id, coalesce(customer.alias, customer.name), o.delivery_date
+        order by customerName
+    </select>
 </mapper>

@@ -3,7 +3,14 @@
     <!-- 查询条：客户 + 配送日期（矩阵总表 D-044 / 配货总表 D-027·28 两种口径共用一页） -->
     <el-form :inline="true" size="small" label-width="80px">
       <el-form-item label="客户">
-        <el-select v-model="customerId" placeholder="请选择客户" filterable style="width: 220px" @change="onCustomerChange">
+        <el-select
+          v-model="customerId"
+          placeholder="全部客户（当日总览）"
+          filterable
+          clearable
+          style="width: 220px"
+          @change="onCustomerChange"
+        >
           <el-option v-for="c in customers" :key="c.id" :label="c.name" :value="c.id" />
         </el-select>
       </el-form-item>
@@ -14,10 +21,10 @@
           value-format="YYYY-MM-DD"
           placeholder="请选择配送日期"
           clearable
-          @change="loadView"
+          @change="onDateChange"
         />
       </el-form-item>
-      <el-form-item label="口径">
+      <el-form-item v-if="customerId" label="口径">
         <el-radio-group v-model="mode" size="small" @change="loadView">
           <el-radio-button value="matrix">矩阵总表（菜品×配送点）</el-radio-button>
           <el-radio-button value="pick">配货总表（不拆价）</el-radio-button>
@@ -25,14 +32,15 @@
         </el-radio-group>
       </el-form-item>
       <el-form-item>
-        <el-button type="primary" :icon="Search" :disabled="!customerId || !deliveryDate" @click="loadView"
-          >刷新</el-button
-        >
-        <el-button :icon="Printer" :disabled="!hasData" @click="handlePrint">{{
+        <el-button type="primary" :icon="Search" :disabled="!deliveryDate" @click="refresh">{{
+          customerId ? "刷新" : "刷新总览"
+        }}</el-button>
+        <el-button v-if="customerId" :icon="Printer" :disabled="!hasData" @click="handlePrint">{{
           mode === "pick" ? "打印本页" : "打印总单"
         }}</el-button>
         <!-- OA：验收改订单维度（一订单一验），此入口改为按客户批量验收（配送点 tab + 批量验收） -->
         <el-button
+          v-if="customerId"
           type="success"
           plain
           :icon="CircleCheck"
@@ -41,6 +49,7 @@
           >按客户验收</el-button
         >
         <el-button type="warning" plain :icon="Printer" @click="handlePrintManifest">当日打印（全部客户）</el-button>
+        <el-button v-if="customerId" :icon="Back" @click="backToOverview">返回全部客户</el-button>
       </el-form-item>
     </el-form>
 
@@ -119,16 +128,52 @@
       </el-table>
     </el-dialog>
 
+    <!-- 当日全部客户总览（卡片视角）：配送日期默认有值，进入即展示当天汇总，无需先选客户 -->
+    <div v-if="!customerId" v-loading="overviewLoading" class="customer-overview">
+      <div class="overview-head">
+        <span class="overview-title">{{ deliveryDate || "未选日期" }} 当日送货总览</span>
+        <span class="overview-sub">共 {{ overviewList.length }} 个客户 · 点击卡片查看该客户总表</span>
+      </div>
+      <el-empty
+        v-if="!overviewLoading && !overviewList.length"
+        description="当日暂无已确认订单（送货单=订单的视图，订单确认后即有数据）"
+      />
+      <div v-else class="overview-grid">
+        <el-card
+          v-for="c in overviewList"
+          :key="c.customerId"
+          class="customer-card"
+          shadow="hover"
+          @click="openCustomer(c)"
+        >
+          <div class="card-head">
+            <span class="card-name">{{ c.customerName || "未命名客户" }}</span>
+          </div>
+          <div class="card-stats">
+            <span class="stat"><b>{{ c.pointCount || 0 }}</b> 点</span>
+            <span class="stat"><b>{{ c.orderCount || 0 }}</b> 单</span>
+            <span class="stat"><b>{{ c.totalQuantity || 0 }}</b> 件</span>
+          </div>
+          <div class="card-tags">
+            <el-tag v-if="c.confirmedCount" size="small" type="primary" effect="plain">已确认 {{ c.confirmedCount }}</el-tag>
+            <el-tag v-if="c.deliveredCount" size="small" type="success" effect="plain">已配送 {{ c.deliveredCount }}</el-tag>
+            <el-tag v-if="c.acceptedCount" size="small" type="warning" effect="plain">已验收 {{ c.acceptedCount }}</el-tag>
+            <el-tag v-if="c.settledCount" size="small" type="danger" effect="plain">已结算 {{ c.settledCount }}</el-tag>
+          </div>
+          <div class="card-foot">
+            <span class="card-amount">¥{{ formatAmount(c.totalAmount) }}</span>
+            <el-button link type="primary" size="small" @click.stop="openCustomer(c)">查看总表</el-button>
+          </div>
+        </el-card>
+      </div>
+    </div>
+
     <el-empty
-      v-if="!loading && !hasData"
-      :description="
-        customerId && deliveryDate
-          ? '该客户在此日期没有已确认订单（D-055：送货单=订单的视图，下单即有数据）'
-          : '请选择客户与配送日期'
-      "
+      v-if="customerId && !loading && !hasData"
+      description="该客户在此日期没有已确认订单（D-055：送货单=订单的视图，下单即有数据）"
     />
 
-    <div v-show="hasData" ref="printArea" class="batch-print-area">
+    <div v-show="customerId && hasData" ref="printArea" class="batch-print-area">
       <div class="batch-title">
         {{
           mode === "matrix" ? "配送矩阵总表" : mode === "point" ? "配送点单" : "配货总表"
@@ -184,11 +229,21 @@
 
       <!-- 矩阵总表：列=配送点快照（含当日无单空列），格=分配量，纸面不打价（D-046） -->
       <template v-if="mode === 'matrix'">
-        <div v-if="colBlocks > 1" class="col-block-bar">
-          <span>列块（每页 {{ matrix.colsPerPage }} 个点列，超出横向分页）：</span>
-          <el-radio-group v-model="colBlock" size="small">
-            <el-radio-button v-for="b in colBlocks" :key="b" :value="b">第 {{ b }}/{{ colBlocks }} 块</el-radio-button>
-          </el-radio-group>
+        <div class="col-block-bar">
+          <template v-if="colBlocks > 1">
+            <span>列块（每页 {{ matrixColsPerPage }} 个点列，超出横向分页）：</span>
+            <el-radio-group v-model="colBlock" size="small">
+              <el-radio-button v-for="b in colBlocks" :key="b" :value="b">第 {{ b }}/{{ colBlocks }} 块</el-radio-button>
+            </el-radio-group>
+          </template>
+          <!-- D-075：当日无单空列可折叠（仅页面展示，纸面/快照仍保留列） -->
+          <el-checkbox
+            v-if="emptyColumnCount"
+            v-model="hideEmptyColumns"
+            size="small"
+            class="col-empty-toggle"
+            >折叠当日无单列（{{ emptyColumnCount }}）</el-checkbox
+          >
         </div>
         <el-table v-loading="loading" :data="pagedRows" size="small" border :row-class-name="matrixRowClass">
           <el-table-column label="序号" type="index" width="55" align="center" />
@@ -198,7 +253,6 @@
               <el-tag v-if="scope.row.docKind === 1" size="small" type="warning" effect="plain" class="row-tag">补</el-tag>
             </template>
           </el-table-column>
-          <el-table-column label="规格" align="center" prop="spec" width="110" :show-overflow-tooltip="true" />
           <el-table-column label="单位" align="center" prop="unit" width="70" />
           <el-table-column
             v-for="col in blockColumns"
@@ -218,6 +272,8 @@
               <span :class="{ 'cell-zero': !isQty(scope.row, col) }">{{ cellText(scope.row, col) }}</span>
             </template>
           </el-table-column>
+          <!-- 规格放在备注前一列（D-076） -->
+          <el-table-column label="规格" align="center" prop="spec" width="110" :show-overflow-tooltip="true" />
           <el-table-column label="备注" align="center" width="90">
             <template #default="scope">
               <span>{{ scope.row.remark || "" }}</span>
@@ -230,7 +286,8 @@
           </el-table-column>
         </el-table>
         <div class="batch-footer">
-          共 {{ matrix.rows.length }} 行 · 合计 {{ matrix.totalQuantity }} · 配送点 {{ matrix.columns.length }} 个
+          共 {{ matrix.rows.length }} 行 · 合计 {{ matrix.totalQuantity }} · 配送点 {{ displayColumns.length }} 个
+          <span v-if="hideEmptyColumns && emptyColumnCount" class="footer-hidden">（已折叠当日无单 {{ emptyColumnCount }} 个）</span>
           <span v-if="matrix.layoutVersion">（布局版本 v{{ matrix.layoutVersion }}）</span>
         </div>
       </template>
@@ -286,7 +343,6 @@
               <el-table :data="pointRows" size="small" border>
                 <el-table-column label="订单号" align="center" prop="orderCode" min-width="130" :show-overflow-tooltip="true" />
                 <el-table-column label="商品" align="center" prop="productName" min-width="140" :show-overflow-tooltip="true" />
-                <el-table-column label="规格" align="center" prop="productSpec" width="110" :show-overflow-tooltip="true" />
                 <el-table-column label="单位" align="center" prop="productUnit" width="70" />
                 <el-table-column label="应送" align="center" prop="num" width="90" />
                 <el-table-column label="实收" align="center" width="90">
@@ -302,6 +358,8 @@
                     <span v-else>—</span>
                   </template>
                 </el-table-column>
+                <!-- 规格放在说明（备注类）前一列（D-076） -->
+                <el-table-column label="规格" align="center" prop="productSpec" width="110" :show-overflow-tooltip="true" />
                 <el-table-column label="说明" align="center" prop="changeRemark" min-width="130" :show-overflow-tooltip="true" />
               </el-table>
               <div class="batch-footer">
@@ -328,7 +386,7 @@
 </template>
 
 <script>
-import { batchView, deliveryMatrix, pointViewAllDelivery, getDeliveryPrintState, getPrintManifest } from "@/api/order/delivery";
+import { batchView, deliveryMatrix, pointViewAllDelivery, getDeliveryPrintState, getPrintManifest, deliveryOrderOverview } from "@/api/order/delivery";
 import { listSale } from "@/api/order/sale";
 import { locateAcceptanceByOrder, quickAcceptOrder } from "@/api/acceptance/acceptance";
 import { listCustomer } from "@/api/partner/customer";
@@ -336,13 +394,13 @@ import { issuePrintTicket } from "@/api/print/ticket";
 import { resolvePrintTemplate } from "@/api/print/template";
 import PrintManifestDrawer from "./printManifestDrawer.vue";
 import { defaultDeliveryDate } from "@/utils/index";
-import { Search, Printer, CircleCheck } from "@element-plus/icons-vue";
+import { Search, Printer, CircleCheck, Back } from "@element-plus/icons-vue";
 
 export default {
   name: "DeliveryBatchView",
   components: { PrintManifestDrawer },
   setup() {
-    return { Search, Printer, CircleCheck };
+    return { Search, Printer, CircleCheck, Back };
   },
   data() {
     return {
@@ -350,9 +408,14 @@ export default {
       customers: [],
       customerId: null,
       deliveryDate: null,
+      // 当日全部客户总览（卡片视角）：未选客户时展示
+      overviewList: [],
+      overviewLoading: false,
       // matrix=矩阵总表（菜品×配送点，D-044）；pick=配货总表（不拆价，D-027/28）；point=点单（D-055）
       mode: "matrix",
       colBlock: 1,
+      // D-075：页面折叠「当日无单」空列（纸面/快照不受影响，仅展示层）
+      hideEmptyColumns: false,
       matrix: { columns: [], rows: [], mismatches: [] },
       pickRows: [],
       // 点单口径（D-055 收尾：按当天实际有单的配送点分 tab）
@@ -423,12 +486,26 @@ export default {
       return this.pickRows.length > 0;
     },
     colBlocks() {
-      return Math.max(1, Number(this.matrix.colBlocks || 1));
+      const size = this.matrixColsPerPage;
+      return Math.max(1, Math.ceil(this.displayColumns.length / size));
+    },
+    /** 矩阵列分页大小（列块）；无值时取当前可见列数（不分块） */
+    matrixColsPerPage() {
+      return Number(this.matrix.colsPerPage || 0) || this.displayColumns.length || 1;
+    },
+    /** 矩阵展示列：可选折叠「当日无单」空列（D-075），折叠后列块按可见列重算 */
+    displayColumns() {
+      const cols = this.matrix.columns || [];
+      return this.hideEmptyColumns ? cols.filter((c) => c.hasData) : cols;
+    },
+    /** 当日无单（空）列数（列在纸面仍保留，仅页面可折叠） */
+    emptyColumnCount() {
+      return (this.matrix.columns || []).filter((c) => !c.hasData).length;
     },
     blockColumns() {
-      const size = Number(this.matrix.colsPerPage || 0) || (this.matrix.columns || []).length;
+      const size = this.matrixColsPerPage;
       const start = (this.colBlock - 1) * size;
-      return (this.matrix.columns || []).slice(start, start + size);
+      return this.displayColumns.slice(start, start + size);
     },
     pagedRows() {
       return this.matrix.rows || [];
@@ -463,9 +540,19 @@ export default {
         this.loadView();
       }
     });
+    // 未选客户：配送日期默认有值，进入即按当日汇总所有客户（卡片视角）
+    if (!this.customerId && this.deliveryDate) {
+      this.loadOverview();
+    }
   },
   beforeUnmount() {
     window.removeEventListener("storage", this.onPrintReceipt);
+  },
+  watch: {
+    // 折叠/展开空列后列块数变化，回到第 1 块避免页码越界
+    hideEmptyColumns() {
+      this.colBlock = 1;
+    },
   },
   methods: {
     /** 报表页回执（PT-3）：本客户日的打印分界标识刷新 */
@@ -480,13 +567,63 @@ export default {
         /* 忽略非法回执 */
       }
     },
-    /** 客户切换：清空点单 tab，两个条件齐了自动加载 */
+    /** 客户切换：清空点单 tab；清空客户则回全部客户总览，两个条件齐了自动加载 */
     onCustomerChange(customerId) {
       this.deptId = null;
       this.pointGroups = [];
       this.pointTab = "";
       this.pointRows = [];
+      if (!customerId) {
+        this.loadOverview();
+        return;
+      }
       this.loadView();
+    },
+    /** 配送日期变化：未选客户刷总览，选了客户刷该客户视图 */
+    onDateChange() {
+      this.refresh();
+    },
+    /** 刷新按钮统一入口（总览 / 客户视图） */
+    refresh() {
+      if (this.customerId) {
+        this.loadView();
+      } else {
+        this.loadOverview();
+      }
+    },
+    /** 当日全部客户总览（卡片视角）：D-055 视图化后以已确认订单（status>=1）为口径，一行=一个客户 */
+    loadOverview() {
+      if (!this.deliveryDate) {
+        this.overviewList = [];
+        return;
+      }
+      this.overviewLoading = true;
+      deliveryOrderOverview(this.deliveryDate)
+        .then((response) => {
+          this.overviewList = response.data || [];
+        })
+        .finally(() => {
+          this.overviewLoading = false;
+        });
+    },
+    /** 卡片点击：选中该客户并加载其总表 */
+    openCustomer(c) {
+      this.customerId = c.customerId;
+      this.onCustomerChange(c.customerId);
+    },
+    /** 返回全部客户总览 */
+    backToOverview() {
+      this.customerId = null;
+      this.deptId = null;
+      this.pointGroups = [];
+      this.pointTab = "";
+      this.pointRows = [];
+      this.loadOverview();
+    },
+    /** 金额统一两位小数 */
+    formatAmount(value) {
+      const n = Number(value);
+      return Number.isFinite(n) ? n.toFixed(2) : "0.00";
     },
     loadView() {
       if (!this.customerId || !this.deliveryDate) {
@@ -755,6 +892,86 @@ export default {
   color: #e6a23c;
   font-size: 12px;
 }
+
+/* 当日全部客户总览（卡片视角） */
+.customer-overview {
+  .overview-head {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    margin: 4px 0 14px;
+  }
+  .overview-title {
+    font-size: 16px;
+    font-weight: 700;
+    color: #303133;
+  }
+  .overview-sub {
+    font-size: 12px;
+    color: #909399;
+  }
+  .overview-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(248px, 1fr));
+    gap: 12px;
+  }
+  .customer-card {
+    cursor: pointer;
+    transition: border-color 0.2s;
+    &:hover {
+      border-color: var(--el-color-primary, #409eff);
+    }
+    :deep(.el-card__body) {
+      padding: 12px 14px;
+    }
+  }
+  .card-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 8px;
+  }
+  .card-name {
+    font-size: 15px;
+    font-weight: 600;
+    color: #303133;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .card-stats {
+    display: flex;
+    gap: 14px;
+    margin-bottom: 8px;
+    color: #606266;
+    font-size: 12px;
+    b {
+      font-size: 16px;
+      color: #303133;
+      margin-right: 2px;
+      font-variant-numeric: tabular-nums;
+    }
+  }
+  .card-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-bottom: 10px;
+  }
+  .card-foot {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-top: 1px dashed var(--el-border-color-lighter, #ebeef5);
+    padding-top: 8px;
+  }
+  .card-amount {
+    font-weight: 600;
+    color: #f56c6c;
+    font-variant-numeric: tabular-nums;
+  }
+}
 .batch-view-page {
   .batch-print-area {
     max-width: 1100px;
@@ -778,9 +995,19 @@ export default {
     }
   }
   .col-block-bar {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 12px;
     margin-bottom: 8px;
     font-size: 13px;
     color: #606266;
+    .col-empty-toggle {
+      margin-left: auto;
+    }
+  }
+  .footer-hidden {
+    color: #909399;
   }
   .col-head {
     line-height: 1.4;

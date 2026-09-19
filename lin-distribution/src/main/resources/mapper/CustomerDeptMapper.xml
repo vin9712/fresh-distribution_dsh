@@ -14,6 +14,7 @@
         <result property="address" column="address"/>
         <result property="location" column="location"/>
         <result property="valid" column="valid"/>
+        <result property="sortNo" column="sort_no"/>
         <result property="isDeleted" column="is_deleted"/>
         <result property="createBy" column="create_by"/>
         <result property="createTime" column="create_time"/>
@@ -33,6 +34,7 @@
                address,
                location,
                valid,
+               sort_no,
                is_deleted,
                create_by,
                create_time,
@@ -53,6 +55,7 @@
                tcd.address,
                tcd.location,
                tcd.valid,
+               tcd.sort_no,
                tcd.is_deleted,
                tcd.create_by,
                tcd.create_time,
@@ -91,6 +94,8 @@
                 and tcd.valid = #{valid}
             </if>
         </where>
+        <!-- sort_no=0（未设置）排最后，组内按编号；否则新建/存量未排序点会全部跳到列首 -->
+        order by if(tcd.sort_no = 0, 1, 0) asc, tcd.sort_no asc, tcd.code asc, tcd.id asc
     </select>
 
     <select id="selectCustomerDeptById" parameterType="Long" resultMap="CustomerDeptResult">
@@ -138,6 +143,9 @@
             <if test="valid != null">
                 valid,
             </if>
+            <if test="sortNo != null">
+                sort_no,
+            </if>
             <if test="isDeleted != null">
                 is_deleted,
             </if>
@@ -184,6 +192,9 @@
             </if>
             <if test="valid != null">
                 #{valid},
+            </if>
+            <if test="sortNo != null">
+                #{sortNo},
             </if>
             <if test="isDeleted != null">
                 #{isDeleted},
@@ -236,6 +247,9 @@
             <if test="valid != null">
                 valid = #{valid},
             </if>
+            <if test="sortNo != null">
+                sort_no = #{sortNo},
+            </if>
             <if test="isDeleted != null">
                 is_deleted = #{isDeleted},
             </if>
@@ -280,4 +294,11 @@
         where customer_id = #{customerId} and name = #{name} and is_deleted = 0
           and parent_id is not null and parent_id != 0
     </select>
+
+    <!-- D-074：配送点排序（总单列顺序，小在前） -->
+    <update id="updateSortNo">
+        update t_customer_dept
+        set sort_no = #{sortNo}, update_time = now()
+        where id = #{id}
+    </update>
 </mapper>

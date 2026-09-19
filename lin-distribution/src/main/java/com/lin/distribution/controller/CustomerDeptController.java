@@ -13,6 +13,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -96,6 +97,16 @@ public class CustomerDeptController extends BaseController {
     @PutMapping
     public AjaxResult edit(@RequestBody CustomerDept customerDept) {
         return toAjax(customerDeptService.updateCustomerDept(customerDept));
+    }
+
+    /**
+     * 批量排序配送点（D-074：总单列顺序）
+     */
+    @PreAuthorize("@ss.hasPermi('partner:customerDept:edit')")
+    @Log(title = "客户部门", businessType = BusinessType.UPDATE)
+    @PutMapping("/sort")
+    public AjaxResult sort(@RequestBody @Validated com.lin.distribution.dto.CustomerDeptSortDTO request) {
+        return toAjax(customerDeptService.sortCustomerDepts(request.getCustomerId(), request.getIds()));
     }
 
     /**

@@ -157,16 +157,27 @@ public class SaleOrderController extends BaseController {
 
     /**
      * 获取最近订单列表
-     * 默认获取最近7天
+     * 默认获取最近7天，默认只看「草稿 + 已确认」
      *
-     * @return
+     * @param statuses 需要包含的订单状态（可重复/逗号分隔，如 statuses=0,1）；不传默认 0,1
      */
     @GetMapping("/recent/list")
     public AjaxResult recentList(@RequestParam(name = "customerId", required = false) Long customerId,
                                  @RequestParam(name = "keyword", required = false) String keyword,
                                  @RequestParam(name = "recentDays", required = false, defaultValue = "7")
-                                 @Max(value = 30, message = "recentDays cannot be greater than 30") Integer recentDays) {
-        return success(saleOrderService.selectRecentOrderList(customerId, keyword, recentDays));
+                                 @Max(value = 30, message = "recentDays cannot be greater than 30") Integer recentDays,
+                                 @RequestParam(name = "statuses", required = false) List<Integer> statuses) {
+        return success(saleOrderService.selectRecentOrderList(customerId, keyword, recentDays, statuses));
+    }
+
+    /**
+     * 按订单编号批量查询简报（草稿箱陈旧判定：本地草稿编号已在服务端被保存/推进 → 旧数据应清）
+     *
+     * @param codes 订单编号（可重复/逗号分隔，如 codes=XD001,XD002）
+     */
+    @GetMapping("/by-codes")
+    public AjaxResult byCodes(@RequestParam(name = "codes", required = false) List<String> codes) {
+        return success(saleOrderService.selectBriefByCodes(codes));
     }
 
      /**

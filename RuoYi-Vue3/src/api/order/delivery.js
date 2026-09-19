@@ -20,6 +20,15 @@ export function batchPageDelivery(query) {
   })
 }
 
+// 当日全部客户总览（送货单据页卡片视角：D-055 视图化后以已确认订单为口径，配送日期默认有值）
+export function deliveryOrderOverview(deliveryDate) {
+  return request({
+    url: '/order/delivery/batch/order-overview',
+    method: 'get',
+    params: { deliveryDate }
+  })
+}
+
 // 查询送货单列表
 export function listDelivery(query) {
   return request({

@@ -160,6 +160,24 @@ public class DeliveryBatchServiceImpl implements DeliveryBatchService {
         return new ArrayList<>(byCustomer.values());
     }
 
+    /**
+     * 当日全部客户总览（D-071 卡片视角）：D-055 送货单视图化后以已确认订单（status&gt;=1）为口径，
+     * 按客户聚合单数/点数/数量/金额与各状态数。
+     */
+    @Override
+    public List<com.lin.distribution.vo.DeliveryOrderOverviewVO> selectOrderOverviewByDate(String deliveryDate) {
+        if (StringUtils.isBlank(deliveryDate)) {
+            throw new ServiceException("配送日期不能为空");
+        }
+        LocalDate date;
+        try {
+            date = LocalDate.parse(deliveryDate.trim().substring(0, 10));
+        } catch (Exception e) {
+            throw new ServiceException("配送日期格式非法，应为 yyyy-MM-dd");
+        }
+        return saleOrderDetailMapper.selectOrderOverviewByDate(date);
+    }
+
     /** 打印登记可能无安全上下文（内部调用），回落 system */
     private String currentUsername() {
         try {

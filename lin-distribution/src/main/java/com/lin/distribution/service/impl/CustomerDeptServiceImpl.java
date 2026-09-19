@@ -133,6 +133,29 @@ public class CustomerDeptServiceImpl implements CustomerDeptService {
         return mnemonicCode + customerId + seqNbrStr;
     }
 
+    /**
+     * D-074 配送点排序：按 ids 先后顺序重排为 sortNo = 1..N。
+     * 校验 ids 均属于该客户，避免跨客户误排；空列表/客户为空直接报错。
+     */
+    @Override
+    @org.springframework.transaction.annotation.Transactional
+    public int sortCustomerDepts(Long customerId, List<Long> ids) {
+        if (customerId == null || ids == null || ids.isEmpty()) {
+            throw new ServiceException("客户与排序列表不能为空");
+        }
+        int updated = 0;
+        for (int i = 0; i < ids.size(); i++) {
+            Long id = ids.get(i);
+            CustomerDept dept = customerDeptMapper.selectCustomerDeptById(id);
+            if (dept == null || dept.getIsDeleted() != null && dept.getIsDeleted()
+                    || !customerId.equals(dept.getCustomerId())) {
+                throw new ServiceException("配送点不存在或不属于该客户：" + id);
+            }
+            updated += customerDeptMapper.updateSortNo(id, i + 1);
+        }
+        return updated;
+    }
+
     private void checkUniqueCustomerDept(CustomerDept customerDept) {
         if (customerDept == null) {
             throw new ServiceException("customerDept is null");

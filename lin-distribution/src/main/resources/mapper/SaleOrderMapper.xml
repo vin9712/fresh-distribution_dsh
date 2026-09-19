@@ -256,7 +256,13 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
             <if test="createStartTime != null and createEndTime != null">and so.create_time between
                 #{createStartTime} and #{createEndTime}
             </if>
-            and so.status = '0'
+            <!-- 状态过滤（2026-09-19 灵活化）：不传则由 Service 默认草稿+已确认；传空集合=全部状态 -->
+            <if test="statuses != null and statuses.size() > 0">
+                and so.status in
+                <foreach item="st" collection="statuses" open="(" separator="," close=")">
+                    #{st}
+                </foreach>
+            </if>
             and so.is_deleted = 0
         </where>
         order by so.code desc, so.delivery_date desc
@@ -268,6 +274,17 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
           and so.id in
         <foreach item="id" collection="list" open="(" separator="," close=")">
             #{id}
+        </foreach>
+    </select>
+
+    <!-- 草稿箱陈旧判定：按编号批量取 id/status/update_time（不跑关联子查询，避免无谓开销） -->
+    <select id="selectSaleOrderByCodes" resultMap="SaleOrderResult">
+        select so.id, so.code, so.status, so.update_time
+        from t_sale_order so
+        where so.is_deleted = 0
+          and so.code in
+        <foreach item="c" collection="codes" open="(" separator="," close=")">
+            #{c}
         </foreach>
     </select>
 
