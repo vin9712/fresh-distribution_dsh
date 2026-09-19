@@ -142,6 +142,14 @@ xss:
   # 匹配链接
   urlPatterns: /system/*,/monitor/*,/tool/*
 
+# 打印模块（P2 契约驱动物化）
+lin:
+  print:
+    # JimuReport 服务端回调本系统的取数基址（物化数据集 api_url 前缀）；生产换域名/端口时改这里，不必改库
+    api-base-url: http://localhost:8090
+    # 打印回执钩子版本（/jmreport/desreport_/ext/print-annotation.js?v=N）；升级钩子只改这里
+    annotation-version: '11'
+
 #登录校验白名单接口
 security:
   apiKey: 1f4b4e8ad9bff2737093c47738b28937

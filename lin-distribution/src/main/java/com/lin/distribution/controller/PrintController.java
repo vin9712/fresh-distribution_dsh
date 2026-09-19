@@ -110,9 +110,11 @@ public class PrintController extends BaseController {
         Long deliveryOrderId = body == null ? null : toLong(body.get("deliveryOrderId"));
         Long templateId = body == null ? null : toLong(body.get("templateId"));
         String bizKey = body == null ? null : toBizKey(body.get("bizKey"));
+        // PR-D5：票据用途（print/preview）；预览票据在 /print/receipt 不登记打印分界
+        String scope = body == null ? null : toBizKey(body.get("scope"));
         String ticket = StringUtils.isBlank(bizKey)
-                ? printTicketService.issue(deliveryOrderId, templateId)
-                : printTicketService.issueByBizKey(bizKey, templateId);
+                ? printTicketService.issue(deliveryOrderId, templateId, scope)
+                : printTicketService.issueByBizKey(bizKey, templateId, scope);
         AjaxResult result = AjaxResult.success();
         result.put("ticket", ticket);
         return result;
@@ -123,6 +125,31 @@ public class PrintController extends BaseController {
             return null;
         }
         return String.valueOf(value).trim();
+    }
+
+    @Operation(summary = "打印数据预览（真实订单数据，模板预览用）")
+    @PreAuthorize("@ss.hasAnyPermi('order:delivery:print,print:template:list')")
+    @GetMapping("/previewData")
+    public AjaxResult previewData(@RequestParam("bizKey") String bizKey,
+                                  @RequestParam("ticket") String ticket,
+                                  @RequestParam(value = "rowsType", required = false, defaultValue = "long") String rowsType,
+                                  @RequestParam(value = "emptyCols", required = false, defaultValue = "skip") String emptyCols) {
+        PrintBizKeys.BizKeyInfo info = PrintBizKeys.parse(bizKey);
+        Map<String, Object> resp = new LinkedHashMap<>();
+        if (PrintBizKeys.TYPE_MATRIX.equals(info.getType())) {
+            // 总单：直接复用矩阵取数（head/columns/rows 一次给全），供模板预览数据面板渲染
+            resp.putAll(deliveryMatrixData(null, String.valueOf(info.getCustomerId()),
+                    info.getDeliveryDate(), 1, rowsType, emptyCols, ticket));
+        } else {
+            Map<String, Object> head = deliveryHead(null, String.valueOf(info.getCustomerId()),
+                    String.valueOf(info.getCustomerDeptId()), info.getDeliveryDate(), ticket);
+            Map<String, Object> data = deliveryData(null, String.valueOf(info.getCustomerId()),
+                    String.valueOf(info.getCustomerDeptId()), info.getDeliveryDate(), ticket);
+            resp.put("head", head.get("head"));
+            resp.put("columns", new ArrayList<>());
+            resp.put("rows", data.get("rows"));
+        }
+        return success(resp);
     }
 
     /**
@@ -348,6 +375,7 @@ public class PrintController extends BaseController {
                                                   @RequestParam(value = "deliveryDate", required = false) String deliveryDateParam,
                                                   @RequestParam(value = "colBlock", required = false, defaultValue = "1") Integer colBlock,
                                                   @RequestParam(value = "rowsType", required = false, defaultValue = "wide") String rowsTypeParam,
+                                                  @RequestParam(value = "emptyCols", required = false, defaultValue = "skip") String emptyColsParam,
                                                   @RequestParam(value = "ticket", required = false) String ticket) {
         Long deliveryOrderId = toIdOrNull(deliveryOrderIdParam);
         Long customerId = toIdOrNull(customerIdParam);
@@ -379,19 +407,45 @@ public class PrintController extends BaseController {
         DeliveryMatrixVO matrix = deliveryBatchService.selectMatrix(subjectCustomerId, subjectDate);
 
         int block = colBlock == null || colBlock < 1 ? 1 : colBlock;
-        int totalBlocks = matrix.getColBlocks() == null || matrix.getColBlocks() < 1 ? 1 : matrix.getColBlocks();
-        if (block > totalBlocks) {
-            block = totalBlocks;
-        }
-        final int blockNo = block;
-        List<DeliveryMatrixVO.ColumnVO> blockColumns = matrix.getColumns().stream()
-                .filter(c -> c.getBlockNo() != null && c.getBlockNo().intValue() == blockNo)
-                .collect(Collectors.toList());
-        int slots = matrix.getColsPerPage() == null || matrix.getColsPerPage() <= 0
-                ? Math.max(blockColumns.size(), 1) : matrix.getColsPerPage();
-
         // 列头（未用槽位补空列，套打列位固定；long 模式不补空槽、只输出实际配送点）
         boolean longRows = "long".equalsIgnoreCase(rowsTypeParam);
+        // 长表空列策略（emptyCols）：默认 skip=当天全空配送点不出列（A4 更易容纳）；keep=保留全部启用点。
+        // 仅作用于长表；宽表槽位必须固定（套打列位），不受影响。
+        // skip 时「先剔除全空列、再按 colsPerPage 重新分块」——否则前一块全空、后一块有单会被漏打。
+        // 仍按保留列做「全交叉」输出（无数据的格 num=null），满足横向动态列
+        // 「第一条数据包含全部分组值」规则，列序按 deptSeq 稳定。
+        boolean skipEmptyCols = longRows && !"keep".equalsIgnoreCase(emptyColsParam);
+        int colsPerPage = matrix.getColsPerPage() == null || matrix.getColsPerPage() <= 0
+                ? 0 : matrix.getColsPerPage();
+
+        int totalBlocks;
+        int slots;
+        List<DeliveryMatrixVO.ColumnVO> blockColumns;
+        if (skipEmptyCols) {
+            List<DeliveryMatrixVO.ColumnVO> retained = matrix.getColumns().stream()
+                    .filter(c -> Boolean.TRUE.equals(c.getHasData()))
+                    .collect(Collectors.toList());
+            int cp = colsPerPage > 0 ? colsPerPage : Math.max(retained.size(), 1);
+            totalBlocks = Math.max(1, (int) Math.ceil(retained.size() / (double) cp));
+            if (block > totalBlocks) {
+                block = totalBlocks;
+            }
+            int from = Math.min((block - 1) * cp, retained.size());
+            int to = Math.min(from + cp, retained.size());
+            blockColumns = retained.subList(from, to);
+            slots = Math.max(blockColumns.size(), 1);
+        } else {
+            totalBlocks = matrix.getColBlocks() == null || matrix.getColBlocks() < 1 ? 1 : matrix.getColBlocks();
+            if (block > totalBlocks) {
+                block = totalBlocks;
+            }
+            final int blk = block;
+            blockColumns = matrix.getColumns().stream()
+                    .filter(c -> c.getBlockNo() != null && c.getBlockNo().intValue() == blk)
+                    .collect(Collectors.toList());
+            slots = colsPerPage > 0 ? colsPerPage : Math.max(blockColumns.size(), 1);
+        }
+        final int blockNo = block;
         List<Map<String, Object>> columnMetas = new ArrayList<>();
         if (longRows) {
             int deptSeq = 1;

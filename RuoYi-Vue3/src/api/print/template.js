@@ -136,3 +136,46 @@ export function resolvePrintTemplate(bizKey) {
     params: { bizKey: bizKey }
   })
 }
+
+// 打印数据预览（真实订单数据，模板预览用；ticket 为 scope=preview 的预览票据）
+// bizKey: matrix:{customerId}:{date} / point:{customerId}:{deptId}:{date}
+// 返回 { head, columns, rows }——与真实打印取数同源，仅供页面展示
+// P4（打印模块重构）：
+export function fetchPrintPreviewData(bizKey, ticket, rowsType) {
+  return request({
+    url: '/print/previewData',
+    method: 'get',
+    params: { bizKey: bizKey, ticket: ticket, rowsType: rowsType || 'long' }
+  })
+}
+
+// ==================== P2 数据契约与物化 ====================
+
+// 查询打印数据契约（字段字典 / 数据集 / 参数）：设计器字段面板与模板生成器共用
+// form: MATRIX | FLAT；rowsType: LONG | WIDE（仅 MATRIX 有意义）
+export function getPrintContract(form, rowsType) {
+  return request({
+    url: '/print/template/contract',
+    method: 'get',
+    params: { form: form || 'FLAT', rowsType: rowsType || 'LONG' }
+  })
+}
+
+// 按数据契约重新物化模板接线（幂等）：对齐数据集 URL/转换器/参数 + 补齐打印回执钩子
+export function materializePrintTemplate(id) {
+  return request({
+    url: '/print/template/' + id + '/materialize',
+    method: 'put'
+  })
+}
+
+// 生成打印模板骨架（P3 动态生成）：按形态+客户实际结构产出设计 JSON，替代导入静态样板
+// data: { printForm, rowsType, customerId, deliveryDate, title, paper, layout }
+// 返回 { printForm, rowsType, slots, columns, designJson }
+export function generatePrintTemplate(data) {
+  return request({
+    url: '/print/template/generate',
+    method: 'post',
+    data: data
+  })
+}

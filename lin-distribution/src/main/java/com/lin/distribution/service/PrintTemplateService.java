@@ -5,6 +5,7 @@ import java.util.List;
 import com.lin.distribution.domain.DeliveryOrder;
 import com.lin.distribution.domain.PrintTemplate;
 import com.lin.distribution.domain.PrintTemplateVersion;
+import com.lin.distribution.service.support.JimuReportMaterializer;
 import com.lin.distribution.vo.PrintTemplateResolveVO;
 
 /**
@@ -170,4 +171,15 @@ public interface PrintTemplateService {
      * @return 导入成功数量
      */
     int importTemplates(String packageJson);
+
+    // ==================== P2 契约驱动物化 ====================
+
+    /**
+     * 按数据契约重新物化模板接线（PR-D3，幂等）：对齐数据集 URL/转换器/参数、补齐打印回执钩子。
+     * 用于修复「数据集靠 SQL 手工维护、URL 硬编码 localhost、模板漏挂回执钩子」。
+     *
+     * @param id 模板ID
+     * @return 物化结果摘要
+     */
+    JimuReportMaterializer.MaterializeResult materialize(Long id);
 }

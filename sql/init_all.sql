@@ -4871,6 +4871,48 @@ SELECT 2, '夜班', 'NIGHT', 'biz_shift_type', '', 'warning', 'N', '0', 'admin',
 WHERE NOT EXISTS (SELECT 1 FROM `sys_dict_data` WHERE `dict_type` = 'biz_shift_type' AND `dict_value` = 'NIGHT');
 
 -- ============================================================
+-- [s37] 打印模块重构 P0：版本快照含版式设计 JSON（修 PR-A1/A2）  | 源: s37_print_refactor_p0.sql
+-- ============================================================
+SET @col_exists := (
+    SELECT COUNT(*) FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 't_print_template_version' AND COLUMN_NAME = 'design_json'
+);
+SET @ddl := IF(@col_exists = 0,
+    'ALTER TABLE `t_print_template_version`
+        ADD COLUMN `design_json` LONGTEXT NULL
+            COMMENT ''版式设计JSON快照(jimu_report.json_str)：回滚/导出载荷(PR-D2)'' AFTER `content`',
+    'SELECT 1');
+PREPARE stmt FROM @ddl;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @col_exists := (
+    SELECT COUNT(*) FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 't_print_template_version' AND COLUMN_NAME = 'report_id'
+);
+SET @ddl := IF(@col_exists = 0,
+    'ALTER TABLE `t_print_template_version`
+        ADD COLUMN `report_id` varchar(64) NULL
+            COMMENT ''该版本物化出的 JimuReport 报表ID（审计/复现）'' AFTER `design_json`',
+    'SELECT 1');
+PREPARE stmt FROM @ddl;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @col_exists := (
+    SELECT COUNT(*) FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 't_print_template_version' AND COLUMN_NAME = 'dataset_spec'
+);
+SET @ddl := IF(@col_exists = 0,
+    'ALTER TABLE `t_print_template_version`
+        ADD COLUMN `dataset_spec` LONGTEXT NULL
+            COMMENT ''数据接线快照(契约版本/端点/参数)：导出迁移自包含(PR-D3)'' AFTER `report_id`',
+    'SELECT 1');
+PREPARE stmt FROM @ddl;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+-- ============================================================
 -- 初始化结束
 -- ============================================================
 SET FOREIGN_KEY_CHECKS = 1;

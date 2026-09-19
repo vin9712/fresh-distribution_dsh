@@ -188,6 +188,33 @@ class PrintTicketServiceImplTest {
     }
 
     @Test
+    void 签发票据_scope归一化与预览票据() {
+        String previewTicket = printTicketService.issueByBizKey("matrix:10:2026-09-03", null, PrintTicketPayload.SCOPE_PREVIEW);
+        ArgumentCaptor<Object> captor = ArgumentCaptor.forClass(Object.class);
+        verify(redisCache).setCacheObject(eq(PrintTicketServiceImpl.UNUSED_KEY + previewTicket),
+                captor.capture(), eq(PrintTicketServiceImpl.UNUSED_TTL_SECONDS), eq(TimeUnit.SECONDS));
+        assertEquals(PrintTicketPayload.SCOPE_PREVIEW, ((PrintTicketPayload) captor.getValue()).getScope());
+
+        // 空/非法 scope 归一化为真实打印
+        String printTicket = printTicketService.issue(500L, null, "whatever");
+        ArgumentCaptor<Object> captor2 = ArgumentCaptor.forClass(Object.class);
+        verify(redisCache).setCacheObject(eq(PrintTicketServiceImpl.UNUSED_KEY + printTicket),
+                captor2.capture(), eq(PrintTicketServiceImpl.UNUSED_TTL_SECONDS), eq(TimeUnit.SECONDS));
+        assertEquals(PrintTicketPayload.SCOPE_PRINT, ((PrintTicketPayload) captor2.getValue()).getScope());
+    }
+
+    @Test
+    void 回执领取_预览票据不登记打印分界() {
+        String ticket = PrintTicketService.TICKET_PREFIX + "preview1";
+        PrintTicketPayload preview = new PrintTicketPayload("clerk", null, "matrix:10:2026-09-03", 1L,
+                PrintTicketPayload.SCOPE_PREVIEW);
+        when(redisCache.getCacheObject(PrintTicketServiceImpl.UNUSED_KEY + ticket)).thenReturn(preview);
+
+        // PR-D5：预览票据回执返回 null → 不写 t_delivery_print_log
+        assertNull(printTicketService.consumeForReceipt(ticket));
+    }
+
+    @Test
     void 两次签发票据互不相同() {
         String t1 = printTicketService.issue(500L, null);
         String t2 = printTicketService.issue(500L, null);

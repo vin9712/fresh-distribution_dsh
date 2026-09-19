@@ -1,5 +1,10 @@
 # 金鸿楼、金兴楼、丽宫、大长江总单导入记录
 
+> ⚠️ **P1（打印模块重构）已退役静态样板导入**：`JimuSampleImporter` 与 `*-source.json` 静态样板已移除/归档
+> （见 `docs/assets/print/archive/`）。本文件保留为**历史记录**；新增客户模板请用
+> 「打印模板 → 新增 → 生成骨架」（`PrintTemplateGenerator`，按当前数据契约 + 客户实际结构动态生成），
+> 不要再执行 `tests/import-hotel-print-samples.mjs` 的静态样板分支。
+
 ## 已落库（2026-09-18）
 
 | 客户 | 客户 ID | 静态模板 ID | 动态总单模板 ID | 动态报表 ID | 槽位 |
@@ -40,10 +45,10 @@
 
 ## 文件与复跑
 
-- `*-source.json`：完整源文件，可经 `/print/template/import` 导入静态样板。
-- `*-matrix-sheet.json`：本次生成的动态设计 JSON（不是开放导入包）；完整报表还需 `hm`/`dm` 数据集和参数。
-- `import-result.json` / `ligong-import-result.json` / `dachangjiang-import-result.json`：本次客户、模板、报表编号、槽位数与配送点集合。
-- `tests/import-hotel-print-samples.mjs`：显式数据操作脚本，客户/点/静态样板/业务模板走系统 API；独立动态报表及其数据集、字段、参数在 MySQL 事务内创建。默认金鸿楼/金兴楼；`--ligong` 仅补丽宫；`--dachangjiang` 仅补大长江（均含序列校准）；默认建草稿，`--publish` 调用正式发布接口生成版本。
+- `*-source.json`：**已归档**到 `docs/assets/print/archive/`（P1 退役，不再导入）。
+- `*-matrix-sheet.json`：当时生成的动态设计 JSON（不是开放导入包）。
+- `import-result.json` / `ligong-import-result.json` / `dachangjiang-import-result.json`：当时客户、模板、报表编号、槽位数与配送点集合。
+- `tests/import-hotel-print-samples.mjs`：**已删除**（P1）。静态样板导入退役；新增客户模板请用打印模板页的「生成骨架」（`PrintTemplateGenerator`，按当前数据契约 + 客户实际结构动态生成）。
 - `tests/e2e-hotel-print.mjs`：只读预览验证，自动选每家最近有单日期；无单客户断言空矩阵，截图在 `test-results/hotel-print/`。
 - `tests/e2e-pick-shift.mjs`：只读验证配货总表按班次展开（大长江真实订单日 vs 未启用班次的客户对照），并检查同一页矩阵总表的四列班次列头；截图在 `test-results/pick-shift/`。
 - `tests/e2e-shift-dept-form.mjs`：只读检查配送点编辑弹窗的班次回显（不保存）。
@@ -52,17 +57,10 @@
 - `tests/e2e-shift-dup-and-pick.mjs`：验证「选完班次后配送点/班次不消失」与「判重按班次」（同班次命中、不同班次不拦、未启用客户忽略班次），并校验 UI 提示带班次；临时单用完即删。
 - `tests/e2e-shift-entry-gate.mjs`：验证未选班次时明细录入区被拦（商品面板空态提示「请选择班次」、加行被拦且行数不变、选了班次后解除、未启用班次的客户无提示）。
 
-运行导入前先确认 API 和 MySQL 指向同一环境并备份数据库，通过环境变量提供 `ERP_USER`、`ERP_PASSWORD`、`MYSQL_HOST`、`MYSQL_USER`、`MYSQL_PWD`、`MYSQL_DATABASE`，可选 `API_BASE`（默认本地 1025/dev-api）。脚本不内置凭据。
+运行只读验证前先确认 API 和 MySQL 指向同一环境。
 
 ```sh
-node tests/import-hotel-print-samples.mjs                 # 金鸿楼/金兴楼
-node tests/import-hotel-print-samples.mjs --ligong        # 丽宫
-node tests/import-hotel-print-samples.mjs --dachangjiang  # 大长江
 node tests/e2e-hotel-print.mjs
-# 预览确认后发布
-node tests/import-hotel-print-samples.mjs --publish                 # 金鸿楼/金兴楼
-node tests/import-hotel-print-samples.mjs --ligong --publish        # 丽宫
-node tests/import-hotel-print-samples.mjs --dachangjiang --publish  # 大长江
 node tests/e2e-hotel-print.mjs --published
 ```
 

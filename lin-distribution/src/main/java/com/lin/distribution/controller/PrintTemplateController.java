@@ -1,6 +1,8 @@
 package com.lin.distribution.controller;
 
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -169,6 +171,48 @@ public class PrintTemplateController extends BaseController {
         return toAjax(printTemplateService.recordPreview(id, deliveryOrderId));
     }
 
+    /**
+     * 查询打印数据契约（PR-D3）：字段字典 / 数据集 / 参数，供设计器字段面板与模板生成器共用
+     */
+    @Operation(summary = "查询打印数据契约")
+    @PreAuthorize("@ss.hasPermi('print:template:list')")
+    @GetMapping("/contract")
+    public AjaxResult contract(@RequestParam(value = "form", required = false, defaultValue = "FLAT") String form,
+                               @RequestParam(value = "rowsType", required = false, defaultValue = "LONG") String rowsType) {
+        com.lin.distribution.service.support.PrintDataContract.Form f =
+                com.lin.distribution.service.support.PrintDataContract.formOf(form);
+        com.lin.distribution.service.support.PrintDataContract.RowsShape shape =
+                com.lin.distribution.service.support.PrintDataContract.shapeOf(rowsType);
+        Map<String, Object> resp = new LinkedHashMap<>();
+        resp.put("form", f.name());
+        resp.put("rowsType", shape.name());
+        resp.put("fields", com.lin.distribution.service.support.PrintDataContract.fields(f, shape));
+        resp.put("params", com.lin.distribution.service.support.PrintDataContract.params(f));
+        List<Map<String, Object>> dataSets = new java.util.ArrayList<>();
+        for (com.lin.distribution.service.support.PrintDataContract.DataSet ds
+                : com.lin.distribution.service.support.PrintDataContract.dataSets(f, shape)) {
+            Map<String, Object> item = new LinkedHashMap<>();
+            item.put("dbCode", ds.dbCode());
+            item.put("chName", ds.chName());
+            item.put("list", ds.list());
+            item.put("fields", com.lin.distribution.service.support.PrintDataContract.fieldsOfDataSet(ds.dbCode(), shape));
+            dataSets.add(item);
+        }
+        resp.put("dataSets", dataSets);
+        return success(resp);
+    }
+
+    /**
+     * 按数据契约重新物化模板接线（PR-D3，幂等）：对齐数据集 URL/转换器/参数 + 补齐打印回执钩子
+     */
+    @Operation(summary = "重新物化打印模板接线")
+    @PreAuthorize("@ss.hasPermi('print:template:edit')")
+    @Log(title = "打印模板", businessType = BusinessType.UPDATE)
+    @PutMapping("/{id}/materialize")
+    public AjaxResult materialize(@PathVariable("id") Long id) {
+        return success(printTemplateService.materialize(id));
+    }
+
     // ==================== W0-6 模板导入导出 ====================
 
     /**
@@ -184,30 +228,30 @@ public class PrintTemplateController extends BaseController {
     }
 
     /**
-     * 导入模板包（全有或全无安全校验、20MB 上限、禁止网络资源、导入后未绑定草稿）
+     * 导入模板包（全有或全无安全校验、20MB 上限、禁止网络资源、导入后未绑定草稿并物化报表）
+     *
+     * <p>P1：已移除「静态样板 create 导入」分支——静态样板导入器退役，
+     * 模板改由「骨架生成（P3）+ 设计器」产出，不再从静态 JSON 建报表。</p>
      */
     @Operation(summary = "导入打印模板")
     @PreAuthorize("@ss.hasPermi('print:template:edit')")
     @Log(title = "打印模板", businessType = BusinessType.IMPORT)
     @PostMapping("/import")
     public AjaxResult importTemplate(@RequestBody String packageJson) {
-        // 创建配置与旧开放包共用入口，但静态样板必须实际创建 Jimu 报表，不能把 JSON 当报表 ID。
-        // 长度口径与 JimuSampleImporter.validate 一致用 UTF-8 字节（String.length() 是 UTF-16 char 数，
-        // 多字节中文包会被低估，边界大小的 create 包会误路由到旧 importTemplates）
-        int byteLen = packageJson == null ? 0 : packageJson.getBytes(java.nio.charset.StandardCharsets.UTF_8).length;
-        if (byteLen > 0 && byteLen <= com.lin.distribution.service.support.TemplateContentGovernor.IMPORT_MAX_BYTES) {
-            try {
-                com.alibaba.fastjson2.JSONObject config = com.alibaba.fastjson2.JSON.parseObject(packageJson);
-                if (config != null && "create".equals(config.getString("action"))) {
-                    return success(jimuSampleImporter.importSample(packageJson));
-                }
-            } catch (com.alibaba.fastjson2.JSONException e) {
-                throw new com.lin.common.exception.ServiceException("导入包不是合法 JSON 对象");
-            }
-        }
         return success(printTemplateService.importTemplates(packageJson));
     }
 
     @Autowired
-    private com.lin.distribution.service.support.JimuSampleImporter jimuSampleImporter;
+    private com.lin.distribution.service.support.PrintTemplateGenerator printTemplateGenerator;
+
+    /**
+     * 生成打印模板骨架（P3 动态生成，PR-D4）：按形态+客户实际结构产出设计 JSON，
+     * 替代「导入静态 JSON 样板」。生成结果为草稿内容，提交时由后端物化为报表。
+     */
+    @Operation(summary = "生成打印模板骨架")
+    @PreAuthorize("@ss.hasPermi('print:template:edit')")
+    @PostMapping("/generate")
+    public AjaxResult generate(@RequestBody com.lin.distribution.dto.PrintTemplateGenerateDTO req) {
+        return success(printTemplateGenerator.generate(req));
+    }
 }

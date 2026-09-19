@@ -34,8 +34,8 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
 
     <select id="selectPrintTemplateList" parameterType="com.lin.distribution.domain.PrintTemplate" resultMap="PrintTemplateResult">
         <include refid="selectPrintTemplateVo"/>
-        <where>
-            <if test="customerId != null "> and customer_id = #{customerId}</if>
+        where is_deleted = 0
+        <if test="customerId != null "> and customer_id = #{customerId}</if>
             <if test="code != null  and code != ''"> and code = #{code}</if>
             <if test="name != null  and name != ''"> and name like concat('%', #{name}, '%')</if>
             <if test="type != null "> and type = #{type}</if>
@@ -44,13 +44,12 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
             <if test="deliveryPointId != null "> and delivery_point_id = #{deliveryPointId}</if>
             <if test="isDefault != null and isDefault != ''"> and is_default = #{isDefault}</if>
             <if test="status != null "> and status = #{status}</if>
-        </where>
         order by id desc
     </select>
 
     <select id="selectPrintTemplateById" parameterType="Long" resultMap="PrintTemplateResult">
         <include refid="selectPrintTemplateVo"/>
-        where id = #{id}
+        where id = #{id} and is_deleted = 0
     </select>
 
     <!-- P1/D-048 绑定解析：按打印形态 + 绑定层级路由（bind_type 升序 = 客户+配送点 > 客户 > 全局默认）。
@@ -179,19 +178,14 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         where id = #{id}
     </update>
 
-    <delete id="deletePrintTemplateById" parameterType="Long">
-        delete from t_print_template where id = #{id}
-    </delete>
+    <update id="deletePrintTemplateById" parameterType="Long">
+        update t_print_template set is_deleted = 1 where id = #{id}
+    </update>
 
-    <delete id="deletePrintTemplateByIds" parameterType="String">
-        delete from t_print_template where id in
+    <update id="deletePrintTemplateByIds" parameterType="String">
+        update t_print_template set is_deleted = 1 where id in
         <foreach item="id" collection="array" open="(" separator="," close=")">
             #{id}
         </foreach>
-    </delete>
-
-    <!-- W0-6：资源引用扫描（删除前校验历史引用资源不可物理删除） -->
-    <select id="countContentLike" parameterType="String" resultType="int">
-        select count(1) from t_print_template where content like concat('%', #{keyword}, '%')
-    </select>
+    </update>
 </mapper>

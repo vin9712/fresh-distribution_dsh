@@ -8,6 +8,9 @@
         <result property="versionNo"       column="version_no"      />
         <result property="name"            column="name"            />
         <result property="content"         column="content"         />
+        <result property="designJson"      column="design_json"     />
+        <result property="reportId"        column="report_id"       />
+        <result property="datasetSpec"     column="dataset_spec"    />
         <result property="bindType"        column="bind_type"       />
         <result property="printForm"       column="print_form"       />
         <result property="customerId"      column="customer_id"     />
@@ -19,7 +22,8 @@
     </resultMap>
 
     <sql id="selectVo">
-        select id, template_id, version_no, name, content, bind_type, print_form, customer_id, delivery_point_id,
+        select id, template_id, version_no, name, content, design_json, report_id, dataset_spec,
+               bind_type, print_form, customer_id, delivery_point_id,
                copies, published_by, published_time, remark
         from t_print_template_version
     </sql>
@@ -49,6 +53,9 @@
             <if test="versionNo != null">version_no,</if>
             <if test="name != null">name,</if>
             <if test="content != null">content,</if>
+            <if test="designJson != null">design_json,</if>
+            <if test="reportId != null">report_id,</if>
+            <if test="datasetSpec != null">dataset_spec,</if>
             <if test="bindType != null">bind_type,</if>
             <if test="printForm != null and printForm != ''">print_form,</if>
             <if test="customerId != null">customer_id,</if>
@@ -63,6 +70,9 @@
             <if test="versionNo != null">#{versionNo},</if>
             <if test="name != null">#{name},</if>
             <if test="content != null">#{content},</if>
+            <if test="designJson != null">#{designJson},</if>
+            <if test="reportId != null">#{reportId},</if>
+            <if test="datasetSpec != null">#{datasetSpec},</if>
             <if test="bindType != null">#{bindType},</if>
             <if test="printForm != null and printForm != ''">#{printForm},</if>
             <if test="customerId != null">#{customerId},</if>
@@ -73,10 +83,5 @@
             <if test="remark != null">#{remark},</if>
         </trim>
     </insert>
-
-    <!-- W0-6：版本资源引用扫描（历史引用资源不可物理删除） -->
-    <select id="countContentLike" parameterType="String" resultType="int">
-        select count(1) from t_print_template_version where content like concat('%', #{keyword}, '%')
-    </select>
 
 </mapper>

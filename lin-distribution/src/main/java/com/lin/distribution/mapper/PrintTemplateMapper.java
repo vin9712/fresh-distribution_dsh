@@ -92,11 +92,6 @@ public interface PrintTemplateMapper {
     int deletePrintTemplateById(Long id);
 
     /**
-     * W0-6：统计 content 包含某关键字的模板数（资源引用扫描，删除前校验）
-     */
-    int countContentLike(String keyword);
-
-    /**
      * 批量删除打印模板
      *
      * @param ids 需要删除的数据主键集合

@@ -107,54 +107,54 @@
     />
 
     <el-table v-loading="loading" :data="templateList" @selection-change="handleSelectionChange">
-      <el-table-column type="selection" width="55" align="center" />
-      <el-table-column label="模板编号" align="center" prop="code" width="160" />
-      <el-table-column label="模板名称" align="center" prop="name" :show-overflow-tooltip="true" />
-      <el-table-column label="类型" align="center" prop="type" width="90">
+      <el-table-column type="selection" width="50" align="center" />
+      <el-table-column label="模板编号" align="center" prop="code" width="150" />
+      <el-table-column label="模板名称" align="center" prop="name" min-width="240" :show-overflow-tooltip="true" />
+      <el-table-column label="类型" align="center" prop="type" width="80">
         <template #default="scope">
           <dict-tag :options="dict.type.t_print_template_type" :value="scope.row.type" />
         </template>
       </el-table-column>
-      <el-table-column label="绑定类型" align="center" width="120">
+      <el-table-column label="绑定类型" align="center" width="100">
         <template #default="scope">
           <el-tag size="small" :type="bindTagType(scope.row.bindType)">{{ bindTypeText(scope.row.bindType) }}</el-tag>
         </template>
       </el-table-column>
-      <el-table-column label="打印形态" align="center" width="110">
+      <el-table-column label="打印形态" align="center" width="100">
         <template #default="scope">
           <el-tag size="small" :type="scope.row.printForm === 'MATRIX' ? 'warning' : 'info'">
             {{ scope.row.printForm === 'MATRIX' ? '总单·矩阵' : '点单平铺' }}
           </el-tag>
         </template>
       </el-table-column>
-      <el-table-column label="客户" align="center" width="150">
+      <el-table-column label="客户" align="center" width="140">
         <template #default="scope">
           <span v-if="scope.row.bindType === 1 || scope.row.bindType === 2">{{ customerName(scope.row.customerId) }}<span class="id-muted">（ID {{ scope.row.customerId }}）</span></span>
           <span v-else>—</span>
         </template>
       </el-table-column>
-      <el-table-column label="配送点" align="center" width="130">
+      <el-table-column label="配送点" align="center" width="120">
         <template #default="scope">
           <span v-if="scope.row.bindType === 1">{{ deptName(scope.row.deliveryPointId) }}<span class="id-muted">（ID {{ scope.row.deliveryPointId }}）</span></span>
           <span v-else>—</span>
         </template>
       </el-table-column>
       <el-table-column label="联数" align="center" prop="copies" width="60" />
-      <el-table-column label="状态" align="center" width="90">
+      <el-table-column label="状态" align="center" width="80">
         <template #default="scope">
           <el-tag size="small" :type="statusTagType(scope.row.status)">{{ statusText(scope.row.status) }}</el-tag>
         </template>
       </el-table-column>
-      <el-table-column label="测试水印" align="center" width="90">
+      <el-table-column label="测试水印" align="center" width="85">
         <template #default="scope">
           <el-tag v-if="scope.row.testWatermark" size="small" type="danger">水印中</el-tag>
           <span v-else>-</span>
         </template>
       </el-table-column>
-      <el-table-column label="打印报表" align="center" prop="content" width="170" :show-overflow-tooltip="true">
+      <el-table-column label="打印报表" align="center" prop="content" width="150" :show-overflow-tooltip="true">
         <template #default="scope">{{ jimuReportLabel(scope.row.content) }}</template>
       </el-table-column>
-      <el-table-column label="操作" align="center" class-name="small-padding fixed-width" width="330">
+      <el-table-column label="操作" align="center" class-name="small-padding fixed-width" width="300" fixed="right">
         <template #default="scope">
           <el-tooltip
             content="已发布模板不可直接修改，请修改后走「测试发布 → 发布」生成新版本"
@@ -178,7 +178,7 @@
             link
             :icon="View"
             v-if="scope.row.content"
-            @click="openView(scope.row)"
+            @click="openPreview(scope.row)"
             >预览</el-button
           >
           <el-tooltip
@@ -247,6 +247,21 @@
             @click="openVersions(scope.row)"
             >版本</el-button
           >
+          <el-tooltip
+            content="按数据契约重新对齐该模板的报表接线（数据集URL/参数 + 打印回执钩子），幂等"
+            placement="top"
+          >
+            <span>
+              <el-button
+                size="small"
+                link
+                :icon="Refresh"
+                @click="handleMaterialize(scope.row)"
+                v-hasPermi="['print:template:edit']"
+                >重接</el-button
+              >
+            </span>
+          </el-tooltip>
           <el-button
             size="small"
             link
@@ -355,22 +370,37 @@
         <el-form-item label="联数（打印份数）" prop="copies">
           <el-input-number v-model="form.copies" :min="1" :max="10" style="width: 100%" />
         </el-form-item>
+        <el-form-item v-if="form.printForm === 'MATRIX'" label="行形态">
+          <el-radio-group v-model="genRowsType">
+            <el-radio value="LONG">长表·横向动态列（推荐）</el-radio>
+            <el-radio value="WIDE">宽表·槽位套打</el-radio>
+          </el-radio-group>
+          <div class="form-tip">长表：配送点增减模板零改动；宽表：列位固定，槽位数按客户当日布局生成</div>
+        </el-form-item>
         <el-form-item label="打印报表" prop="content">
-          <el-select
-            v-model="form.content"
-            filterable
-            clearable
-            :loading="jimuLoading"
-            placeholder="选择积木报表"
-            style="width: 100%"
-          >
-            <el-option
-              v-for="r in jimuReports"
-              :key="r.id"
-              :label="r.name + '（' + r.code + '）'"
-              :value="r.id"
-            />
-          </el-select>
+          <div style="display: flex; gap: 8px; width: 100%">
+            <el-select
+              v-model="form.content"
+              filterable
+              clearable
+              :loading="jimuLoading"
+              placeholder="选择积木报表，或点右侧「生成骨架」"
+              style="flex: 1"
+            >
+              <el-option
+                v-for="r in jimuReports"
+                :key="r.id"
+                :label="r.name + '（' + r.code + '）'"
+                :value="r.id"
+              />
+            </el-select>
+            <el-button :loading="genLoading" @click="handleGenerate" v-hasPermi="['print:template:edit']"
+              >生成骨架</el-button
+            >
+          </div>
+          <div v-if="contentIsDesign" class="hint" style="color: #e6a23c">
+            已生成骨架（提交时自动物化为报表）；也可从上方选择已有积木报表。
+          </div>
           <div class="hint">
             从积木报表设计器中选择本模板对应的报表，无需手工复制 ID；
             <el-link type="primary" :underline="false" style="font-size: 12px" @click="openDesigner">打开设计器新建</el-link>
@@ -452,6 +482,159 @@
       </el-table>
     </el-dialog>
 
+    <!-- 真实数据预览（P4）：数据面板 + 真实版式 iframe；预览票据 scope=preview，不翻转打印分界 -->
+    <el-dialog
+      align-center
+      title="打印预览（真实订单数据）"
+      v-model="previewOpen"
+      width="1080px"
+      append-to-body
+      @closed="onPreviewClosed"
+    >
+      <el-form :inline="true" size="small" class="preview-form">
+        <el-form-item label="模板">
+          <span class="preview-tpl">{{ previewTemplate.name }}</span>
+          <el-tag size="small" :type="previewTemplate.printForm === 'MATRIX' ? 'warning' : 'info'">
+            {{ previewTemplate.printForm === 'MATRIX' ? '总单·矩阵' : '点单平铺' }}
+          </el-tag>
+        </el-form-item>
+        <el-form-item label="客户">
+          <el-select
+            v-model="previewCustomerId"
+            filterable
+            clearable
+            placeholder="选择客户"
+            style="width: 180px"
+            @change="onPreviewCustomerChange"
+          >
+            <el-option v-for="c in previewCustomerOptions" :key="c.id" :label="c.label" :value="c.id" />
+          </el-select>
+        </el-form-item>
+        <el-form-item v-if="previewNeedDept" label="配送点">
+          <el-select v-model="previewDeptId" filterable clearable placeholder="选择配送点" style="width: 160px">
+            <el-option v-for="d in previewDeptOptions" :key="d.id" :label="d.label" :value="d.id" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="配送日期">
+          <el-date-picker
+            v-model="previewDate"
+            type="date"
+            value-format="YYYY-MM-DD"
+            placeholder="选择日期"
+            style="width: 150px"
+          />
+        </el-form-item>
+        <el-form-item>
+          <el-button type="primary" size="small" :loading="previewLoading" @click="loadPreviewData">加载真实数据</el-button>
+          <el-button size="small" :disabled="!previewSubjectReady" @click="openPreviewView">版式预览</el-button>
+        </el-form-item>
+      </el-form>
+
+      <el-alert
+        v-if="previewHint"
+        :title="previewHint"
+        type="info"
+        :closable="false"
+        show-icon
+        style="margin-bottom: 8px"
+      />
+
+      <el-tabs v-model="previewTab" @tab-change="onPreviewTabChange">
+        <el-tab-pane label="数据预览" name="data">
+          <div v-loading="previewLoading" class="preview-data">
+            <el-descriptions
+              v-if="previewHeadKeys.length"
+              title="表头数据（head）"
+              :column="3"
+              border
+              size="small"
+              style="margin-bottom: 12px"
+            >
+              <el-descriptions-item v-for="k in previewHeadKeys" :key="k" :label="k">
+                {{ formatPreviewValue(previewData.head[k]) }}
+              </el-descriptions-item>
+            </el-descriptions>
+            <el-table v-if="previewRowKeys.length" :data="previewData.rows" size="small" border max-height="360">
+              <el-table-column
+                v-for="k in previewRowKeys"
+                :key="k"
+                :prop="k"
+                :label="k"
+                min-width="90"
+                show-overflow-tooltip
+              />
+            </el-table>
+            <el-empty v-else description="选择客户与配送日期后点击「加载真实数据」" />
+          </div>
+        </el-tab-pane>
+        <el-tab-pane label="版式预览" name="view">
+          <div v-if="previewViewUrl" class="preview-toolbar">
+            <el-switch
+              v-model="previewEditMode"
+              active-text="单元格临时调整"
+              @change="onPreviewEditToggle"
+            />
+            <el-button size="small" :disabled="!previewViewUrl" @click="printPreviewFrame">打印（含调整）</el-button>
+            <el-button size="small" :disabled="!previewOverrideCount" @click="clearCellOverrides">
+              清除调整{{ previewOverrideCount ? "（" + previewOverrideCount + "）" : "" }}
+            </el-button>
+            <span class="hint">开启后点任意单元格即可改字；仅本次预览/打印生效，不改模板</span>
+          </div>
+          <iframe
+            v-if="previewViewUrl"
+            ref="previewFrame"
+            :src="previewViewUrl"
+            class="preview-frame"
+            @load="onPreviewFrameLoad"
+          />
+          <el-empty v-else description="点击「版式预览」加载真实版式（预览不登记打印分界）" />
+        </el-tab-pane>
+        <el-tab-pane label="字段字典" name="contract">
+          <div v-loading="contractLoading">
+            <el-radio-group
+              v-if="contractForm === 'MATRIX'"
+              v-model="contractShape"
+              size="small"
+              style="margin-bottom: 8px"
+              @change="loadContract"
+            >
+              <el-radio-button value="LONG">总单长表</el-radio-button>
+              <el-radio-button value="WIDE">总单宽表</el-radio-button>
+            </el-radio-group>
+            <el-alert
+              :title="`形态 ${contractForm} · 行形态 ${contractShape} · 与打印取数同源（PrintDataContract）`"
+              type="info"
+              :closable="false"
+              show-icon
+              style="margin-bottom: 8px"
+            />
+            <el-collapse v-if="contractData">
+              <el-collapse-item
+                v-for="ds in contractData.dataSets"
+                :key="ds.dbCode"
+                :name="ds.dbCode"
+                :title="ds.dbCode + ' · ' + ds.chName + '（' + (ds.fields || []).length + ' 字段）'"
+              >
+                <el-table :data="ds.fields" size="small" border max-height="260">
+                  <el-table-column prop="code" label="字段" width="150" />
+                  <el-table-column prop="text" label="名称" />
+                  <el-table-column prop="type" label="类型" width="110" />
+                  <el-table-column prop="section" label="分节" width="100" />
+                </el-table>
+              </el-collapse-item>
+            </el-collapse>
+            <el-empty v-else description="加载字段字典中…" />
+          </div>
+        </el-tab-pane>
+      </el-tabs>
+
+      <template #footer>
+        <div class="dialog-footer">
+          <el-button @click="previewOpen = false">关 闭</el-button>
+        </div>
+      </template>
+    </el-dialog>
+
   </div>
 </template>
 
@@ -470,7 +653,7 @@ import {
   importPrintTemplate,
 } from "@/api/print/template";
 import { issuePrintTicket } from "@/api/print/ticket";
-import { listJimuReports } from "@/api/print/template";
+import { listJimuReports, fetchPrintPreviewData, getPrintContract, materializePrintTemplate, generatePrintTemplate } from "@/api/print/template";
 import { listCustomer } from "@/api/partner/customer";
 import { listCustomerDept } from "@/api/partner/customerDept";
 import { Search, Refresh, Plus, Delete, Edit, View, Brush, Clock, Download, Upload, Picture, CopyDocument } from "@element-plus/icons-vue";
@@ -543,6 +726,27 @@ export default {
       // 积木报表设计器可用报表清单
       jimuReports: [],
       jimuLoading: false,
+      // P3 骨架生成
+      genRowsType: "LONG",
+      genLoading: false,
+      // 真实数据预览（P4）：预览票据 scope=preview，不翻转打印分界
+      previewOpen: false,
+      previewTemplate: {},
+      previewTab: "data",
+      previewCustomerId: null,
+      previewDeptId: null,
+      previewDate: null,
+      previewLoading: false,
+      previewData: {},
+      previewViewUrl: "",
+      previewHint: "",
+      // 版式预览：单元格临时调整（仅本次预览/打印生效，不改模板）
+      previewEditMode: false,
+      previewOverrideCount: 0,
+      // 字段字典（P2 数据契约）
+      contractLoading: false,
+      contractData: null,
+      contractShape: "LONG",
     };
   },
   computed: {
@@ -553,11 +757,47 @@ export default {
       }
       return this.customerTree;
     },
+    /** 预览：总单（MATRIX）只需客户+日期；点单（FLAT）需客户+配送点+日期 */
+    previewNeedDept() {
+      return this.previewTemplate.printForm !== "MATRIX";
+    },
+    previewCustomerOptions() {
+      return this.customerTree.map((c) => ({ id: c.customerId, label: c.label }));
+    },
+    previewDeptOptions() {
+      const c = this.customerTree.find((x) => String(x.customerId) === String(this.previewCustomerId));
+      return c && c.children ? c.children.map((d) => ({ id: d.deliveryPointId, label: d.label })) : [];
+    },
+    previewHeadKeys() {
+      return this.previewData && this.previewData.head ? Object.keys(this.previewData.head) : [];
+    },
+    previewRowKeys() {
+      const rows = this.previewData && this.previewData.rows;
+      return rows && rows.length ? Object.keys(rows[0]) : [];
+    },
+    previewSubjectReady() {
+      return (
+        !!this.previewCustomerId &&
+        !!this.previewDate &&
+        (!this.previewNeedDept || !!this.previewDeptId)
+      );
+    },
+    /** 契约形态：与模板打印形态一致 */
+    contractForm() {
+      return this.previewTemplate.printForm === "MATRIX" ? "MATRIX" : "FLAT";
+    },
+    /** 表单 content 是否为「生成的设计 JSON」（而非报表ID） */
+    contentIsDesign() {
+      return typeof this.form.content === "string" && this.form.content.trim().startsWith("{");
+    },
   },
   created() {
     this.getPageList();
     this.loadCustomerTree();
     this.loadJimuReports();
+  },
+  beforeUnmount() {
+    this.stopCellEditorPolling();
   },
   methods: {
     getPageList() {
@@ -826,6 +1066,38 @@ export default {
         })
         .catch(() => {});
     },
+    /**
+     * 生成模板骨架（P3）：按形态+客户实际结构产出设计 JSON，填入 content；
+     * 提交时后端自动物化为报表（无需手工选报表/复制 ID）。
+     */
+    handleGenerate() {
+      if (!this.form.printForm) {
+        this.$modal.msgWarning("请先选择打印形态");
+        return;
+      }
+      this.genLoading = true;
+      generatePrintTemplate({
+        printForm: this.form.printForm,
+        rowsType: this.form.printForm === "MATRIX" ? this.genRowsType : "LONG",
+        customerId: this.form.customerId && this.form.customerId !== 0 ? this.form.customerId : null,
+        deliveryDate: new Date().toISOString().slice(0, 10),
+        title: this.form.name || null,
+      })
+        .then((res) => {
+          const d = res.data || {};
+          this.form.content = d.designJson;
+          this.form.printForm = d.printForm || this.form.printForm;
+          this.$modal.msgSuccess(
+            d.rowsType === "WIDE"
+              ? `已生成宽表骨架（${d.slots} 槽位），提交时自动物化为报表`
+              : "已生成骨架，提交时自动物化为报表"
+          );
+        })
+        .catch(() => {})
+        .finally(() => {
+          this.genLoading = false;
+        });
+    },
     /** 加载积木报表清单（设计器里保存后点刷新即可见） */
     loadJimuReports() {
       this.jimuLoading = true;
@@ -881,12 +1153,258 @@ export default {
         window.open("/jmreport/list?token=" + res.ticket, "_blank");
       });
     },
-    /** 预览 JimuReport 模板视图 */
+    /** 预览 JimuReport 模板视图（无数据主体；测试发布预览用） */
     openView(row) {
       // W0-4.1：同上，票据只绑模板不绑单据
       issuePrintTicket({ templateId: row.content }).then((res) => {
         window.open("/jmreport/view/" + row.content + "?token=" + res.ticket, "_blank");
       });
+    },
+
+    // ==================== 真实数据预览（P4，打印模块重构） ====================
+
+    /** 打开预览弹窗：默认客户/配送点取模板绑定，日期取今天 */
+    openPreview(row) {
+      this.previewTemplate = row;
+      this.previewTab = "data";
+      this.previewData = {};
+      this.previewViewUrl = "";
+      this.previewHint = "";
+      this.previewEditMode = false;
+      this.previewOverrideCount = 0;
+      this.stopCellEditorPolling();
+      this.contractData = null;
+      this.contractShape = "LONG";
+      this.previewDate = new Date().toISOString().slice(0, 10);
+      this.previewCustomerId = row.customerId && row.customerId !== 0 ? row.customerId : null;
+      this.previewDeptId = row.deliveryPointId || null;
+      this.previewOpen = true;
+    },
+    onPreviewClosed() {
+      this.previewViewUrl = "";
+      this.stopCellEditorPolling();
+      this.previewEditMode = false;
+    },
+    // ==================== 版式预览：单元格临时调整（本次打印临时，不改模板） ====================
+
+    /** 覆盖项存储键：按 模板+打印主体 隔离 */
+    cellOverrideKey() {
+      return "print_cell_override:" + (this.previewTemplate.id || "") + ":" + this.previewBizKey();
+    },
+    loadCellOverrides() {
+      try {
+        return JSON.parse(localStorage.getItem(this.cellOverrideKey()) || "{}") || {};
+      } catch (e) {
+        return {};
+      }
+    },
+    saveCellOverrides(map) {
+      try {
+        localStorage.setItem(this.cellOverrideKey(), JSON.stringify(map));
+        this.previewOverrideCount = Object.keys(map).length;
+      } catch (e) {
+        /* 配额/隐私模式：忽略，仅本次会话生效 */
+      }
+    },
+    /** iframe 加载完成：恢复上次调整数量，必要时开启编辑 */
+    onPreviewFrameLoad() {
+      this.previewOverrideCount = Object.keys(this.loadCellOverrides()).length;
+      if (this.previewEditMode) {
+        this.startCellEditorPolling();
+      }
+    },
+    onPreviewEditToggle(v) {
+      if (v) {
+        this.bindCellEditor();
+        this.startCellEditorPolling();
+      } else {
+        this.stopCellEditorPolling();
+      }
+    },
+    startCellEditorPolling() {
+      this.stopCellEditorPolling();
+      let ticks = 0;
+      this._cellTimer = setInterval(() => {
+        ticks += 1;
+        this.bindCellEditor();
+        if (ticks >= 30) {
+          this.stopCellEditorPolling();
+        }
+      }, 800);
+    },
+    stopCellEditorPolling() {
+      if (this._cellTimer) {
+        clearInterval(this._cellTimer);
+        this._cellTimer = null;
+      }
+    },
+    /**
+     * 给预览 iframe 内的报表单元格绑定「点击改字」并回放已保存的调整。
+     * 单元格锚点 = 表格序:行序:列序（同一模板+主体下结构稳定）；报告异步渲染，故轮询重绑。
+     */
+    bindCellEditor() {
+      const iframe = this.$refs.previewFrame;
+      let doc = null;
+      try {
+        doc = iframe && iframe.contentDocument;
+      } catch (e) {
+        return; // 跨域不可控（正常同源，代理下成立）
+      }
+      if (!doc || !doc.body) return;
+      const overrides = this.loadCellOverrides();
+      doc.querySelectorAll("table").forEach((table, ti) => {
+        table.querySelectorAll("tr").forEach((tr, ri) => {
+          Array.from(tr.children).forEach((cell, ci) => {
+            const anchor = ti + ":" + ri + ":" + ci;
+            const editing = doc.activeElement === cell && cell.getAttribute("contenteditable") === "true";
+            if (!editing && overrides[anchor] !== undefined && cell.textContent !== overrides[anchor]) {
+              cell.textContent = overrides[anchor];
+            }
+            if (cell.dataset.previewBound === "1") return;
+            cell.dataset.previewBound = "1";
+            cell.style.cursor = "text";
+            cell.title = "点击编辑（本次打印临时调整，不改模板）";
+            cell.addEventListener("click", () => {
+              if (!this.previewEditMode) return;
+              cell.setAttribute("contenteditable", "true");
+              cell.focus();
+            });
+            cell.addEventListener("blur", () => {
+              if (cell.getAttribute("contenteditable") !== "true") return;
+              cell.setAttribute("contenteditable", "false");
+              const map = this.loadCellOverrides();
+              map[anchor] = cell.textContent;
+              this.saveCellOverrides(map);
+            });
+          });
+        });
+      });
+    },
+    /** 清除本次调整并重载版式（丢弃已应用的改动） */
+    clearCellOverrides() {
+      try {
+        localStorage.removeItem(this.cellOverrideKey());
+      } catch (e) {
+        /* 忽略 */
+      }
+      this.previewOverrideCount = 0;
+      const url = this.previewViewUrl;
+      this.previewViewUrl = "";
+      this.$nextTick(() => {
+        this.previewViewUrl = url;
+      });
+    },
+    /** 打印预览 iframe（含临时调整） */
+    printPreviewFrame() {
+      const iframe = this.$refs.previewFrame;
+      if (iframe && iframe.contentWindow) {
+        iframe.contentWindow.print();
+      }
+    },
+    /** 切到字段字典标签时懒加载契约 */
+    onPreviewTabChange(name) {
+      if (name === "contract" && !this.contractData) {
+        this.loadContract();
+      }
+    },
+    onPreviewCustomerChange() {
+      this.previewDeptId = null;
+    },
+    /** 预览主体键（与打印主体键同构，PrintBizKeys 契约） */
+    previewBizKey() {
+      return this.previewNeedDept
+        ? `point:${this.previewCustomerId}:${this.previewDeptId}:${this.previewDate}`
+        : `matrix:${this.previewCustomerId}:${this.previewDate}`;
+    },
+    /** 签发预览票据（scope=preview：/print/receipt 不登记打印分界） */
+    async issuePreviewTicket() {
+      const res = await issuePrintTicket({
+        bizKey: this.previewBizKey(),
+        templateId: this.previewTemplate.id,
+        scope: "preview",
+      });
+      return res.ticket;
+    },
+    /** 加载真实订单数据（head/columns/rows，与真实打印取数同源） */
+    async loadPreviewData() {
+      if (!this.previewSubjectReady) {
+        this.$modal.msgWarning("请先选择客户/日期" + (this.previewNeedDept ? "/配送点" : ""));
+        return;
+      }
+      this.previewLoading = true;
+      this.previewHint = "";
+      try {
+        const ticket = await this.issuePreviewTicket();
+        const res = await fetchPrintPreviewData(this.previewBizKey(), ticket, "long");
+        this.previewData = res.data || {};
+        if (!this.previewData.rows || !this.previewData.rows.length) {
+          this.previewHint = "该主体当日没有已确认订单，请确认客户/日期是否正确";
+        }
+        this.previewTab = "data";
+      } catch (e) {
+        this.$modal.msgError("加载预览数据失败：" + ((e && e.message) || "未知错误"));
+      } finally {
+        this.previewLoading = false;
+      }
+    },
+    /** 版式预览：iframe 内嵌真实 JimuReport 视图（预览票据，不登记分界） */
+    async openPreviewView() {
+      if (!this.previewSubjectReady) {
+        this.$modal.msgWarning("请先选择客户/日期" + (this.previewNeedDept ? "/配送点" : ""));
+        return;
+      }
+      try {
+        const ticket = await this.issuePreviewTicket();
+        const parts = this.previewBizKey().split(":");
+        let url =
+          "/jmreport/view/" + this.previewTemplate.content +
+          "?token=" + ticket + "&ticket=" + ticket + "&deliveryOrderId=";
+        if (parts[0] === "matrix") {
+          url += "&customerId=" + parts[1] + "&deliveryDate=" + parts[2];
+        } else {
+          url += "&customerId=" + parts[1] + "&customerDeptId=" + parts[2] + "&deliveryDate=" + parts[3];
+        }
+        this.previewViewUrl = url;
+        this.previewTab = "view";
+      } catch (e) {
+        this.$modal.msgError("打开版式预览失败：" + ((e && e.message) || "未知错误"));
+      }
+    },
+    formatPreviewValue(v) {
+      if (v === null || v === undefined) return "";
+      if (Array.isArray(v)) return v.join("；");
+      if (typeof v === "object") return JSON.stringify(v);
+      return String(v);
+    },
+    /** 加载字段字典（P2 数据契约）：与打印取数同源，供模板作者对照字段 */
+    loadContract() {
+      this.contractLoading = true;
+      getPrintContract(this.contractForm, this.contractShape)
+        .then((res) => {
+          this.contractData = res.data || null;
+        })
+        .catch(() => {
+          this.contractData = null;
+        })
+        .finally(() => {
+          this.contractLoading = false;
+        });
+    },
+    /** 按数据契约重新物化模板接线（幂等） */
+    handleMaterialize(row) {
+      this.$modal
+        .confirm(
+          `按数据契约重新对齐【${row.name}】的报表接线（数据集URL/参数 + 打印回执钩子）？幂等操作，可重复执行。`
+        )
+        .then(() => materializePrintTemplate(row.id))
+        .then((res) => {
+          const r = res.data || {};
+          this.$modal.msgSuccess(
+            `物化完成：数据集新增 ${r.dataSetInserted || 0} / 更新 ${r.dataSetUpdated || 0}，` +
+              `参数补 ${r.paramInserted || 0}，回执钩子${r.annotationHookUpdated ? "已更新" : "无变化"}`
+          );
+        })
+        .catch(() => {});
     },
     // ==================== W0-6 模板导入导出与资源治理 ====================
     /** 导出当前行为开放 JSON 包（脱敏，可选携带历史版本） */
@@ -949,5 +1467,27 @@ export default {
 .id-muted {
   color: #909399;
   font-size: 12px;
+}
+.preview-form {
+  margin-bottom: 4px;
+}
+.preview-tpl {
+  margin-right: 8px;
+  font-weight: 600;
+}
+.preview-data {
+  min-height: 200px;
+}
+.preview-frame {
+  width: 100%;
+  height: 640px;
+  border: 0;
+}
+.preview-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
 }
 </style>

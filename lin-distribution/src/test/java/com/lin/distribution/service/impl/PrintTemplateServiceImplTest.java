@@ -43,6 +43,8 @@ class PrintTemplateServiceImplTest {
     private com.lin.distribution.mapper.PrintTemplateVersionMapper printTemplateVersionMapper;
     @Mock
     private com.lin.distribution.mapper.PrintPreviewLogMapper printPreviewLogMapper;
+    @Mock
+    private com.lin.distribution.service.support.JimuReportMaterializer reportMaterializer;
 
     @InjectMocks
     private PrintTemplateServiceImpl printTemplateService;
@@ -211,6 +213,55 @@ class PrintTemplateServiceImplTest {
     }
 
     @Test
+    void 发布快照应包含版式设计JSON() {
+        PrintTemplate t = draftTemplate();
+        // 真实模板 content 存的是报表ID，不是设计 JSON
+        t.setContent("2599000000000000001");
+        when(printTemplateMapper.selectPrintTemplateById(1L)).thenReturn(t);
+        when(printTemplateVersionMapper.selectMaxVersionNo(1L)).thenReturn(0);
+        when(printTemplateMapper.updatePrintTemplate(any(PrintTemplate.class))).thenReturn(1);
+        when(printTemplateVersionMapper.insert(any(com.lin.distribution.domain.PrintTemplateVersion.class))).thenReturn(1);
+        when(reportMaterializer.selectDesign("2599000000000000001"))
+                .thenReturn("{\"schemaVersion\":1,\"rows\":{}}");
+
+        printTemplateService.publish(1L, "初版");
+
+        ArgumentCaptor<com.lin.distribution.domain.PrintTemplateVersion> vc =
+                ArgumentCaptor.forClass(com.lin.distribution.domain.PrintTemplateVersion.class);
+        verify(printTemplateVersionMapper).insert(vc.capture());
+        // PR-A1：版本快照必须真正带上版式，否则回滚只回滚指针
+        assertEquals("{\"schemaVersion\":1,\"rows\":{}}", vc.getValue().getDesignJson());
+        assertEquals("2599000000000000001", vc.getValue().getReportId());
+    }
+
+    @Test
+    void 回滚有版式快照时重建报表并重指content() {
+        when(printTemplateMapper.selectPrintTemplateById(1L)).thenReturn(draftTemplate());
+        com.lin.distribution.domain.PrintTemplateVersion source = new com.lin.distribution.domain.PrintTemplateVersion();
+        source.setId(10L);
+        source.setTemplateId(1L);
+        source.setVersionNo(1);
+        source.setName("旧版");
+        source.setContent("OLD_REPORT");
+        source.setDesignJson("{\"schemaVersion\":1,\"rows\":{}}");
+        source.setBindType(3);
+        source.setCopies(1);
+        when(printTemplateVersionMapper.selectById(10L)).thenReturn(source);
+        when(printTemplateVersionMapper.selectMaxVersionNo(1L)).thenReturn(1);
+        when(printTemplateMapper.updatePrintTemplate(any(PrintTemplate.class))).thenReturn(1);
+        when(printTemplateMapper.selectPrintTemplateById(1L)).thenReturn(sourceToRestored());
+        when(printTemplateVersionMapper.insert(any(com.lin.distribution.domain.PrintTemplateVersion.class))).thenReturn(1);
+        when(reportMaterializer.cloneReport(anyString(), anyString(), any(), any())).thenReturn("NEW_REPORT");
+
+        printTemplateService.rollback(1L, 10L, null);
+
+        // PR-A1：回滚必须把模板重新指向「以历史版式重建的新报表」
+        ArgumentCaptor<PrintTemplate> restored = ArgumentCaptor.forClass(PrintTemplate.class);
+        verify(printTemplateMapper).updatePrintTemplate(restored.capture());
+        assertEquals("NEW_REPORT", restored.getValue().getContent());
+    }
+
+    @Test
     void 回滚从历史版本发布新版本() {
         when(printTemplateMapper.selectPrintTemplateById(1L)).thenReturn(draftTemplate());
         com.lin.distribution.domain.PrintTemplateVersion source = new com.lin.distribution.domain.PrintTemplateVersion();
@@ -267,6 +318,43 @@ class PrintTemplateServiceImplTest {
         verify(printPreviewLogMapper).insert(captor.capture());
         assertEquals(1L, captor.getValue().getTemplateId());
         assertEquals(500L, captor.getValue().getDeliveryOrderId());
+    }
+
+    // ==================== P3 骨架生成物化 ====================
+
+    @Test
+    void 新增模板content为设计JSON时物化为报表() {
+        PrintTemplate t = new PrintTemplate();
+        t.setName("骨架模板");
+        t.setContent("{\"schemaVersion\":1,\"rows\":{}}");
+        t.setPrintForm("MATRIX");
+        when(printTemplateMapper.selectBindTemplate(0L, null, "MATRIX")).thenReturn(null);
+        when(reportMaterializer.createReport(anyString(), anyString(), any())).thenReturn("RPT_NEW");
+        when(printTemplateMapper.insertPrintTemplate(any(PrintTemplate.class))).thenReturn(1);
+
+        printTemplateService.insertPrintTemplate(t);
+
+        ArgumentCaptor<PrintTemplate> captor = ArgumentCaptor.forClass(PrintTemplate.class);
+        verify(printTemplateMapper).insertPrintTemplate(captor.capture());
+        assertEquals("RPT_NEW", captor.getValue().getContent(), "设计 JSON 必须物化为报表ID");
+        verify(reportMaterializer).ensureMaterialized(eq("RPT_NEW"), any());
+    }
+
+    @Test
+    void 新增模板content为报表ID时不重复物化() {
+        PrintTemplate t = new PrintTemplate();
+        t.setName("已有报表模板");
+        t.setContent("2099000000000000001");
+        t.setPrintForm("FLAT");
+        when(printTemplateMapper.insertPrintTemplate(any(PrintTemplate.class))).thenReturn(1);
+
+        printTemplateService.insertPrintTemplate(t);
+
+        ArgumentCaptor<PrintTemplate> captor = ArgumentCaptor.forClass(PrintTemplate.class);
+        verify(printTemplateMapper).insertPrintTemplate(captor.capture());
+        assertEquals("2099000000000000001", captor.getValue().getContent());
+        verify(reportMaterializer, org.mockito.Mockito.never())
+                .ensureMaterialized(anyString(), any());
     }
 
     // ==================== 按打印主体键解析模板（PT-1，《客户日报表打印优化设计》） ====================

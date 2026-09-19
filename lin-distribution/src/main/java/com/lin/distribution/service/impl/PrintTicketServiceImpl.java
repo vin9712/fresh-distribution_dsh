@@ -34,21 +34,33 @@ public class PrintTicketServiceImpl implements PrintTicketService {
 
     @Override
     public String issue(Long deliveryOrderId, Long templateId) {
-        return issue(deliveryOrderId, templateId, null);
+        return issue(deliveryOrderId, templateId, PrintTicketPayload.SCOPE_PRINT);
+    }
+
+    @Override
+    public String issue(Long deliveryOrderId, Long templateId, String scope) {
+        return issue(deliveryOrderId, templateId, null, scope);
     }
 
     @Override
     public String issueByBizKey(String bizKey, Long templateId) {
-        return issue(null, templateId, bizKey);
+        return issueByBizKey(bizKey, templateId, PrintTicketPayload.SCOPE_PRINT);
     }
 
-    private String issue(Long deliveryOrderId, Long templateId, String bizKey) {
+    @Override
+    public String issueByBizKey(String bizKey, Long templateId, String scope) {
+        return issue(null, templateId, bizKey, scope);
+    }
+
+    private String issue(Long deliveryOrderId, Long templateId, String bizKey, String scope) {
         String username = SecurityUtils.getUsername();
         String ticket = TICKET_PREFIX + IdUtils.fastSimpleUUID();
-        PrintTicketPayload payload = new PrintTicketPayload(username, deliveryOrderId, bizKey, templateId);
+        String normalizedScope = PrintTicketPayload.SCOPE_PREVIEW.equals(scope)
+                ? PrintTicketPayload.SCOPE_PREVIEW : PrintTicketPayload.SCOPE_PRINT;
+        PrintTicketPayload payload = new PrintTicketPayload(username, deliveryOrderId, bizKey, templateId, normalizedScope);
         redisCache.setCacheObject(UNUSED_KEY + ticket, payload, UNUSED_TTL_SECONDS, TimeUnit.SECONDS);
-        log.info("[print-ticket] issued user={} deliveryOrderId={} bizKey={} templateId={}",
-                username, deliveryOrderId, bizKey, templateId);
+        log.info("[print-ticket] issued user={} scope={} deliveryOrderId={} bizKey={} templateId={}",
+                username, normalizedScope, deliveryOrderId, bizKey, templateId);
         return ticket;
     }
 
@@ -96,9 +108,15 @@ public class PrintTicketServiceImpl implements PrintTicketService {
         PrintTicketPayload payload = claimUnused(ticket);
         if (payload != null) {
             redisCache.setCacheObject(USED_KEY + ticket, payload, USED_GRACE_SECONDS, TimeUnit.SECONDS);
-            return payload;
+        } else {
+            payload = redisCache.getCacheObject(USED_KEY + ticket);
         }
-        return redisCache.getCacheObject(USED_KEY + ticket);
+        // PR-D5：预览票据不得登记打印分界（避免预览污染 D-055 分界）；历史负载 scope 为空视为真实打印
+        if (payload != null && PrintTicketPayload.SCOPE_PREVIEW.equals(payload.getScope())) {
+            log.info("[print-ticket] 预览票据不回执登记 ticket={}", ticket);
+            return null;
+        }
+        return payload;
     }
 
     /**

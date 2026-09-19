@@ -22,6 +22,8 @@ import com.lin.distribution.mapper.PrintPreviewLogMapper;
 import com.lin.distribution.mapper.PrintTemplateMapper;
 import com.lin.distribution.mapper.PrintTemplateVersionMapper;
 import com.lin.distribution.service.PrintTemplateService;
+import com.lin.distribution.service.support.JimuReportMaterializer;
+import com.lin.distribution.service.support.PrintDataContract;
 import com.lin.distribution.service.support.TemplateContentGovernor;
 import com.lin.distribution.util.PrintBizKeys;
 import com.lin.distribution.vo.DeliveryMatrixLayout;
@@ -46,6 +48,7 @@ public class PrintTemplateServiceImpl implements PrintTemplateService {
     private final PrintTemplateVersionMapper printTemplateVersionMapper;
     private final PrintPreviewLogMapper printPreviewLogMapper;
     private final TemplateContentGovernor contentGovernor;
+    private final JimuReportMaterializer reportMaterializer;
 
     /**
      * 查询打印模板
@@ -157,6 +160,8 @@ public class PrintTemplateServiceImpl implements PrintTemplateService {
     @Transactional
     public int insertPrintTemplate(PrintTemplate printTemplate) {
         normalizeNew(printTemplate);
+        // P3：content 为设计 JSON（骨架生成/手工粘贴）时先物化为报表
+        materializeDesignIfNeeded(printTemplate);
         printTemplate.setCreateTime(DateUtils.getNowDate());
         return printTemplateMapper.insertPrintTemplate(printTemplate);
     }
@@ -177,6 +182,8 @@ public class PrintTemplateServiceImpl implements PrintTemplateService {
         // 草稿/已测试保存不动状态；若传入新版内容，仍为草稿（发布走 publish）
         printTemplate.setStatus(PrintTemplateStatus.DRAFT.getCode());
         printTemplate.setTestWatermark(Boolean.FALSE);
+        // P3：content 为设计 JSON 时先物化为报表（设计器保存/骨架再生成）
+        materializeDesignIfNeeded(printTemplate);
         printTemplate.setUpdateTime(DateUtils.getNowDate());
         return printTemplateMapper.updatePrintTemplate(printTemplate);
     }
@@ -207,6 +214,8 @@ public class PrintTemplateServiceImpl implements PrintTemplateService {
     public int publish(Long id, String remark) {
         PrintTemplate template = getExist(id);
         validatePublishGate(template);
+        // PR-D3：发布前按数据契约对齐接线（数据集 URL/转换器/参数 + 回执钩子），幂等
+        materializeQuietly(template);
         int nextVersion = printTemplateVersionMapper.selectMaxVersionNo(id) + 1;
 
         PrintTemplate update = new PrintTemplate();
@@ -237,11 +246,19 @@ public class PrintTemplateServiceImpl implements PrintTemplateService {
         }
         int nextVersion = printTemplateVersionMapper.selectMaxVersionNo(templateId) + 1;
 
+        // PR-D2：有版式快照则重建报表（新报表ID，含数据集接线），使回滚真正回滚版式；
+        // 无快照（历史版本）则回退旧语义（仅恢复报表ID）
+        String restoredReportId = null;
+        if (StringUtils.isNotBlank(source.getDesignJson())) {
+            restoredReportId = reportMaterializer.cloneReport(
+                    template.getContent(), source.getDesignJson(), source.getName(), null);
+        }
+
         // 以版本快照回填当前模板（名称/内容/绑定/联数）
         PrintTemplate restore = new PrintTemplate();
         restore.setId(templateId);
         restore.setName(source.getName());
-        restore.setContent(source.getContent());
+        restore.setContent(restoredReportId != null ? restoredReportId : source.getContent());
         restore.setBindType(source.getBindType());
         restore.setPrintForm(source.getPrintForm());
         restore.setCustomerId(source.getCustomerId());
@@ -366,6 +383,9 @@ public class PrintTemplateServiceImpl implements PrintTemplateService {
         version.setVersionNo(versionNo);
         version.setName(template.getName());
         version.setContent(template.getContent());
+        // PR-D2：版本快照必须含版式设计 JSON（jimu_report.json_str），否则回滚/导出只回滚了报表指针（修 PR-A1/A2）
+        version.setDesignJson(designOf(template.getContent()));
+        version.setReportId(template.getContent());
         version.setBindType(template.getBindType());
         version.setPrintForm(template.getPrintForm());
         version.setCustomerId(template.getCustomerId());
@@ -420,11 +440,13 @@ public class PrintTemplateServiceImpl implements PrintTemplateService {
         tpl.put("type", template.getType());
         tpl.put("renderEngine", template.getRenderEngine());
         tpl.put("copies", template.getCopies());
-        // 脱敏后的 content
-        JSONObject content = contentGovernor.parseContent(template.getContent());
+        // 脱敏后的 content：以「版式设计 JSON」为载荷（真实模板 content 存的是报表ID，
+        // 旧实现直接 parseContent(content) 会对数字ID 抛「模板内容必须为 JSON 对象」——修 PR-A2）
+        JSONObject content = parseDesign(template.getContent());
         content = contentGovernor.ensureSchemaVersion(content);
         content = contentGovernor.sanitize(content);
         tpl.put("content", content);
+        tpl.put("printForm", template.getPrintForm());
 
         if (includeVersions) {
             List<PrintTemplateVersion> versions = printTemplateVersionMapper.selectListByTemplateId(id);
@@ -436,7 +458,7 @@ public class PrintTemplateServiceImpl implements PrintTemplateService {
                 vm.put("copies", v.getCopies());
                 vm.put("publishedTime", v.getPublishedTime());
                 vm.put("remark", v.getRemark());
-                JSONObject vc = contentGovernor.parseContent(v.getContent());
+                JSONObject vc = parseDesign(StringUtils.defaultIfBlank(v.getDesignJson(), v.getContent()));
                 vc = contentGovernor.ensureSchemaVersion(vc);
                 vm.put("content", contentGovernor.sanitize(vc));
                 versionList.add(vm);
@@ -497,7 +519,18 @@ public class PrintTemplateServiceImpl implements PrintTemplateService {
             // 未绑定：全局默认草稿，须重走完整发布门禁
             JSONObject content = contentGovernor.ensureSchemaVersion(t.getJSONObject("content"));
             content = contentGovernor.migrate(content);
-            template.setContent(JSON.toJSONString(content));
+            String designJson = JSON.toJSONString(content);
+            // 物化报表：同形态全局默认作参照（连带数据集接线），无参照则裸建（须在设计器中接线）
+            String printForm = StringUtils.defaultIfBlank(t.getString("printForm"), DeliveryMatrixLayout.FORM_FLAT);
+            PrintTemplate reference = printTemplateMapper.selectBindTemplate(0L, null, printForm);
+            String reportId = (reference == null || StringUtils.isBlank(reference.getContent()))
+                    ? reportMaterializer.createReport(designJson, template.getName(), null)
+                    : reportMaterializer.cloneReport(reference.getContent(), designJson, template.getName(), null);
+            // content 契约始终是「报表ID」（PR-D1：jimu_report 是物化产物）
+            template.setContent(reportId);
+            template.setPrintForm(printForm);
+            // PR-D3：导入即按契约对齐接线（克隆自参照报表时已带接线，此处保证 URL/参数/钩子一致）
+            materializeQuietly(template);
             template.setBindType(3);
             template.setCustomerId(0L);
             template.setIsDefault("0");
@@ -540,6 +573,92 @@ public class PrintTemplateServiceImpl implements PrintTemplateService {
         }
         // 安全校验（schemaVersion 兼容 + 禁止网络资源）
         contentGovernor.validateImport(content);
+    }
+
+    /**
+     * 按数据契约重新物化模板接线（PR-D3，幂等）
+     */
+    @Override
+    @Transactional
+    public JimuReportMaterializer.MaterializeResult materialize(Long id) {
+        PrintTemplate template = getExist(id);
+        if (isRawDesign(template.getContent())) {
+            throw new ServiceException("模板尚未物化报表（content 为设计JSON），请先在设计器中保存或从全局模板复制");
+        }
+        return reportMaterializer.ensureMaterialized(template.getContent(),
+                PrintDataContract.formOf(template.getPrintForm()));
+    }
+
+    /**
+     * 物化接线（容错版）：仅当 content 是报表ID 时执行；失败仅记日志，不阻断发布/导入主流程。
+     */
+    private void materializeQuietly(PrintTemplate template) {
+        if (StringUtils.isBlank(template.getContent()) || isRawDesign(template.getContent())) {
+            return;
+        }
+        try {
+            reportMaterializer.ensureMaterialized(template.getContent(),
+                    PrintDataContract.formOf(template.getPrintForm()));
+        } catch (Exception e) {
+            log.warn("[print template] 物化接线失败（不阻断主流程）template={} content={}: {}",
+                    template.getCode(), template.getContent(), e.getMessage());
+        }
+    }
+
+    /** content 是否为「设计 JSON」而非报表ID */
+    private boolean isRawDesign(String content) {
+        return StringUtils.isNotBlank(content) && content.trim().startsWith("{");
+    }
+
+    /**
+     * content 为设计 JSON 时物化为报表（P3 骨架生成 / 手工粘贴设计）：
+     * 同形态全局默认作参照（连带数据集接线）克隆；无参照则裸建后按契约补齐接线。
+     */
+    private void materializeDesignIfNeeded(PrintTemplate template) {
+        if (!isRawDesign(template.getContent())) {
+            return;
+        }
+        String designJson = template.getContent();
+        String printForm = StringUtils.defaultIfBlank(template.getPrintForm(), DeliveryMatrixLayout.FORM_FLAT);
+        PrintTemplate reference = printTemplateMapper.selectBindTemplate(0L, null, printForm);
+        boolean noReference = reference == null || StringUtils.isBlank(reference.getContent())
+                || isRawDesign(reference.getContent());
+        String reportId = noReference
+                ? reportMaterializer.createReport(designJson, template.getName(), null)
+                : reportMaterializer.cloneReport(reference.getContent(), designJson, template.getName(), null);
+        reportMaterializer.ensureMaterialized(reportId, PrintDataContract.formOf(printForm));
+        template.setContent(reportId);
+        template.setPrintForm(printForm);
+    }
+
+    /**
+     * content → 版式设计 JSON（PR-D1 兼容层）：content 为 {@code \{} 开头} 视为设计 JSON，
+     * 否则视为报表ID去查 {@code jimu_report.json_str}。兼容存量「content=报表ID」与
+     * 导入/物化中间态「content=设计 JSON」两种形态。
+     */
+    private String designOf(String content) {
+        if (StringUtils.isBlank(content)) {
+            return null;
+        }
+        String trimmed = content.trim();
+        if (trimmed.startsWith("{")) {
+            return trimmed;
+        }
+        return reportMaterializer.selectDesign(trimmed);
+    }
+
+    /** 版式设计 JSON → JSONObject（缺失/非法回退空对象，导出路径容错不报错） */
+    private JSONObject parseDesign(String content) {
+        String design = designOf(content);
+        if (StringUtils.isBlank(design)) {
+            return new JSONObject();
+        }
+        try {
+            return contentGovernor.parseContent(design);
+        } catch (ServiceException e) {
+            log.warn("[print template] 设计 JSON 解析失败，按空版式处理: {}", e.getMessage());
+            return new JSONObject();
+        }
     }
 
     private PrintTemplate getExist(Long id) {

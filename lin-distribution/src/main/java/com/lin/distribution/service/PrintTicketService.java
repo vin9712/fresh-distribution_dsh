@@ -31,6 +31,17 @@ public interface PrintTicketService {
     String issue(Long deliveryOrderId, Long templateId);
 
     /**
+     * 签发票据（指定用途，PR-D5）
+     *
+     * @param deliveryOrderId 绑定送货单（可空）
+     * @param templateId      绑定报表模板（可空）
+     * @param scope           用途：{@link PrintTicketPayload#SCOPE_PRINT} / {@link PrintTicketPayload#SCOPE_PREVIEW}；
+     *                        空或非法值归一化为真实打印
+     * @return ptk_ 前缀票据，TTL 300 秒
+     */
+    String issue(Long deliveryOrderId, Long templateId, String scope);
+
+    /**
      * 签发打印票据（D-055 视图化：无送货单ID 的 客户+日期(+点) 打印主体）
      *
      * @param bizKey     打印主体键（如 {@code matrix:10:2026-09-03} / {@code point:10:6:2026-09-03}）
@@ -38,6 +49,16 @@ public interface PrintTicketService {
      * @return ptk_ 前缀票据，TTL 300 秒
      */
     String issueByBizKey(String bizKey, Long templateId);
+
+    /**
+     * 签发打印主体票据（指定用途，PR-D5）：预览票据不登记打印分界
+     *
+     * @param bizKey     打印主体键
+     * @param templateId 绑定报表模板（可空）
+     * @param scope      用途：print / preview
+     * @return ptk_ 前缀票据，TTL 300 秒
+     */
+    String issueByBizKey(String bizKey, Long templateId, String scope);
 
     /**
      * 兑换票据（JimuReport 桥接调用）：首次调用消费未用票据，宽限窗口内复用返回同一用户

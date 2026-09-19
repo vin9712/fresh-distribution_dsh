@@ -6,6 +6,7 @@ import com.lin.distribution.domain.PrintTemplate;
 import com.lin.distribution.mapper.PrintPreviewLogMapper;
 import com.lin.distribution.mapper.PrintTemplateMapper;
 import com.lin.distribution.mapper.PrintTemplateVersionMapper;
+import com.lin.distribution.service.support.JimuReportMaterializer;
 import com.lin.distribution.service.support.TemplateContentGovernor;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -20,6 +21,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -35,12 +37,14 @@ class PrintTemplateIoServiceImplTest {
     private PrintTemplateVersionMapper printTemplateVersionMapper;
     @Mock
     private PrintPreviewLogMapper printPreviewLogMapper;
+    @Mock
+    private JimuReportMaterializer reportMaterializer;
 
     /** 直接构造：注入真实治理器（不依赖 Spring 容器） */
     private PrintTemplateServiceImpl service() {
         return new PrintTemplateServiceImpl(
                 printTemplateMapper, printTemplateVersionMapper, printPreviewLogMapper,
-                new TemplateContentGovernor());
+                new TemplateContentGovernor(), reportMaterializer);
     }
 
     private PrintTemplate publishedTemplate() {
@@ -84,6 +88,8 @@ class PrintTemplateIoServiceImplTest {
             ((PrintTemplate) inv.getArgument(0)).setId(99L);
             return 1;
         });
+        // 导入物化：同形态无参照报表 → 裸建报表，content 必须落为报表ID（PR-D1）
+        when(reportMaterializer.createReport(anyString(), anyString(), any())).thenReturn("RPT_IMPORTED_1");
 
         int count = service().importTemplates(pkg);
 
@@ -99,8 +105,8 @@ class PrintTemplateIoServiceImplTest {
         assertEquals("0", inserted.getIsDefault());
         assertEquals(PrintTemplateStatus.DRAFT.getCode(), inserted.getStatus());
         assertEquals(2, inserted.getCopies());
-        // content 含 schemaVersion 且保留了结构
-        assertTrue(inserted.getContent().contains("\"schemaVersion\":1"));
+        // content 契约始终为报表ID（物化产物），不再塞设计 JSON（修 PR-A2）
+        assertEquals("RPT_IMPORTED_1", inserted.getContent());
     }
 
     @Test
