@@ -41,7 +41,7 @@
             @click="handleEnterSort">调整排序</el-button>
         </el-col>
         <el-col :span="9" class="dept-sort-tip">
-          <el-icon><Rank /></el-icon> 点「调整排序」后可拖动行调整总单/总表列顺序
+          <el-icon><Rank /></el-icon> 点「调整排序」进入排序模式后可拖动调整总单/总表列顺序（平时不显示排序列）
         </el-col>
       </template>
       <template v-else>
@@ -61,14 +61,24 @@
     <el-table ref="deptTable" v-loading="loading" :data="customerDeptList" row-key="id"
       @selection-change="handleSelectionChange">
       <el-table-column v-if="!sortMode" type="selection" width="55" align="center" />
-      <el-table-column label="排序" width="60" align="center">
+      <!-- 排序模式专属：仅进入排序模式后才出现拖拽手柄列，平时列表不展示该列 -->
+      <el-table-column v-if="sortMode" label="排序" width="60" align="center">
         <template #default>
-          <el-icon class="dept-drag-btn" :class="{ 'is-active': sortMode }"
-            :title="sortMode ? '拖动调整顺序' : '点「调整排序」后可拖动'"><Rank /></el-icon>
+          <el-icon class="dept-drag-btn" title="拖动调整顺序"><Rank /></el-icon>
         </template>
       </el-table-column>
       <el-table-column label="编号" align="center" prop="code" />
       <el-table-column label="配送点" align="center" prop="name" />
+      <!-- s35：仅当该客户下有配送点声明了班次时才占一列，无班次客户列表保持不变 -->
+      <el-table-column v-if="hasShiftColumn" label="班次" align="center" width="150">
+        <template #default="scope">
+          <template v-if="shiftCodeList(scope.row).length">
+            <el-tag v-for="code in shiftCodeList(scope.row)" :key="code" size="small" effect="plain" type="primary"
+              class="dept-shift-tag">{{ shiftLabel(code) }}</el-tag>
+          </template>
+          <span v-else class="text-muted">—</span>
+        </template>
+      </el-table-column>
       <el-table-column label="是否有效" align="center" prop="valid">
         <template #default="scope">
           <dict-tag :options="dict.type.biz_yes_no" :value="scope.row.valid" />
@@ -233,8 +243,24 @@ export default {
       const current = (this.customerOptions || []).find(item => item.id === this.form.customerId);
       return !!(current && current.shiftEnabled);
     },
+    /**
+     * 列表只要有配送点声明了班次（shiftCodes 非空）才展示「班次」列：
+     * 不分班次的客户保持原列宽，不白白占一列。
+     */
+    hasShiftColumn() {
+      return (this.customerDeptList || []).some(d => !!(d.shiftCodes && String(d.shiftCodes).trim()));
+    },
   },
   methods: {
+    /** 班次字典值 → 显示文本（与订单页 shiftLabel 口径一致） */
+    shiftLabel(code) {
+      const hit = (this.dict.type.biz_shift_type || []).find(d => d.value === code);
+      return hit ? hit.label : code;
+    },
+    /** 该配送点的班次值列表（shiftCodes 为逗号分隔串，如 "DAY,NIGHT"） */
+    shiftCodeList(row) {
+      return String((row && row.shiftCodes) || '').split(',').map(s => s.trim()).filter(Boolean);
+    },
     /** 查询配送点列表 */
     getList() {
       this.loading = true;
@@ -465,20 +491,21 @@ export default {
 </script>
 
 <style lang="scss" scoped>
-/* D-074：行首拖拽手柄（总单列顺序） */
+/* D-074：行首拖拽手柄（总单列顺序），仅排序模式下渲染 */
 .dept-drag-btn {
   cursor: grab;
-  color: var(--el-text-color-secondary, #909399);
-  font-size: 16px;
-  &.is-active {
-    color: var(--el-color-primary, #409eff);
-    font-size: 18px;
-  }
+  color: var(--el-color-primary, #409eff);
+  font-size: 18px;
   &:active {
     cursor: grabbing;
   }
   &:hover {
     color: var(--el-color-primary, #409eff);
+  }
+}
+.dept-shift-tag {
+  & + & {
+    margin-left: 4px;
   }
 }
 .dept-sort-tip {

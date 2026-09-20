@@ -4,7 +4,8 @@
 //   1. 后端 PUT /partner/customerDept/sort：按 ids 顺序重排 sortNo，列表与矩阵列顺序随之变化
 //      （矩阵列口径：有数据列在前、当日无单列在后，各自内部保持主数据顺序 —— D-055 展示优化）
 //   2. 送货单据矩阵页「折叠当日无单列」开关：勾选后隐藏空列，取消恢复
-//   3. 配送点管理页存在拖拽手柄
+//   3. 配送点管理页：「调整排序」才出现拖拽手柄列，拖动仅本地预览、点「确认排序」才落库
+//   4. 配送点管理页：列表中有配送点声明班次时才出现「班次」列并按字典渲染 tag
 // 写库说明：第 1 步会临时改 sortNo，用例结束按原顺序还原。
 // 运行：ERP_USER=admin ERP_PASSWORD=admin123 node tests/e2e-dept-sort-and-empty-cols.mjs
 import assert from 'node:assert/strict';
@@ -141,17 +142,24 @@ try {
   assert.deepEqual(pTail, ['规格', '说明'], '点单应「规格」在「说明」前一列');
   console.log('PASS 规格列位置（矩阵/点单）');
 
-  // ---- 3. 配送点页拖拽手柄 ----
+  // ---- 3. 配送点页「调整排序」模式 - 拖拽手柄仅在排序模式下出现 ----
   await page.goto(`${base}/basicInfo/customer-dept/index/${pick.customerId}`, { waitUntil: 'domcontentloaded' });
   await page.waitForTimeout(2000);
-  const handle = await page.locator('.dept-drag-btn').count();
-  console.log('配送点页拖拽手柄数:', handle);
-  assert.ok(handle >= 1, '配送点页应渲染拖拽排序手柄');
+  assert.equal(await page.locator('.dept-drag-btn').count(), 0, '非排序模式下不应出现拖拽排序手柄列');
   assert.ok(await page.locator('.dept-sort-tip').isVisible(), '应有排序提示文案');
-  console.log('PASS 配送点页拖拽排序手柄 + 提示');
+  await page.screenshot({ path: 'test-results/dept-normal.png', fullPage: false });
+
+  await page.locator('button:has-text("调整排序")').click();
+  await page.waitForTimeout(1500);
+  const handle = await page.locator('.dept-drag-btn').count();
+  console.log('排序模式拖拽手柄数:', handle);
+  assert.ok(handle >= 2, '进入排序模式后应渲染每行拖拽手柄');
+  assert.ok(await page.locator('button:has-text("确认排序")').isVisible(), '排序模式应有「确认排序」');
+  assert.ok(await page.locator('button:has-text("取消")').isVisible(), '排序模式应有「取消」');
+  console.log('PASS 调整排序入口 → 排序模式手柄 + 确认/取消');
   await page.screenshot({ path: 'test-results/dept-sort.png', fullPage: false });
 
-  // 实际拖拽：把第 1 行拖到第 2 行之后，应触发排序保存（列表顺序变化）
+  // 拖拽：把第 1 行拖到第 2 行之后，点「确认排序」才落库
   const firstIdBefore = (await listIds())[0];
   const h = await page.locator('.dept-drag-btn').first().boundingBox();
   const rows = page.locator('.el-table__body-wrapper tbody tr.el-table__row');
@@ -160,16 +168,58 @@ try {
   await page.mouse.down();
   await page.mouse.move(h.x + h.width / 2, r2.y + r2.height * 0.9, { steps: 12 });
   await page.mouse.up();
-  await page.waitForTimeout(1500);
+  await page.waitForTimeout(500);
+  assert.equal((await listIds())[0], firstIdBefore, '拖动未确认前不应落库');
+  await page.locator('button:has-text("确认排序")').click();
+  await page.waitForTimeout(1800);
   const firstIdAfter = (await listIds())[0];
   console.log(`拖拽后首行 ${firstIdBefore} -> ${firstIdAfter}`);
-  assert.notEqual(firstIdAfter, firstIdBefore, '拖拽后列表首行应变化（排序已保存）');
-  console.log('PASS 拖拽排序已保存');
+  assert.notEqual(firstIdAfter, firstIdBefore, '确认排序后列表首行应变化');
+  assert.equal(await page.locator('.dept-drag-btn').count(), 0, '确认排序后应退出排序模式（手柄列消失）');
+  console.log('PASS 拖动仅本地预览，点「确认排序」才保存');
 
   // ---- 还原原顺序 ----
   await call('/partner/customerDept/sort', 'PUT', { customerId: pick.customerId, ids: originalIds });
   assert.deepEqual(await listIds(), originalIds, '还原失败');
   console.log('已还原原顺序');
+
+  // ---- 4. 班次列：仅当列表中有配送点声明班次时出现，按字典渲染 tag ----
+  const allCustomers = (await call('/partner/customer/list')).data || [];
+  const deptPageHeads = async (customerId) => {
+    await page.goto(`${base}/basicInfo/customer-dept/index/${customerId}`, { waitUntil: 'domcontentloaded' });
+    await page.waitForTimeout(1800);
+    return (await page.locator('.el-table__header th .cell').allInnerTexts()).map((t) => t.split('\n')[0].trim());
+  };
+  let shiftChecked = false;
+  for (const c of allCustomers) {
+    if (!c.shiftEnabled) continue;
+    const depts = (await call(`/partner/customerDept/list?customerId=${c.id}&hideParent=true`)).data || [];
+    const withShift = depts.filter((d) => d.shiftCodes && String(d.shiftCodes).trim());
+    if (!withShift.length) continue;
+    const heads = await deptPageHeads(c.id);
+    assert.ok(heads.includes('班次'), '有配送点声明班次的客户应展示「班次」列');
+    const tags = await page.locator('.dept-shift-tag').count();
+    assert.ok(tags >= withShift.length, `班次列应渲染 tag（期望 >= ${withShift.length}，实际 ${tags}）`);
+    console.log(`PASS 班次列（${c.alias || c.name}：${withShift.length} 个点声明班次，渲染 ${tags} 个 tag）`);
+    await page.screenshot({ path: 'test-results/dept-shift-column.png', fullPage: false });
+    shiftChecked = true;
+    break;
+  }
+  if (!shiftChecked) console.log('SKIP 未找到「启用班次且已声明班次」的客户，跳过班次列校验');
+
+  // 反向：无班次声明的客户不应出现「班次」列（列本身就不占位）
+  let plainChecked = false;
+  for (const c of allCustomers) {
+    if (c.shiftEnabled) continue;
+    const depts = (await call(`/partner/customerDept/list?customerId=${c.id}&hideParent=true`)).data || [];
+    if (depts.some((d) => d.shiftCodes && String(d.shiftCodes).trim())) continue;
+    const heads = await deptPageHeads(c.id);
+    assert.ok(!heads.includes('班次'), '无班次声明的客户不应出现「班次」列');
+    console.log(`PASS 无班次客户列表不含「班次」列（${c.alias || c.name}）`);
+    plainChecked = true;
+    break;
+  }
+  if (!plainChecked) console.log('SKIP 未找到「无班次声明」的客户，跳过反向校验');
 } finally {
   // 兜底还原
   if (pick && originalIds) {

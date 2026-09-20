@@ -120,7 +120,7 @@ node tests/e2e-hotel-print.mjs --published
 | 矩阵 | `composeLayout` 按「配送点×班次」展开列（列名=点名+班次名，adHoc 同样按班次）；格键由 `deptId` 改为 `deptId` 或 `deptId#班次`（未启用客户仍为纯 deptId，对外契约不变）；`selectMatrixCellsFromOrder` 回传并分组 `o.shift_code` |
 | 配货总表 | `selectBatchViewRowsFromOrder` 回传并分组 `o.shift_code`；`selectBatchView` 的点小计按「配送点×班次」展开（与总单矩阵列同口径），前端无需改动（直接渲染 `deptName`） |
 | 打印 | `PrintController.deliveryMatrixData` 按格键取数并额外输出 `shiftCode`；`SaleOrder.getDeliveryName()` 在送货单位后拼班次（如「大长江-华铃-夜班」），最近订单/批量确认等所有复用该口径的展示一并有班次 |
-| 前端 | 客户表单「启用班次」开关；配送点表单「班次」多选（仅启用班次的客户可见）；下单页「班次」下拉（按所选点声明，单班次自动带出并置灰，启用班次的客户必选）；矩阵页格键同口径 |
+| 前端 | 客户表单「启用班次」开关；配送点表单「班次」多选（仅启用班次的客户可见）；配送点列表**仅在列表中有配送点声明班次时**才多出一列「班次」，按字典 `biz_shift_type` 渲染 tag（无班次客户列表不变）；下单页「班次」下拉（按所选点声明，单班次自动带出并置灰，启用班次的客户必选）；矩阵页格键同口径 |
 | 附带 | `checkUniqueCustomerDept` 排除根节点（`parent_id=0` 是客户节点而非配送点），否则客户名与其自营食堂点名相同（大长江 + 子点「大长江」）会被重名校验误拦 |
 
 本次含 `lin-distribution` 导入器代码改动（见上节），已 `mvn install` 并重启后端；`mvn -pl lin-distribution -am test` **299/299 全绿**。未进行物理打印及长订单跨页验收；金鸿楼、金兴楼实际业务单据待录单后验收。
