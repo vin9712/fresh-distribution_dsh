@@ -16,6 +16,9 @@ export function issuePrintTicket(data) {
   return request({
     url: '/print/ticket',
     method: 'post',
-    data: data || {}
+    data: data || {},
+    // 票据是短时一次性凭据，允许同一主体连续签发（预览弹窗会为「数据面板 + 版式 iframe」各签一张），
+    // 关闭 RuoYi 防重复提交拦截，否则第二张会被「数据正在处理，请勿重复提交」拦下。
+    headers: { repeatSubmit: false }
   })
 }

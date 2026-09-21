@@ -154,7 +154,7 @@
       <el-table-column label="打印报表" align="center" prop="content" width="150" :show-overflow-tooltip="true">
         <template #default="scope">{{ jimuReportLabel(scope.row.content) }}</template>
       </el-table-column>
-      <el-table-column label="操作" align="center" class-name="small-padding fixed-width" width="300" fixed="right">
+      <el-table-column label="操作" align="center" class-name="small-padding fixed-width" width="350" fixed="right">
         <template #default="scope">
           <el-tooltip
             content="已发布模板不可直接修改，请修改后走「测试发布 → 发布」生成新版本"
@@ -181,6 +181,22 @@
             @click="openPreview(scope.row)"
             >预览</el-button
           >
+          <el-tooltip
+            content="打开 Excel 式积木报表设计器，像改 Excel 一样改版式；保存后对打印立即生效"
+            placement="top"
+          >
+            <span>
+              <el-button
+                size="small"
+                link
+                :icon="EditPen"
+                v-if="scope.row.content"
+                @click="openDesignerForTemplate(scope.row)"
+                v-hasPermi="['print:template:edit']"
+                >设计版式</el-button
+              >
+            </span>
+          </el-tooltip>
           <el-tooltip
             v-if="scope.row.bindType === 3"
             content="以全局模板为底稿创建未绑定草稿副本，改好后绑定到客户（适合每个客户定制不同版式）"
@@ -524,10 +540,6 @@
             style="width: 150px"
           />
         </el-form-item>
-        <el-form-item>
-          <el-button type="primary" size="small" :loading="previewLoading" @click="loadPreviewData">加载真实数据</el-button>
-          <el-button size="small" :disabled="!previewSubjectReady" @click="openPreviewView">版式预览</el-button>
-        </el-form-item>
       </el-form>
 
       <el-alert
@@ -564,30 +576,39 @@
                 show-overflow-tooltip
               />
             </el-table>
-            <el-empty v-else description="选择客户与配送日期后点击「加载真实数据」" />
+            <el-empty v-else :description="previewSubjectReady ? '正在加载真实数据…' : '选择客户与配送日期后自动加载'" />
           </div>
         </el-tab-pane>
         <el-tab-pane label="版式预览" name="view">
-          <div v-if="previewViewUrl" class="preview-toolbar">
-            <el-switch
-              v-model="previewEditMode"
-              active-text="单元格临时调整"
-              @change="onPreviewEditToggle"
-            />
-            <el-button size="small" :disabled="!previewViewUrl" @click="printPreviewFrame">打印（含调整）</el-button>
-            <el-button size="small" :disabled="!previewOverrideCount" @click="clearCellOverrides">
-              清除调整{{ previewOverrideCount ? "（" + previewOverrideCount + "）" : "" }}
-            </el-button>
-            <span class="hint">开启后点任意单元格即可改字；仅本次预览/打印生效，不改模板</span>
+          <div class="preview-toolbar">
+            <el-button
+              size="small"
+              type="primary"
+              plain
+              :icon="EditPen"
+              @click="openDesignerForTemplate(previewTemplate, previewSubject)"
+              v-hasPermi="['print:template:edit']"
+              >编辑版式（Excel 设计器）</el-button
+            >
+            <el-button size="small" :disabled="!previewViewUrl" @click="printPreviewFrame">打印本页</el-button>
+            <span class="hint">
+              客户+配送日期齐后自动加载真实版式（不登记打印分界）；设计器里像 Excel 一样改字/字体/底色/合并/
+              插删行列，保存后<strong>对打印立即生效</strong>，且设计器内置「预览」会带真实订单数据。
+            </span>
           </div>
-          <iframe
-            v-if="previewViewUrl"
-            ref="previewFrame"
-            :src="previewViewUrl"
-            class="preview-frame"
-            @load="onPreviewFrameLoad"
-          />
-          <el-empty v-else description="点击「版式预览」加载真实版式（预览不登记打印分界）" />
+          <div v-loading="previewViewLoading" class="preview-view-wrap">
+            <iframe
+              v-if="previewViewUrl"
+              ref="previewFrame"
+              :src="previewViewUrl"
+              class="preview-frame"
+              @load="previewViewLoading = false"
+            />
+            <el-empty
+              v-else
+              :description="previewSubjectReady ? '正在加载版式预览…' : '选择客户与配送日期后自动加载版式预览'"
+            />
+          </div>
         </el-tab-pane>
         <el-tab-pane label="字段字典" name="contract">
           <div v-loading="contractLoading">
@@ -656,7 +677,7 @@ import { issuePrintTicket } from "@/api/print/ticket";
 import { listJimuReports, fetchPrintPreviewData, getPrintContract, materializePrintTemplate, generatePrintTemplate } from "@/api/print/template";
 import { listCustomer } from "@/api/partner/customer";
 import { listCustomerDept } from "@/api/partner/customerDept";
-import { Search, Refresh, Plus, Delete, Edit, View, Brush, Clock, Download, Upload, Picture, CopyDocument } from "@element-plus/icons-vue";
+import { Search, Refresh, Plus, Delete, Edit, EditPen, View, Brush, Clock, Download, Upload, Picture, CopyDocument } from "@element-plus/icons-vue";
 
 /** W0-4.4 发布门禁清单（蓝图：必填字段/纸张/分页/长文本溢出校验） */
 const PUBLISH_CHECKLIST = [
@@ -682,7 +703,7 @@ export default {
   name: "PrintTemplate",
   dicts: ["t_print_template_type"],
   setup() {
-    return { Search, Refresh, Plus, Delete, Edit, View, Design: Brush, Clock, Download, Upload, Picture };
+    return { Search, Refresh, Plus, Delete, Edit, EditPen, View, Design: Brush, Clock, Download, Upload, Picture, CopyDocument };
   },
   data() {
     return {
@@ -739,10 +760,8 @@ export default {
       previewLoading: false,
       previewData: {},
       previewViewUrl: "",
+      previewViewLoading: false,
       previewHint: "",
-      // 版式预览：单元格临时调整（仅本次预览/打印生效，不改模板）
-      previewEditMode: false,
-      previewOverrideCount: 0,
       // 字段字典（P2 数据契约）
       contractLoading: false,
       contractData: null,
@@ -782,6 +801,19 @@ export default {
         (!this.previewNeedDept || !!this.previewDeptId)
       );
     },
+    /** 设计器预览主体（未选齐则 null → 设计器内置「预览」为空版式） */
+    previewSubject() {
+      if (!this.previewSubjectReady) return null;
+      return {
+        customerId: this.previewCustomerId,
+        customerDeptId: this.previewNeedDept ? this.previewDeptId : null,
+        deliveryDate: this.previewDate,
+      };
+    },
+    /** 预览主体键（未选齐为空串）——用于自动加载的变更侦听 */
+    previewSubjectKey() {
+      return this.previewSubjectReady ? this.previewBizKey() : "";
+    },
     /** 契约形态：与模板打印形态一致 */
     contractForm() {
       return this.previewTemplate.printForm === "MATRIX" ? "MATRIX" : "FLAT";
@@ -791,13 +823,28 @@ export default {
       return typeof this.form.content === "string" && this.form.content.trim().startsWith("{");
     },
   },
+  watch: {
+    // 主体（客户/配送点/日期）选齐或变更后，自动加载真实数据 + 自动渲染版式预览（无需按钮）
+    previewSubjectKey(key) {
+      if (!this.previewOpen) return;
+      if (key) {
+        this.scheduleAutoPreview();
+      } else {
+        this.previewData = {};
+        this.previewViewUrl = "";
+        this.previewHint = "";
+      }
+    },
+    previewOpen(open) {
+      if (open && this.previewSubjectKey) {
+        this.scheduleAutoPreview();
+      }
+    },
+  },
   created() {
     this.getPageList();
     this.loadCustomerTree();
     this.loadJimuReports();
-  },
-  beforeUnmount() {
-    this.stopCellEditorPolling();
   },
   methods: {
     getPageList() {
@@ -1146,12 +1193,85 @@ export default {
         })
         .catch(() => {});
     },
-    /** 打开 JimuReport 在线打印设计器（新窗口） */
+    /** 打开 JimuReport 报表列表（新窗口）：浏览/管理全部报表 */
     openDesigner() {
       // W0-4.1：URL 不再携带长期 JWT，改签发短时一次性打印票据（无单据绑定）
       issuePrintTicket({}).then((res) => {
         window.open("/jmreport/list?token=" + res.ticket, "_blank");
       });
+    },
+    /**
+     * 打开本模板对应的积木报表设计器（Excel 式）：深链到该模板的报表，无需在列表里再找。
+     * 设计器保存写入 jimu_report.json_str，打印视图实时读取 → 保存后对打印立即生效。
+     * subject（可选）={ customerId, customerDeptId, deliveryDate }：把打印主体注入设计器内置
+     * 「预览」地址，使设计器里也能直接看到真实订单数据（不传则预览为空版式）。
+     */
+    openDesignerForTemplate(row, subject) {
+      const reportId = this.jimuReportIdOf(row);
+      if (!reportId) {
+        this.$modal.msgWarning("该模板尚未物化为报表：请先在表单里「生成骨架」或选择积木报表并保存，再编辑版式");
+        return;
+      }
+      const s = subject && subject.customerId && subject.deliveryDate ? subject : null;
+      const payload = s ? { bizKey: this.bizKeyOf(s), templateId: row.id, scope: "preview" } : {};
+      issuePrintTicket(payload).then((res) => {
+        const w = window.open("/jmreport/index/" + reportId + "?token=" + res.ticket, "_blank");
+        if (s && w) {
+          this.injectDesignerPreview(w, res.ticket, s);
+        }
+      });
+    },
+    /** 打印主体键（与 PrintBizKeys 契约一致；有配送点=点单，否则=总单） */
+    bizKeyOf(s) {
+      return s.customerDeptId
+        ? "point:" + s.customerId + ":" + s.customerDeptId + ":" + s.deliveryDate
+        : "matrix:" + s.customerId + ":" + s.deliveryDate;
+    },
+    /**
+     * 把打印主体注入设计器内置「预览」地址（#toolbarViewBtn / xs.data.settings.viewUrl），
+     * 使设计器里点「预览」也能取到真实订单数据。设计器与主应用同源，故可跨窗口轮询改写。
+     */
+    injectDesignerPreview(w, ticket, s) {
+      const parts = ["ticket=" + ticket, "customerId=" + s.customerId, "deliveryDate=" + s.deliveryDate];
+      if (s.customerDeptId) parts.push("customerDeptId=" + s.customerDeptId);
+      const query = parts.join("&");
+      let tries = 0;
+      const timer = setInterval(() => {
+        tries += 1;
+        if (!w || w.closed || tries > 60) {
+          clearInterval(timer);
+          return;
+        }
+        let doc = null;
+        try {
+          doc = w.document;
+        } catch (e) {
+          clearInterval(timer);
+          return;
+        }
+        if (!doc) return;
+        const anchor = doc.getElementById("toolbarViewBtn");
+        if (anchor && anchor.href && !anchor.href.includes("customerId=")) {
+          anchor.href = anchor.href + (anchor.href.includes("?") ? "&" : "?") + query;
+        }
+        try {
+          const xs = w.xs;
+          const url = xs && xs.data && xs.data.settings ? String(xs.data.settings.viewUrl || "") : "";
+          if (url && !url.includes("customerId=")) {
+            xs.data.settings.viewUrl = url + (url.includes("?") ? "&" : "?") + query;
+          }
+        } catch (e) {
+          /* 设计器未就绪，下轮再试 */
+        }
+        if (anchor && anchor.href && anchor.href.includes("customerId=")) {
+          clearInterval(timer);
+        }
+      }, 500);
+    },
+    /** 模板对应的积木报表ID（content 为报表ID；为设计JSON 时视为尚未物化） */
+    jimuReportIdOf(row) {
+      const content = row && row.content ? String(row.content).trim() : "";
+      return content && !content.startsWith("{") ? content : "";
     },
     /** 预览 JimuReport 模板视图（无数据主体；测试发布预览用） */
     openView(row) {
@@ -1169,10 +1289,8 @@ export default {
       this.previewTab = "data";
       this.previewData = {};
       this.previewViewUrl = "";
+      this.previewViewLoading = false;
       this.previewHint = "";
-      this.previewEditMode = false;
-      this.previewOverrideCount = 0;
-      this.stopCellEditorPolling();
       this.contractData = null;
       this.contractShape = "LONG";
       this.previewDate = new Date().toISOString().slice(0, 10);
@@ -1180,121 +1298,25 @@ export default {
       this.previewDeptId = row.deliveryPointId || null;
       this.previewOpen = true;
     },
+    /** 主体（客户/配送点/日期）选齐后自动加载真实数据 + 版式预览（去抖 + 节流） */
+    scheduleAutoPreview() {
+      clearTimeout(this._autoPreviewTimer);
+      // JimuReport 社区版限制报表视图请求频率（约 1 秒内重复请求会被「请求过于频繁，请升级商业版」拦截），
+      // 故在去抖基础上再加最小间隔节流，避免「选客户 → 改日期」两次自动加载撞限流。
+      const sinceLast = Date.now() - (this._lastPreviewViewAt || 0);
+      const wait = Math.max(400, 1200 - sinceLast);
+      this._autoPreviewTimer = setTimeout(() => {
+        if (!this.previewOpen || !this.previewSubjectReady) return;
+        this.loadPreviewData();
+        this.openPreviewView();
+      }, wait);
+    },
     onPreviewClosed() {
+      clearTimeout(this._autoPreviewTimer);
       this.previewViewUrl = "";
-      this.stopCellEditorPolling();
-      this.previewEditMode = false;
+      this.previewViewLoading = false;
     },
-    // ==================== 版式预览：单元格临时调整（本次打印临时，不改模板） ====================
-
-    /** 覆盖项存储键：按 模板+打印主体 隔离 */
-    cellOverrideKey() {
-      return "print_cell_override:" + (this.previewTemplate.id || "") + ":" + this.previewBizKey();
-    },
-    loadCellOverrides() {
-      try {
-        return JSON.parse(localStorage.getItem(this.cellOverrideKey()) || "{}") || {};
-      } catch (e) {
-        return {};
-      }
-    },
-    saveCellOverrides(map) {
-      try {
-        localStorage.setItem(this.cellOverrideKey(), JSON.stringify(map));
-        this.previewOverrideCount = Object.keys(map).length;
-      } catch (e) {
-        /* 配额/隐私模式：忽略，仅本次会话生效 */
-      }
-    },
-    /** iframe 加载完成：恢复上次调整数量，必要时开启编辑 */
-    onPreviewFrameLoad() {
-      this.previewOverrideCount = Object.keys(this.loadCellOverrides()).length;
-      if (this.previewEditMode) {
-        this.startCellEditorPolling();
-      }
-    },
-    onPreviewEditToggle(v) {
-      if (v) {
-        this.bindCellEditor();
-        this.startCellEditorPolling();
-      } else {
-        this.stopCellEditorPolling();
-      }
-    },
-    startCellEditorPolling() {
-      this.stopCellEditorPolling();
-      let ticks = 0;
-      this._cellTimer = setInterval(() => {
-        ticks += 1;
-        this.bindCellEditor();
-        if (ticks >= 30) {
-          this.stopCellEditorPolling();
-        }
-      }, 800);
-    },
-    stopCellEditorPolling() {
-      if (this._cellTimer) {
-        clearInterval(this._cellTimer);
-        this._cellTimer = null;
-      }
-    },
-    /**
-     * 给预览 iframe 内的报表单元格绑定「点击改字」并回放已保存的调整。
-     * 单元格锚点 = 表格序:行序:列序（同一模板+主体下结构稳定）；报告异步渲染，故轮询重绑。
-     */
-    bindCellEditor() {
-      const iframe = this.$refs.previewFrame;
-      let doc = null;
-      try {
-        doc = iframe && iframe.contentDocument;
-      } catch (e) {
-        return; // 跨域不可控（正常同源，代理下成立）
-      }
-      if (!doc || !doc.body) return;
-      const overrides = this.loadCellOverrides();
-      doc.querySelectorAll("table").forEach((table, ti) => {
-        table.querySelectorAll("tr").forEach((tr, ri) => {
-          Array.from(tr.children).forEach((cell, ci) => {
-            const anchor = ti + ":" + ri + ":" + ci;
-            const editing = doc.activeElement === cell && cell.getAttribute("contenteditable") === "true";
-            if (!editing && overrides[anchor] !== undefined && cell.textContent !== overrides[anchor]) {
-              cell.textContent = overrides[anchor];
-            }
-            if (cell.dataset.previewBound === "1") return;
-            cell.dataset.previewBound = "1";
-            cell.style.cursor = "text";
-            cell.title = "点击编辑（本次打印临时调整，不改模板）";
-            cell.addEventListener("click", () => {
-              if (!this.previewEditMode) return;
-              cell.setAttribute("contenteditable", "true");
-              cell.focus();
-            });
-            cell.addEventListener("blur", () => {
-              if (cell.getAttribute("contenteditable") !== "true") return;
-              cell.setAttribute("contenteditable", "false");
-              const map = this.loadCellOverrides();
-              map[anchor] = cell.textContent;
-              this.saveCellOverrides(map);
-            });
-          });
-        });
-      });
-    },
-    /** 清除本次调整并重载版式（丢弃已应用的改动） */
-    clearCellOverrides() {
-      try {
-        localStorage.removeItem(this.cellOverrideKey());
-      } catch (e) {
-        /* 忽略 */
-      }
-      this.previewOverrideCount = 0;
-      const url = this.previewViewUrl;
-      this.previewViewUrl = "";
-      this.$nextTick(() => {
-        this.previewViewUrl = url;
-      });
-    },
-    /** 打印预览 iframe（含临时调整） */
+    /** 打印当前预览 iframe */
     printPreviewFrame() {
       const iframe = this.$refs.previewFrame;
       if (iframe && iframe.contentWindow) {
@@ -1340,7 +1362,6 @@ export default {
         if (!this.previewData.rows || !this.previewData.rows.length) {
           this.previewHint = "该主体当日没有已确认订单，请确认客户/日期是否正确";
         }
-        this.previewTab = "data";
       } catch (e) {
         this.$modal.msgError("加载预览数据失败：" + ((e && e.message) || "未知错误"));
       } finally {
@@ -1350,9 +1371,10 @@ export default {
     /** 版式预览：iframe 内嵌真实 JimuReport 视图（预览票据，不登记分界） */
     async openPreviewView() {
       if (!this.previewSubjectReady) {
-        this.$modal.msgWarning("请先选择客户/日期" + (this.previewNeedDept ? "/配送点" : ""));
         return;
       }
+      this._lastPreviewViewAt = Date.now();
+      this.previewViewLoading = true;
       try {
         const ticket = await this.issuePreviewTicket();
         const parts = this.previewBizKey().split(":");
@@ -1365,8 +1387,8 @@ export default {
           url += "&customerId=" + parts[1] + "&customerDeptId=" + parts[2] + "&deliveryDate=" + parts[3];
         }
         this.previewViewUrl = url;
-        this.previewTab = "view";
       } catch (e) {
+        this.previewViewLoading = false;
         this.$modal.msgError("打开版式预览失败：" + ((e && e.message) || "未知错误"));
       }
     },
@@ -1482,6 +1504,9 @@ export default {
   width: 100%;
   height: 640px;
   border: 0;
+}
+.preview-view-wrap {
+  min-height: 220px;
 }
 .preview-toolbar {
   display: flex;
