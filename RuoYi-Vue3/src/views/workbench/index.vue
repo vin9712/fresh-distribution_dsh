@@ -1,27 +1,21 @@
 <template>
   <div class="app-container">
-    <!-- 送货单生成异常高优告警（S14/Q36/D-037：定时窗口失败/部分失败时置顶提示） -->
-    <el-alert
-      v-if="jobAlert"
-      type="error"
-      :closable="false"
-      show-icon
-      class="job-alert"
-    >
-      <template #title>
-        <span class="job-alert-title">
-          {{ jobAlertText }}
-          <el-button link type="primary" @click="goTo({ path: '/order/delivery' })">去送货单页检查</el-button>
-        </span>
-      </template>
-    </el-alert>
-
-    <!-- S2-2.1 日结待办链：已确认订单 → 批量采购 → 送货打印 → 送达登记 → 独立验收 -->
+    <!-- S2-2.1 日结待办链（对齐 D-055 后流程：订单确认 → 采购录入 → 送货单据 → 订单页验收） -->
     <el-card class="chain-card" shadow="never">
       <template #header>
         <div class="chain-header">
-          <span class="chain-title">日结待办链</span>
-          <span class="chain-subtitle">从已确认订单到独立验收的当日闭环，点击节点进入对应队列</span>
+          <div class="chain-header-left">
+            <span class="chain-title">日结待办链</span>
+            <span class="chain-subtitle">从录入订单到验收的当日闭环，点击节点进入对应队列</span>
+          </div>
+          <!-- 录入订单：文员每天的第一动作，直接进录单页（新增态） -->
+          <el-button
+            type="primary"
+            :icon="Plus"
+            @click="goTo({ path: '/order/sale-detail/index/' })"
+            v-hasPermi="['order:sale:add']"
+            >录入订单</el-button
+          >
         </div>
       </template>
       <div class="todo-chain">
@@ -70,19 +64,12 @@
 </template>
 
 <script>
-import { getWorkbenchSummary, getJobAlert, getPendingAcceptance } from "@/api/workbench";
-import {
-  EditPen,
-  Checked,
-  ShoppingCart,
-  Printer,
-  Box,
-  RefreshLeft,
-} from "@element-plus/icons-vue";
+import { getWorkbenchSummary, getPendingAcceptance } from "@/api/workbench";
+import { EditPen, ShoppingCart, Box, RefreshLeft, Plus } from "@element-plus/icons-vue";
 
 export default {
   name: "Workbench",
-  components: { EditPen, Checked, ShoppingCart, Printer, Box, RefreshLeft },
+  components: { EditPen, ShoppingCart, Box, RefreshLeft },
   setup() {
     return {};
   },
@@ -92,9 +79,7 @@ export default {
       summary: {},
       // W0-3.2 待验收提醒分级计数（红/黄），来自 /workbench/pending-acceptance
       reminderCounts: { red: 0, yellow: 0 },
-      // 最近一次送货单生成任务异常记录（null = 无告警）
-      jobAlert: null,
-      // S2-2.1 日结待办链：按业务时序串联五个阶段
+      // S2-2.1 日结待办链：按业务时序串联四个阶段（对齐 D-055 后流程）
       chainNodes: [
         {
           key: "chainConfirmed",
@@ -102,32 +87,27 @@ export default {
           color: "#409eff",
           path: "/order/sale",
           query: { status: 1 },
+          countFn: (s) => s.confirmedOrders || 0,
           descFn: (s) =>
-            `共 ${s.confirmedOrders || 0} 单，明日配送待生成采购 ${s.pendingPurchase || 0} 单`,
+            `已确认 ${s.confirmedOrders || 0} 单，明日配送待采购录入 ${s.pendingPurchase || 0} 单`,
         },
         {
           key: "chainPurchase",
-          title: "批量采购",
+          title: "采购录入",
           color: "#67c23a",
-          path: "/order/purchase",
+          path: "/order/purchase/day/index/",
+          countFn: (s) => (s.purchaseDraft || 0) + (s.purchasePendingCost || 0),
           descFn: (s) =>
             `待确认 ${s.purchaseDraft || 0} 单，到货待确认成本 ${s.purchasePendingCost || 0} 单`,
         },
         {
-          key: "chainPrint",
-          title: "送货打印",
+          key: "chainDelivery",
+          title: "送货单据",
           color: "#e6a23c",
-          path: "/order/delivery",
-          query: { status: 0 },
-          descFn: (s) => `待打印送货单 ${s.pendingPrint || 0} 张`,
-        },
-        {
-          key: "chainDelivered",
-          title: "送达登记",
-          color: "#f89898",
-          path: "/order/delivery",
-          query: { status: 1 },
-          descFn: (s) => `已打印待登记送达 ${s.pendingMarkDelivered || 0} 张`,
+          path: "/order/batch",
+          countFn: (s) => s.pendingDelivery || 0,
+          descFn: (s) =>
+            `今日待配送 ${s.pendingDelivery || 0} 单（矩阵/配货/点单，打印总单或点单）`,
         },
         {
           key: "chainAcceptance",
@@ -135,13 +115,13 @@ export default {
           color: "#f56c6c",
           path: "/order/sale",
           query: { status: 1 },
-          descFn: (s) => `已送达待验收 ${s.pendingAcceptance || 0} 单（订单页「去验收」）`,
+          countFn: (s) => s.pendingAcceptance || 0,
+          descFn: (s) => `待验收 ${s.pendingAcceptance || 0} 单（订单页「去验收」）`,
         },
       ],
       cards: [
-        { key: "draftOrders", title: "待录/待确认订单", icon: "EditPen", color: "#409eff", path: "/order/sale" },
-        { key: "pendingPurchase", title: "待生成采购单", icon: "ShoppingCart", color: "#67c23a", path: "/order/sale" },
-        { key: "pendingPrint", title: "待打印送货单", icon: "Printer", color: "#e6a23c", path: "/order/delivery" },
+        { key: "draftOrders", title: "待录/待确认订单", icon: "EditPen", color: "#409eff", path: "/order/sale", query: { status: 0 } },
+        { key: "pendingPurchase", title: "待生成采购单", icon: "ShoppingCart", color: "#67c23a", path: "/order/purchase/day/index/" },
         { key: "pendingAcceptance", title: "待验收", icon: "Box", color: "#f56c6c", path: "/order/sale", query: { status: 1 } },
         { key: "pendingAdjust", title: "待处理加退换", icon: "RefreshLeft", color: "#909399", path: "/order/sale" },
       ],
@@ -149,7 +129,6 @@ export default {
   },
   created() {
     this.getSummary();
-    this.refreshJobAlert();
     this.refreshReminderCounts();
   },
   activated() {
@@ -169,14 +148,6 @@ export default {
           this.loading = false;
         });
     },
-    /** 拉取最近一次 DELIVERY_GENERATE 运行结果（失败/部分失败→高优告警） */
-    refreshJobAlert() {
-      getJobAlert()
-        .then((response) => {
-          this.jobAlert = response.data || null;
-        })
-        .catch(() => {});
-    },
     /** W0-3.2：拉取待验收列表并按提醒级别分计数（红2/黄1） */
     refreshReminderCounts() {
       getPendingAcceptance()
@@ -189,28 +160,15 @@ export default {
         })
         .catch(() => {});
     },
-    jobAlertText() {
-      const a = this.jobAlert || {};
-      const kind = a.status === 2 ? "部分失败（存在遗漏订单）" : "失败";
-      const warn = a.warningCount ? "，遗漏订单 " + a.warningCount + " 个" : "";
-      return (
-        "送货单定时生成" + kind + "：业务日期 " + (a.bizDate || "—") + warn +
-        (a.message ? "（" + a.message + "）" : "")
-      );
-    },
-    /** 链节点主计数：采购节点取 待确认+待成本 之和，其余取对应字段 */
+    /** 链节点主计数（由节点自带的 countFn 决定口径） */
     nodeCount(node) {
-      const s = this.summary;
-      if (node.key === "chainPurchase") {
-        return (s.purchaseDraft || 0) + (s.purchasePendingCost || 0);
-      }
-      return s[node.key.replace("chain", "pending")] || 0;
+      return node.countFn ? node.countFn(this.summary) : 0;
     },
     nodeDesc(node) {
       return node.descFn ? node.descFn(this.summary) : "";
     },
     goTo(item) {
-      // query：可选过滤条件（如待验收卡 → 订单页并筛选「已配送」）
+      // query：可选过滤条件（如待验收卡 → 订单页并筛选「已确认」）
       this.$router.push({ path: item.path, query: item.query });
     },
   },
@@ -218,22 +176,21 @@ export default {
 </script>
 
 <style lang="scss" scoped>
-.job-alert {
-  margin-bottom: 16px;
-  .job-alert-title {
-    font-weight: 600;
-    .el-button {
-      margin-left: 8px;
-    }
-  }
-}
 /* S2-2.1 日结待办链 */
 .chain-card {
   margin-bottom: 16px;
   .chain-header {
     display: flex;
-    align-items: baseline;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
     gap: 10px;
+    .chain-header-left {
+      display: flex;
+      align-items: baseline;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
     .chain-title {
       font-size: 15px;
       font-weight: 600;

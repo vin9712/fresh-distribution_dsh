@@ -126,30 +126,26 @@
       <template #col_op="{ row }">
         <el-button size="small" link :icon="View" @click="handleView(row)">查看</el-button>
         <el-button size="small" link :icon="DocumentCopy" @click="handleCopy(row)"
-          v-hasPermi="['product:quote:edit']">复制</el-button>
-        <!-- 变更状态 -->
+          v-hasPermi="['product:quote:edit']">复制为草稿</el-button>
+        <!-- 变更状态：已发布报价不可撤销（后端护栏），如需更正请「复制为草稿」 -->
         <el-button
           v-if="row.status == quoteStatus.NEW.code"
           size="small"
           link
           :icon="Operation"
-          @click="handleUpdateStatus(row, quoteStatus.PUBLISHED.name)"
+          @click="confirmPublish(row)"
           v-hasPermi="['product:quote:edit']"
           >发布</el-button
         >
-        <el-dropdown
-          size="small"
+        <el-button
           v-if="row.valid == '0' && row.status == quoteStatus.PUBLISHED.code"
-          @command="(command) => handleStatusCommand(command, row)"
+          size="small"
+          link
+          :icon="CircleClose"
+          @click="confirmInvalid(row)"
+          v-hasPermi="['product:quote:edit']"
+          >失效</el-button
         >
-          <el-button size="small" link :icon="Link">取消</el-button>
-          <template #dropdown>
-            <el-dropdown-menu>
-              <el-dropdown-item command="revoke">撤销</el-dropdown-item>
-              <el-dropdown-item command="invalid">失效</el-dropdown-item>
-            </el-dropdown-menu>
-          </template>
-        </el-dropdown>
         <!-- 更多操作 -->
         <el-dropdown
           v-if="row.valid == '0'"
@@ -176,6 +172,62 @@
         </el-dropdown>
       </template>
     </quick-table>
+
+    <!-- 新增报价对话框：选客户 + 生效时间 + 备注（不再强制先设置搜索区客户） -->
+    <el-dialog align-center title="新增报价" v-model="createDialog.open" width="520px" append-to-body>
+      <el-form
+        ref="createForm"
+        :model="createDialog.form"
+        :rules="createDialog.rules"
+        label-width="90px"
+      >
+        <el-form-item label="报价客户" prop="customerId">
+          <el-select
+            v-model="createDialog.form.customerId"
+            placeholder="请选择报价客户"
+            filterable
+            style="width: 100%"
+          >
+            <el-option
+              v-for="item in customerOptions"
+              :key="item.id"
+              :label="item.alias ? item.alias + '（' + item.name + '）' : item.name"
+              :value="item.id"
+            />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="生效时间" prop="effectiveDateRange">
+          <el-date-picker
+            v-model="createDialog.form.effectiveDateRange"
+            type="daterange"
+            value-format="YYYY-MM-DD"
+            start-placeholder="开始日期"
+            end-placeholder="结束日期"
+            unlink-panels
+            style="width: 100%"
+          />
+        </el-form-item>
+        <el-form-item label="报价备注" prop="remark">
+          <el-input
+            v-model="createDialog.form.remark"
+            type="textarea"
+            :rows="2"
+            placeholder="选填"
+          />
+        </el-form-item>
+      </el-form>
+      <el-alert type="info" :closable="false" show-icon>
+        <template #title>
+          进入报价详情后可从商品库批量挑选商品：当前客户没有客户商品时会自动展示商品库，支持自定义客户别名。
+        </template>
+      </el-alert>
+      <template #footer>
+        <div class="dialog-footer">
+          <el-button type="primary" @click="submitCreateQuote">进入报价</el-button>
+          <el-button @click="createDialog.open = false">取 消</el-button>
+        </div>
+      </template>
+    </el-dialog>
 
     <!-- 客户报价导入对话框 -->
     <el-dialog align-center :title="upload.title" v-model="upload.open" width="400px" append-to-body>
@@ -367,7 +419,7 @@ import {
   View,
   DocumentCopy,
   Operation,
-  Link,
+  CircleClose,
   DArrowRight,
   Upload,
   DocumentAdd,
@@ -378,6 +430,16 @@ function getEffectiveDateRange() {
   const now = new Date();
   const sevenDaysLater = new Date(now.getTime() + 3600 * 1000 * 24 * 7);
   return [now, sevenDaysLater];
+}
+
+// 初始化生效日期（YYYY-MM-DD 字符串，供 value-format 日期选择器直接使用）
+function getEffectiveDateStrings() {
+  const fmt = (d) =>
+    `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(
+      d.getDate()
+    ).padStart(2, "0")}`;
+  const [start, end] = getEffectiveDateRange();
+  return [fmt(start), fmt(end)];
 }
 
 export default {
@@ -395,7 +457,7 @@ export default {
       View,
       DocumentCopy,
       Operation,
-      Link,
+      CircleClose,
       DArrowRight,
       Upload,
       DocumentAdd,
@@ -423,6 +485,27 @@ export default {
       title: "",
       // 是否显示弹出层
       open: false,
+      // 新增报价对话框（客户+生效时间+备注，避免必须先设置搜索区客户）
+      createDialog: {
+        open: false,
+        form: {
+          customerId: null,
+          effectiveDateRange: [],
+          remark: null,
+        },
+        rules: {
+          customerId: [
+            { required: true, message: "请选择报价客户", trigger: "change" },
+          ],
+          effectiveDateRange: [
+            {
+              required: true,
+              message: "请选择报价生效时间",
+              trigger: "change",
+            },
+          ],
+        },
+      },
       // 客户报价导入参数
       upload: {
         // 是否显示弹出层（报价导入）
@@ -653,18 +736,67 @@ export default {
         query: { quoteId: row.id, mode: "view" },
       });
     },
-    /** 变更状态操作 */
-    handleStatusCommand(command, row) {
-      switch (command) {
-        case "revoke":
-          this.handleUpdateStatus(row, this.quoteStatus.NEW.name);
-          break;
-        case "invalid":
-          this.handleUpdateStatus(row, this.quoteStatus.INVALID.name);
-          break;
-        default:
-          break;
-      }
+    /** 发布确认弹窗：发布后按期生效、替换客户当前生效报价且不可撤回为草稿 */
+    confirmPublish(row) {
+      const customer = this.customerOptions.find((c) => c.id === row.customerId);
+      const customerName = customer
+        ? customer.alias || customer.name
+        : row.customerId;
+      const startText = this.parseTime(row.effectiveStartDate, "{y}-{m}-{d}");
+      const endText = this.parseTime(row.effectiveEndDate, "{y}-{m}-{d}");
+      // 今天是否落在有效期内：在期内则发布即生效并顶替旧报价，否则待生效
+      const start = row.effectiveStartDate ? new Date(row.effectiveStartDate) : null;
+      const end = row.effectiveEndDate ? new Date(row.effectiveEndDate) : null;
+      const now = new Date();
+      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const startDay = start
+        ? new Date(start.getFullYear(), start.getMonth(), start.getDate())
+        : null;
+      const endDay = end
+        ? new Date(end.getFullYear(), end.getMonth(), end.getDate())
+        : null;
+      const inRange = startDay && endDay && today >= startDay && today <= endDay;
+      const effectText = inRange
+        ? "该报价将<b>立即生效</b>，并替换该客户当前生效报价（原生效报价自动失效）。"
+        : "今天不在有效期内，发布后该报价<b>暂不生效</b>，待进入有效期后自动生效。";
+      this.$modal
+        .confirm(
+          `确认发布报价单 <b>${row.code}</b>？<br/>` +
+            `客户：<b>${customerName}</b><br/>` +
+            `有效期：${startText} ~ ${endText}<br/><br/>` +
+            `${effectText}<br/>` +
+            "发布后<b>不可撤回为草稿</b>，如需更正请作废后复制生成新报价单。<br/>" +
+            "系统会校验与已发布报价的有效期重叠冲突。",
+          "发布报价确认",
+          {
+            dangerouslyUseHTMLString: true,
+            type: "warning",
+            confirmButtonText: "确认发布",
+            cancelButtonText: "取消",
+          }
+        )
+        .then(() =>
+          this.handleUpdateStatus(row, this.quoteStatus.PUBLISHED.name, "发布成功")
+        )
+        .catch(() => {});
+    },
+    /** 作废确认弹窗 */
+    confirmInvalid(row) {
+      this.$modal
+        .confirm(
+          `确认作废报价单 <b>${row.code}</b>？<br/>作废后该报价立即失效且不可恢复；如需更正请复制生成新报价单。`,
+          "作废报价确认",
+          {
+            dangerouslyUseHTMLString: true,
+            type: "warning",
+            confirmButtonText: "确认作废",
+            cancelButtonText: "取消",
+          }
+        )
+        .then(() =>
+          this.handleUpdateStatus(row, this.quoteStatus.INVALID.name, "作废成功")
+        )
+        .catch(() => {});
     },
     /** 更多按钮操作 */
     handleMoreCommand(command, row) {
@@ -679,19 +811,37 @@ export default {
           break;
       }
     },
-    /** 新增按钮操作 */
+    /** 新增按钮操作：弹建单对话框（客户+生效时间+备注） */
     handleAdd() {
-      this.reset();
-      this.open = true;
-      this.title = "添加商品报价";
-      if (!this.queryParams.customerId) {
-        this.$modal.msgError("请先选择报价客户");
-        return;
-      }
-      // 跳转到新增详情
-      this.$router.push({
-        path: "/basicInfo/quote-detail/index/" + this.queryParams.customerId,
-        query: { quoteId: null, mode: "add" },
+      this.createDialog.form = {
+        customerId: this.queryParams.customerId || null,
+        effectiveDateRange: getEffectiveDateStrings(),
+        remark: null,
+      };
+      this.createDialog.open = true;
+      this.$nextTick(() => {
+        if (this.$refs.createForm) {
+          this.$refs.createForm.clearValidate();
+        }
+      });
+    },
+    /** 提交建单：带生效时间/备注跳转报价详情页 */
+    submitCreateQuote() {
+      this.$refs.createForm.validate((valid) => {
+        if (!valid) return;
+        const [startDate, endDate] = this.createDialog.form.effectiveDateRange;
+        this.createDialog.open = false;
+        this.$router.push({
+          path:
+            "/basicInfo/quote-detail/index/" + this.createDialog.form.customerId,
+          query: {
+            quoteId: null,
+            mode: "add",
+            startDate,
+            endDate,
+            remark: this.createDialog.form.remark || undefined,
+          },
+        });
       });
     },
     /** 修改按钮操作 */
@@ -723,14 +873,14 @@ export default {
         .catch(() => {});
     },
     /** 变更状态按钮操作 */
-    handleUpdateStatus(row, status) {
+    handleUpdateStatus(row, status, successMsg) {
       let param = {
         quoteId: row.id,
         status: status,
       };
       updateQuoteStatus(param).then((res) => {
         this.getPageList();
-        this.$modal.msgSuccess("变更状态成功");
+        this.$modal.msgSuccess(successMsg || "变更状态成功");
       });
     },
     /** 导出按钮操作 */

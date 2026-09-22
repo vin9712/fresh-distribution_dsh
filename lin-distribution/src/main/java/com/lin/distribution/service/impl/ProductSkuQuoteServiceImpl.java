@@ -119,7 +119,14 @@ public class ProductSkuQuoteServiceImpl implements ProductSkuQuoteService {
      * @return 结果
      */
     @Override
+    @Transactional
     public int deleteProductSkuQuoteByIds(Long[] ids) {
+        if (ids != null) {
+            for (Long id : ids) {
+                // 先删明细，避免主单删除后留下孤儿明细（明细为物理删除）
+                productSkuQuoteDetailMapper.deleteProductSkuQuoteDetailByQuoteId(id);
+            }
+        }
         return productSkuQuoteMapper.deleteProductSkuQuoteByIds(ids);
     }
 
@@ -130,7 +137,9 @@ public class ProductSkuQuoteServiceImpl implements ProductSkuQuoteService {
      * @return 结果
      */
     @Override
+    @Transactional
     public int deleteProductSkuQuoteById(Long id) {
+        productSkuQuoteDetailMapper.deleteProductSkuQuoteDetailByQuoteId(id);
         return productSkuQuoteMapper.deleteProductSkuQuoteById(id);
     }
 

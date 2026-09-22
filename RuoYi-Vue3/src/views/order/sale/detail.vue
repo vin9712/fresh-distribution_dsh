@@ -911,6 +911,7 @@
             clearable
             placeholder="请选择客户"
             style="width: 200px"
+            @change="queryBatchConfirmList"
           >
             <el-option
               v-for="item in customerOptions"
@@ -928,12 +929,8 @@
             placeholder="不限"
             clearable
             style="width: 150px"
+            @change="queryBatchConfirmList"
           />
-        </el-form-item>
-        <el-form-item>
-          <el-button type="primary" :icon="Search" :loading="batchConfirmLoading" @click="queryBatchConfirmList"
-            >查询</el-button
-          >
         </el-form-item>
       </el-form>
 
@@ -1882,11 +1879,11 @@ export default {
       this.batchConfirmVisible = true;
       this.queryBatchConfirmList();
     },
-    /** 查询该客户（可限配送日期）的草稿订单（status=0，后端列表已排除已删除） */
+    /** 查询该客户（可限配送日期）的草稿订单（status=0，后端列表已排除已删除）；客户/日期变化时自动触发 */
     queryBatchConfirmList() {
       if (!this.batchConfirmCustomerId) {
-        this.$modal.msgWarning("请先选择客户");
         this.batchConfirmRows = [];
+        this.batchConfirmSelection = [];
         return;
       }
       this.batchConfirmLoading = true;

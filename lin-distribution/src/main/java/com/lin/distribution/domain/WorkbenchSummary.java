@@ -28,11 +28,8 @@ public class WorkbenchSummary implements Serializable {
     /** 已确认未入库采购单数（S2-2.1/2.2 待办链：到货→待确认成本） */
     private Long purchasePendingCost;
 
-    /** 待打印送货单数 */
-    private Long pendingPrint;
-
-    /** 已打印待送达登记数（S2-2.1 待办链：送达登记阶段） */
-    private Long pendingMarkDelivered;
+    /** 今日待配送订单数（已确认且配送日期=今天；D-055 后送货单=订单视图，不再有「待打印」单） */
+    private Long pendingDelivery;
 
     /** 待验收送货单数（已送达未验收） */
     private Long pendingAcceptance;

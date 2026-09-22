@@ -11,8 +11,7 @@
             (select count(1) from t_sale_order where status = 1 and is_deleted = 0 and delivery_date = #{tomorrow}) as pendingPurchase,
             (select count(1) from purchase_order where status = 0) as purchaseDraft,
             (select count(1) from purchase_order where status = 1) as purchasePendingCost,
-            (select count(1) from t_delivery_order where status = 0 and is_deleted = 0) as pendingPrint,
-            (select count(1) from t_delivery_order where status = 1 and is_deleted = 0) as pendingMarkDelivered,
+            (select count(1) from t_sale_order where status = 1 and is_deleted = 0 and delivery_date = curdate()) as pendingDelivery,
             <!-- OA：待验收计数改订单维度（与 selectPendingAcceptance 同口径，一订单一行） -->
             (select count(1) from t_sale_order o
               where o.status = 1 and o.is_deleted = 0 and o.delivery_date &lt;= curdate()
